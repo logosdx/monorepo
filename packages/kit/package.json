@@ -1,0 +1,35 @@
+{
+  "name": "@logos-ui/kit",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "../../scripts/build.zsh utils",
+    "validate-types": "pnpm tsc --noEmit"
+  },
+  "files": [
+      "src/",
+      "dist/",
+      "docs/",
+      "readme.md"
+  ],
+  "keywords": [],
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "ISC",
+  "dependencies": {
+    "@logos-ui/dom": "workspace:^",
+    "@logos-ui/fetch": "workspace:^",
+    "@logos-ui/forms": "workspace:^",
+    "@logos-ui/localize": "workspace:^",
+    "@logos-ui/observer": "workspace:^",
+    "@logos-ui/state-machine": "workspace:^",
+    "@logos-ui/storage": "workspace:^",
+    "@logos-ui/utils": "workspace:^"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.1.62",
+    "@swc/core": "^1.3.55",
+    "typescript": "5"
+  }
+}

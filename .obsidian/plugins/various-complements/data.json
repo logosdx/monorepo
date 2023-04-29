@@ -1,0 +1,195 @@
+{
+  "strategy": "default",
+  "cedictPath": "./cedict_ts.u8",
+  "matchStrategy": "prefix",
+  "fuzzyMatch": true,
+  "matchingWithoutEmoji": true,
+  "treatAccentDiacriticsAsAlphabeticCharacters": false,
+  "maxNumberOfSuggestions": 5,
+  "maxNumberOfWordsAsPhrase": 3,
+  "minNumberOfCharactersTriggered": 0,
+  "minNumberOfWordsTriggeredPhrase": 1,
+  "complementAutomatically": true,
+  "delayMilliSeconds": 0,
+  "disableSuggestionsDuringImeOn": false,
+  "insertAfterCompletion": true,
+  "firstCharactersDisableSuggestions": ":/^",
+  "useCommonPrefixCompletionOfSuggestion": false,
+  "patternsToSuppressTrigger": [
+    "^~~~.*",
+    "^```.*"
+  ],
+  "showMatchStrategy": true,
+  "showComplementAutomatically": true,
+  "showIndexingStatus": true,
+  "descriptionOnSuggestion": "Short",
+  "selectSuggestionKeys": "Enter",
+  "additionalCycleThroughSuggestionsKeys": "None",
+  "disableUpDownKeysForCycleThroughSuggestionsKeys": false,
+  "openSourceFileKey": "None",
+  "propagateEsc": false,
+  "enableCurrentFileComplement": true,
+  "currentFileMinNumberOfCharacters": 0,
+  "onlyComplementEnglishOnCurrentFileComplement": false,
+  "enableCurrentVaultComplement": true,
+  "currentVaultMinNumberOfCharacters": 0,
+  "includeCurrentVaultPathPrefixPatterns": "",
+  "excludeCurrentVaultPathPrefixPatterns": "",
+  "includeCurrentVaultOnlyFilesUnderCurrentDirectory": false,
+  "enableCustomDictionaryComplement": false,
+  "customDictionaryPaths": "https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt",
+  "columnDelimiter": "Tab",
+  "customDictionaryWordRegexPattern": "",
+  "delimiterToHideSuggestion": "",
+  "delimiterToDivideSuggestionsForDisplayFromInsertion": "",
+  "caretLocationSymbolAfterComplement": "",
+  "displayedTextSuffix": " => ...",
+  "enableInternalLinkComplement": true,
+  "suggestInternalLinkWithAlias": false,
+  "excludeInternalLinkPathPrefixPatterns": "",
+  "updateInternalLinksOnSave": true,
+  "insertAliasTransformedFromDisplayedInternalLink": {
+    "enabled": false,
+    "beforeRegExp": "",
+    "after": ""
+  },
+  "enableFrontMatterComplement": true,
+  "frontMatterComplementMatchStrategy": "inherit",
+  "insertCommaAfterFrontMatterCompletion": false,
+  "intelligentSuggestionPrioritization": {
+    "maxDaysToKeepHistory": 30,
+    "maxNumberOfHistoryToKeep": 0
+  },
+  "disableOnMobile": false,
+  "showLogAboutPerformanceInConsole": false,
+  "selectionHistoryTree": {
+    "squirrel": {
+      "squirrel": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682739186433
+        }
+      }
+    },
+    "webapps": {
+      "webapps": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682739875068
+        }
+      }
+    },
+    "standardized": {
+      "standardized": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682740688494
+        }
+      }
+    },
+    "debatable": {
+      "debatable": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682742032928
+        }
+      }
+    },
+    "@logos-ui": {
+      "@logos-ui": {
+        "currentFile": {
+          "count": 3,
+          "lastUpdated": 1682742833954
+        }
+      }
+    },
+    "utilities": {
+      "utilities": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682742318959
+        }
+      }
+    },
+    "meta-programming": {
+      "meta-programming": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682742351109
+        }
+      }
+    },
+    "@logos-ui/riot-kit": {
+      "@logos-ui/riot-kit": {
+        "internalLink": {
+          "count": 1,
+          "lastUpdated": 1682742836440
+        }
+      }
+    },
+    "components": {
+      "components": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682743144698
+        }
+      }
+    },
+    "observer": {
+      "observer": {
+        "currentFile": {
+          "count": 2,
+          "lastUpdated": 1682743445830
+        }
+      }
+    },
+    "my-app": {
+      "my-app": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682743741112
+        }
+      }
+    },
+    "some-component": {
+      "some-component": {
+        "currentFile": {
+          "count": 3,
+          "lastUpdated": 1682744084442
+        }
+      }
+    },
+    "automatically": {
+      "automatically": {
+        "currentFile": {
+          "count": 2,
+          "lastUpdated": 1682744001177
+        }
+      }
+    },
+    "whenever": {
+      "whenever": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682744295647
+        }
+      }
+    },
+    "around": {
+      "around": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1682744332039
+        }
+      }
+    },
+    "@logos-ui/kit": {
+      "@logos-ui/kit": {
+        "internalLink": {
+          "count": 1,
+          "lastUpdated": 1682744815041
+        }
+      }
+    }
+  }
+}

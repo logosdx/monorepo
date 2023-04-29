@@ -1,0 +1,20 @@
+{
+  "name": "@logos-ui/monorepo",
+  "private": true,
+  "scripts": {
+    "build": "../../scripts/build.zsh utils",
+    "validate-types": "pnpm tsc --noEmit"
+  },
+  "files": [
+      "src/",
+      "dist/",
+      "docs/",
+      "readme.md"
+  ],
+  "keywords": [],
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^18.16.2"
+  }
+}

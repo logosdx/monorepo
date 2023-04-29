@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "allowJs": true,
+        "allowSyntheticDefaultImports": true,
+        "declaration": true,
+        "esModuleInterop": true,
+        "lib": ["ESNext", "DOM"],
+        "module": "CommonJS",
+        "moduleResolution": "nodenext",
+        "noEmitOnError": false,
+        "noImplicitThis": true,
+        "noUnusedParameters": true,
+        "pretty": true,
+        "sourceMap": true,
+        "strict": false,
+        "target": "esnext",
+        "outDir": "dist",
+        "declarationDir": "dist",
+    }
+}

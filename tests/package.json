@@ -1,0 +1,43 @@
+{
+    "name": "tests",
+    "private": true,
+    "scripts": {
+        "tdd": "nodemon -e 'ts' -x 'yarn test'",
+        "test": "TS_NODE_TRANSPILE_ONLY='true' mocha -r ./setup.js 'src/*.ts'"
+    },
+    "keywords": [],
+    "author": "danilo alonso <danilo@alonso.network>",
+    "license": "isc",
+    "devdependencies": {
+        "@types/node": "^18.16.2"
+    },
+    "dependencies": {
+        "@hapi/boom": "^10.0.1",
+        "@hapi/hapi": "^21.3.2",
+        "@logos-ui/dom": "workspace:^",
+        "@logos-ui/fetch": "workspace:^",
+        "@logos-ui/forms": "workspace:^",
+        "@logos-ui/kit": "workspace:^",
+        "@logos-ui/localize": "workspace:^",
+        "@logos-ui/observer": "workspace:^",
+        "@logos-ui/riot-kit": "workspace:^",
+        "@logos-ui/riot-utils": "workspace:^",
+        "@logos-ui/state-machine": "workspace:^",
+        "@logos-ui/storage": "workspace:^",
+        "@logos-ui/utils": "workspace:^",
+        "@types/chai": "^4.3.4",
+        "@types/mocha": "^10.0.1",
+        "@types/node": "^18.16.2",
+        "@types/sinon": "^10.0.14",
+        "chai": "^4.3.7",
+        "esm": "^3.2.25",
+        "fast-check": "^3.8.1",
+        "final-form": "^4.20.9",
+        "jsdom": "^21.1.1",
+        "mocha": "^10.2.0",
+        "riot": "^7.1.0",
+        "sinon": "^15.0.4",
+        "ts-node": "^10.9.1",
+        "typescript": "5"
+    }
+}

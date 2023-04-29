@@ -1,0 +1,48 @@
+{
+	"publishedPackages": [
+		{
+			"name": "@logos-ui/utils",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/dom",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/fetch",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/forms",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/localize",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/observer",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/riot-utils",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/state-machine",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/storage",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/kit",
+			"version": "1.0.0"
+		},
+		{
+			"name": "@logos-ui/riot-kit",
+			"version": "1.0.0"
+		}
+	]
+}
