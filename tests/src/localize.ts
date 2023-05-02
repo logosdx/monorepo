@@ -1,7 +1,7 @@
 import {
-    L10nFactory,
-    L10nLocale,
-    L10nOpts,
+    LocaleFactory,
+    LocaleType,
+    LocaleOpts,
 } from '@logos-ui/localize';
 import { DeepOptional } from '@logos-ui/utils';
 
@@ -59,7 +59,7 @@ const labelsByCode = {
 type Codes = keyof typeof labelsByCode;
 type Lang = typeof english;
 
-const locales: L10nOpts<Lang, Codes>['locales'] = {
+const locales: LocaleOpts<Lang, Codes>['locales'] = {
     en: { code: 'en', text: 'English', labels: english },
     es: { code: 'es', text: 'Spanish', labels: spanish },
     pt: { code: 'pt', text: 'Português', labels: portugues }
@@ -67,14 +67,14 @@ const locales: L10nOpts<Lang, Codes>['locales'] = {
 
 describe('@logos-ui/localize', function () {
 
-    let l10bMngr: L10nFactory<Lang, Codes>;
+    let l10bMngr: LocaleFactory<Lang, Codes>;
 
     it('requires a proper config', () => {
 
         expect(
             () => (
 
-                new L10nFactory <Lang, Codes>({
+                new LocaleFactory <Lang, Codes>({
                     // current: 'en',
                     fallback: 'en',
                     locales
@@ -85,7 +85,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new L10nFactory <Lang, Codes>({
+                new LocaleFactory <Lang, Codes>({
                     current: 'en',
                     // fallback: 'en',
                     locales
@@ -96,7 +96,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new L10nFactory <Lang, Codes>({
+                new LocaleFactory <Lang, Codes>({
                     current: 'en',
                     fallback: 'en',
                     // langs
@@ -107,7 +107,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new L10nFactory <Lang, Codes>({
+                new LocaleFactory <Lang, Codes>({
                     current: 'en',
                     fallback: 'en',
                     locales: 'wee'
@@ -118,7 +118,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new L10nFactory <Lang, Codes>({
+                new LocaleFactory <Lang, Codes>({
                     current: 'en',
                     fallback: 'en',
                     locales: []
@@ -129,7 +129,7 @@ describe('@logos-ui/localize', function () {
 
     it('instantiates', () => {
 
-        l10bMngr = new L10nFactory <Lang, Codes>({
+        l10bMngr = new LocaleFactory <Lang, Codes>({
             current: 'en',
             fallback: 'en',
             locales: locales

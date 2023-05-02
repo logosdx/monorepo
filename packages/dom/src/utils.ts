@@ -68,7 +68,6 @@ export const changeAndSubmitClonedForm = (
 
         html.css.set(clone, { display: 'none'});
 
-
         document.body.appendChild(clone);
 
         clone.submit();

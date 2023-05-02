@@ -1,6 +1,28 @@
 import { Func } from "./types";
 
 /**
+ * Defines visible, non-configurable properties on an object
+ * @param target
+ * @param props
+ */
+export const definePublicProps = <T, U>(target: T, props: U, configurable = false) => {
+
+    Object.entries(props).map(([prop, value]) => {
+
+        Object.defineProperty(
+            target,
+            prop,
+            {
+                value,
+                writable: false,
+                enumerable: true,
+                configurable
+            }
+        );
+    });
+};
+
+/**
  * Defines hidden, non-configurable properties on an object
  * @param target
  * @param props
@@ -52,11 +74,11 @@ class AssertationError extends Error {}
  * @param test value that is coerced to true
  * @param message error message to display when test is false
  */
-export const assert = (test: boolean, message?: string) => {
+export const assert = (test: boolean, message?: string, ErrorClass?: typeof Error) => {
 
     if (test === false) {
 
-        throw new AssertationError(message || 'assertion failed');
+        throw new (ErrorClass || AssertationError)(message || 'assertion failed');
     }
 };
 

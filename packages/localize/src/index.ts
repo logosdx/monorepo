@@ -7,18 +7,18 @@ import {
 
 import {
     getMessage,
-    L10nLocale,
-    L10nFormatArgs,
-    L10nEvent,
-    L10nEventName,
-    L10nListener,
+    LocaleType,
+    LocaleFormatArgs,
+    LocaleEvent,
+    LocaleEventName,
+    LocaleListener,
     LOC_CHANGE
 } from './helpers';
 
-export { L10nLocale } from './helpers';
+export { LocaleType } from './helpers';
 
 
-type ManyLocales<Locale extends L10nLocale, Code extends string> = {
+export type ManyLocales<Locale extends LocaleType, Code extends string> = {
     [P in Code]: {
         code: Code,
         text: string,
@@ -26,8 +26,8 @@ type ManyLocales<Locale extends L10nLocale, Code extends string> = {
     }
 }
 
-export type L10nOpts<
-    Locale extends L10nLocale,
+export type LocaleOpts<
+    Locale extends LocaleType,
     Code extends string = string
 > = {
 
@@ -81,8 +81,8 @@ export type L10nOpts<
  *
  * langMng.off('language-change', onChange);
  */
-export class L10nFactory<
-    Locale extends L10nLocale,
+export class LocaleFactory<
+    Locale extends LocaleType,
     Code extends string = string
 > extends EventTarget {
 
@@ -108,20 +108,20 @@ export class L10nFactory<
      * t('my.nested.key2', { first: 'Ofcourse', second: 'Obviously' });
      * // > "Ofcourse, I like steak. Obviously, I like rice."
      */
-    t: L10nFactory<Locale, Code>['text'];
+    t: LocaleFactory<Locale, Code>['text'];
 
     private _loc: Locale;
 
 
-    constructor(opts: L10nOpts<Locale, Code>) {
+    constructor(opts: LocaleOpts<Locale, Code>) {
 
         super();
 
-        assert(!!opts.current, 'Current language not set');
-        assert(!!opts.fallback, 'Fallback language not set');
-        assert(!!opts.locales, 'Languages config is not set');
-        assert(typeof opts.locales === 'object', 'Languages config is not an object');
-        assert(!Array.isArray(opts.locales), 'Languages config can not be an array');
+        assert(!!opts.current, 'Current language not set', TypeError);
+        assert(!!opts.fallback, 'Fallback language not set', TypeError);
+        assert(!!opts.locales, 'Languages config is not set', TypeError);
+        assert(typeof opts.locales === 'object', 'Languages config is not an object', TypeError);
+        assert(!Array.isArray(opts.locales), 'Languages config can not be an array', TypeError);
 
         this._locales = opts.locales;
         this.current = opts.current;
@@ -133,15 +133,15 @@ export class L10nFactory<
     }
 
     on(
-        ev: L10nEventName,
-        listener: L10nListener<Code>,
+        ev: LocaleEventName,
+        listener: LocaleListener<Code>,
         once = false
     ) {
 
         this.addEventListener(ev, listener, { once });
     }
 
-    off(ev: L10nEventName, listener: EventListenerOrEventListenerObject) {
+    off(ev: LocaleEventName, listener: EventListenerOrEventListenerObject) {
 
         this.removeEventListener(ev, listener);
     }
@@ -170,17 +170,22 @@ export class L10nFactory<
         )
     }
 
-    text <K extends PathsToValues<Locale>>(key: K, values?: L10nFormatArgs) {
+    text <K extends PathsToValues<Locale>>(key: K, values?: LocaleFormatArgs) {
 
         return getMessage(this._loc, key, values);
     }
 
     changeTo(code: Code) {
 
+        if (code === this.current) {
+            return;
+        }
+
         this.current = code;
+
         this.merge();
 
-        const event = new L10nEvent<Code>(LOC_CHANGE);
+        const event = new LocaleEvent<Code>(LOC_CHANGE);
         event.code = code;
 
         this.dispatchEvent(event);

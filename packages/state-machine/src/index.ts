@@ -58,7 +58,7 @@ export interface ReducerFunction<State = any, Value = State> {
     (value: Partial<Value> | Partial<State>, state?: State, ignore?: symbol): State | symbol
 }
 
-export type ListenerFunction<State = any> = (newState: State, oldState: State, flow?: StateMachine[]) => void
+export type ListenerFunction<S = any, R = any> = (newState: S, oldState: S, flow?: StateMachine<S, R>[]) => void
 
 // For skipping state modification
 const IGNORE = Symbol();
@@ -81,8 +81,8 @@ export class StateMachine<State = any, ReducerValue = any> {
     _internals: StateMachineState<State>;
     _states: Map<number, State>|null = null;
 
-    _reducers: Set<ReducerFunction<ReducerValue, State>>|null = null;
-    _listeners: Set<ListenerFunction<State>>|null = null;
+    _reducers: Set<ReducerFunction<State, ReducerValue>>|null = null;
+    _listeners: Set<ListenerFunction<State, ReducerValue>>|null = null;
 
     _parent: StateMachine|null = null;
 
@@ -108,6 +108,13 @@ export class StateMachine<State = any, ReducerValue = any> {
 
             _id: generateId()
         })
+
+        if (options.statesToKeep) {
+            assert(
+                isNaN(options.statesToKeep) === false,
+                'StateMachine options.statesToKeep is not a number'
+            );
+        }
 
         this._setupClone();
         this._addState(initialState);
@@ -230,7 +237,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      * @param {function} fn
      * @returns {StateMachine} manager instance
      */
-    addReducer(...fns: ReducerFunction[]){
+    addReducer(...fns: ReducerFunction <State, ReducerValue>[]){
 
         for (const fn of fns) {
 
@@ -269,7 +276,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      * @param {function} fns
      * @returns {StateMachine} manager instance
      */
-    addListener(...fns: ListenerFunction[]) {
+    addListener(...fns: ListenerFunction <State, ReducerValue>[]) {
 
         for (const fn of fns) {
             assertFunction(fn, 'listener');
@@ -287,7 +294,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      * @param {function} func
      * @returns {StateMachine} manager instance
      */
-    removeListener(...fns: ListenerFunction[]) {
+    removeListener(...fns: ListenerFunction <State, ReducerValue>[]) {
 
         for (const fn of fns) {
 

@@ -14,11 +14,9 @@ type HookFunctions<P, S> = Pick<
     HookKeys
 >
 
-type RiotHookComponent<P, S> = HookFunctions<P, S>[keyof HookFunctions<P, S>]
-
 export type MkHookOpts <T, P, S> = {
     component: T,
-    callback: RiotHookComponent<P, S>,
+    callback: (this: T, prop: P, state: S) => void,
     runAfterOriginal?: boolean
 }
 

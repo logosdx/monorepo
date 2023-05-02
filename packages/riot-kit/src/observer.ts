@@ -4,7 +4,7 @@ import { RiotComponent } from "riot";
 
 export type ObservableComponent<E, R> = Partial<
     ObservableInstanceChild<R, E>
->;
+> & { observable?: true };
 
 type MakeObservableOpts<C> = {
     component: C,

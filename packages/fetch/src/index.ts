@@ -1,6 +1,6 @@
 import { NonFunctionProps, assert } from '@logos-ui/utils';
 
-type ResponseBodyFunctions = keyof Omit<Body, NonFunctionProps<Body>>;
+export type TypeOfFactory = keyof Omit<Body, NonFunctionProps<Body>>;
 type HttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH' | string;
 
 type RequestOptions = Omit<RequestInit, 'headers'>
@@ -14,7 +14,9 @@ export interface FetchHeaders {
     'content-type'?: string;
 };
 
-export type RequestHeaders = Record<string, string> & FetchHeaders;
+type HeaderObj<T> = Record<string, string> & T;
+
+export type RequestHeaders = HeaderObj<FetchHeaders>;
 
 type FetchHeaderKeys = keyof RequestHeaders;
 
@@ -30,7 +32,10 @@ type FetchFactoryLifecycle = {
     onAfterReq?: (response: Response, opts: FetchReqOpts) => void | Promise<void>
 };
 
-type FetchFactoryOptions<State = {}> = (
+export type FetchFactoryOptions<
+    State = {},
+    InstanceHeaders = RequestHeaders
+> = (
 
     Omit<
     FetchReqOpts,
@@ -40,8 +45,8 @@ type FetchFactoryOptions<State = {}> = (
     {
         modifyOptions?: (opts: FetchReqOpts, state: State) => FetchReqOpts
         baseUrl: string,
-        type: ResponseBodyFunctions,
-        headers?: RequestHeaders,
+        type: TypeOfFactory,
+        headers?: HeaderObj<InstanceHeaders>,
         timeout?: number
     }
 );
@@ -51,9 +56,10 @@ interface AbortablePromise<T> extends Promise<T> {
     abort(reason?: string): void
 }
 
-export type FetchFactoryRequestOptions = (
+export type FetchFactoryRequestOptions<InstanceHeaders = FetchHeaders> = (
     FetchFactoryLifecycle &
-    Omit<FetchReqOpts, 'body' | 'method' | 'controller'>
+    Omit<FetchReqOpts, 'body' | 'method' | 'controller'> &
+    { headers?: HeaderObj<InstanceHeaders>}
 );
 
 export interface FetchError<T = {}> extends Error {
@@ -66,11 +72,11 @@ export interface FetchError<T = {}> extends Error {
 
 export class FetchError<T = {}> extends Error {}
 
-export class  FetchEvent<State = {}> extends Event {
+export class  FetchEvent<State = {}, InstanceHeaders = FetchHeaders> extends Event {
     state: State
     url?: string
     method?: HttpMethods
-    headers?: FetchHeaders
+    headers?: HeaderObj<InstanceHeaders>
     options?: FetchReqOpts
     data?: any
     payload?: any
@@ -151,12 +157,15 @@ export type FetchEventName = keyof typeof FetchEventNames;
  *      headers: { 'content-type': 'application/json' }
  * })
  */
-export class FetchFactory<State = {}> extends EventTarget {
+export class FetchFactory<
+    State = {},
+    InstanceHeaders = FetchHeaders
+> extends EventTarget {
 
     private _baseUrl: URL;
     private _options: Partial<FetchReqOpts>;
-    private _headers: RequestHeaders;
-    private _type: ResponseBodyFunctions;
+    private _headers: HeaderObj<InstanceHeaders>;
+    private _type: TypeOfFactory;
 
     private modifyOptions?: FetchFactoryOptions<State>['modifyOptions'];
 
@@ -167,11 +176,13 @@ export class FetchFactory<State = {}> extends EventTarget {
      */
     private _state: State = {} as State;
 
+    removeHeader: FetchFactory<State, InstanceHeaders>['rmHeader'];
+
     /**
      *
      * @param opts
      */
-    constructor({ baseUrl, type, ...opts }: FetchFactoryOptions<State>) {
+    constructor({ baseUrl, type, ...opts }: FetchFactoryOptions<State, InstanceHeaders>) {
 
         super()
 
@@ -194,9 +205,10 @@ export class FetchFactory<State = {}> extends EventTarget {
         const { modifyOptions, ...rest } = opts;
 
         this._options = rest;
-        this._headers = opts.headers as RequestHeaders || {};
+        this._headers = opts.headers || {} as HeaderObj<InstanceHeaders>;
 
         this.modifyOptions = modifyOptions;
+        this.removeHeader = this.rmHeader;
     }
 
     /**
@@ -232,7 +244,7 @@ export class FetchFactory<State = {}> extends EventTarget {
         method: HttpMethods,
         path: string,
         options: (
-            FetchFactoryRequestOptions &
+            FetchFactoryRequestOptions<InstanceHeaders> &
             FetchFactoryLifecycle &
             {
                 payload?: any,
@@ -441,7 +453,7 @@ export class FetchFactory<State = {}> extends EventTarget {
     request <Res = any, Data = any, Err = any>(
         method: HttpMethods,
         path: string,
-        options: FetchFactoryRequestOptions & { payload?: Data } = {}
+        options: FetchFactoryRequestOptions<InstanceHeaders> & { payload?: Data } = {}
     ): AbortablePromise<Res> {
 
 
@@ -483,7 +495,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * @param headers
      * @returns
      */
-    options <Res = any, Err = any>(path: string, options: FetchFactoryRequestOptions = {}) {
+    options <Res = any, Err = any>(path: string, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
         return this.request <Res, null, Err>('options', path, options);
     }
@@ -494,7 +506,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * @param headers
      * @returns
      */
-    get <Res = any, Err = any>(path: string, options: FetchFactoryRequestOptions = {}) {
+    get <Res = any, Err = any>(path: string, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
         return this.request <Res, null, Err>('get', path, options);
     }
@@ -505,7 +517,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * @param headers
      * @returns
      */
-    delete <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions = {}) {
+    delete <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
         return this.request <Res, Data, Err>('delete', path, { ...options, payload });
     }
@@ -516,7 +528,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * @param headers
      * @returns
      */
-    post <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions = {}) {
+    post <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
         return this.request <Res, Data, Err>('post', path, { ...options, payload });
     }
@@ -527,7 +539,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * @param headers
      * @returns
      */
-    put <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions = {}) {
+    put <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
         return this.request <Res, Data, Err>('put', path, { ...options, payload });
     }
@@ -538,7 +550,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * @param headers
      * @returns
      */
-    patch <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions = {}) {
+    patch <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
         return this.request <Res, Data, Err>('patch', path, { ...options, payload });
     }
@@ -547,7 +559,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * Set an object of headers
      * @param headers
      */
-    addHeader(headers: RequestHeaders) {
+    addHeader(headers: HeaderObj<InstanceHeaders>) {
 
         Object.assign(this._headers, headers);
 
@@ -563,7 +575,11 @@ export class FetchFactory<State = {}> extends EventTarget {
      * Remove headers by reference, array of names, or single name
      * @param headers
      */
-    rmHeader(headers: RequestHeaders | FetchHeaderKeys[] | FetchHeaderKeys) {
+    rmHeader (headers: keyof InstanceHeaders): void
+    rmHeader (headers: (keyof InstanceHeaders)[]): void
+    rmHeader (headers: string): void
+    rmHeader (headers: string[]): void
+    rmHeader (headers: unknown) {
 
 
         if (typeof headers === 'string') {
@@ -571,7 +587,7 @@ export class FetchFactory<State = {}> extends EventTarget {
             delete this._headers[headers];
         }
 
-        let _names = headers as FetchHeaderKeys[];
+        let _names = headers as (keyof HeaderObj<InstanceHeaders>)[];
 
         if (!Array.isArray(headers)) {
 
@@ -595,7 +611,7 @@ export class FetchFactory<State = {}> extends EventTarget {
      * @param name
      * @returns
      */
-    hasHeader(name: FetchHeaderKeys) {
+    hasHeader(name: (keyof HeaderObj<InstanceHeaders>)) {
 
         return this._headers.hasOwnProperty(name);
     }
@@ -664,7 +680,7 @@ export class FetchFactory<State = {}> extends EventTarget {
         ev: FetchEventName | '*',
         listener: (
             e: (
-                FetchEvent<State>
+                FetchEvent<State, InstanceHeaders>
             )
         ) => void,
         once = false

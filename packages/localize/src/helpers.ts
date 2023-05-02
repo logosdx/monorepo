@@ -3,11 +3,11 @@ import {
     PathsToValues
 } from '@logos-ui/utils';
 
-export type L10nLocale = {
-    [K in StrOrNum]: StrOrNum | L10nLocale;
+export type LocaleType = {
+    [K in StrOrNum]: StrOrNum | LocaleType;
 };
 
-export const reachIn = <T = any>(obj: L10nLocale, path: PathsToValues<L10nLocale>, defValue: any): T => {
+export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType>, defValue: any): T => {
 
     // If path is not defined or it has false value
     if (!path) return undefined
@@ -26,36 +26,10 @@ export const reachIn = <T = any>(obj: L10nLocale, path: PathsToValues<L10nLocale
     return result === undefined ? defValue : result
 }
 
-export const deepMerge = <T extends L10nLocale>(target: T, ...sources: T[]) => {
 
-    for (const source of sources) {
-
-        for (const k in source) {
-
-            if (typeof source[k] === 'object') {
-
-                const _t = (target || {}) as L10nLocale;
-
-                target[k] = deepMerge(
-                    (_t)[k] || {},
-                    source[k] as L10nLocale
-                ) as any;
-            }
-            else {
-
-                target[k] = source[k];
-            }
-        }
-    }
-
-
-    return target;
-}
-
-
-export type L10nReacher<T> = PathsToValues<T>;
-export type L10nFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>;
-export const format = (str: string, values: L10nFormatArgs) => {
+export type LocaleReacher<T> = PathsToValues<T>;
+export type LocaleFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>;
+export const format = (str: string, values: LocaleFormatArgs) => {
 
     const args = Object.entries(values);
 
@@ -66,10 +40,10 @@ export const format = (str: string, values: L10nFormatArgs) => {
     return str;
 };
 
-export const getMessage = <L extends L10nLocale>(
+export const getMessage = <L extends LocaleType>(
     locale: L,
-    reach: L10nReacher<L>,
-    values?: L10nFormatArgs
+    reach: LocaleReacher<L>,
+    values?: LocaleFormatArgs
 ) => {
 
     const str = reachIn(locale, reach, '?') as string;
@@ -80,13 +54,13 @@ export const getMessage = <L extends L10nLocale>(
 
 export const LOC_CHANGE = 'locale-change';
 
-export class L10nEvent<Code extends string = string, C = any> extends Event {
+export class LocaleEvent<Code extends string = string, C = any> extends Event {
     component?: C;
     code: Code;
 }
 
-export type L10nEventName = (
+export type LocaleEventName = (
     'locale-change'
 );
 
-export type L10nListener<Code extends string = string> = (e: L10nEvent<Code, any>) => void;
+export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code, any>) => void;

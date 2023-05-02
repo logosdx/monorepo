@@ -206,8 +206,11 @@ yarn add @logos-ui/riot-kit
 `my-app/src/app.js`
 ```js
 const LogosUI = require('@logos-ui/riot-kit');
+const Riot = require('riot');
 
 const composition = LogosUI.riotKit({
+
+	riotInstallFunction: Riot.install,
 
 	// pass observer options
 	observer: {

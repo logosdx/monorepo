@@ -1,5 +1,5 @@
 import { RiotComponent, RiotComponentWithoutInternals } from 'riot';
-import { definePrivateProps, Func, isFunction, NonFunctionProps } from '@logos-ui/utils';
+import { definePrivateProps, Func, isFunction, NonFunctionProps, FunctionProps } from '@logos-ui/utils';
 
 import { mergeState } from './utils';
 
@@ -13,6 +13,7 @@ export type RiotComponentExport<C, P = any, S = any> = (
 export type QueryableState<S> = S & {
     isFetching?: boolean,
     fetchError?: Error | null;
+    fetchData?: any
 };
 
 export interface QueryableComponent<C, S> {
@@ -22,7 +23,7 @@ export interface QueryableComponent<C, S> {
     /**
      * Names of the functions to make queryable on before mount
      */
-    makeFetching: (keyof Omit<C, NonFunctionProps<C>>)[],
+    fetchable: (keyof Omit<C, NonFunctionProps<C>>)[],
 
     /**
      * Toggle or set isFetching. Useful for when, for example,
@@ -60,9 +61,12 @@ export interface QueryableComponent<C, S> {
 export const makeQueryable = function <
     T extends RiotComponentExport<any>,
     State = any
->(component: RiotComponentExport<T>): T & QueryableComponent<T, State> {
+>(component: RiotComponentExport<T, unknown, State>): T & QueryableComponent<T, State> {
 
-    type I = T & RiotComponent<any, State> & QueryableComponent<T, State>;
+
+    type OnlyRCFuncs = Omit<RiotComponent<{}, QueryableState<State>>, 'state'>;
+
+    type I = T  & OnlyRCFuncs & QueryableComponent<T, State>;
 
     const implement = component as I;
 
@@ -70,8 +74,10 @@ export const makeQueryable = function <
 
     mergeState(implement, {
         isFetching: state.isFetching || false,
-        fetchError: null
+        fetchError: null,
+        fetchData: null
     });
+
 
     definePrivateProps(
         implement,
@@ -89,24 +95,29 @@ export const makeQueryable = function <
             },
             setFetching: async function <F extends Function>(this: I, fn: F) {
 
-                const state = {
+                this.update({
                     isFetching: true,
-                    fetchError: null
-                } as QueryableState<State>;
-
-                this.update({ ...state });
-
-                state.isFetching = false;
+                    fetchError: null,
+                    fetchData: null
+                } as QueryableState<State>);
 
                 try {
 
-                    const update = await fn() || {};
+                    const fetchData = await fn() || {};
 
-                    implement.update({ ...state, ...update });
+                    implement.update({
+                        fetchData,
+                        fetchError: null,
+                        isFetching: false,
+                    } as QueryableState<State>);
                 }
                 catch (fetchError) {
 
-                    implement.update({ ...state, fetchError });
+                    implement.update({
+                        fetchData: null,
+                        fetchError,
+                        isFetching: false,
+                    } as QueryableState<State>);
                 }
             },
             fnWillFetch: function <F extends Func>(this: I, fn: F) {
@@ -121,9 +132,9 @@ export const makeQueryable = function <
         }
     )
 
-    if (implement.makeFetching?.length) {
+    if (implement.fetchable?.length) {
 
-        const exists = implement.makeFetching.filter(
+        const exists = implement.fetchable.filter(
             name => !!implement[name] && isFunction(implement[name])
         );
 

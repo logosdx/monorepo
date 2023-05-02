@@ -1,12 +1,12 @@
 export * from '@logos-ui/kit';
 
 import type { install, RiotComponent } from 'riot';
-import { L10nFactory, L10nOpts, L10nLocale } from '@logos-ui/localize';
-import { Observable, ObservableInstanceChild, ObservableOptions } from '@logos-ui/observer';
-import { ReducerFunction, StateMachine, StateMachineOptions } from '@logos-ui/state-machine';
-import { StorageFactory, StorageImplementation } from '@logos-ui/storage';
 import { isFunction } from '@logos-ui/utils';
-import { appKit, AppKitOpts } from '@logos-ui/kit';
+import {
+    appKit,
+    AppKitOpts,
+    AppKitType,
+} from '@logos-ui/kit';
 
 import {
     makeQueryable,
@@ -14,47 +14,45 @@ import {
     QueryableState
 } from '@logos-ui/riot-utils';
 
-import {
-    makeComponentStateable,
-    MapToComponentFunction,
-    MapToStateFunction,
-    StateMachineComponent
-} from './state';
-
-import {
-    ObservableComponent,
-    makeComponentObservable
-} from './observer';
-
-import {
-    TranslatableComponent,
-    makeComponentTranslatable
-} from './l10n';
-
-import {
-    StoragableComponent,
-    makeComponentStoragable
-} from './storage';
+import { makeComponentStateable, StateMachineComponent } from './state';
+import { ObservableComponent, makeComponentObservable } from './observer';
+import { TranslatableComponent, makeComponentTranslatable } from './locales';
+import { StoragableComponent, makeComponentStoragable } from './storage';
 
 type QueryableRC<P, S> = RiotComponent<P, QueryableState<S>>;
 
-export type LogosRiotComponent<
-    Events = any,
-    AppState = any,
-    AppStateReducerValue = any,
-    Storage = any,
-    Locales extends L10nLocale = any,
-    LocaleCodes extends string = any,
+export type LogosUIRiotComponent<
+    KitType extends AppKitType,
     RiotCompProps = any,
     RiotCompState = any,
 > = (
 
-    QueryableRC<RiotCompProps, RiotCompState> &
-    ObservableComponent<Events, QueryableRC<RiotCompProps, RiotCompState>> &
-    TranslatableComponent<Locales, LocaleCodes> &
-    StateMachineComponent<AppState, AppStateReducerValue, RiotCompProps, QueryableState<RiotCompState>> &
+    QueryableRC<
+        RiotCompProps,
+        RiotCompState
+    > &
+    ObservableComponent<
+        KitType['eventsType'],
+        QueryableRC<
+            RiotCompProps,
+            RiotCompState
+        >
+    > &
+    TranslatableComponent<
+        KitType['locales']['localeType'],
+        KitType['locales']['codes']
+    > &
+    StateMachineComponent<
+        KitType['stateMachine']['stateType'],
+        KitType['stateMachine']['reducerValType'],
+        RiotCompProps,
+        QueryableState<RiotCompState>
+    > &
     StoragableComponent<Storage> &
-    QueryableComponent<QueryableRC<RiotCompProps, RiotCompState>, RiotCompState>
+    QueryableComponent<
+        QueryableRC<RiotCompProps, RiotCompState>,
+        RiotCompState
+    >
 );
 
 /**
@@ -64,44 +62,31 @@ export type LogosRiotComponent<
  * @param opts configs for different logos-ui components
  * @returns
  */
-export const riotKit = <
-    Events = any,
-    AppState = any,
-    AppStateReducerValue = AppState,
-    Storage = any,
-    Locales extends L10nLocale = any,
-    LocaleCodes extends string = any,
->(
-    opts: AppKitOpts<Events, AppState, AppStateReducerValue, Locales, LocaleCodes> & {
+export const riotKit = <KitType extends AppKitType>(
+
+    opts: AppKitOpts<KitType> & {
 
         riotInstallFunction: typeof install;
     }
 ) => {
 
     const {
-        l10n,
+        locale,
         observer,
         stateMachine,
         storage,
-    } = appKit <Events, AppState, AppStateReducerValue, Storage, Locales, LocaleCodes> (opts);
+        fetch
+    } = appKit <KitType> (opts);
 
-    type RiotKitComponent<P, S> = LogosRiotComponent<
-        Events,
-        AppState,
-        AppStateReducerValue,
-        Storage,
-        Locales,
-        LocaleCodes,
-        P, S
-    >;
+    type RiotKitComponent<P, S> = LogosUIRiotComponent<KitType, P, S>;
 
     opts.riotInstallFunction((component: RiotKitComponent<any, any>) => {
 
         if (!!stateMachine && isFunction(component.mapToState)) {
             makeComponentStateable({
                 component,
-                mapToState: component.mapToState,
                 stateMachine,
+                mapToState: component.mapToState,
                 mapToComponent: component.mapToComponent
             });
         }
@@ -110,15 +95,15 @@ export const riotKit = <
             makeComponentObservable({ component, observer });
         }
 
-        if (!!l10n && component.translatable) {
-            makeComponentTranslatable({ component, l10n });
+        if (!!locale && component.translatable) {
+            makeComponentTranslatable({ component, locale });
         }
 
         if (!!storage && (component.saveInKey || component.loadStorage)) {
             makeComponentStoragable({ component, storage });
         }
 
-        if (component.makeFetching) {
+        if (component.fetchable) {
 
             makeQueryable(component);
         }
@@ -128,8 +113,9 @@ export const riotKit = <
 
     return {
         observer,
-        l10n,
+        locale,
         stateMachine,
-        storage
+        storage,
+        fetch
     }
 };

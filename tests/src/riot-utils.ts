@@ -171,7 +171,6 @@ describe('@logos-ui/riot-utils', function () {
         });
     });
 
-
     describe('makeQueryable(...)', function () {
 
         it('should merge existing state with queryable state', function () {
@@ -181,6 +180,7 @@ describe('@logos-ui/riot-utils', function () {
             expect(queryable.state).to.contain({
                 isFetching: false,
                 fetchError: null,
+                fetchData: null,
                 something: 'intheway'
             })
         });
@@ -199,12 +199,21 @@ describe('@logos-ui/riot-utils', function () {
 
             const update = component.update as SinonStub;
 
+
             expect(
-                update.calledWith({ isFetching: true, fetchError: null })
+                update.calledWith({
+                    isFetching: true,
+                    fetchError: null,
+                    fetchData: null,
+                })
             ).to.be.true;
 
             expect(
-                update.calledWith({ isFetching: false, fetchError: null, some: 'state' })
+                update.calledWith({
+                    isFetching: false,
+                    fetchError: null,
+                    fetchData: { some: 'state' }
+                })
             ).to.be.true;
 
         });
@@ -221,7 +230,7 @@ describe('@logos-ui/riot-utils', function () {
 
             sinon.assert.calledWith(
                 update,
-                { isFetching: true, fetchError: null }
+                { isFetching: true, fetchError: null, fetchData: null }
             );
 
             const { args: [call]} = update.getCall(1);
@@ -245,12 +254,12 @@ describe('@logos-ui/riot-utils', function () {
 
             sinon.assert.calledWithExactly(
                 update,
-                { isFetching: true, fetchError: null }
+                { isFetching: true, fetchError: null, fetchData: null }
             );
 
             sinon.assert.calledWithExactly(
                 update,
-                { isFetching: false, fetchError: null, some: 'state' }
+                { isFetching: false, fetchError: null, fetchData: { some: 'state' } }
             );
 
             sinon.assert.calledWithExactly(
@@ -269,7 +278,7 @@ describe('@logos-ui/riot-utils', function () {
             component.fake1 = fake1;
             component.fake2 = fake2;
 
-            component.makeFetching = ['fake1', 'fake2'] as any;
+            component.fetchable = ['fake1', 'fake2'];
 
             const queryable = makeQueryable(component);
 
@@ -278,13 +287,25 @@ describe('@logos-ui/riot-utils', function () {
 
             const update = component.update as SinonStub;
 
-            const [load1, res1, load2, res2] = update.getCalls();
+            const [[load1], [res1], [load2], [res2]] = update.args;
 
-            expect(load1.args[0]).to.include({ isFetching: true, fetchError: null });
-            expect(load2.args[0]).to.include({ isFetching: true, fetchError: null });
+            expect(load1).to.include({ isFetching: true, fetchError: null });
+            expect(load2).to.include({ isFetching: true, fetchError: null });
 
-            expect(res1.args[0]).to.include({ isFetching: false, fetchError: null, some: 'state' });
-            expect(res2.args[0]).to.include({ isFetching: false, fetchError: null, soom: 'staat' });
+
+            expect(res1).to.include({
+                isFetching: false,
+                fetchError: null,
+            });
+
+            expect(res1.fetchData).to.include({ some: 'state' });
+
+            expect(res2).to.include({
+                isFetching: false,
+                fetchError: null,
+            });
+
+            expect(res2.fetchData).to.include({ soom: 'staat' });
         });
 
         it('should toggle fetching', async () => {
@@ -325,9 +346,6 @@ describe('@logos-ui/riot-utils', function () {
 
         })
     });
-
-
-
 });
 
 

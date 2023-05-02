@@ -1,4 +1,4 @@
-import { definePrivateProps } from '@logos-ui/utils';
+import { assert, definePrivateProps } from '@logos-ui/utils';
 
 /**
  * Overrideable interface
@@ -315,13 +315,17 @@ export class Observable<
         // Validate option if exists
         if (options) {
 
-            if (options.ref && typeof options.ref !== 'string') {
-                throw TypeError('Observable options.ref must be a string');
-            }
+            assert(
+                options.ref && typeof options.ref === 'string',
+                'Observable options.ref must be a string',
+                TypeError
+            );
 
-            if (options.spy && typeof options.spy !== 'function') {
-                throw TypeError('Observable options.spy must be a function');
-            }
+            assert(
+                options.spy && typeof options.spy === 'function',
+                'Observable options.spy must be a function',
+                TypeError
+            );
 
             options.ref && definePrivateProps(this, { $_ref: options.ref });
             options.spy && definePrivateProps(this, { $_spy: options.spy });

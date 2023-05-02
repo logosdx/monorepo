@@ -18,7 +18,7 @@ export type StateMachineComponent<A, R, P, S> = {
     dispatch?: (value: A | R) => void
 
     mapToState?: MapToStateFunction<A, P, S>
-    mapToProps?: MapToComponentFunction<P, S>
+    mapToComponent?: MapToComponentFunction<P, S>
 };
 
 type ConnectedComponent<A, R, P, S> = (
@@ -55,8 +55,15 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
     }
 ) => {
 
-    assert(isFunction(opts.mapToState), 'mapToState must be a function');
-    assert(isFunctionOrObject(opts.mapToComponent), 'mapToComponent must be an object or function that returns and object');
+    assert(
+        opts.mapToState && isFunction(opts.mapToState),
+        'mapToState must be a function'
+    );
+
+    assert(
+        opts.mapToComponent && isFunctionOrObject(opts.mapToComponent),
+        'mapToComponent must be an object or function that returns and object'
+    );
 
     const {
         component,
@@ -69,18 +76,13 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
         update: null,
         componentState: null,
         componentProps: null,
-        onBeforeMount: component.onBeforeMount || null,
-        onBeforeUnmount: component.onBeforeUnmount || null,
-        onUpdated: component.onUpdated || null
     };
 
     // Should only call update if state has changed
     store.listener = (newState) => {
 
         const { componentState, componentProps } = store;
-
         const change = mapToState(newState, componentState, componentProps);
-
         const isEqual = deepEqual(change, componentState);
 
         if (!isEqual) store.update(change);
@@ -98,11 +100,6 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
 
             // When state is updated, update component state.
             stateMachine.addListener(store.listener);
-
-
-            if (store.onBeforeMount) {
-                store.onBeforeMount.apply(this, [props, state]);
-            }
 
             state = { ...state, ...this.state };
 

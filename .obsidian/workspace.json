@@ -69,7 +69,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "823eaf69fd066dcc",
@@ -150,6 +151,10 @@
   },
   "active": "a57a2af72e4b0105",
   "lastOpenFiles": [
+    "packages/riot-utils/dist/utils.ts",
+    "packages/riot-utils/dist/queryable.ts",
+    "packages/riot-utils/dist/index.ts",
+    "packages/dom/dist/events.js",
     "stackoverflow.com.md",
     "A set of tools for sane people.md"
   ]

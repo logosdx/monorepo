@@ -1,4 +1,4 @@
-import { NullableObject } from "@logos-ui/utils";
+import { NullableObject, definePrivateProps, definePublicProps } from "@logos-ui/utils";
 
 
 class StorageError extends Error {};
@@ -22,9 +22,9 @@ export type StorageImplementation = {
 // export type AppStorageKeys = Keys;
 // export type AppStorageShapes<Values, K> = Shapes<Values, K>;
 
-class StorageEvent<V> extends Event {
-    keys?: keyof V | (keyof V)[];
-    data: V[keyof V] | { [K in keyof V]: V[K] };
+export class StorageEvent<V> extends Event {
+    key?: keyof V | (keyof V)[];
+    value: V[keyof V] | { [K in keyof V]: V[K] };
 }
 
 export enum StorageEventNames {
@@ -43,11 +43,13 @@ const makeEvent = <V, K extends keyof V = keyof V>(
 
     const ev = new StorageEvent <V>(StorageEventNames[type]);
 
-    ev.keys = key;
-    ev.data = value;
+    definePublicProps(ev, { key, value });
 
     return ev;
 }
+
+export type L10nListener<V> = (e: StorageEvent<V>) => void;
+
 
 export class StorageFactory<Values> extends EventTarget {
 
@@ -72,6 +74,21 @@ export class StorageFactory<Values> extends EventTarget {
         this.remove = this.rm;
         this.reset = this.clear;
     }
+
+    on(
+        ev: keyof typeof StorageEventNames,
+        listener: L10nListener<Values>,
+        once = false
+    ) {
+
+        this.addEventListener(ev, listener, { once });
+    }
+
+    off(ev: keyof typeof StorageEventNames, listener: EventListenerOrEventListenerObject) {
+
+        this.removeEventListener(ev, listener);
+    }
+
 
     /**
      * Returns all items from storage
@@ -135,14 +152,6 @@ export class StorageFactory<Values> extends EventTarget {
 
         if (typeof key === 'object') {
 
-            this.dispatchEvent(
-                makeEvent <Values>(
-                    'storage-before-set',
-                    null,
-                    key as Values
-                )
-            );
-
             const entries = Object.entries(key) as [keyof Values, Values[keyof Values]][];
 
             entries.map(
@@ -150,14 +159,6 @@ export class StorageFactory<Values> extends EventTarget {
                     this.set(key, val as any)
                 )
             )
-
-            this.dispatchEvent(
-                makeEvent <Values>(
-                    'storage-after-set',
-                    null,
-                    key as Values
-                )
-            );
 
             return;
         }
@@ -216,9 +217,7 @@ export class StorageFactory<Values> extends EventTarget {
             throw new StorageError(`value (${val}) cannot be assigned (not an object)`);
         }
 
-        Object.assign(current, val);
-
-        return this.set(key, current as Values[K]);
+        return this.set(key, Object.assign(current, val) as Values[K]);
     }
 
     /**
@@ -229,18 +228,12 @@ export class StorageFactory<Values> extends EventTarget {
 
         this._assertKey(keyOrKeys[0]);
 
-        this.dispatchEvent(
-            makeEvent <Values>('storage-before-set', keyOrKeys, null)
-        );
-
         if (Array.isArray(keyOrKeys)) {
+
+
 
             keyOrKeys.map(
                 key => this.rm(key)
-            )
-
-            this.dispatchEvent(
-                makeEvent <Values>('storage-before-set', keyOrKeys, null)
             );
 
             return
@@ -248,12 +241,16 @@ export class StorageFactory<Values> extends EventTarget {
 
         if (typeof keyOrKeys === 'string') {
 
+            this.dispatchEvent(
+                makeEvent <Values>('storage-before-unset', keyOrKeys, null)
+            );
+
             this.storage.removeItem(
                 this._key(keyOrKeys) as string
             );
 
             this.dispatchEvent(
-                makeEvent <Values>('storage-before-set', keyOrKeys, null)
+                makeEvent <Values>('storage-after-unset', keyOrKeys, null)
             );
         }
     }

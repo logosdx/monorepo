@@ -3,18 +3,29 @@
   "private": true,
   "scripts": {
     "build": "../../scripts/build.zsh utils",
-    "validate-types": "pnpm tsc --noEmit"
+    "validate-types": "pnpm tsc --noEmit",
+    "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'"
   },
   "files": [
-      "src/",
-      "dist/",
-      "docs/",
-      "readme.md"
+    "src/",
+    "dist/",
+    "docs/",
+    "readme.md"
   ],
   "keywords": [],
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^18.16.2"
+    "@types/node": "^18.16.2",
+    "nodemon": "^2.0.22"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "packages"
+    ],
+    "ignore": [
+      "*.js",
+      "node_modules"
+    ]
   }
 }
