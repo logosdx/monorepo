@@ -3,8 +3,9 @@
   "private": true,
   "scripts": {
     "build": "../../scripts/build.zsh utils",
-    "validate-types": "pnpm tsc --noEmit",
-    "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'"
+    "lint": "pnpm tsc --noEmit",
+    "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
+    "clear": "rm -r packages/{dom,fetch,forms,kit,localize,observer,riot-kit,riot-utils,state-machine,storage,utils}/dist"
   },
   "files": [
     "src/",
@@ -27,5 +28,14 @@
       "*.js",
       "node_modules"
     ]
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.26.1",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-commonjs": "^24.1.0",
+    "@rollup/plugin-node-resolve": "^15.0.2",
+    "@rollup/plugin-terser": "^0.4.1",
+    "rollup": "^3.21.3",
+    "tslib": "^2.5.0"
   }
 }

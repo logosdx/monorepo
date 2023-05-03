@@ -2,11 +2,13 @@
   "name": "@logos-ui/dom",
   "version": "1.0.0",
   "description": "",
+  "browserFuncName": "LogosUI.Dom",
+  "cdn": "dist/bundle.js",
   "main": "dist/index.js",
   "types": "src/index.ts",
   "scripts": {
     "build": "../../scripts/build.zsh utils",
-    "validate-types": "pnpm tsc --noEmit"
+    "lint": "pnpm tsc --noEmit"
   },
   "files": [
       "src/",

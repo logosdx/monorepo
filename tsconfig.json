@@ -15,6 +15,6 @@
         "strict": false,
         "target": "esnext",
         "outDir": "dist",
-        "declarationDir": "dist",
+        "declarationDir": "dist"
     }
 }

@@ -4,9 +4,11 @@
   "description": "",
   "main": "dist/index.js",
   "types": "src/index.ts",
+  "browserFuncName": "LogosUI.Forms",
+  "cdn": "dist/bundle.js",
   "scripts": {
     "build": "../../scripts/build.zsh utils",
-    "validate-types": "pnpm tsc --noEmit"
+    "lint": "pnpm tsc --noEmit"
   },
   "files": [
       "src/",
