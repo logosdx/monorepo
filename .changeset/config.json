@@ -3,27 +3,9 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [
-    ["@logos-ui/dom", "@logos-ui/util"],
-    ["@logos-ui/fetch", "@logos-ui/util"],
-    ["@logos-ui/localize", "@logos-ui/util"],
-    ["@logos-ui/observer", "@logos-ui/util"],
-    ["@logos-ui/riot-utils", "@logos-ui/util"],
-    ["@logos-ui/state-machine", "@logos-ui/util"],
-    ["@logos-ui/storage", "@logos-ui/util"],
-
-    ["@logos-ui/kit", "@logos-ui/util"],
-    ["@logos-ui/kit", "@logos-ui/dom"],
-    ["@logos-ui/kit", "@logos-ui/localize"],
-    ["@logos-ui/kit", "@logos-ui/observer"],
-    ["@logos-ui/kit", "@logos-ui/state-machine"],
-    ["@logos-ui/kit", "@logos-ui/storage"],
-
-    ["@logos-ui/riot-kit", "@logos-ui/kit"],
-    ["@logos-ui/riot-kit", "@logos-ui/riot-utils"]
-  ],
+  "linked": [["*"]],
   "access": "restricted",
-  "baseBranch": "main",
+  "baseBranch": "master",
   "updateInternalDependencies": "patch",
   "ignore": []
 }
