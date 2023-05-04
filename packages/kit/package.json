@@ -1,13 +1,14 @@
 {
   "name": "@logos-ui/kit",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "A collection of strongly-typed LogosUI libraries to kitstart your app",
   "main": "dist/index.js",
-  "types": "src/index.ts",
+  "types": "dist/index.d.ts",
   "browserFuncName": "LogosUI.Kit",
   "cdn": "dist/bundle.js",
   "scripts": {
     "build": "../../scripts/build.zsh utils",
+    "types": "pnpm tsc --emitDeclarationOnly",
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
@@ -17,7 +18,29 @@
       "readme.md",
       "LICENSE"
   ],
-  "keywords": [],
+  "keywords": [
+    "web apps",
+    "boilerplate",
+    "ui kit",
+    "state manager",
+    "observer",
+    "event emitter",
+    "localization",
+    "localStorage",
+    "sessionStorage",
+    "app storage",
+    "utilities",
+    "fetch",
+    "axios",
+    "xhr requests",
+    "node-fetch",
+    "ajax"
+  ],
+  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "bugs": {
+    "url": "https://github.com/logos-ui/discuss/issues",
+    "email": "danilo@alonso.network"
+  },
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {

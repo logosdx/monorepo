@@ -1,13 +1,14 @@
 {
   "name": "@logos-ui/PKGNAME",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "",
   "browserFuncName": "LogosUI.BROWSERNAME",
   "cdn": "dist/bundle.js",
   "main": "dist/index.js",
-  "types": "src/index.ts",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "../../scripts/build.zsh utils",
+    "types": "pnpm tsc --emitDeclarationOnly",
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
@@ -18,6 +19,11 @@
       "LICENSE"
   ],
   "keywords": [],
+  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "bugs": {
+    "url": "https://github.com/logos-ui/discuss/issues",
+    "email": "danilo@alonso.network"
+  },
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {},

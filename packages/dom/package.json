@@ -1,13 +1,14 @@
 {
   "name": "@logos-ui/dom",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "A small set of utilities for DOM manipulation",
   "browserFuncName": "LogosUI.Dom",
   "cdn": "dist/bundle.js",
   "main": "dist/index.js",
-  "types": "src/index.ts",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "../../scripts/build.zsh utils",
+    "types": "pnpm tsc --emitDeclarationOnly",
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
@@ -17,7 +18,12 @@
       "readme.md",
       "LICENSE"
   ],
-  "keywords": [],
+  "keywords": ["dom", "html events", "html attributes", "dom utilities"],
+  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "bugs": {
+    "url": "https://github.com/logos-ui/discuss/issues",
+    "email": "danilo@alonso.network"
+  },
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {

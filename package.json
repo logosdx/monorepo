@@ -2,10 +2,11 @@
   "name": "@logos-ui/monorepo",
   "private": true,
   "scripts": {
-    "lint": "pnpm tsc --noEmit",
     "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
     "clear": "rm -r packages/{dom,fetch,forms,kit,localize,observer,riot-kit,riot-utils,state-machine,storage,utils}/dist",
-    "new": "sh ./scripts/new-pkg.zsh"
+    "new": "sh ./scripts/new-pkg.zsh",
+    "bundle": "pnpm rollup --config rollup.config.js",
+    "release": "pnpm recursive run build && pnpm bundle && changeset publish"
   },
   "files": [
     "src/",
@@ -15,6 +16,12 @@
     "LICENSE"
   ],
   "keywords": [],
+
+  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "bugs": {
+    "url": "https://github.com/logos-ui/discuss/issues",
+    "email": "danilo@alonso.network"
+  },
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "devDependencies": {
