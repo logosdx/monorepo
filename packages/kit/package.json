@@ -14,11 +14,12 @@
       "src/",
       "dist/",
       "docs/",
-      "readme.md"
+      "readme.md",
+      "LICENSE"
   ],
   "keywords": [],
   "author": "Danilo Alonso <danilo@alonso.network>",
-  "license": "ISC",
+  "license": "BSD-3-Clause",
   "dependencies": {
     "@logos-ui/dom": "workspace:^",
     "@logos-ui/fetch": "workspace:^",

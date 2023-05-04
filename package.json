@@ -2,20 +2,21 @@
   "name": "@logos-ui/monorepo",
   "private": true,
   "scripts": {
-    "build": "../../scripts/build.zsh utils",
     "lint": "pnpm tsc --noEmit",
     "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
-    "clear": "rm -r packages/{dom,fetch,forms,kit,localize,observer,riot-kit,riot-utils,state-machine,storage,utils}/dist"
+    "clear": "rm -r packages/{dom,fetch,forms,kit,localize,observer,riot-kit,riot-utils,state-machine,storage,utils}/dist",
+    "new": "sh ./scripts/new-pkg.zsh"
   },
   "files": [
     "src/",
     "dist/",
     "docs/",
-    "readme.md"
+    "readme.md",
+    "LICENSE"
   ],
   "keywords": [],
   "author": "Danilo Alonso <danilo@alonso.network>",
-  "license": "ISC",
+  "license": "BSD-3-Clause",
   "devDependencies": {
     "@types/node": "^18.16.2",
     "nodemon": "^2.0.22"

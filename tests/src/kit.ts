@@ -71,7 +71,7 @@ describe('@logos-ui/kit', () => {
                 authorization?: string,
                 hmac?: string,
                 timestamp?: string
-            }
+            },
         }
     };
 

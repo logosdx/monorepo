@@ -4,16 +4,16 @@
     "type": "split",
     "children": [
       {
-        "id": "b579695dfffd8f92",
+        "id": "043292ca1a576066",
         "type": "tabs",
         "children": [
           {
-            "id": "a57a2af72e4b0105",
+            "id": "a74eade309fdca4d",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "A set of tools for sane people.md",
+                "file": "@logos-ui/dom.md",
                 "mode": "source",
                 "source": false
               }
@@ -69,8 +69,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "823eaf69fd066dcc",
@@ -86,7 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "A set of tools for sane people.md",
+                "file": "@logos-ui/dom.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -103,7 +102,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "A set of tools for sane people.md",
+                "file": "@logos-ui/dom.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -126,7 +125,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "A set of tools for sane people.md"
+                "file": "@logos-ui/dom.md"
               }
             }
           }
@@ -149,13 +148,22 @@
       "table-editor-obsidian:Advanced Tables Toolbar": false
     }
   },
-  "active": "a57a2af72e4b0105",
+  "active": "1e34bf7eb3272591",
   "lastOpenFiles": [
+    "@logos-ui/sample.ts",
+    "@logos-ui/sample.html",
+    "dist/viewport.d.ts",
+    "dist/utils.d.ts",
+    "dist/index.d.ts",
+    "dist/events.d.ts",
+    "dist/css.d.ts",
+    "dist/attrs.d.ts",
+    "dist",
+    "packages/dom/readme.md",
+    "@logos-ui/dom.md",
+    "A set of tools for sane people.md",
+    "@logos-ui",
     "packages/riot-utils/dist/utils.ts",
-    "packages/riot-utils/dist/queryable.ts",
-    "packages/riot-utils/dist/index.ts",
-    "packages/dom/dist/events.js",
-    "stackoverflow.com.md",
-    "A set of tools for sane people.md"
+    "stackoverflow.com.md"
   ]
 }

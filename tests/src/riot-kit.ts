@@ -35,7 +35,7 @@ describe('@logos-ui/riot-kit', () => {
     const initialState = {
         count: 0,
         name: '',
-        age: 0
+        age: 0,
     };
 
     type AppStateType = typeof initialState;

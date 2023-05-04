@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <script src="pkg.cdn.com/@logos-ui/riot-kit/dist/bundle.js"></script>
+    <script src="pkg.cdn.com/@logos-ui/dev-tools/dist/bundle.js"></script>
+    <script src="pkg.cdn.com/riot/riot/bundle.js"></script>
+</head>
+<body>
+
+
+        <some-component>
+
+            <p>{ t('loaded') }</p>
+            <p>{ state.numOfPapitas }</p>
+            <button onclick="{loadPapitas}">How Many Papitas?</button>
+            <button disabled="{ state.isFetching }" onclick="{orderPapitas}">
+                { state.isFetching ? 'Getting papitas...' : 'Get more papitas'
+            </button>
+
+
+
+        <script>
+
+            import { someComponent } from './scripts';
+            export default someComponent;
+
+            // export default {
+
+            //     state: { numOfPapitas: 0 },
+
+            //     observable: true,
+            //     translatable: true,
+            //     fetchable: ['orderPapitas'],
+            //     mapToState(aState, cState){
+
+            //         return {
+            //             numOfPapitas: aState.papitas.size
+            //         }
+            //     },
+            //     loadPapitas() {
+
+            //         this.trigger('fetch-papitas');
+            //     },
+            //     orderPapitas() {
+
+            //         fetch('/papitas', { method: 'post' });
+            //     },
+            //     onMounted() {
+
+            //         this.trigger('some-component-loaded');
+            //     }
+            // }
+        </script>
+    </some-component>
+
+    <script src="./components/some-component.riot" type="riot/tag"></script>
+    <script>
+
+        const kit = LogosUI.RiotKit.riotKit({
+            riotInstallFunction: riot.install,
+            observer: {},
+            locales: {
+
+            },
+            storage: {}
+        });
+
+        LogosUI.DevTools(kit);
+
+        const { observer, locales, storage } = kit;
+
+        riot.compile(() => {
+
+            riot.mount('some-component')
+        });
+    </script>
+</body>
+</html>

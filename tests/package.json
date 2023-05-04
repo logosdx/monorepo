@@ -7,7 +7,7 @@
     },
     "keywords": [],
     "author": "danilo alonso <danilo@alonso.network>",
-    "license": "isc",
+    "license": "BSD-3-Clause",
     "devdependencies": {
         "@types/node": "^18.16.2"
     },
