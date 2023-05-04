@@ -61,6 +61,11 @@ const css = {
     set: Css.setCss,
 
     /**
+     * See `html.css.set(...)`
+     */
+    add: Css.setCss,
+
+    /**
      * Removes properties from html elements
      * @param els list of html elements
      * @param propNames property name or array of property names
@@ -88,16 +93,16 @@ const attrs = {
      *
      * @example
      *
-     * attrs.get(form, 'method');
+     * html.attrs.get(form, 'method');
      * // > 'post'
      *
-     * attrs.get([select, input], 'name');
+     * html.attrs.get([select, input], 'name');
      * // > ['role', 'full_name']
      *
-     * attrs.get(form, ['method', 'action']);
+     * html.attrs.get(form, ['method', 'action']);
      * // > { method: 'post', action: '/' }
      *
-     * attrs.get([select, input], ['name', 'value']);
+     * html.attrs.get([select, input], ['name', 'value']);
      * // > [{ name: '', value: '' }, { name: '', value: '' }]
      */
     get: Attrs.getAttr,
@@ -109,23 +114,28 @@ const attrs = {
      *
      * @example
      *
-     * attrs.set(input, { name: 'full_name' });
-     * attrs.set([div, div, div], { 'data-show': 'false' });
+     * html.attrs.set(input, { name: 'full_name' });
+     * html.attrs.set([div, div, div], { 'data-show': 'false' });
      */
     set: Attrs.setAttr,
+
+    /**
+     * see `html.attrs.set(...)`
+     */
+    add: Attrs.setAttr,
 
     /**
      *
      * @param els
      * @param propNames
      *
-     * attrs.has(form, 'method');
+     * html.attrs.has(form, 'method');
      * // > true
      *
-     * attrs.has([input, textarea], 'required');
+     * html.attrs.has([input, textarea], 'required');
      * // > [true, false]
      *
-     * attrs.has([input, textarea], ['required', 'name']);
+     * html.attrs.has([input, textarea], ['required', 'name']);
      * // > [{ required: true, name: false }, { required: false, name: false }]
      */
     has: Attrs.hasAttr,
@@ -137,15 +147,15 @@ const attrs = {
      *
      * @example
      *
-     * attrs.remove(form, 'method');
-     * attrs.remove([select, input], 'name');
-     * attrs.remove(form, ['method', 'action']);
-     * attrs.remove([select, input], ['name', 'value']);
+     * html.attrs.remove(form, 'method');
+     * html.attrs.remove([select, input], 'name');
+     * html.attrs.remove(form, ['method', 'action']);
+     * html.attrs.remove([select, input], ['name', 'value']);
      */
     remove: Attrs.removeAttr,
 
     /**
-     * see `html.attrs.remove`
+     * see `html.attrs.remove(...)`
      */
     rm: Attrs.removeAttr,
 };
@@ -175,6 +185,11 @@ const events = {
      * Same as `html.events.on`
      */
     listen: Events.eventOn,
+
+    /**
+     * Same as `html.events.on`
+     */
+    add: Events.eventOn,
 
     /**
      * Adds event listeners to dom event interfaces that only run once
@@ -229,6 +244,11 @@ const events = {
     rm: Events.eventOff,
 
     /**
+     * Same as `html.events.off`
+     */
+    unlisten: Events.eventOff,
+
+    /**
      *
      * @param els list of html elements
      * @param event a single event
@@ -258,9 +278,8 @@ const events = {
 
 
 /**
- * Shortcut to `querySelectorAll` which converts a NodeList into an array.
- * If the resulting NodeList contains only 1 element, it will be returned instead of an array.
- * If the resulting NodeList contains only nothing, `null` will be returned instead.
+ * Wraps `querySelectorAll` and converts a NodeList into an array.
+ * It will always return an array
  * @param selector
  * @param ctx
  * @returns

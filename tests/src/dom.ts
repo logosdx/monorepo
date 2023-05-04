@@ -14,7 +14,6 @@ const stub: {
 
 describe('@logos-ui/dom', () => {
 
-
     describe('Viewport', function () {
 
         it('scrollbarWidth is a number', function () {

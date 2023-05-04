@@ -1,25 +1,27 @@
-import { OneOrManyElements, itemsToArray } from '@logos-ui/utils';
+import { Func, OneOrMany, OneOrManyElements, itemsToArray } from '@logos-ui/utils';
 
-type GlobalEvents = keyof DocumentEventMap;
+export type GlobalEvents = keyof DocumentEventMap;
 
-interface HtmlEventListener<E extends GlobalEvents> {
-    (ev: DocumentEventMap[E]): void;
+export interface HtmlEventListener<E extends GlobalEvents | string> {
+    (ev: E extends GlobalEvents ? DocumentEventMap[E] : Event): void;
 }
 
 interface EachElementCb {
     <EL extends Element>(el: EL): void
 }
 
-function eventEachElement(els: OneOrManyElements, callback: EachElementCb) {
-    const elements = itemsToArray<Element>(els);
+type OneOrManyTargets = OneOrManyElements<EventTarget>
+
+function eventEachElement(els: OneOrManyTargets, callback: EachElementCb) {
+    const elements = itemsToArray<Element>(els as Element);
     for (const element of elements) {
         callback(element);
     }
 }
 
 
-export function eventOn <E extends GlobalEvents>(
-    els: OneOrManyElements,
+export function eventOn <E extends GlobalEvents | string>(
+    els: OneOrManyTargets,
     event: E | E[],
     callback: HtmlEventListener<E>,
     opts?: AddEventListenerOptions
@@ -29,10 +31,10 @@ export function eventOn <E extends GlobalEvents>(
         (element) => {
             if (Array.isArray(event)) {
                 for (const ev of event) {
-                    element.addEventListener(ev, callback, opts || false);
+                    element.addEventListener(ev as any, callback, opts || false);
                 }
             } else {
-                element.addEventListener(event, callback, opts || false);
+                element.addEventListener(event as any, callback, opts || false);
             }
         }
     );
@@ -40,7 +42,7 @@ export function eventOn <E extends GlobalEvents>(
 
 
 export function eventOne <E extends GlobalEvents>(
-    els: OneOrManyElements,
+    els: OneOrManyTargets,
     event: E | E[],
     callback: HtmlEventListener<E>,
     opts?: AddEventListenerOptions
@@ -65,9 +67,9 @@ export function eventOne <E extends GlobalEvents>(
 
 
 export function eventOff(
-    els: OneOrManyElements,
-    event: GlobalEvents | GlobalEvents[],
-    callback: EventListener,
+    els: OneOrManyTargets,
+    event: OneOrMany<GlobalEvents | string>,// GlobalEvents | GlobalEvents[],
+    callback: Func,
     opts?: EventListenerOptions
 ) {
     eventEachElement(
@@ -86,7 +88,7 @@ export function eventOff(
 
 
 export function eventTrigger(
-    els: OneOrManyElements,
+    els: OneOrManyTargets,
     event: GlobalEvents | Event,
     data?: any
 ) {

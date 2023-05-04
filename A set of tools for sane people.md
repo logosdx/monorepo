@@ -56,7 +56,7 @@ As previously stated, the web has progressed a lot from the days of jQuery, but 
 This toolkit is predicated on the following:
 
 - A thing to manipulate the DOM
-	- [[@logos-ui/dom]]
+	- [@logos-ui/dom](packages/dom/Usage)
 		- Utilities for managing inline `CSS`, html attributes, `DOM` events, and viewport
 - A thing to render data into HTML elements
 		- [Riot.js — Simple and elegant component-based UI library](https://riot.js.org/)

@@ -13,14 +13,14 @@
 <body>
 
 
-        <some-component>
+    <some-component>
 
-            <p>{ t('loaded') }</p>
-            <p>{ state.numOfPapitas }</p>
-            <button onclick="{loadPapitas}">How Many Papitas?</button>
-            <button disabled="{ state.isFetching }" onclick="{orderPapitas}">
-                { state.isFetching ? 'Getting papitas...' : 'Get more papitas'
-            </button>
+        <p>{ t('loaded') }</p>
+        <p>{ state.numOfPapitas }</p>
+        <button onclick="{loadPapitas}">How Many Papitas?</button>
+        <button disabled="{ state.isFetching }" onclick="{orderPapitas}">
+            { state.isFetching ? 'Getting papitas...' : 'Get more papitas'
+        </button>
 
 
 

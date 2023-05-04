@@ -1,1 +1,8 @@
-{}
+{
+  "alwaysUpdateLinks": true,
+  "livePreview": true,
+  "showUnsupportedFiles": true,
+  "userIgnoreFilters": [
+    "/(node_modules|dist|LICENSE)/"
+  ]
+}

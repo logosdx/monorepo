@@ -132,9 +132,9 @@ describe('@logos-ui/kit', () => {
         app.observer.trigger('floss', true);
 
         app.locale.t('bear');
-        app.locale.changeTo('es');
+        app.locale.changeTo('en');
 
-        app.fetch.addHeader({ hmac: '123' });
+        app.fetch.addHeader({ hmac: '123, nonsensee: '123' });
         app.fetch.removeHeader('authorization');
         app.fetch.setState({ authToken: '123' });
 
