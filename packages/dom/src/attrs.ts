@@ -3,127 +3,145 @@ import {
     BoolProps,
     StringProps,
     itemsToArray,
-    oneOrMany
+    oneOrMany,
+    OneOrMany
 } from '@logos-ui/utils';
 
-const eachAttrItem = (propNames: string[] | string[][], callback: Function) => {
+type HasAttrObj<T extends string> = Record<T, boolean>;
+type GetAttrObj<T extends string> = Record<T, string>;
 
-    return propNames.map(item => callback(item));
+
+
+const getAttrsObj = <T extends string>(el: HTMLElement, attrs: string[]) => {
+
+    return Object.fromEntries(
+        attrs.map(a => [a, el.getAttribute(a)])
+    ) as GetAttrObj<T>
 };
 
-const eachAttrElement = <T, R = T>(
-    els: OneOrManyElements,
-    propNames: string | string[] | string[][],
-    callback: (
-        element: Element,
-        prop: T
-    ) => unknown
-): R[][] => {
+const hasAttrsObj = <T extends string>(el: HTMLElement, attrs: string[]) => {
 
-    const elements = itemsToArray(els) as Element[];
-    const props = itemsToArray(propNames as string);
-
-    return elements.map(
-        (element) => (
-            eachAttrItem(
-                props,
-                (prop) => callback(element, prop)
-            )
-        )
-    );
-}
-
-export const getAttr = <T = StringProps>(
-    els: OneOrManyElements,
-    propNames: string | string[]
-): (
-    string | string[] |
-    T | T[]
-) => {
-
-    const entries = eachAttrElement <string, [string, string]>(
-        els,
-        propNames,
-        function (element, prop) {
-
-            return [prop as string, element.getAttribute(prop as string)];
-        }
-    );
-
-    if (typeof propNames === 'string') {
-
-        const results = entries.map((props) => props[0][1]);
-
-        return oneOrMany(results);
-    }
-
-    if (Array.isArray(propNames)) {
-
-        const results = entries.map(
-            (props) => Object.fromEntries(props)
-        ) as T[];
-
-        return oneOrMany(results);
-    }
+    return Object.fromEntries(
+        attrs.map(a => [a, el.hasAttribute(a)])
+    ) as HasAttrObj<T>
 }
 
 
-export function setAttr(
-    els: OneOrManyElements,
-    props: StringProps
-): void {
+const setEachAttr = (el: HTMLElement, props: StringProps) => {
 
-    eachAttrElement <[string,string]>(
-        els,
-        Object.entries(props),
-        (element, [name, value]) => {
+    for (const key in props) {
 
-            element.setAttribute(name, value);
+        el.setAttribute(key, props[key]!);
+    }
+}
+
+const rmEachAttr = (el: HTMLElement, attrs: OneOrMany<string>) => {
+
+    if (Array.isArray(attrs)) {
+
+        for (const i in attrs) {
+
+            el.removeAttribute(attrs[i]!);
         }
-    );
+
+        return;
+    }
+
+    el.removeAttribute(attrs)
 }
 
 
-export function removeAttr(
-    els: OneOrManyElements,
-    propNames: string | string[]
-) {
+export class HtmlAttr {
 
-    eachAttrElement(
-        els,
-        propNames,
-        (element, prop) => {
-            element.removeAttribute(prop as string);
+    static get(el: HTMLElement, attr: string): string;
+    static get(el: HTMLElement[], attr: string): string[];
+    static get <T extends string = string>(el: HTMLElement, attr: string[]): GetAttrObj<T>;
+    static get <T extends string = string>(el: HTMLElement[], attr: string[]): GetAttrObj<T>[];
+    static get <T extends string = string>(
+        els: OneOrMany<HTMLElement>,
+        attrs: OneOrMany<string>
+    ) {
+
+        if (Array.isArray(els)) {
+
+            if (Array.isArray(attrs)) {
+
+                return  els.map(
+                    el => getAttrsObj <T>(el, attrs)
+                ) as GetAttrObj<T>[];
+            }
+
+            return els.map(
+                el => el.getAttribute(attrs)
+            ) as string[]
         }
-    );
-}
 
+        if (Array.isArray(attrs)) {
 
-export function hasAttr(
-    els: OneOrManyElements,
-    propNames: string | string[]
-) {
-
-    const entries = eachAttrElement <string, [string, boolean]>(
-        els,
-        propNames,
-        function (element, prop) {
-            return [prop, element.hasAttribute(prop as string)];
+            return getAttrsObj <T>(els, attrs) as GetAttrObj<T>
         }
-    );
 
-    if (typeof propNames === 'string') {
-
-        const results = entries.map((props) => props[0][1]);
-        return oneOrMany(results);
+        return els.getAttribute(attrs)
     }
 
-    if (Array.isArray(propNames)) {
+    static has(el: HTMLElement, attr: string): boolean;
+    static has(el: HTMLElement[], attr: string): boolean[];
+    static has <T extends string = string>(el: HTMLElement, attr: string[]): HasAttrObj<T>;
+    static has <T extends string = string>(el: HTMLElement[], attr: string[]): HasAttrObj<T>[];
+    static has <T extends string = string>(
+        els: OneOrMany<HTMLElement>,
+        attrs: OneOrMany<string>
+    ) {
 
-        const results = entries.map(
-            (props) => Object.fromEntries(props)
-        ) as BoolProps[];
+        if (Array.isArray(els)) {
 
-        return oneOrMany(results);
+            if (Array.isArray(attrs)) {
+
+                return  els.map(
+                    el => hasAttrsObj <T>(el, attrs)
+                );
+            }
+
+            return els.map(
+                el => el.hasAttribute(attrs)
+            );
+        }
+
+        if (Array.isArray(attrs)) {
+
+            return hasAttrsObj <T>(els, attrs) as HasAttrObj<T>;
+        }
+
+        return els.hasAttribute(attrs);
     }
+
+    static set(
+        els: OneOrMany<HTMLElement>,
+        props: StringProps
+    ): void {
+
+        if (Array.isArray(els)) {
+
+            els.forEach(el => setEachAttr(el, props));
+            return;
+        }
+
+        setEachAttr(els, props)
+    }
+
+    static remove(
+        els: OneOrMany<HTMLElement>,
+        attrs: OneOrMany<string>
+    ) {
+
+        if (Array.isArray(els)) {
+
+            els.forEach(el => rmEachAttr(el, attrs));
+            return;
+        }
+
+        rmEachAttr(els, attrs);
+    }
+
+
 }

@@ -2,101 +2,119 @@ import { Func, OneOrMany, OneOrManyElements, itemsToArray } from '@logos-ui/util
 
 export type GlobalEvents = keyof DocumentEventMap;
 
-export interface HtmlEventListener<E extends GlobalEvents | string> {
+type EvOpts = AddEventListenerOptions
+
+type TargetsOrWin = OneOrMany<EventTarget> | Window
+type EvType = GlobalEvents | string;
+type Events<E extends EvType = EvType> = OneOrMany<E>;
+
+export interface EvListener<E extends EvType> extends EventListener {
     (ev: E extends GlobalEvents ? DocumentEventMap[E] : Event): void;
 }
 
 interface EachElementCb {
-    <EL extends Element>(el: EL): void
+    <E extends EventTarget>(ev: EvType | Event, el: E): void
 }
 
-type OneOrManyTargets = OneOrManyElements<EventTarget>
-
-function eventEachElement(els: OneOrManyTargets, callback: EachElementCb) {
+function eachElEachEv (
+    els: TargetsOrWin,
+    evs: Events | Event,
+    callback: EachElementCb
+) {
     const elements = itemsToArray<Element>(els as Element);
     for (const element of elements) {
-        callback(element);
+
+        if (Array.isArray(evs)) {
+            for (const ev of evs) {
+                callback(ev, element);
+            }
+        } else {
+            callback(evs, element);
+        }
     }
 }
 
+type EventCleanupCb = () => void
 
-export function eventOn <E extends GlobalEvents | string>(
-    els: OneOrManyTargets,
-    event: E | E[],
-    callback: HtmlEventListener<E>,
-    opts?: AddEventListenerOptions
-) {
-    eventEachElement(
-        els,
-        (element) => {
-            if (Array.isArray(event)) {
-                for (const ev of event) {
-                    element.addEventListener(ev as any, callback, opts || false);
+export class HtmlEvents {
+
+    static on <E extends EvType>(
+        targets: TargetsOrWin,
+        events: Events<E>,
+        cb: EvListener<E>,
+        opts?: EvOpts
+    ): EventCleanupCb {
+
+        eachElEachEv(
+            targets,
+            events,
+            (ev, el) => (
+
+                el.addEventListener(
+                    ev as any,
+                    cb,
+                    opts || false
+                )
+            )
+        );
+
+        function cleanup () {
+
+            eachElEachEv(
+                targets,
+                events,
+                (ev, el) => (el.removeEventListener(ev as any, cb))
+            );
+        }
+
+        return cleanup;
+    };
+
+    static once <E extends EvType>(
+        targets: TargetsOrWin,
+        event: Events<E>,
+        cb: EvListener<E>,
+        opts?: EvOpts
+    ): EventCleanupCb {
+
+        return this.on(targets, event, cb, {
+            ...(opts || {}),
+            once: true
+        });
+    }
+
+    static off (
+        targets: TargetsOrWin,
+        events: Events,
+        cb: Func,
+        opts?: EventListenerOptions
+    ) {
+
+        eachElEachEv(
+            targets,
+            events,
+            (ev, el) => (el.removeEventListener(ev as any, cb, opts || false)),
+        );
+    }
+
+    static trigger(
+
+        els: TargetsOrWin,
+        event: EvType | Event,
+        data?: any
+    ) {
+
+        eachElEachEv(
+            els,
+            event,
+            (ev, el) => {
+
+                if (typeof ev === "string") {
+                    ev = new window.CustomEvent(ev, { detail: data });
                 }
-            } else {
-                element.addEventListener(event as any, callback, opts || false);
-            }
-        }
-    );
-}
 
-
-export function eventOne <E extends GlobalEvents>(
-    els: OneOrManyTargets,
-    event: E | E[],
-    callback: HtmlEventListener<E>,
-    opts?: AddEventListenerOptions
-) {
-    eventEachElement(
-        els,
-        (element) => {
-            opts = {
-                ...(opts || {}),
-                once: true,
-            };
-            if (Array.isArray(event)) {
-                for (const ev of event) {
-                    element.addEventListener(ev, callback, opts);
-                }
-            } else {
-                element.addEventListener(event, callback, opts);
-            }
-        }
-    );
-}
-
-
-export function eventOff(
-    els: OneOrManyTargets,
-    event: OneOrMany<GlobalEvents | string>,// GlobalEvents | GlobalEvents[],
-    callback: Func,
-    opts?: EventListenerOptions
-) {
-    eventEachElement(
-        els,
-        (element) => {
-            if (Array.isArray(event)) {
-                for (const ev of event) {
-                    element.removeEventListener(ev, callback, opts || false);
-                }
-            } else {
-                element.removeEventListener(event, callback, opts || false);
-            }
-        }
-    );
-}
-
-
-export function eventTrigger(
-    els: OneOrManyTargets,
-    event: GlobalEvents | Event,
-    data?: any
-) {
-    const elements = itemsToArray(els) as HTMLElement[];
-    for (const element of elements) {
-        if (typeof event === "string") {
-            event = new window.CustomEvent(event, { detail: data });
-        }
-        element.dispatchEvent(event);
+                el.dispatchEvent(ev);
+            },
+        );
     }
 }

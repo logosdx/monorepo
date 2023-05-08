@@ -1,13 +1,15 @@
-import { assert, isFunction, merge } from "@logos-ui/utils";
+import { Func, assert, isFunction, merge } from "@logos-ui/utils";
 import { RiotComponent } from "riot";
 
-type HookKeys =
-'onBeforeMount' |
-'onMounted' |
-'onBeforeUpdate' |
-'onUpdated' |
-'onBeforeUnmount' |
-'onUnmounted';
+type HookKeys = (
+
+    'onBeforeMount' |
+    'onMounted' |
+    'onBeforeUpdate' |
+    'onUpdated' |
+    'onBeforeUnmount' |
+    'onUnmounted'
+);
 
 type HookFunctions<P, S> = Pick<
     RiotComponent<P, S>,
@@ -37,15 +39,17 @@ interface MakeHook<T, P, S> {
  * @param {RiotHookFn} hook
  * @returns {MakeHook}
  */
-export const mkHook = <T, P, S>(hook: HookKeys): MakeHook<T, P, S> => (
+export const mkHook = <T = any, P = any, S = any>(hook: HookKeys): MakeHook<T, P, S> => (
 
     <T, P, S>(opts: MkHookOpts<T, P, S>) => {
 
-        const original = opts.component[hook];
+        const component = opts.component as any;
+
+        const original = component[hook] as Func;
 
         assert(isFunction(opts.callback), `${hook} callback must be a function`)
 
-        opts.component[hook] = function (props: P, state: S) {
+        component[hook] = function (props: P, state: S) {
 
             !opts.runAfterOriginal && original?.call(this, props, state);
 

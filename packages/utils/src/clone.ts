@@ -64,11 +64,11 @@ export const clone = <T>(original: T): T => {
         return original;
     }
 
-    const cloneType = typeCloneFunc.get(original.constructor as AnyConstructor);
+    const cloneType = typeCloneFunc.get(original!.constructor as AnyConstructor);
 
     // Warn about using specific types that are not supported
     if (!cloneType) {
-        _nextTick(() => console.warn(`Cannot clone ${original.constructor.name} type.`));
+        _nextTick(() => console.warn(`Cannot clone ${original!.constructor.name} type.`));
         return original;
     }
 

@@ -7,14 +7,16 @@ export type LocaleType = {
     [K in StrOrNum]: StrOrNum | LocaleType;
 };
 
-export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType>, defValue: any): T => {
+export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType>, defValue: any): T | undefined => {
 
     // If path is not defined or it has false value
-    if (!path) return undefined
+    if (!path) {
+        return;
+    }
 
     // Check if path is string or array. Regex : ensure that we do not have '.' and brackets.
     // Regex explained: https://regexr.com/58j0k
-    const pathArray = Array.isArray(path) ? path : path.match(/([^[.\]])+/g)
+    const pathArray = Array.isArray(path) ? path as string[] : path.match(/([^[.\]])+/g)!
 
     // Find value
     const result = pathArray.reduce(
@@ -56,7 +58,7 @@ export const LOC_CHANGE = 'locale-change';
 
 export class LocaleEvent<Code extends string = string, C = any> extends Event {
     component?: C;
-    code: Code;
+    code!: Code;
 }
 
 export type LocaleEventName = (

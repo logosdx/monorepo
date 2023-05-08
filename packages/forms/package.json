@@ -13,7 +13,6 @@
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
-      "src/",
       "dist/",
       "docs/",
       "readme.md",

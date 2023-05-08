@@ -9,14 +9,14 @@ import { expect } from 'chai';
 import Hapi, { Lifecycle, ResponseToolkit } from '@hapi/hapi';
 import Boom from '@hapi/boom';
 
-import { FetchEvent, FetchFactory, FetchHeaders, RequestHeaders } from '@logos-ui/fetch';
+import { FetchError, FetchEvent, FetchFactory, FetchHeaders, FetchReqOpts, RequestHeaders } from '@logos-ui/fetch';
 
 const mkHapiRoute = (path: string, handler: Lifecycle.Method) => ({ method: '*', path, handler })
 const wait = (n: number, r: any = 'ok') => new Promise(res => setTimeout(() => res(r), n));
 
 describe('@logos-ui/fetch', () => {
 
-    const callStub = Sinon.stub();
+    const callStub = Sinon.stub<[Hapi.Request]>();
     const testUrl = 'http://localhost:3456';
     const server = Hapi.server({ port: 3456 });
 
@@ -26,7 +26,7 @@ describe('@logos-ui/fetch', () => {
 
         if (throwBadContentType) {
             return h.response(
-                null
+                null as any
             ).header(
                 'content-type',
                 'habibti/allah'
@@ -120,7 +120,7 @@ describe('@logos-ui/fetch', () => {
 
         expect(await api.get('/json')).to.contain(expectation);
 
-        const req = callStub.args.pop().pop();
+        const req = callStub!.args!.pop()!.pop()!;
 
         expect(req.headers).to.contain({
             'content-type': 'application/json',
@@ -145,7 +145,7 @@ describe('@logos-ui/fetch', () => {
 
         await api.get('/json2');
 
-        const [[req1], [req2]] = callStub.args
+        const [[req1], [req2]] = callStub.args as any[]
 
         expect(req1.headers).to.contain({ 'test': 'true', });
         expect(req2.headers).to.not.contain({ 'test': 'true', });
@@ -223,7 +223,7 @@ describe('@logos-ui/fetch', () => {
         expect(didBefore.calledOnce).to.eq(true);
         expect(didAfter.calledOnce).to.eq(true);
 
-        const [[errArgs]] = didError.args;
+        const [[errArgs]] = didError.args as [[FetchError<any>]];
         expect(errArgs.data.message).to.contain(errRes.message);
         expect(errArgs.status).to.eq(errRes.statusCode);
 
@@ -256,7 +256,7 @@ describe('@logos-ui/fetch', () => {
         try { await api.get('/json', { onError }); }
         catch(e) {}
 
-        const [[dropReq]] = onError.args;
+        const [[dropReq]] = onError.args as [[FetchError]];
         expect(dropReq.status).to.equal(999);
 
         throwBadContentType = false;
@@ -274,7 +274,7 @@ describe('@logos-ui/fetch', () => {
         try { await api.get('/drop', { onError }); }
         catch(e) {}
 
-        const [[dropReq]] = onError.args;
+        const [[dropReq]] = onError.args as [[FetchError]];
         expect(dropReq.status).to.equal(997);
 
         throwBadContentType = false;
@@ -283,7 +283,7 @@ describe('@logos-ui/fetch', () => {
     it('can abort requests', async () => {
 
         const onError = Sinon.stub();
-        const onBeforeReq = (opts) => {
+        const onBeforeReq = (opts: FetchReqOpts) => {
 
             setTimeout(() => {
 
@@ -299,7 +299,7 @@ describe('@logos-ui/fetch', () => {
         try { await api.get('/wait', { onError, onBeforeReq }); }
         catch (e) {}
 
-        const [[errArgs]] = onError.args;
+        const [[errArgs]] = onError.args as [[FetchError]];
         expect(errArgs.status).to.equal(998);
     });
 
@@ -335,7 +335,7 @@ describe('@logos-ui/fetch', () => {
 
         expect(post - pre).to.lessThan(timeout + 30)
 
-        const [[configWait],[reqWait]] = onError.args;
+        const [[configWait],[reqWait]] = onError.args as [[FetchError], [FetchError]];
 
         expect(configWait.status).to.equal(998);
         expect(reqWait.status).to.equal(998);
@@ -361,7 +361,7 @@ describe('@logos-ui/fetch', () => {
 
         await api.get('/json');
 
-        const [[req]] = callStub.args;
+        const [[req]] = callStub.args as [[Hapi.Request]];
 
         expect(req.headers).to.contain({ 'was-set': 'true' });
     });
@@ -398,7 +398,7 @@ describe('@logos-ui/fetch', () => {
         await api.get('/json');
 
 
-        const [[setReq], [resetReq]] = callStub.args;
+        const [[setReq], [resetReq]] = callStub.args as [[Hapi.Request], [Hapi.Request]];
 
         expect(setReq.headers).to.contain({ 'was-set': val });
         expect(resetReq.headers).to.contain({ 'was-set': 'not-set' });
@@ -456,7 +456,7 @@ describe('@logos-ui/fetch', () => {
 
         expect(listener.calledThrice).to.be.true
 
-        const [[evBefore1], [evAfter1], [evError1]] = listener.args;
+        const [[evBefore1], [evAfter1], [evError1]] = listener.args as [[FetchEvent],[FetchEvent],[FetchEvent]];
 
         expect(evBefore1.type).to.eq('fetch-before');
         expect(evAfter1.type).to.eq('fetch-after');
@@ -478,7 +478,7 @@ describe('@logos-ui/fetch', () => {
 
         expect(listener.calledTwice).to.be.true
 
-        const [[evBefore2], [evAbort2]] = listener.args;
+        const [[evBefore2], [evAbort2]] = listener.args as [[FetchEvent],[FetchEvent]];
 
         expect(evBefore2.type).to.eq('fetch-before');
         expect(evAbort2.type).to.eq('fetch-abort');
@@ -498,7 +498,7 @@ describe('@logos-ui/fetch', () => {
 
         expect(listener.calledThrice).to.be.true
 
-        const [[evBefore3], [evAfter3], [evResponse3]] = listener.args;
+        const [[evBefore3], [evAfter3], [evResponse3]] = listener.args as [[FetchEvent],[FetchEvent],[FetchEvent]];
 
         expect(evBefore3.type).to.eq('fetch-before');
         expect(evAfter3.type).to.eq('fetch-after');
@@ -533,7 +533,13 @@ describe('@logos-ui/fetch', () => {
             [evAddHeader],
             [evRmHeader],
             [evChangeUrl]
-        ] = listener.args;
+        ] = listener.args as [
+            [FetchEvent],
+            [FetchEvent],
+            [FetchEvent],
+            [FetchEvent],
+            [FetchEvent]
+        ];
 
         const evs = [
             evResetState,

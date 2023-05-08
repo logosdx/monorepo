@@ -61,7 +61,7 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
     );
 
     assert(
-        opts.mapToComponent && isFunctionOrObject(opts.mapToComponent),
+        !opts.mapToComponent || isFunctionOrObject(opts.mapToComponent),
         'mapToComponent must be an object or function that returns and object'
     );
 
@@ -73,33 +73,33 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
     } = opts;
 
     const store: ConnectInternalStore<A, P, S> = {
-        update: null,
-        componentState: null,
-        componentProps: null,
+        update: null as any,
+        componentState: null as any,
+        componentProps: null as any,
     };
 
     // Should only call update if state has changed
     store.listener = (newState) => {
 
         const { componentState, componentProps } = store;
-        const change = mapToState(newState, componentState, componentProps);
+        const change = mapToState(newState, componentState!, componentProps!);
         const isEqual = deepEqual(change, componentState);
 
-        if (!isEqual) store.update(change);
+        if (!isEqual) store.update!(change);
     };
 
     definePrivateProps(component, {
-        dispatch: (value) => stateMachine.dispatch(value),
+        dispatch: (value: any) => stateMachine.dispatch(value),
     })
 
     const onBeforeMount: MkHookOpts<C, P, S> = {
         component,
         callback: function (this:C, props, state) {
 
-            store.update = (...args: any[]) => this.update.apply(this, args);
+            store.update = (...args: [any, any]) => this.update!.apply(this, args);
 
             // When state is updated, update component state.
-            stateMachine.addListener(store.listener);
+            stateMachine.addListener(store.listener!);
 
             state = { ...state, ...this.state };
 

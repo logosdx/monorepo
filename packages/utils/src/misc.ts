@@ -5,7 +5,7 @@ import { Func } from "./types";
  * @param target
  * @param props
  */
-export const definePublicProps = <T, U>(target: T, props: U, configurable = false) => {
+export const definePublicProps = <T, U extends Record<string, unknown>>(target: T, props: U, configurable = false) => {
 
     Object.entries(props).map(([prop, value]) => {
 
@@ -27,7 +27,7 @@ export const definePublicProps = <T, U>(target: T, props: U, configurable = fals
  * @param target
  * @param props
  */
-export const definePrivateProps = <T, U>(target: T, props: U, configurable = false) => {
+export const definePrivateProps = <T, U extends Record<string, unknown>>(target: T, props: U, configurable = false) => {
 
     Object.entries(props).map(([prop, value]) => {
 
@@ -49,7 +49,7 @@ export const definePrivateProps = <T, U>(target: T, props: U, configurable = fal
  * @param target
  * @param props
  */
-export const definePrivateGetters = <T, U>(target: T, props: U, configurable = false) => {
+export const definePrivateGetters = <T, U extends Record<string, Func>>(target: T, props: U, configurable = false) => {
 
     Object.entries(props).map(([prop, getter]) => {
 
@@ -87,7 +87,7 @@ export const assert = (test: boolean, message?: string, ErrorClass?: typeof Erro
  * Merges sources into targets, using the target as a default fallback
  * @param target object to modify
  * @param sources to apply against target
- * @returns {T}
+ * @returns
  */
 export const applyDefaults = <T>(target: T, ...sources: T[]) => {
 
@@ -100,7 +100,7 @@ export const applyDefaults = <T>(target: T, ...sources: T[]) => {
                 const _t = (target || {}) as T;
 
                 target[k] = applyDefaults(
-                    (_t)[k] || {},
+                    (_t)[k] || {} as T,
                     source[k] as T
                 ) as any;
             }
@@ -138,7 +138,7 @@ export const itemsToArray = <T>(items: T | T[]): T[] => {
 export const oneOrMany = <T>(items: T[]): T | T[] => {
 
     if (items.length === 1) {
-        return items[0]
+        return items[0] as T
     }
 
     return items;
@@ -218,7 +218,7 @@ export const isFunction = (a: any) => a instanceof Function;
  */
 export const forInIsEqual = (item: any, check: { (v: any, i: number|string): boolean}): boolean => {
 
-    let isEqual;
+    let isEqual: boolean;
 
     for (const i in item) {
 
@@ -229,7 +229,7 @@ export const forInIsEqual = (item: any, check: { (v: any, i: number|string): boo
         }
     }
 
-    return isEqual;
+    return isEqual!;
 };
 
 /**
@@ -241,7 +241,7 @@ export const forInIsEqual = (item: any, check: { (v: any, i: number|string): boo
  */
 export const forOfIsEqual = (item: any, check: { (v: any): boolean }): boolean => {
 
-    let isEqual;
+    let isEqual: boolean;
 
     for (const val of item) {
 
@@ -252,7 +252,7 @@ export const forOfIsEqual = (item: any, check: { (v: any): boolean }): boolean =
         }
     }
 
-    return isEqual;
+    return isEqual!;
 };
 
 
@@ -276,7 +276,7 @@ window.addEventListener('message', function (ev) {
         if (nextTickQueue.length > 0) {
 
             const fn = nextTickQueue.shift();
-            fn.call && fn();
+            fn?.call && fn();
         }
     }
 }, true);

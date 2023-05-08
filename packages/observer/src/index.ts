@@ -1,4 +1,4 @@
-import { assert, definePrivateProps } from '@logos-ui/utils';
+import { Func, assert, definePrivateProps } from '@logos-ui/utils';
 
 /**
  * Overrideable interface
@@ -104,7 +104,7 @@ const sendToSpy = <U>(
     context: any,
     {
         event,
-        listener = null,
+        listener = undefined,
         data = null
     }: OberverSpyOptions<U>
 ) => {
@@ -127,11 +127,11 @@ export type ObservableOptions<T, U> = {
 };
 
 class EventTrace extends Error {
-    listener: Function | null
+    listener!: Function | null
     data: any
-    func: string
-    event: string
-    stack: string
+    func!: string
+    event!: string
+    stack!: string
 }
 
 const traceStackFilterRgx = (
@@ -215,19 +215,48 @@ const arrOfMatchingValues = (
 }
 
 
+enum InternalEvs {
+
+    on = 'on',
+    off = 'off',
+    trigger = 'trigger',
+    clear = 'clear',
+}
+
+class InternalEvent extends Event {
+
+    type: keyof typeof InternalEvs;
+    data: [string, any];
+    constructor (ev: keyof typeof InternalEvs, data: [string, any]) {
+
+        super(ev as string);
+        this.data = data;
+        this.type = ev;
+    }
+}
+
+interface InternalListener {
+
+    (e: InternalEvent): void
+}
+
+
 export class Observable<
     Component,
     Shape = ObservableEvents,
     PrefixNames extends string = keyof ObservableEventPrefix
 > {
 
-    $_listenerMap: Map<Events<Shape>, Set<Function>> = new Map();
-    $_rgxListenerMap: Map<string, Set<Function>> = new Map();
-    $_target: any = null;
-    $_spy?: ObserverSpy<Component, Shape>;
-    $_ref?: String;
+    private $_listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
+    private $_rgxListenerMap: Map<string, Set<Func>> = new Map();
+    private $_target: any = null;
 
-    $_debug() {
+    private $_spy?: ObserverSpy<Component, Shape>;
+    private $_ref?: String;
+
+    private $_internalListener!: EventTarget;
+
+    $_debug(on = true) {
 
         const original = this.$_spy;
 
@@ -249,43 +278,50 @@ export class Observable<
             original && original(ev);
         }
 
-        this.$_spy = spy;
+        if (on) {
+
+            this.$_spy = spy;
+        }
+        else {
+
+            this.$_spy = original;
+        }
     }
 
     /**
      * Same as `observable.on`
      */
-    listen: Observable<Component, Shape>['on'];
+    listen!: Observable<Component, Shape>['on'];
 
     /**
      * Same as `observable.one`
      */
-    once: Observable<Component, Shape>['one'];
+    once!: Observable<Component, Shape>['one'];
 
     /**
      * Same as `observable.trigger`
      */
-    emit: Observable<Component, Shape>['trigger'];
+    emit!: Observable<Component, Shape>['trigger'];
 
     /**
      * Same as `observable.trigger`
      */
-    send: Observable<Component, Shape>['trigger'];
+    send!: Observable<Component, Shape>['trigger'];
 
     /**
      * Same as `observable.off`
      */
-    unlisten: Observable<Component, Shape>['off'];
+    unlisten!: Observable<Component, Shape>['off'];
 
     /**
      * Same as `observable.off`
      */
-    remove: Observable<Component, Shape>['off'];
+    remove!: Observable<Component, Shape>['off'];
 
     /**
      * Same as `observable.off`
      */
-    rm: Observable<Component, Shape>['off'];
+    rm!: Observable<Component, Shape>['off'];
 
     constructor(target?: Component, options?: ObservableOptions<Component, Shape>) {
 
@@ -309,6 +345,7 @@ export class Observable<
             $_listenerMap: this.$_listenerMap,
             $_rgxListenerMap: this.$_rgxListenerMap,
             $_target: this.$_target,
+            $_internalListener: new EventTarget(),
             $_debug: this.$_debug,
         });
 
@@ -316,13 +353,13 @@ export class Observable<
         if (options) {
 
             assert(
-                options.ref && typeof options.ref === 'string',
+                !options.ref || typeof options.ref === 'string',
                 'Observable options.ref must be a string',
                 TypeError
             );
 
             assert(
-                options.spy && typeof options.spy === 'function',
+                !options.spy || typeof options.spy === 'function',
                 'Observable options.spy must be a function',
                 TypeError
             );
@@ -399,16 +436,57 @@ export class Observable<
             namedEvent = (ev) => ev;
         }
 
-        // Simple tacking for simple cleanup for now
-        // TODO: figure out a way to track parent `off` to avoid tracking
-        const listenerTracker: Set<[string, Function]> = new Set();
+        const track = new Map<string, Set<Func>>;
 
-        const trackListener = (event, fn) => {
+        const trackListener = (event: string, fn: Func) => {
 
-            listenerTracker.add([event, fn]);
+            const _set = track.get(event) || new Set<Func>;
+            _set.add(fn);
+
+            track.set(event, _set);
 
             return fn
         };
+
+        // Handle removing all callbacks from this instance related to child observable.
+        // Only all of the child instance's callbacks should be removed.
+        const rmAll = () => {
+
+            for (const entry of track.entries()) {
+
+                const [ev, _set] = entry;
+
+                // For each function, remove listener from observer
+                [..._set].forEach(
+                    fn => self.off(
+                        namedEvent(ev as any),
+                        fn as any
+                    )
+                );
+
+                // Clear the tracker
+                track.set(ev, new Set());
+            }
+        }
+
+        const afterOff: InternalListener = (_event) => {
+
+            const [prefEv, callback] = _event.data;
+            const event = prefix ? prefEv.replace(`${prefix}-`, '') : prefEv;
+
+            if (event === ALL_CALLBACKS) {
+
+                rmAll();
+            }
+            else {
+
+                const _set = track.get(event);
+                _set?.delete(callback);
+            }
+        };
+
+        this.$_internalListener.addEventListener(InternalEvs.off, afterOff as Func);
+        this.$_internalListener.addEventListener(InternalEvs.clear, rmAll as Func);
 
         definePrivateProps(component, {
 
@@ -416,7 +494,7 @@ export class Observable<
 
                 return self.on(
                     namedEvent(ev),
-                    trackListener(ev, fn)
+                    trackListener(ev, fn) as any
                 );
             },
 
@@ -425,32 +503,23 @@ export class Observable<
 
                 return self.one(
                     namedEvent(ev),
-                    trackListener(ev, fn)
+                    trackListener(ev, fn) as any
                 );
             },
 
 
-            off: (ev: any, fn: any) => {
+            off: (event: string, fn: Func) => {
 
-                const tracked = [...listenerTracker.values()];
+                if (event === ALL_CALLBACKS) {
 
-                // Handle removing all callbacks from this instance related to child observable. Only all of the child instance's callbacks should be removed.
-                if (ev === ALL_CALLBACKS) {
-
-                    for (const entry of tracked) {
-
-                        const [ev, listener] = entry as [Events<Shape>, EventCallback<Shape>];
-                        listenerTracker.delete(entry);
-                        self.off(namedEvent(ev), listener as any);
-                    }
+                    rmAll();
                 }
                 else {
 
-                    const entry = tracked.find(([e, f]) => (
-                        ev === e && fn === f
-                    ));
-                    listenerTracker.delete(entry);
-                    self.off(namedEvent(ev), fn);
+                    self.off(
+                        namedEvent(event as any),
+                        fn as any
+                    );
                 }
             },
 
@@ -465,7 +534,6 @@ export class Observable<
 
                 (component as any).off('*');
             }
-
         });
 
         const observed = component as ObservableInstanceChild<C>;
@@ -540,7 +608,7 @@ export class Observable<
         event: E | '*',
         listener: E extends Events<Shape>
             ? EventCallback<Shape[E]>
-            : Function
+            : Func
     ): Cleanup {
 
         if (this.$_spy) {
@@ -552,16 +620,20 @@ export class Observable<
 
         const listenerMap = isRgx ? this.$_rgxListenerMap : this.$_listenerMap;
 
-        const cbSet = listenerMap.get(eventName);
+        const cbSet = listenerMap.get(eventName) || new Set([listener]);
 
         if (cbSet && !cbSet.has(listener)) {
             cbSet.add(listener);
         }
 
-        if (!cbSet) {
+        if (!listenerMap.has(eventName)) {
 
-            listenerMap.set(eventName, new Set([listener]));
+            listenerMap.set(eventName, cbSet);
         }
+
+        this.$_internalListener.dispatchEvent(
+            new InternalEvent(InternalEvs.on, [event as string, listener])
+        );
 
         return {
             cleanup: () => {
@@ -570,7 +642,11 @@ export class Observable<
                     sendToSpy <Shape>('clean', this, { event, listener });
                 }
 
-                cbSet.delete(listener);
+                cbSet!.delete(listener);
+
+                this.$_internalListener.dispatchEvent(
+                    new InternalEvent(InternalEvs.off, [event as string, listener])
+                );
             }
         };
     }
@@ -584,7 +660,7 @@ export class Observable<
         event: E | '*',
         listener: E extends Events<Shape>
             ? EventCallback<Shape[E]>
-            : Function
+            : Func
     ) {
 
         if (this.$_spy) {
@@ -594,13 +670,17 @@ export class Observable<
 
         const self = this;
 
-        const runOnce: any = function (e, cb) {
+        let listenedOn: ReturnType<typeof self.on>;
 
-            self.off(event, runOnce);
-            listener.apply(self, [e, cb]);
+        const runOnce: any = function (e: E, cb: Func | EventCallback<E>) {
+
+            listenedOn.cleanup();
+            (listener as Func).apply(self, [e, cb]);
         }
 
-        return self.on(event, runOnce);
+        listenedOn = self.on(event, runOnce);
+
+        return listenedOn;
     }
 
     /**
@@ -624,6 +704,10 @@ export class Observable<
 
             this.$_listenerMap.clear();
             this.$_rgxListenerMap.clear();
+
+            this.$_internalListener.dispatchEvent(
+                new InternalEvent(InternalEvs.clear, [event as string, listener])
+            );
             return;
         }
 
@@ -638,12 +722,16 @@ export class Observable<
 
             const ev = _ev as Events<Shape>;
 
+            this.$_internalListener.dispatchEvent(
+                new InternalEvent(InternalEvs.off, [ev as string, listener])
+            );
+
             if (listener) {
                 const fns = this.$_listenerMap.get(ev);
 
                 if (fns) {
 
-                    fns.delete(listener);
+                    fns.delete(listener as Func);
                     if (fns.size === 0) this.$_listenerMap.delete(ev);
                 }
 
@@ -651,7 +739,7 @@ export class Observable<
             };
 
             this.$_listenerMap.delete(ev);
-        })
+        });
 
     }
 
@@ -680,11 +768,26 @@ export class Observable<
             if (cbs) cbs.forEach(fn => fn.apply(this, [data]))
             if (rgxCbs) rgxCbs.forEach(fn => fn.apply(this, [data]))
 
+            this.$_internalListener.dispatchEvent(
+                new InternalEvent(InternalEvs.trigger, [eventName, data])
+            );
+
             return;
         }
 
         const cbs = this.$_matchStr(rgx);
 
         if (cbs) cbs.forEach(fn => fn.apply(this, [data]))
+
+        this.$_withRgxMatchKeys(rgx).forEach(
+            ev => {
+
+                this.$_internalListener.dispatchEvent(
+                    new InternalEvent(InternalEvs.trigger, [ev as string, data])
+                );
+            }
+        )
+
+
     }
 }

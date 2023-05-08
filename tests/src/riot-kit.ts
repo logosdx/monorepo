@@ -1,7 +1,9 @@
 import * as RiotKit from '@logos-ui/riot-kit';
+import { LogosUIRiotComponent } from '@logos-ui/riot-kit';
 
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { ComponentEnhancer, RiotComponent } from 'riot';
+import sinon, { SinonStub } from 'sinon';
 
 describe('@logos-ui/riot-kit', () => {
 
@@ -74,6 +76,20 @@ describe('@logos-ui/riot-kit', () => {
         }
     };
 
+    type TestComponent = RiotKit.LogosUIRiotComponent<
+        AppKitType,
+        {
+            someFn: SinonStub,
+            otherFn: SinonStub
+        },
+        any,
+        any
+    >;
+
+    type RiotInstallFn = (
+        c: Partial<TestComponent>
+    ) =>TestComponent
+
     const localesOpts: any = {
         current: 'en',
         fallback: 'en',
@@ -98,7 +114,7 @@ describe('@logos-ui/riot-kit', () => {
         headers: {}
     };
 
-    let app: ReturnType<typeof RiotKit.riotKit<AppKitType>> = null;
+    let app: ReturnType<typeof RiotKit.riotKit<AppKitType>> = null as any;
 
     it('provides an riotKit', function () {
 
@@ -132,7 +148,7 @@ describe('@logos-ui/riot-kit', () => {
 
         expect(install.calledOnce).to.be.true;
 
-        const [[decorator]] = install.args;
+        const [[decorator]] = install.args as [[ComponentEnhancer]];
 
         expect(decorator).to.be.a('function');
 
@@ -140,9 +156,9 @@ describe('@logos-ui/riot-kit', () => {
 
     it('decorates an observable component', () => {
 
-        const [[decorator]] = install.args;
+        const [[decorator]] = install.args as [[RiotInstallFn]];
 
-        const observ = { observable: true };
+        const observ: Partial<TestComponent> = { observable: true };
 
         const observDeco = decorator(observ);
 
@@ -154,10 +170,10 @@ describe('@logos-ui/riot-kit', () => {
 
     it('decorates mapToState', () => {
 
-        const [[decorator]] = install.args;
+        const [[decorator]] = install.args as [[RiotInstallFn]];
 
         const update = sinon.stub();
-        const stated = {
+        const stated: Partial<TestComponent> = {
             state: { test: true, count: null },
             update(...args: any) {
 
@@ -185,7 +201,7 @@ describe('@logos-ui/riot-kit', () => {
 
         expect(stated.state.count).to.eq(null);
 
-        statedDeco.onBeforeMount({}, stated.state);
+        statedDeco.onBeforeMount!({}, stated.state);
 
         expect(stated.state).to.include.keys(
             'count',
@@ -195,16 +211,16 @@ describe('@logos-ui/riot-kit', () => {
 
         expect(stated.state.count).to.eq(0);
 
-        app.stateMachine.dispatch({ count: 99 });
+        app.stateMachine!.dispatch({ count: 99 });
         expect(update.callCount).to.eq(1);
         expect(stated.state.count).to.equal(99);
 
-        app.stateMachine.dispatch({ count: 95 });
+        app.stateMachine!.dispatch({ count: 95 });
         expect(update.callCount).to.eq(2);
         expect(stated.state.count).to.equal(95);
 
-        statedDeco.onBeforeUnmount({}, stated.state);
-        app.stateMachine.dispatch({ count: 90 });
+        statedDeco.onBeforeUnmount!({}, stated.state);
+        app.stateMachine!.dispatch({ count: 90 });
 
         expect(stated.state.count).to.equal(95);
         expect(update.callCount).to.eq(2);
@@ -212,11 +228,11 @@ describe('@logos-ui/riot-kit', () => {
 
     it('decorates locales', () => {
 
-        const [[decorator]] = install.args;
+        const [[decorator]] = install.args as [[RiotInstallFn]];
 
         const update = sinon.stub();
 
-        const l10n = {
+        const l10n: Partial<TestComponent> = {
             translatable: true,
             update
         };
@@ -227,32 +243,32 @@ describe('@logos-ui/riot-kit', () => {
         expect(l10nDeco.onBeforeMount).to.be.a('function');
         expect(l10nDeco.onBeforeUnmount).to.be.a('function');
 
-        l10nDeco.onBeforeMount();
+        l10nDeco.onBeforeMount!({}, {});
 
         expect(update.callCount, 'before change').to.eq(0);
 
-        app.locale.changeTo('es');
+        app.locale!.changeTo('es');
         expect(update.callCount, 'after change').to.eq(1);
 
-        app.locale.changeTo('es');
+        app.locale!.changeTo('es');
         expect(update.callCount, 'no change').to.eq(1);
 
-        l10nDeco.onBeforeUnmount();
+        l10nDeco.onBeforeUnmount!({}, {});
 
-        app.locale.changeTo('en');
+        app.locale!.changeTo('en');
         expect(update.callCount, 'after unmount').to.eq(1);
     });
 
     it('decorates storage', () => {
 
-        const [[decorator]] = install.args;
+        const [[decorator]] = install.args as [[RiotInstallFn]];
 
-        const s1 = {
+        const s1: Partial<TestComponent> = {
             saveInKey: 's1',
             state: { s1: null }
         };
 
-        const s2 = {
+        const s2: Partial<TestComponent> = {
             loadStorage: ['age', 'name'],
             state: {}
         }
@@ -269,36 +285,36 @@ describe('@logos-ui/riot-kit', () => {
         const name = 'pepe';
         const s1State = { s1: true };
 
-        app.storage.set({ age, name, s1: s1State });
+        app.storage!.set({ age, name, s1: s1State });
 
         expect(s1.state).to.not.include(s1State);
 
-        s1Deco.onBeforeMount();
+        s1Deco.onBeforeMount!({}, {});
 
         expect(s1.state).to.include(s1State);
 
         expect(s2.state).to.not.include({ name, age });
 
-        s2Deco.onBeforeMount();
+        s2Deco.onBeforeMount!({}, {});
 
         expect(s2.state).to.include({ name, age });
 
 
-        expect(app.storage.get('s1')).to.include({ s1: true });
-        s1Deco.onUpdated({}, { s1: false });
+        expect(app.storage!.get('s1')).to.include({ s1: true });
+        s1Deco.onUpdated!({}, { s1: false });
 
-        expect(app.storage.get('s1')).to.include({ s1: false });
+        expect(app.storage!.get('s1')).to.include({ s1: false });
     });
 
     it ('decorates fetchable', () => {
 
-        const [[decorator]] = install.args;
+        const [[decorator]] = install.args as [[RiotInstallFn]];
 
         const someFn = sinon.stub();
         const otherFn = sinon.stub();
         const update = sinon.stub();
 
-        const f = {
+        const f: Partial<TestComponent> = {
             state: {},
             someFn,
             otherFn,

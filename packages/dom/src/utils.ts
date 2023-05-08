@@ -1,7 +1,7 @@
 import { Func, MaybePromise, assert } from '@logos-ui/utils';
 import { html } from './';
 import { GlobalEvents } from './events';
-import { HtmlEventListener } from './events';
+import { EvListener } from './events';
 
 /**
  * Appends children to the parent element
@@ -107,7 +107,7 @@ type CreateElWithOpts<CustomHtmlEvents> = {
     text?: string,
     class?: string[],
     attrs?: Record<string, string>,
-    domEvents?: { [E in keyof GlobalEventHandlersEventMap]?: HtmlEventListener<E> },
+    domEvents?: { [E in keyof GlobalEventHandlersEventMap]?: EvListener<E> },
     customEvents?: CustomHtmlEvents,
     css?: Partial<CSSStyleDeclaration>
 }
@@ -181,15 +181,15 @@ export const createElWith = <
      * Cleans up events, if any were passed
      * @returns
      */
-    let cleanup = () => null;
+    let cleanup = () => null as any;
 
     const attachEventsFor = (
-        events: [string, HtmlEventListener<any>][]
+        events: [string, EvListener<any>][]
     ) => {
 
         const entries = Object.entries(events);
 
-        entries.forEach(
+        const cleaupCbs = entries.map(
             ([ev, fn]) => html.events.add(el, ev, fn as any)
         );
 
@@ -197,9 +197,7 @@ export const createElWith = <
         cleanup = () => {
 
             originalCleanup();
-            entries.forEach(
-                ([ev, fn]) => html.events.rm(el, ev, fn as any)
-            );
+            cleaupCbs.forEach(cleanUp => cleanUp());
         };
     }
 

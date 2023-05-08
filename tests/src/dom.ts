@@ -1,4 +1,5 @@
 import * as Lib from '@logos-ui/dom';
+import { CssPropNames, CssProps } from '@logos-ui/dom';
 
 import { expect } from 'chai';
 import sinon from 'sinon';
@@ -8,7 +9,7 @@ const document = window.document;
 const { html, $ } = Lib;
 
 const stub: {
-    sampleCss?: Partial<CSSStyleDeclaration>
+    sampleCss?: CssProps
 } = {};
 
 
@@ -102,6 +103,8 @@ describe('@logos-ui/dom', () => {
             const div = document.createElement('div');
             html.css.set(div, stub.sampleCss!);
 
+            console.log('fontSize', div.style.getPropertyValue('fontSize'));
+
             expect(div.style.fontSize).to.equal(stub.sampleCss!.fontSize);
             expect(div.style.color).to.equal(stub.sampleCss!.color);
         });
@@ -191,7 +194,7 @@ describe('@logos-ui/dom', () => {
             const span = document.createElement('span');
             html.css.set([div, span], stub.sampleCss!);
 
-            html.css.remove([div, span], Object.keys(stub.sampleCss!));
+            html.css.remove([div, span], Object.keys(stub.sampleCss!) as CssPropNames[]);
 
             expect(div.style.color).to.be.empty;
             expect(div.style.fontSize).to.be.empty;
@@ -526,7 +529,7 @@ describe('@logos-ui/dom', () => {
                 data: true
             };
 
-            const result = html.attrs.has([div, span], ['hidden', 'data']) as boolean[];
+            const result = html.attrs.has <keyof typeof attrs>([div, span], ['hidden', 'data']);
             expect(result[0]).to.include(attrs);
             expect(result[1]).to.include(attrs);
         });

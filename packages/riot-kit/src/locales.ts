@@ -28,7 +28,7 @@ export const makeComponentTranslatable = <C extends Partial<RiotComponent>>(opts
     const onBeforeMount: MkHookOpts<C, any, any> = {
         component: opts.component,
         callback: function () {
-            update = () => this.update();
+            update = () => this.update!();
 
             opts.locale.on('locale-change', update);
         },
@@ -44,6 +44,4 @@ export const makeComponentTranslatable = <C extends Partial<RiotComponent>>(opts
 
     makeOnBeforeMount(onBeforeMount);
     makeOnBeforeUnmount(onBeforeUnmount);
-
-
 }

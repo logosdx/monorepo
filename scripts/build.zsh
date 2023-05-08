@@ -23,3 +23,4 @@ find $BUILD_FOLDER -name "*.ts" -type f | grep -v template | xargs rm -rf;
 
 # Transpile TS files
 pnpm swc src/* -d $BUILD_FOLDER;
+pnpm types

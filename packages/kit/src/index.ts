@@ -29,11 +29,11 @@ export type AppKitFetch = {
 }
 
 export type AppKitType = {
-    eventsType?: Record<string, any>,
-    storageType?: Record<string, any>,
-    locales?: AppKitLocale,
-    stateMachine?: AppKitStateMachine,
-    fetch?: AppKitFetch,
+    eventsType: Record<string, any>,
+    storageType: Record<string, any>,
+    locales: AppKitLocale,
+    stateMachine: AppKitStateMachine,
+    fetch: AppKitFetch,
 }
 
 

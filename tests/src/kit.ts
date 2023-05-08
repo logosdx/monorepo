@@ -128,25 +128,25 @@ describe('@logos-ui/kit', () => {
         expect(app.storage).to.be.an.instanceOf(Kit.StorageFactory);
         expect(app.fetch).to.be.an.instanceOf(Kit.FetchFactory);
 
-        app.observer.on('mint', (data) => data === 'peppermint');
-        app.observer.trigger('floss', true);
+        app.observer!.on('mint', (data) => data === 'peppermint');
+        app.observer!.trigger('floss', true);
 
-        app.locale.t('bear');
-        app.locale.changeTo('en');
+        app.locale!.t('bear');
+        app.locale!.changeTo('en');
 
-        app.fetch.addHeader({ hmac: '123, nonsensee: '123' });
-        app.fetch.removeHeader('authorization');
-        app.fetch.setState({ authToken: '123' });
+        app.fetch!.addHeader({ hmac: '123', nonsensee: '123' });
+        app.fetch!.removeHeader('authorization');
+        app.fetch!.setState({ authToken: '123' });
 
-        app.storage.set('age', 123);
-        app.storage.get('name') === 'abc';
+        app.storage!.set('age', 123);
+        app.storage!.get('name') === 'abc';
 
-        app.stateMachine.state().age === 123;
-        app.stateMachine.state().name === 'abc';
-        app.stateMachine.dispatch({ age: 123 });
+        app.stateMachine!.state().age === 123;
+        app.stateMachine!.state().name === 'abc';
+        app.stateMachine!.dispatch({ age: 123 });
 
-        app.stateMachine.addListener((state) => state.age == 123);
-        app.stateMachine.addListener((state) => state.name == 'abc');
+        app.stateMachine!.addListener((state) => state.age == 123);
+        app.stateMachine!.addListener((state) => state.name == 'abc');
 
     });
 
