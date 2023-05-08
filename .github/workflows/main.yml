@@ -18,8 +18,8 @@ jobs:
           cache: "pnpm"
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm recursive run lint
       - run: pnpm recursive run build
+      - run: pnpm recursive run lint
       - run: pnpm test
         working-directory: tests
       - run: pnpm bundle
