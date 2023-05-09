@@ -67,33 +67,33 @@ internals.overwriteSets = <T>(current: Set<T>, incoming: Set<T>) => {
 
 typeMergeFunc.set(Array, <T>(current: Array<T>, incoming: Array<T>, options?: MergeOptions) => {
 
-    if (options.mergeArrays) {
+    if (options?.mergeArrays) {
 
-        return internals.mergeArrays(current, incoming);
+        return internals.mergeArrays!(current, incoming);
     }
 
-    return internals.overwriteArrays(current, incoming);
+    return internals.overwriteArrays!(current, incoming);
 });
 
 typeMergeFunc.set(Set, <T>(current: Set<T>, incoming: Set<T>, options?: MergeOptions) => {
 
-    if (options.mergeSets) {
+    if (options?.mergeSets) {
 
-        return internals.mergeSets(current, incoming);
+        return internals.mergeSets!(current, incoming);
     }
 
-    return internals.overwriteSets(current, incoming);
+    return internals.overwriteSets!(current, incoming);
 });
 
 typeMergeFunc.set(
     Object,
-    <C = {}, I = {}>(
+    <C extends Record<string, unknown>, I extends C>(
         current: C,
         incoming: I,
         options?: MergeOptions
     ) => {
 
-    let key: string;
+    let key: keyof C;
 
     for (key in incoming) {
 
@@ -172,11 +172,11 @@ export const merge: Merge = (current, incoming, options = {}) => {
 
     if (hasSameConstructor(incoming, current)) {
 
-        const mergeType = typeMergeFunc.get(current.constructor as AnyConstructor);
+        const mergeType = typeMergeFunc.get(current!.constructor as AnyConstructor);
 
         // Warn about using specific types that are not supported
         if (!mergeType) {
-            _nextTick(() => console.warn(`Cannot merge ${current.constructor.name} type.`));
+            _nextTick(() => console.warn(`Cannot merge ${current!.constructor.name} type.`));
             return current;
         }
 

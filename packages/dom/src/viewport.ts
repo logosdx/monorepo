@@ -3,14 +3,14 @@ const document = window.document;
 /**
  * Get the max value from a list of arguments filtering the falsy values
  * @private
- * @param   {...number} args - list of numbers
- * @returns { number } the highest value
+ * @param args - list of numbers
+ * @returns the highest value
  */
-const max = (...args) => Math.max(0, ...args.filter((v => !!v)), 0);
+const max = (...args: number[]) => Math.max(0, ...args.filter((v => !!v)), 0);
 
 /**
  * Return the size of the scrollbar that depends on the browser or device used on the client
- * @returns { number } - the browser scrollbar width
+ * @returns - the browser scrollbar width
  */
 export function scrollbarWidth() {
 
@@ -38,7 +38,7 @@ export function scrollbarWidth() {
 
 /**
  * Get the height of the whole page
- * @returns { number } height in px of the document
+ * @returns height in px of the document
  */
 export function documentHeight() {
 
@@ -53,7 +53,7 @@ export function documentHeight() {
 
 /**
  * Get the width of the whole page
- * @returns { number } width in px of the document
+ * @returns width in px of the document
  */
 export function documentWidth() {
 
@@ -68,7 +68,7 @@ export function documentWidth() {
 
 /**
  * Return amount of px scrolled from the top of the document
- * @returns { number } scroll top value in px
+ * @returns scroll top value in px
  */
 export function scrollTop() {
 
@@ -81,7 +81,7 @@ export function scrollTop() {
 
 /**
  * Return amount of px scrolled from the left of the document
- * @returns { number } scroll left value in px
+ * @returns scroll left value in px
  */
 export function scrollLeft() {
     return max(
@@ -94,20 +94,20 @@ export function scrollLeft() {
 
 /**
  * Get the offset top of any DOM element
- * @param { HTMLElement } el - the element we need to check
- * @returns { number } the element y position in px
+ * @param el - the element we need to check
+ * @returns the element y position in px
  */
-export function elementOffsetTop(el) {
+export function elementOffsetTop(el: HTMLElement) {
 
     return max(scrollTop() + el.getBoundingClientRect().top)
 }
 
 /**
  * Get the offset left of any DOM element
- * @param { HTMLElement } el - the element we need to check
- * @returns { number } the element x position in px
+ * @param el - the element we need to check
+ * @returns the element x position in px
  */
-export function elementOffsetLeft(el) {
+export function elementOffsetLeft(el: HTMLElement) {
 
     return max(scrollLeft() + el.getBoundingClientRect().left)
 }

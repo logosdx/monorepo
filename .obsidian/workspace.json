@@ -4,16 +4,16 @@
     "type": "split",
     "children": [
       {
-        "id": "b579695dfffd8f92",
+        "id": "d6c3ba285450f639",
         "type": "tabs",
         "children": [
           {
-            "id": "a57a2af72e4b0105",
+            "id": "de469f6c8d2a4951",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "A set of tools for sane people.md",
+                "file": "packages/dom/Usage.md",
                 "mode": "source",
                 "source": false
               }
@@ -69,8 +69,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "823eaf69fd066dcc",
@@ -86,7 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "A set of tools for sane people.md",
+                "file": "packages/dom/Usage.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -103,7 +102,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "A set of tools for sane people.md",
+                "file": "packages/dom/Usage.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -126,7 +125,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "A set of tools for sane people.md"
+                "file": "packages/dom/Usage.md"
               }
             }
           }
@@ -149,13 +148,27 @@
       "table-editor-obsidian:Advanced Tables Toolbar": false
     }
   },
-  "active": "a57a2af72e4b0105",
+  "active": "de469f6c8d2a4951",
   "lastOpenFiles": [
-    "packages/riot-utils/dist/utils.ts",
-    "packages/riot-utils/dist/queryable.ts",
-    "packages/riot-utils/dist/index.ts",
-    "packages/dom/dist/events.js",
-    "stackoverflow.com.md",
-    "A set of tools for sane people.md"
+    "packages/kit/dist/index.d.ts",
+    "packages/storage/dist/index.d.ts",
+    "packages/state-machine/dist/index.d.ts",
+    "packages/riot-utils/dist/index.d.ts",
+    "packages/riot-utils/dist/queryable.d.ts",
+    "packages/riot-utils/dist/utils.d.ts",
+    "packages/observer/dist/index.d.ts",
+    "packages/localize/dist/index.d.ts",
+    "packages/localize/dist/helpers.d.ts",
+    "packages/forms/dist/index.d.ts",
+    "packages/fetch/dist/index.d.ts",
+    "packages/dom/Interfaces.md",
+    "packages/dom/Usage.md",
+    "favicon-32.png",
+    "favicon.png",
+    "A set of tools for sane people.md",
+    "@logos-ui/dom.md",
+    "readme.md",
+    "packages/dom/readme.md",
+    "stackoverflow.com.md"
   ]
 }

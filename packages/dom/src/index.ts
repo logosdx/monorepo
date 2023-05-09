@@ -8,12 +8,19 @@ export * from './viewport';
  * Where most of these ideas stemmed from
  */
 
-import * as Css from './css';
-import * as Attrs from './attrs';
-import * as Events from './events';
+import { HtmlCss } from './css';
+import { HtmlAttr } from './attrs';
+import { HtmlEvents } from './events';
 
-export * from './utils';
-export * from './viewport';
+export {
+    CssPropNames,
+    CssProps
+} from './css';
+
+export {
+    GlobalEvents,
+    EvListener
+} from './events';
 
 const document = window.document;
 
@@ -39,7 +46,7 @@ const css = {
      * // > [{ color: 'red', fontSize: '12px' }, { color: 'blue', fontSize: '10px' }]
      *
      */
-    get: Css.getCss,
+    get: HtmlCss.get.bind(HtmlCss),
 
     /**
      * Sets css properties on one or many html elements.
@@ -58,7 +65,12 @@ const css = {
      *      paddingRight: '10px'
      * });
      */
-    set: Css.setCss,
+    set: HtmlCss.set.bind(HtmlCss),
+
+    /**
+     * See `html.css.set(...)`
+     */
+    add: HtmlCss.set.bind(HtmlCss),
 
     /**
      * Removes properties from html elements
@@ -72,12 +84,12 @@ const css = {
      * css.remove(div, ['color', 'fontSize']);
      * css.remove([div, span], ['color', 'fontSize']);
      */
-    remove: Css.removeCss,
+    remove: HtmlCss.remove.bind(HtmlCss),
 
     /**
      * see `html.css.remove(...)`
      */
-    rm: Css.removeCss
+    rm: HtmlCss.remove.bind(HtmlCss)
 };
 
 const attrs = {
@@ -88,19 +100,19 @@ const attrs = {
      *
      * @example
      *
-     * attrs.get(form, 'method');
+     * html.attrs.get(form, 'method');
      * // > 'post'
      *
-     * attrs.get([select, input], 'name');
+     * html.attrs.get([select, input], 'name');
      * // > ['role', 'full_name']
      *
-     * attrs.get(form, ['method', 'action']);
+     * html.attrs.get(form, ['method', 'action']);
      * // > { method: 'post', action: '/' }
      *
-     * attrs.get([select, input], ['name', 'value']);
+     * html.attrs.get([select, input], ['name', 'value']);
      * // > [{ name: '', value: '' }, { name: '', value: '' }]
      */
-    get: Attrs.getAttr,
+    get: HtmlAttr.get.bind(HtmlAttr),
 
     /**
      *
@@ -109,26 +121,31 @@ const attrs = {
      *
      * @example
      *
-     * attrs.set(input, { name: 'full_name' });
-     * attrs.set([div, div, div], { 'data-show': 'false' });
+     * html.attrs.set(input, { name: 'full_name' });
+     * html.attrs.set([div, div, div], { 'data-show': 'false' });
      */
-    set: Attrs.setAttr,
+    set: HtmlAttr.set.bind(HtmlAttr),
+
+    /**
+     * see `html.attrs.set(...)`
+     */
+    add: HtmlAttr.set.bind(HtmlAttr),
 
     /**
      *
      * @param els
      * @param propNames
      *
-     * attrs.has(form, 'method');
+     * html.attrs.has(form, 'method');
      * // > true
      *
-     * attrs.has([input, textarea], 'required');
+     * html.attrs.has([input, textarea], 'required');
      * // > [true, false]
      *
-     * attrs.has([input, textarea], ['required', 'name']);
+     * html.attrs.has([input, textarea], ['required', 'name']);
      * // > [{ required: true, name: false }, { required: false, name: false }]
      */
-    has: Attrs.hasAttr,
+    has: HtmlAttr.has.bind(HtmlAttr),
 
     /**
      * Removes attributes on one or many html elements
@@ -137,17 +154,17 @@ const attrs = {
      *
      * @example
      *
-     * attrs.remove(form, 'method');
-     * attrs.remove([select, input], 'name');
-     * attrs.remove(form, ['method', 'action']);
-     * attrs.remove([select, input], ['name', 'value']);
+     * html.attrs.remove(form, 'method');
+     * html.attrs.remove([select, input], 'name');
+     * html.attrs.remove(form, ['method', 'action']);
+     * html.attrs.remove([select, input], ['name', 'value']);
      */
-    remove: Attrs.removeAttr,
+    remove: HtmlAttr.remove.bind(HtmlAttr),
 
     /**
-     * see `html.attrs.remove`
+     * see `html.attrs.remove(...)`
      */
-    rm: Attrs.removeAttr,
+    rm: HtmlAttr.remove.bind(HtmlAttr),
 };
 
 const events = {
@@ -166,15 +183,25 @@ const events = {
      * html.events.on(div, ['focus', 'blur'], () => {});
      * html.events.on([div, input], ['focus', 'blur'], () => {});
      *
+     * // returns a cleaup function
+     *
+     * const cleanup = html.events.on(div, 'click', () => {});
+     * setTimeout(cleanup, 1000);
+     *
      * // can use alternative name
      * html.events.listen(...)
      */
-    on: Events.eventOn,
+    on: HtmlEvents.on,
 
     /**
      * Same as `html.events.on`
      */
-    listen: Events.eventOn,
+    listen: HtmlEvents.on,
+
+    /**
+     * Same as `html.events.on`
+     */
+    add: HtmlEvents.on,
 
     /**
      * Adds event listeners to dom event interfaces that only run once
@@ -189,15 +216,19 @@ const events = {
      * html.events.one(div, ['focus', 'blur'], () => {});
      * html.events.one([div, input], ['focus', 'blur'], () => {});
      *
+     * // returns a cleaup function
+     *
+     * const cleanup = html.events.one(div, 'click', () => {});
+     * setTimeout(cleanup, 1000);
      * // can use alternative name
      * html.events.once(div, 'click', () => {});
      */
-    one: Events.eventOne,
+    once: HtmlEvents.once,
 
     /**
-     * Same as `html.events.one`
+     * Same as `html.events.once`
      */
-    once: Events.eventOne,
+    one: HtmlEvents.once,
 
     /**
      * Removes event listeners on dom event interfaces
@@ -216,17 +247,22 @@ const events = {
      * html.events.remove(...)
      * html.events.rm(...)
      */
-    off: Events.eventOff,
+    off: HtmlEvents.off,
 
     /**
      * Same as `html.events.off`
      */
-    remove: Events.eventOff,
+    remove: HtmlEvents.off,
 
     /**
      * Same as `html.events.off`
      */
-    rm: Events.eventOff,
+    rm: HtmlEvents.off,
+
+    /**
+     * Same as `html.events.off`
+     */
+    unlisten: HtmlEvents.off,
 
     /**
      *
@@ -243,24 +279,23 @@ const events = {
      * html.events.emit(...);
      * html.events.send(...);
      */
-    trigger: Events.eventTrigger,
+    trigger: HtmlEvents.trigger,
 
     /**
      * Same as `html.events.trigger`
      */
-    emit: Events.eventTrigger,
+    emit: HtmlEvents.trigger,
 
     /**
      * Same as `html.events.trigger`
      */
-    send: Events.eventTrigger,
+    send: HtmlEvents.trigger,
 };
 
 
 /**
- * Shortcut to `querySelectorAll` which converts a NodeList into an array.
- * If the resulting NodeList contains only 1 element, it will be returned instead of an array.
- * If the resulting NodeList contains only nothing, `null` will be returned instead.
+ * Wraps `querySelectorAll` and converts a NodeList into an array.
+ * It will always return an array
  * @param selector
  * @param ctx
  * @returns

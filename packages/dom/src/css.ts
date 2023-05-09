@@ -1,62 +1,130 @@
 import {
+    OneOrMany,
     OneOrManyElements,
     itemsToArray,
-    oneOrMany
+    oneOrMany,
+    NonFunctionProps
 } from '@logos-ui/utils';
+
+
+export type CssPropNames = Extract<NonFunctionProps<CSSStyleDeclaration>, string>;
+export type CssProps = { [K in CssPropNames]?: CSSStyleDeclaration[K] };
+
 
 /**
  * Sanitize css properties; Kebab case to camel case.
  * @param name css property
  */
-function sanitize(name: string): string {
+function sanitize(name: CssPropNames) {
     const isFloat = name === 'float';
 
     if (isFloat) {
         return 'cssFloat';
     }
 
-    return name.replace(/(.+)-(.)/, (_s, m1, m2) => m1 + m2.toUpperCase())
+    return (name as string).replace(
+        /(.+)-(.)/,
+        (_s, m1, m2) => m1 + m2.toUpperCase()
+    ) as CssPropNames
 }
 
-export function getCss(els: OneOrManyElements, propNames: string | string[]): string | Partial<CSSStyleDeclaration> | Partial<CSSStyleDeclaration>[] {
-    const elements = itemsToArray(els);
-    const properties = itemsToArray(propNames);
+const cssPropsFor = (el: HTMLElement) => global.window.getComputedStyle(el) as CssProps;
+const extractCssProps = (props: CssProps, names: CssPropNames[]) => {
 
-    let result = [...elements].map(el => properties.reduce((list, prop) => {
-        prop = sanitize(prop);
-        const style = global.window.getComputedStyle(el as HTMLElement);
-        list[prop] = style[prop];
+    const list = {} as CssProps;
+    names = names.map(sanitize);
 
-        return list;
-    }, {}))
+    for (const i in names) {
 
-    if (properties.length === 1) {
-        result = result.map(value => value[properties[0]]);
+        const key = names[i]!;
+        list[key] = props[key] as any;
     }
 
-    return oneOrMany(result);
+    return list;
 }
 
-export function setCss(els: OneOrManyElements, props: Partial<CSSStyleDeclaration>) {
-    const elements = itemsToArray(els);
-    const entries = Object.entries(props);
+const setCss = (el: HTMLElement, propName: CssPropNames, value: string) => {
 
-    for (const [key, value] of entries) {
-        const prop = sanitize(key);
-        elements.map((el) => (el as HTMLElement).style[prop] = value);
+    el.style[sanitize(propName) as any] = value;
+}
+
+export class HtmlCss {
+
+    static get(el: HTMLElement, prop: CssPropNames): string;
+    static get(el: HTMLElement[], prop: CssPropNames): string[];
+    static get(el: HTMLElement, props: CssPropNames[]): CssProps;
+    static get(el: HTMLElement[], props: CssPropNames[]): CssProps[];
+    static get(
+        els: OneOrMany<HTMLElement>,
+        props: OneOrMany<CssPropNames>
+    ) {
+
+        if (Array.isArray(els)) {
+
+            if (Array.isArray(props)) {
+
+                return els.map(el => (
+
+                    extractCssProps(
+                        cssPropsFor(el),
+                        props
+                    )
+                )) as CssProps[]
+            }
+
+            return els.map(el => (
+
+                cssPropsFor(el)[props]
+            )) as string[]
+        }
+
+        if (Array.isArray(props)) {
+
+            return extractCssProps(
+                cssPropsFor(els),
+                props
+            ) as CssProps
+        }
+
+        return cssPropsFor(els)[props] as string
     }
+
+    static set(els: OneOrMany<HTMLElement>, props: CssProps) {
+
+        const entries = Object.entries(props) as [CssPropNames, CssProps[CssPropNames]][];
+
+        if (!Array.isArray(els)) {
+
+            for (const i in entries) {
+
+                const [prop, value] = entries[i]!
+
+                setCss(els, prop, value as string);
+            }
+
+            return
+        }
+
+        for (const [key, value] of entries) {
+
+            const prop = sanitize(key);
+            els.map(el => setCss(el, prop, value as string));
+        }
+    }
+    static remove(
+        els: OneOrMany<HTMLElement>,
+        propNames: OneOrMany<CssPropNames>
+    ) {
+
+        if (!Array.isArray(propNames)) {
+
+            this.set(els, { [propNames]: '' });
+            return;
+        }
+
+        this.set(els, Object.fromEntries(
+            propNames.map(n => [n, ''])
+        ));
+    }
+
 }
-
-export function removeCss(els: OneOrManyElements, propNames: string | string[]) {
-
-    propNames = typeof propNames === 'string' ? [propNames] : propNames;
-
-    const props = propNames.reduce((list, prop) => {
-        prop = sanitize(prop);
-        list[prop] = '';
-        return list;
-    }, {});
-
-    setCss(els, props);
-}
-

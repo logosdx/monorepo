@@ -20,7 +20,7 @@ deepEqualHandlers.set(Array, (a: any[], b: any[]) => {
     // If length changed, they do not match
     if (!isSameLength(a, b)) return false;
 
-    return forInIsEqual(a, (val, i) => deepEqual(val, b[i]))
+    return forInIsEqual(a, (val, i) => deepEqual(val, b[i as any]))
 });
 
 deepEqualHandlers.set(Object, (a, b) => {
@@ -125,7 +125,7 @@ export const addConstructorCheck = (opts: ConstructorCheckOptions) => {
 
         deepEqualHandlers.set(
             opts.constructor,
-            treatAsCheck
+            treatAsCheck!
         );
 
         return;
@@ -133,7 +133,7 @@ export const addConstructorCheck = (opts: ConstructorCheckOptions) => {
 
     deepEqualHandlers.set(
         opts.constructor,
-        opts.deepEqualFunc
+        opts.deepEqualFunc!
     );
 
 }

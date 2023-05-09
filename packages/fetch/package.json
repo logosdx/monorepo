@@ -1,22 +1,30 @@
 {
   "name": "@logos-ui/fetch",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "A full-feature wrapper around the Fetch API",
   "main": "dist/index.js",
-  "types": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "browserFuncName": "LogosUI.Fetch",
+  "cdn": "dist/bundle.js",
   "scripts": {
-    "build": "../../scripts/build.zsh utils",
-    "validate-types": "pnpm tsc --noEmit"
+    "build": "sh ../../scripts/build.zsh utils",
+    "types": "pnpm tsc --emitDeclarationOnly",
+    "lint": "pnpm tsc --noEmit"
   },
   "files": [
-      "src/",
       "dist/",
       "docs/",
-      "readme.md"
+      "readme.md",
+      "LICENSE"
   ],
-  "keywords": [],
+  "keywords": ["fetch", "axios", "xhr requests", "node-fetch", "ajax"],
+  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "bugs": {
+    "url": "https://github.com/logos-ui/discuss/issues",
+    "email": "danilo@alonso.network"
+  },
   "author": "Danilo Alonso <danilo@alonso.network>",
-  "license": "ISC",
+  "license": "BSD-3-Clause",
   "dependencies": {
     "@logos-ui/utils": "workspace:^"
   },

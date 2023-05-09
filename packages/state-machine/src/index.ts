@@ -22,7 +22,7 @@ export const deepFreeze = (target: object) => {
 
     for (const key in target) {
 
-        deepFreeze(target[key]);
+        deepFreeze(target[key as keyof typeof target]);
     }
 };
 
@@ -69,22 +69,22 @@ const DEFAULT_OPTIONS: StateMachineOptions = {
 
 export class StateMachine<State = any, ReducerValue = any> {
 
-    _options: StateMachineOptions|null = null;
+    _options!: StateMachineOptions;
 
-    private _id: number|null = null;
+    private _id!: number;
     private _sid = 0;
 
     private _stateId(): number {
         return this._sid++;
     }
 
-    _internals: StateMachineState<State>;
-    _states: Map<number, State>|null = null;
+    _internals!: StateMachineState<State>;
+    _states!: Map<number, State>;
 
-    _reducers: Set<ReducerFunction<State, ReducerValue>>|null = null;
-    _listeners: Set<ListenerFunction<State, ReducerValue>>|null = null;
+    _reducers!: Set<ReducerFunction<State, ReducerValue>>;
+    _listeners!: Set<ListenerFunction<State, ReducerValue>>;
 
-    _parent: StateMachine|null = null;
+    _parent!: StateMachine|null;
 
     constructor(initialState: any = {}, options: StateMachineOptions = {}) {
 
@@ -132,19 +132,19 @@ export class StateMachine<State = any, ReducerValue = any> {
 
     private _addState(state: State) {
 
-        const { statesToKeep } = this._options;
+        const { statesToKeep } = this._options!;
         const { _states } = this;
 
-        if (statesToKeep && _states.size >= statesToKeep) {
+        if (statesToKeep && _states!.size >= statesToKeep) {
 
-            const { value: firstState } = _states.keys().next();
-            _states.delete(firstState);
+            const { value: firstState } = _states!.keys().next();
+            _states!.delete(firstState);
         }
 
         const currentState = this._stateId();
 
         // Initialize state to state holder
-        _states.set(currentState, state);
+        _states!.set(currentState, state);
 
         this._setInternals({
             currentState,
@@ -156,7 +156,7 @@ export class StateMachine<State = any, ReducerValue = any> {
     private _notifyListeners(newState: State, oldState: State, flow?: StateMachine[]) {
 
         // Notify listeners
-        for (const listener of this._listeners) {
+        for (const listener of this._listeners!) {
             listener(newState, oldState, flow);
         }
     };
@@ -197,7 +197,14 @@ export class StateMachine<State = any, ReducerValue = any> {
 
             for (const reducer of _reducers) {
 
-                const _modified = reducer(nextState, prevState || currentState, IGNORE);
+                const _modified = reducer(
+                    nextState,
+                    (
+                        prevState as any ||
+                        currentState
+                    ),
+                    IGNORE
+                );
 
                 // Ignore modification if ignore symbol
                 if (_modified === IGNORE) {
@@ -211,7 +218,7 @@ export class StateMachine<State = any, ReducerValue = any> {
                 }
             }
 
-            nextState = prevState;
+            nextState = prevState as any;
         }
 
         // Save new state to holder
@@ -323,7 +330,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      */
     state(): State {
 
-        return clone(this._internals.state);
+        return clone(this._internals.state!);
     }
 
     /**
@@ -363,9 +370,9 @@ export class StateMachine<State = any, ReducerValue = any> {
         }
 
         const oldState = state;
-        const newState = _states.get(latestState);
+        const newState = _states.get(latestState!);
 
-        this._notifyListeners(newState, oldState);
+        this._notifyListeners(newState!, oldState!);
 
         this._setInternals({
             currentState: latestState,
@@ -394,8 +401,8 @@ export class StateMachine<State = any, ReducerValue = any> {
             const newState = _states.get(sid);
 
             this._notifyListeners(
-                newState,
-                oldState
+                newState!,
+                oldState!
             );
 
             this._setInternals({
@@ -415,7 +422,7 @@ export class StateMachine<State = any, ReducerValue = any> {
     prevState() {
 
         const { currentState } = this._internals;
-        this.goToState(currentState - 1);
+        this.goToState(currentState! - 1);
     }
 
     /**
@@ -424,7 +431,7 @@ export class StateMachine<State = any, ReducerValue = any> {
     nextState() {
 
         const { currentState } = this._internals;
-        this.goToState(currentState + 1);
+        this.goToState(currentState! + 1);
     }
 
     /**
@@ -465,7 +472,11 @@ export class StateMachine<State = any, ReducerValue = any> {
         /**
          * Add listener to parent to pass updates to cloned instance
          */
-        const updateChild = (value, _, flow?: StateMachine[]) => {
+        const updateChild = (
+            value: ReducerValue,
+            _: State,
+            flow?: StateMachine[]
+        ) => {
 
             if (flow) {
                 flow.push(self);

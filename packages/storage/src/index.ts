@@ -24,7 +24,7 @@ export type StorageImplementation = {
 
 export class StorageEvent<V> extends Event {
     key?: keyof V | (keyof V)[];
-    value: V[keyof V] | { [K in keyof V]: V[K] };
+    value!: V[keyof V] | { [K in keyof V]: V[K] };
 }
 
 export enum StorageEventNames {
@@ -38,7 +38,7 @@ export enum StorageEventNames {
 const makeEvent = <V, K extends keyof V = keyof V>(
     type: keyof typeof StorageEventNames,
     key: K | K[],
-    value: V | V[K]
+    value: V | V[K] | null
 ) => {
 
     const ev = new StorageEvent <V>(StorageEventNames[type]);
@@ -81,7 +81,7 @@ export class StorageFactory<Values> extends EventTarget {
         once = false
     ) {
 
-        this.addEventListener(ev, listener, { once });
+        this.addEventListener(ev, listener as any, { once });
     }
 
     off(ev: keyof typeof StorageEventNames, listener: EventListenerOrEventListenerObject) {
@@ -144,7 +144,10 @@ export class StorageFactory<Values> extends EventTarget {
      * @param key
      * @param value
      */
-    set <K extends keyof Values>(key: K, value: Values[K]): void
+    set <K extends keyof Values>(
+        key: K | Partial<Values> & Record<string, any>,
+        value: Values[K]
+    ): void
 
     set(key: unknown, value?: unknown) {
 
@@ -152,7 +155,7 @@ export class StorageFactory<Values> extends EventTarget {
 
         if (typeof key === 'object') {
 
-            const entries = Object.entries(key) as [keyof Values, Values[keyof Values]][];
+            const entries = Object.entries(key!) as [keyof Values, Values[keyof Values]][];
 
             entries.map(
                 ([key, val]) => (
@@ -226,7 +229,7 @@ export class StorageFactory<Values> extends EventTarget {
      */
     rm <K extends keyof Values>(keyOrKeys: K | K[]): void {
 
-        this._assertKey(keyOrKeys[0]);
+        this._assertKey((keyOrKeys as string[] | string)[0]!);
 
         if (Array.isArray(keyOrKeys)) {
 

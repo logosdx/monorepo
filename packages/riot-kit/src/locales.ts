@@ -1,7 +1,16 @@
 import type { RiotComponent } from "riot"
-import { LocaleFactory, LocaleType } from "@logos-ui/localize"
-import { MkHookOpts, makeOnBeforeMount, makeOnBeforeUnmount } from "@logos-ui/riot-utils"
-import { Func, definePrivateProps } from "@logos-ui/utils"
+import {
+    LocaleFactory,
+    LocaleType,
+    Func,
+    definePrivateProps
+} from "@logos-ui/kit"
+
+import {
+    MkHookOpts,
+    makeOnBeforeMount,
+    makeOnBeforeUnmount
+} from "@logos-ui/riot-utils"
 
 
 export type TranslatableComponent<
@@ -28,7 +37,7 @@ export const makeComponentTranslatable = <C extends Partial<RiotComponent>>(opts
     const onBeforeMount: MkHookOpts<C, any, any> = {
         component: opts.component,
         callback: function () {
-            update = () => this.update();
+            update = () => this.update!();
 
             opts.locale.on('locale-change', update);
         },
@@ -44,6 +53,4 @@ export const makeComponentTranslatable = <C extends Partial<RiotComponent>>(opts
 
     makeOnBeforeMount(onBeforeMount);
     makeOnBeforeUnmount(onBeforeUnmount);
-
-
 }

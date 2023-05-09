@@ -11,6 +11,7 @@ export type NonFunctionProps<T> = { [K in keyof T]: T[K] extends Func | Klass ? 
 /** Extract only props that are functions */
 export type FunctionProps<T> = { [K in keyof T]: K extends NonFunctionProps<T> ? K : never }[keyof T];
 
+
 /** Make a nested object optional all the way down the tree */
 export type DeepOptional<T> = {
     [K in keyof T]?: T[K] extends object ? DeepOptional<T[K]> : T[K]
@@ -59,10 +60,11 @@ export type PathsToValues<
 
 export type StrOrNum = string | number
 
-export type OneOrManyElements<T extends Node = Element> = T | T[];
+export type OneOrMany<T> = T | T[];
+export type OneOrManyElements<T extends Node | EventTarget = Element> = T | T[];
 
 export interface StringProps { [key: string]: string };
 
 export interface BoolProps { [key: string]: boolean };
 
-
+export type MaybePromise<T> = T | Promise<T>;

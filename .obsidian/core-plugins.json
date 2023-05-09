@@ -18,5 +18,6 @@
   "outline",
   "word-count",
   "file-recovery",
-  "publish"
+  "publish",
+  "sync"
 ]

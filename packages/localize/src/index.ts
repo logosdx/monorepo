@@ -110,7 +110,7 @@ export class LocaleFactory<
      */
     t: LocaleFactory<Locale, Code>['text'];
 
-    private _loc: Locale;
+    private _loc!: Locale;
 
 
     constructor(opts: LocaleOpts<Locale, Code>) {
@@ -138,7 +138,7 @@ export class LocaleFactory<
         once = false
     ) {
 
-        this.addEventListener(ev, listener, { once });
+        this.addEventListener(ev, listener as any, { once });
     }
 
     off(ev: LocaleEventName, listener: EventListenerOrEventListenerObject) {

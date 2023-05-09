@@ -1,4 +1,4 @@
-import { NonFunctionProps, assert } from '@logos-ui/utils';
+import { Func, NonFunctionProps, assert, definePublicProps } from '@logos-ui/utils';
 
 export type TypeOfFactory = keyof Omit<Body, NonFunctionProps<Body>>;
 type HttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH' | string;
@@ -73,7 +73,7 @@ export interface FetchError<T = {}> extends Error {
 export class FetchError<T = {}> extends Error {}
 
 export class  FetchEvent<State = {}, InstanceHeaders = FetchHeaders> extends Event {
-    state: State
+    state!: State
     url?: string
     method?: HttpMethods
     headers?: HeaderObj<InstanceHeaders>
@@ -100,27 +100,7 @@ export class  FetchEvent<State = {}, InstanceHeaders = FetchHeaders> extends Eve
 
         super(event, initDict);
 
-        const mkDef = (value: any) => ({
-
-            configurable: false,
-            enumerable: true,
-            writable: false,
-            value
-        })
-
-        Object.defineProperties(
-            this,
-            {
-                url: mkDef(opts.url),
-                state: mkDef(opts.state),
-                error: mkDef(opts.error),
-                response: mkDef(opts.response),
-                method: mkDef(opts.method),
-                headers: mkDef(opts.headers),
-                data: mkDef(opts.data),
-                payload: mkDef(opts.payload),
-            }
-        )
+        definePublicProps(this, opts);
     }
 }
 
@@ -240,7 +220,7 @@ export class FetchFactory<
      * Makes an API call using fetch
      * @returns
      */
-    private async makeCall <Res, Err>(
+    private async makeCall <Res>(
         method: HttpMethods,
         path: string,
         options: (
@@ -249,7 +229,7 @@ export class FetchFactory<
             {
                 payload?: any,
                 controller: AbortController,
-                cancelTimeout: NodeJS.Timeout
+                cancelTimeout?: NodeJS.Timeout
             }
         )
     ) {
@@ -349,7 +329,7 @@ export class FetchFactory<
                 }
                 else {
 
-                    data = await response[type as any]() as Res;
+                    data = await response[type]() as Res;
                 }
 
                 if (response.ok) {
@@ -378,7 +358,7 @@ export class FetchFactory<
 
 
             error = new FetchError(statusText);
-            error.data = data as Err;
+            error.data = data as any;
             error.status = status;
             error.method = method;
             error.path = path;
@@ -388,9 +368,13 @@ export class FetchFactory<
         }
         catch (e: any) {
 
-            if (!(e instanceof FetchError)) {
+            if (e instanceof FetchError === false) {
 
                 error = new FetchError(e.message);
+            }
+            else {
+
+                error = e;
             }
 
             let statusCode = error.status || 999;
@@ -450,17 +434,20 @@ export class FetchFactory<
      * @param path
      * @param options
      */
-    request <Res = any, Data = any, Err = any>(
+    request <Res = any, Data = any>(
         method: HttpMethods,
         path: string,
-        options: FetchFactoryRequestOptions<InstanceHeaders> & { payload?: Data } = {}
+        options: (
+            FetchFactoryRequestOptions<InstanceHeaders> &
+            ({ payload: Data | null } | {})
+         ) = { payload: null }
     ): AbortablePromise<Res> {
 
 
         // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
         const controller = new AbortController();
 
-        let cancelTimeout: NodeJS.Timeout;
+        let cancelTimeout!: NodeJS.Timeout;
         const timeout = options.timeout || this._options.timeout;
 
         if (timeout) {
@@ -474,7 +461,7 @@ export class FetchFactory<
         }
 
 
-        const call = this.makeCall <Res, Err>(method, path, {
+        const call = this.makeCall <Res>(method, path, {
             ...options,
             controller,
             cancelTimeout
@@ -495,9 +482,9 @@ export class FetchFactory<
      * @param headers
      * @returns
      */
-    options <Res = any, Err = any>(path: string, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
+    options <Res = any>(path: string, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
-        return this.request <Res, null, Err>('options', path, options);
+        return this.request <Res, null>('options', path, options);
     }
 
     /**
@@ -506,9 +493,9 @@ export class FetchFactory<
      * @param headers
      * @returns
      */
-    get <Res = any, Err = any>(path: string, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
+    get <Res = any>(path: string, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
-        return this.request <Res, null, Err>('get', path, options);
+        return this.request <Res, null>('get', path, options);
     }
 
     /**
@@ -517,9 +504,9 @@ export class FetchFactory<
      * @param headers
      * @returns
      */
-    delete <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
+    delete <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
-        return this.request <Res, Data, Err>('delete', path, { ...options, payload });
+        return this.request <Res, Data>('delete', path, { ...options, payload });
     }
 
     /**
@@ -528,9 +515,9 @@ export class FetchFactory<
      * @param headers
      * @returns
      */
-    post <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
+    post <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
-        return this.request <Res, Data, Err>('post', path, { ...options, payload });
+        return this.request <Res, Data>('post', path, { ...options, payload });
     }
 
     /**
@@ -539,9 +526,9 @@ export class FetchFactory<
      * @param headers
      * @returns
      */
-    put <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
+    put <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
-        return this.request <Res, Data, Err>('put', path, { ...options, payload });
+        return this.request <Res, Data>('put', path, { ...options, payload });
     }
 
     /**
@@ -550,9 +537,9 @@ export class FetchFactory<
      * @param headers
      * @returns
      */
-    patch <Res = any, Data = any, Err = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
+    patch <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactoryRequestOptions<InstanceHeaders> = {}) {
 
-        return this.request <Res, Data, Err>('patch', path, { ...options, payload });
+        return this.request <Res, Data>('patch', path, { ...options, payload });
     }
 
     /**
@@ -581,6 +568,9 @@ export class FetchFactory<
     rmHeader (headers: string[]): void
     rmHeader (headers: unknown) {
 
+        if (!headers) {
+            return;
+        }
 
         if (typeof headers === 'string') {
 
@@ -689,13 +679,13 @@ export class FetchFactory<
         if (ev === '*') {
             for (const _e in FetchEventNames) {
 
-                this.addEventListener(_e, listener, { once });
+                this.addEventListener(_e, listener as Func, { once });
             }
 
             return;
         }
 
-        this.addEventListener(ev, listener, { once });
+        this.addEventListener(ev, listener as Func, { once });
     }
 
     /**

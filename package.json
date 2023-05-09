@@ -2,19 +2,28 @@
   "name": "@logos-ui/monorepo",
   "private": true,
   "scripts": {
-    "build": "../../scripts/build.zsh utils",
-    "validate-types": "pnpm tsc --noEmit",
-    "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'"
+    "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
+    "clear": "rm -r packages/{dom,fetch,forms,kit,localize,observer,riot-kit,riot-utils,state-machine,storage,utils}/dist",
+    "new": "sh ./scripts/new-pkg.zsh",
+    "bundle": "pnpm rollup --config rollup.config.js",
+    "release": "pnpm recursive run build && pnpm bundle && changeset publish"
   },
   "files": [
     "src/",
     "dist/",
     "docs/",
-    "readme.md"
+    "readme.md",
+    "LICENSE"
   ],
   "keywords": [],
+
+  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "bugs": {
+    "url": "https://github.com/logos-ui/discuss/issues",
+    "email": "danilo@alonso.network"
+  },
   "author": "Danilo Alonso <danilo@alonso.network>",
-  "license": "ISC",
+  "license": "BSD-3-Clause",
   "devDependencies": {
     "@types/node": "^18.16.2",
     "nodemon": "^2.0.22"
@@ -27,5 +36,14 @@
       "*.js",
       "node_modules"
     ]
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.26.1",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-commonjs": "^24.1.0",
+    "@rollup/plugin-node-resolve": "^15.0.2",
+    "@rollup/plugin-terser": "^0.4.1",
+    "rollup": "^3.21.3",
+    "tslib": "^2.5.0"
   }
 }

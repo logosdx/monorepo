@@ -1,8 +1,9 @@
 export * from '@logos-ui/kit';
 
 import type { install, RiotComponent } from 'riot';
-import { isFunction } from '@logos-ui/utils';
+
 import {
+    isFunction,
     appKit,
     AppKitOpts,
     AppKitType,
@@ -19,21 +20,28 @@ import { ObservableComponent, makeComponentObservable } from './observer';
 import { TranslatableComponent, makeComponentTranslatable } from './locales';
 import { StoragableComponent, makeComponentStoragable } from './storage';
 
-type QueryableRC<P, S> = RiotComponent<P, QueryableState<S>>;
+type QueryableRC<C, P, S> = C & RiotComponent<P, QueryableState<S>>;
 
 export type LogosUIRiotComponent<
     KitType extends AppKitType,
+    Component extends object,
     RiotCompProps = any,
     RiotCompState = any,
 > = (
 
     QueryableRC<
+        Component,
         RiotCompProps,
+        RiotCompState
+    > &
+    QueryableComponent<
+        Component,
         RiotCompState
     > &
     ObservableComponent<
         KitType['eventsType'],
         QueryableRC<
+            Component,
             RiotCompProps,
             RiotCompState
         >
@@ -48,11 +56,7 @@ export type LogosUIRiotComponent<
         RiotCompProps,
         QueryableState<RiotCompState>
     > &
-    StoragableComponent<Storage> &
-    QueryableComponent<
-        QueryableRC<RiotCompProps, RiotCompState>,
-        RiotCompState
-    >
+    StoragableComponent<Storage>
 );
 
 /**
@@ -78,15 +82,17 @@ export const riotKit = <KitType extends AppKitType>(
         fetch
     } = appKit <KitType> (opts);
 
-    type RiotKitComponent<P, S> = LogosUIRiotComponent<KitType, P, S>;
+    type RiotKitComponent<P, S> = LogosUIRiotComponent<KitType, {}, P, S>;
 
-    opts.riotInstallFunction((component: RiotKitComponent<any, any>) => {
+    opts.riotInstallFunction((_component) => {
+
+        const component = _component as RiotKitComponent<any, any>;
 
         if (!!stateMachine && isFunction(component.mapToState)) {
             makeComponentStateable({
                 component,
                 stateMachine,
-                mapToState: component.mapToState,
+                mapToState: component.mapToState!,
                 mapToComponent: component.mapToComponent
             });
         }
