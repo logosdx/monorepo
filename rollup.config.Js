@@ -1,4 +1,4 @@
-const { readdirSync } = require('fs');
+const { readdirSync, statSync } = require('fs');
 const path = require('path');
 const nodeResolve = require('@rollup/plugin-node-resolve');
 const babel = require('@rollup/plugin-babel');
@@ -10,16 +10,21 @@ const pkgPath = (...rest) => path.resolve(__dirname, 'packages', ...rest);
 const dirs = readdirSync(pkgPath()).map(
     (name) => {
 
-        const pkg = require(pkgPath(name, 'package.json'));
+        const stat = statSync(pkgPath(name));
 
-        return {
-            name,
-            input: pkgPath(name, 'dist/index.js'),
-            output: pkgPath(name, 'dist/bundle.js'),
-            pkg,
+        if (stat.isDirectory()) {
+
+            const pkg = require(pkgPath(name, 'package.json'));
+
+            return {
+                name,
+                input: pkgPath(name, 'dist/index.js'),
+                output: pkgPath(name, 'dist/bundle.js'),
+                pkg,
+            }
         }
     }
-);
+).filter(Boolean);
 
 
 /**

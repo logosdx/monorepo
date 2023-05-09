@@ -15,7 +15,10 @@ COPY_FILES=$(echo ./src/*);
 # Copy recursively into build folder
 for p in $(echo ./src/*); do
 
-    cp -R $p $BUILD_FOLDER;
+    [[ -d $p ]] && {
+
+        cp -R $p $BUILD_FOLDER;
+    }
 done
 
 # Remove typescript files
