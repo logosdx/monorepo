@@ -1,3 +1,5 @@
+#!/bin/bash
+
 BUILD_FOLDER=dist
 ROOT_PATH="`cd $(dirname $0)/..; pwd`"
 THIS_ROOT="`cd $(pwd)/../..; pwd`"
