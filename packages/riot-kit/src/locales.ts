@@ -1,7 +1,16 @@
 import type { RiotComponent } from "riot"
-import { LocaleFactory, LocaleType } from "@logos-ui/localize"
-import { MkHookOpts, makeOnBeforeMount, makeOnBeforeUnmount } from "@logos-ui/riot-utils"
-import { Func, definePrivateProps } from "@logos-ui/utils"
+import {
+    LocaleFactory,
+    LocaleType,
+    Func,
+    definePrivateProps
+} from "@logos-ui/kit"
+
+import {
+    MkHookOpts,
+    makeOnBeforeMount,
+    makeOnBeforeUnmount
+} from "@logos-ui/riot-utils"
 
 
 export type TranslatableComponent<

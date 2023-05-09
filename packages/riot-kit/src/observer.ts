@@ -1,4 +1,4 @@
-import { Observable, ObservableInstanceChild } from "@logos-ui/observer"
+import { Observable, ObservableInstanceChild } from "@logos-ui/kit"
 import { makeOnBeforeUnmount } from "@logos-ui/riot-utils";
 import { RiotComponent } from "riot";
 

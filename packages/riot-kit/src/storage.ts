@@ -1,5 +1,5 @@
-import { makeOnBeforeMount, makeOnMounted, makeOnUpdated } from '@logos-ui/riot-utils';
-import { StorageFactory, StorageImplementation } from '@logos-ui/storage';
+import { makeOnBeforeMount, makeOnUpdated } from '@logos-ui/riot-utils';
+import { StorageFactory } from '@logos-ui/kit';
 import { RiotComponent } from 'riot';
 
 export type StoragableComponent<Storage> = {

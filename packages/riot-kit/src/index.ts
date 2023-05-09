@@ -1,8 +1,9 @@
 export * from '@logos-ui/kit';
 
 import type { install, RiotComponent } from 'riot';
-import { isFunction } from '@logos-ui/utils';
+
 import {
+    isFunction,
     appKit,
     AppKitOpts,
     AppKitType,

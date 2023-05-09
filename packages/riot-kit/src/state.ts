@@ -1,8 +1,20 @@
 import { RiotComponent } from 'riot';
-import { assert, deepEqual, definePrivateProps, isFunction, isFunctionOrObject } from '@logos-ui/utils'
-import { makeOnUpdated, makeOnBeforeUnmount, MkHookOpts, makeOnBeforeMount } from '@logos-ui/riot-utils'
-import { StateMachine, StateMachineOptions, ListenerFunction } from '@logos-ui/state-machine'
 
+import {
+    assert,
+    deepEqual,
+    definePrivateProps,
+    isFunction,
+    isFunctionOrObject,
+    StateMachine
+} from '@logos-ui/kit';
+
+import {
+    makeOnUpdated,
+    makeOnBeforeUnmount,
+    MkHookOpts,
+    makeOnBeforeMount
+} from '@logos-ui/riot-utils';
 
 export type AnyState = Object | Array<any> | String | Map<any,any> | Set<any>;
 
