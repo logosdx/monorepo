@@ -59,12 +59,12 @@ describe('@logos-ui/state-machine', function () {
         const start = { oy: true };
         const stream = new StateMachine(start);
 
-        stub.reducer = (next, prev) => ({
+        stub.reducer = (next: any, prev: any) => ({
             ...prev,
             ...next
         });
 
-        stub.listener = (next, prev) => {
+        stub.listener = (next: any, prev: any) => {
 
             stub.next = next;
             stub.prev = prev;
@@ -107,7 +107,7 @@ describe('@logos-ui/state-machine', function () {
 
         expect(stream._reducers.size).to.eq(0);
 
-        stub.reducer = (state) => {
+        stub.reducer = (state: any) => {
 
             state.updated = true;
             return state;
@@ -135,7 +135,7 @@ describe('@logos-ui/state-machine', function () {
         stub.store = new StateMachine({});
         const stream = stub.store;
 
-        const reducer = (state) => {
+        const reducer = (state: any) => {
 
             state.updated = true;
             return state;
@@ -164,7 +164,7 @@ describe('@logos-ui/state-machine', function () {
 
         const stream = new StateMachine({ oy: true, shouldIgnore: true });
 
-        const modifier1 = function (next, prev, ignore) {
+        const modifier1 = function (next: any, prev: any, ignore: Symbol) {
 
 
             if (next.shouldIgnore) {
@@ -180,13 +180,13 @@ describe('@logos-ui/state-machine', function () {
             };
         };
 
-        const modifier2 = (n, o) => ({
+        const modifier2 = (n: any, o: any) => ({
             ...n,
             ...o,
             otherModifier: true
         });
 
-        stream.addReducer(modifier1);
+        stream.addReducer(modifier1 as any);
         stream.addReducer(modifier2);
 
         stream.dispatch({ blyot: true, shouldIgnore: true });

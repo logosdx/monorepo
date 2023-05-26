@@ -302,6 +302,50 @@
           "lastUpdated": 1683230392423
         }
       }
+    },
+    "state-machine": {
+      "state-machine": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1685070729372
+        },
+        "currentVault": {
+          "count": 2,
+          "lastUpdated": 1685071483557
+        }
+      }
+    },
+    "StateMachine": {
+      "StateMachine": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1685072033415
+        }
+      }
+    },
+    "newState": {
+      "newState": {
+        "currentFile": {
+          "count": 2,
+          "lastUpdated": 1685073184359
+        }
+      }
+    },
+    "oldState": {
+      "oldState": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1685072730235
+        }
+      }
+    },
+    "ignoreUpdate": {
+      "ignoreUpdate": {
+        "currentFile": {
+          "count": 1,
+          "lastUpdated": 1685072952608
+        }
+      }
     }
   }
 }

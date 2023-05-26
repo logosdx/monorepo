@@ -4,9 +4,9 @@ Frameworks are exhaustive. The amount of things you have to add to frameworks is
 
 Sometimes, progress is good; other times, we seem to forget what we're progressing towards. We have all been sucked into the frameworks that the Facebooks and Googles of the world have made for us. They are popular, new, and smite our front-end problems with a bomb of complexity.
 
-Tou might ask: well, what's wrong the matter with those frameworks? Nothing! If you're ever been squirrel hunting, it's like hunting squirrels with a .50 BMG. Will you kill the squirrel? Yes, but you didn't need a 2 inch munition to do; a tiny .22 LR would suffice.
+You might ask: well, what's wrong the matter with those frameworks? Nothing! If you're ever been squirrel hunting, it's like hunting squirrels with a .50 BMG. Will you kill the squirrel? Yes, but you didn't need a 2 inch munition to do; a tiny .22 LR would suffice.
 
-Lets break down web apps from an intellective standpoint:
+Lets break down web apps from a logical standpoint:
 
 - Webapps take the form of a website, therefore, they are composed of `HTML`, `CSS`, and `JS`.
 - All modern browsers implement standardized `ECMAScript`, `CSS`, and the `DOM`. 
@@ -60,11 +60,11 @@ This toolkit is predicated on the following:
 		- Utilities for managing inline `CSS`, html attributes, `DOM` events, and viewport
 - A thing to render data into HTML elements
 		- [Riot.js — Simple and elegant component-based UI library](https://riot.js.org/)
-- A thing to style your screens and components
+- A thing to style your screens and components (these might shock you)
 	- [CSS: Cascading Style Sheets | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS)
 	- [Sass: Syntactically Awesome Style Sheets](https://sass-lang.com/)
 - A things to manage the current web page's state
-	- [[@logos-ui/state-machine]]
+	- [@logos-ui/state-machine](packages/state-machine/Usage)
 		- A stream-based state manager
 - An event emitter
 		- [[@logos-ui/observer]]

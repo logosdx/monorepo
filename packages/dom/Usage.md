@@ -7,7 +7,7 @@ The DOM should be an extension of your programming abilities, and not the thing 
 yarn add @logos-ui/dom
 ```
 
-Make sure to look at the [[Interfaces]] for this package to get a better idea of what will be available.
+Make sure to look at the [[packages/dom/Interfaces]] for this package to get a better idea of what will be available.
 
 ### Example
 
