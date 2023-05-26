@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/state-machine",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A powerful, stream-based, strongly-typed state management library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,13 +12,16 @@
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
-      "dist/",
-      "docs/",
-      "readme.md",
-      "LICENSE"
+    "dist/",
+    "docs/",
+    "readme.md",
+    "LICENSE"
   ],
-  "keywords": ["state manager", "application state", "meiosis"],
-
+  "keywords": [
+    "state manager",
+    "application state",
+    "meiosis"
+  ],
   "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",

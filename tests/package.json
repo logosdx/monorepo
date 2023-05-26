@@ -6,13 +6,12 @@
         "test": "TS_NODE_TRANSPILE_ONLY='true' mocha -r ./setup.js 'src/*.ts'"
     },
     "keywords": [],
-
-  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
-  "bugs": {
-    "url": "https://github.com/logos-ui/discuss/issues",
-    "email": "danilo@alonso.network"
-  },
-  "author": "Danilo Alonso <danilo@alonso.network>",
+    "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+    "bugs": {
+        "url": "https://github.com/logos-ui/discuss/issues",
+        "email": "danilo@alonso.network"
+    },
+    "author": "Danilo Alonso <danilo@alonso.network>",
     "license": "BSD-3-Clause",
     "devdependencies": {
         "@types/node": "^18.16.2"
@@ -45,5 +44,6 @@
         "sinon": "^15.0.4",
         "ts-node": "^10.9.1",
         "typescript": "5"
-    }
+    },
+    "version": null
 }

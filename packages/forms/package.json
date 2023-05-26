@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/forms",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "private": true,
   "main": "dist/index.js",
@@ -13,13 +13,12 @@
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
-      "dist/",
-      "docs/",
-      "readme.md",
-      "LICENSE"
+    "dist/",
+    "docs/",
+    "readme.md",
+    "LICENSE"
   ],
   "keywords": [],
-
   "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",

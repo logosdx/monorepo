@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/kit",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A collection of strongly-typed LogosUI libraries to kitstart your app",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,10 +12,10 @@
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
-      "dist/",
-      "docs/",
-      "readme.md",
-      "LICENSE"
+    "dist/",
+    "docs/",
+    "readme.md",
+    "LICENSE"
   ],
   "keywords": [
     "web apps",

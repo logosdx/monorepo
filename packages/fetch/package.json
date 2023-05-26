@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/fetch",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A full-feature wrapper around the Fetch API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,12 +12,18 @@
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
-      "dist/",
-      "docs/",
-      "readme.md",
-      "LICENSE"
+    "dist/",
+    "docs/",
+    "readme.md",
+    "LICENSE"
   ],
-  "keywords": ["fetch", "axios", "xhr requests", "node-fetch", "ajax"],
+  "keywords": [
+    "fetch",
+    "axios",
+    "xhr requests",
+    "node-fetch",
+    "ajax"
+  ],
   "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",
