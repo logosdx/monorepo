@@ -4,33 +4,22 @@
     "type": "split",
     "children": [
       {
-        "id": "d6c3ba285450f639",
+        "id": "18170a2cf64bf969",
         "type": "tabs",
         "children": [
           {
-            "id": "de469f6c8d2a4951",
+            "id": "efdf2e4ece2e8274",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "packages/dom/Usage.md",
+                "file": "packages/state-machine/Usage.md",
                 "mode": "source",
                 "source": false
               }
             }
-          },
-          {
-            "id": "58aaec056f95c5ac",
-            "type": "leaf",
-            "state": {
-              "type": "release-notes",
-              "state": {
-                "currentVersion": "1.2.7"
-              }
-            }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -104,7 +93,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "packages/dom/Usage.md",
+                "file": "packages/state-machine/Usage.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -121,7 +110,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "packages/dom/Usage.md",
+                "file": "packages/state-machine/Usage.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -144,7 +133,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "packages/dom/Usage.md"
+                "file": "packages/state-machine/Usage.md"
               }
             }
           }
@@ -167,24 +156,25 @@
       "table-editor-obsidian:Advanced Tables Toolbar": false
     }
   },
-  "active": "58aaec056f95c5ac",
+  "active": "efdf2e4ece2e8274",
   "lastOpenFiles": [
-    "packages/kit/dist/index.d.ts",
-    "packages/storage/dist/index.d.ts",
-    "packages/state-machine/dist/index.d.ts",
-    "packages/riot-utils/dist/index.d.ts",
-    "packages/riot-utils/dist/queryable.d.ts",
-    "packages/riot-utils/dist/utils.d.ts",
-    "packages/observer/dist/index.d.ts",
-    "packages/localize/dist/index.d.ts",
-    "packages/localize/dist/helpers.d.ts",
-    "packages/forms/dist/index.d.ts",
-    "packages/fetch/dist/index.d.ts",
+    "packages/state-machine/Interfaces.md",
     "packages/dom/Interfaces.md",
+    "packages/state-machine/Usage.md",
     "packages/dom/Usage.md",
+    "packages/utils/dist/bundle.js",
+    "packages/utils/dist/bundle.js.map",
+    "packages/storage/dist/bundle.js.map",
+    "packages/storage/dist/bundle.js",
+    "packages/state-machine/dist/bundle.js",
+    "packages/state-machine/dist/bundle.js.map",
+    "packages/riot-utils/dist/bundle.js",
+    "packages/riot-utils/dist/bundle.js.map",
+    "packages/riot-kit/dist/bundle.js.map",
+    "packages/riot-kit/dist/bundle.js",
+    "A set of tools for sane people.md",
     "favicon-32.png",
     "favicon.png",
-    "A set of tools for sane people.md",
     "@logos-ui/dom.md",
     "readme.md",
     "packages/dom/readme.md",

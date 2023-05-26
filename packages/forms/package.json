@@ -2,7 +2,6 @@
   "name": "@logos-ui/forms",
   "version": "0.0.2",
   "description": "",
-  "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "browserFuncName": "LogosUI.Forms",
