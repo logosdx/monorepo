@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/storage",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,13 +12,16 @@
     "lint": "pnpm tsc --noEmit"
   },
   "files": [
-      "dist/",
-      "docs/",
-      "readme.md",
-      "LICENSE"
+    "dist/",
+    "docs/",
+    "readme.md",
+    "LICENSE"
   ],
-  "keywords": ["localStorage", "app storage", "sessionStorage"],
-
+  "keywords": [
+    "localStorage",
+    "app storage",
+    "sessionStorage"
+  ],
   "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",

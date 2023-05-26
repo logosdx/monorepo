@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/riot-utils",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A tiny set of tools for building RiotJS apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,10 +21,10 @@
   "keywords": [
     "riotjs",
     "riot",
-    "utils", "utilities",
+    "utils",
+    "utilities",
     "meta programming"
   ],
-
   "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",

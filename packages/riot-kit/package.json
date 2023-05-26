@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/riot-kit",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A feature-rich utility kit for building RiotJS apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,7 +38,6 @@
     "riot",
     "riotjs"
   ],
-
   "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",
