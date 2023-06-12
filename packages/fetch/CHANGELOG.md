@@ -1,5 +1,16 @@
 # @logos-ui/fetch
 
+## 1.1.0
+
+### Minor Changes
+
+- e5d039d: Documentation for all packages is completed and can be found at [https://logosui.com](https://logosui.com). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logos-ui/discuss](https://github.com/logos-ui/discuss).
+
+### Patch Changes
+
+- Updated dependencies [e5d039d]
+  - @logos-ui/utils@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

@@ -1,5 +1,23 @@
 # @logos-ui/kit
 
+## 1.1.0
+
+### Minor Changes
+
+- e5d039d: Documentation for all packages is completed and can be found at [https://logosui.com](https://logosui.com). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logos-ui/discuss](https://github.com/logos-ui/discuss).
+
+### Patch Changes
+
+- Updated dependencies [e5d039d]
+  - @logos-ui/state-machine@1.1.0
+  - @logos-ui/localize@1.1.0
+  - @logos-ui/observer@1.1.0
+  - @logos-ui/storage@1.1.0
+  - @logos-ui/fetch@1.1.0
+  - @logos-ui/utils@1.1.0
+  - @logos-ui/dom@1.1.0
+  - @logos-ui/forms@0.0.3
+
 ## 1.0.0
 
 ### Major Changes
