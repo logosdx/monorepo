@@ -6,7 +6,7 @@ export const someComponent: RiotComponent =  {
 
     observable: true,
     translatable: true,
-    fetchable: ['orderPapitas'],
+    queryable: ['orderPapitas'],
     mapToState(aState, cState){
 
         return {

@@ -109,7 +109,7 @@ export const riotKit = <KitType extends AppKitType>(
             makeComponentStoragable({ component, storage });
         }
 
-        if (component.fetchable) {
+        if (component.queryable) {
 
             makeQueryable(component);
         }

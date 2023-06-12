@@ -15,5 +15,6 @@
         "target": "esnext",
         "noUncheckedIndexedAccess": true,
         "skipLibCheck": true,
-    }
+    },
+    "exclude": ["./docs/*"]
 }

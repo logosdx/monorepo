@@ -4,5 +4,7 @@
   "showUnsupportedFiles": true,
   "userIgnoreFilters": [
     "/(node_modules|dist|LICENSE)/"
-  ]
+  ],
+  "showFrontmatter": true,
+  "showLineNumber": true
 }

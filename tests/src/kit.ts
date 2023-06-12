@@ -44,7 +44,7 @@ describe('@logos-ui/kit', () => {
 
     const stateReducer: Kit.ReducerFunction<AppStateType> = (val, state) => {
 
-        return Kit.merge(state, val);
+        return Kit.deepMerge(state, val);
     }
 
     type AppStorageType = {
@@ -93,7 +93,7 @@ describe('@logos-ui/kit', () => {
         prefix: 'kit'
     };
 
-    const fetchOpts: any = {
+    const fetchOpts: Kit.FetchFactoryOptions = {
         baseUrl: 'http://localhost:1234',
         type: 'json',
         headers: {}
@@ -126,6 +126,7 @@ describe('@logos-ui/kit', () => {
         expect(app.locale).to.be.an.instanceOf(Kit.LocaleFactory);
         expect(app.stateMachine).to.be.an.instanceOf(Kit.StateMachine);
         expect(app.storage).to.be.an.instanceOf(Kit.StorageFactory);
+
         expect(app.fetch).to.be.an.instanceOf(Kit.FetchFactory);
 
         app.observer!.on('mint', (data) => data === 'peppermint');

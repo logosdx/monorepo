@@ -106,7 +106,7 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
 
     const onBeforeMount: MkHookOpts<C, P, S> = {
         component,
-        callback: function (this:C, props, state) {
+        callback: function (this: C, props: P, state: S) {
 
             store.update = (...args: [any, any]) => this.update!.apply(this, args);
 
@@ -121,7 +121,11 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
 
             if (mapToComponent) {
 
-                let assign = mapToComponent(props, state);
+                let assign = (
+                    isFunction(mapToComponent)
+                    ? mapToComponent(props, state)
+                    : mapToComponent
+                );
 
                 if (typeof assign === 'object') {
                     Object.assign(component, assign);
@@ -135,7 +139,7 @@ export const makeComponentStateable = <A, R, P, S, C extends ConnectedComponent<
 
     const onUpdated: MkHookOpts<C, P, S> = {
         component,
-        callback: function (_, currentState) {
+        callback: function (_: P, currentState: S) {
 
             store.componentState = currentState;
 

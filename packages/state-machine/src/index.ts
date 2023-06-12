@@ -1,10 +1,11 @@
 import {
-    clone,
+    deepClone,
     definePrivateProps,
     assert,
     isUndefined,
     isNonIterable,
-    Func
+    Func,
+    deepEqual
 } from '@logos-ui/utils'
 
 const assertFunction = (fn: Func, msg: string) => {
@@ -187,10 +188,8 @@ export class StateMachine<State = any, ReducerValue = any> {
         const valueIsUndefined = isUndefined(value);
 
         const currentState = this.state();
-        let prevState;
-        let nextState = valueIsUndefined ? currentState : value;
-
-
+        let prevState: State | symbol = this.state();
+        let nextState = valueIsUndefined ? prevState : value;
 
         // If no reducers present, state will be overwritten
         if (!valueIsUndefined && _reducers.size) {
@@ -199,10 +198,7 @@ export class StateMachine<State = any, ReducerValue = any> {
 
                 const _modified = reducer(
                     nextState,
-                    (
-                        prevState as any ||
-                        currentState
-                    ),
+                    prevState as State,
                     IGNORE
                 );
 
@@ -221,10 +217,15 @@ export class StateMachine<State = any, ReducerValue = any> {
             nextState = prevState as any;
         }
 
+        if (deepEqual(nextState, currentState)) {
+            return;
+        }
+
         // Save new state to holder
         if (!valueIsUndefined) {
             this._addState(nextState as State);
         }
+
 
         // Notify listeners
         if (_listeners.size) {
@@ -321,7 +322,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      */
     states() {
 
-        return clone(Array.from(this._states.values()));
+        return deepClone(Array.from(this._states.values()));
     }
 
     /**
@@ -330,7 +331,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      */
     state(): State {
 
-        return clone(this._internals.state!);
+        return deepClone(this._internals.state!);
     }
 
     /**

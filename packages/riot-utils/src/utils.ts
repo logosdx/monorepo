@@ -1,4 +1,4 @@
-import { Func, assert, isFunction, merge } from "@logos-ui/utils";
+import { Func, assert, isFunction, deepMerge } from "@logos-ui/utils";
 import { RiotComponent } from "riot";
 
 type HookKeys = (
@@ -69,5 +69,5 @@ export const makeOnUnmounted = mkHook('onUnmounted');
 
 export const mergeState = <Component extends Partial<RiotComponent>, State = any>(component: Component, state: State) => {
 
-    component.state = merge(component.state || {}, state);
+    component.state = deepMerge(component.state || {}, state);
 };

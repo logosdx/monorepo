@@ -25,8 +25,8 @@ type TestState = {
 type FakeComp = {
 
     someFunction?: Func,
-    fake1?: Func,
-    fake2?: Func,
+    fake1: Func,
+    fake2: Func,
 }
 
 type FakeRiotComp = RiotComponentExport<FakeComp, {}, TestState>;
@@ -43,7 +43,9 @@ const makeComponent = (): (
     }
 ) => ({
     state: { something: 'intheway' },
-    update: sinon.stub()
+    update: sinon.stub(),
+    fake1: () => {},
+    fake2: () => {},
 });
 describe('@logos-ui/riot-utils', function () {
 
@@ -178,22 +180,22 @@ describe('@logos-ui/riot-utils', function () {
             const queryable = makeQueryable(makeComponent());
 
             expect(queryable.state).to.contain({
-                isFetching: false,
-                fetchError: null,
-                fetchData: null,
+                isQuerying: false,
+                queryError: null,
+                queryData: null,
                 something: 'intheway'
             })
         });
 
-        it('should set loading to true when setFetching', async () => {
+        it('should set loading to true when setQuerying', async () => {
 
             const component = makeQueryable(makeComponent());
 
-            expect(component.setFetching).to.be.a('function');
+            expect(component.setQuerying).to.be.a('function');
 
             const fake = sinon.stub().resolves({ some: 'state' });
 
-            await component.setFetching(fake);
+            await component.setQuerying(fake);
 
             sinon.assert.calledOnce(fake);
 
@@ -202,50 +204,50 @@ describe('@logos-ui/riot-utils', function () {
 
             expect(
                 update.calledWith({
-                    isFetching: true,
-                    fetchError: null,
-                    fetchData: null,
+                    isQuerying: true,
+                    queryError: null,
+                    queryData: null,
                 })
             ).to.be.true;
 
             expect(
                 update.calledWith({
-                    isFetching: false,
-                    fetchError: null,
-                    fetchData: { some: 'state' }
+                    isQuerying: false,
+                    queryError: null,
+                    queryData: { some: 'state' }
                 })
             ).to.be.true;
 
         });
 
-        it('should capture errors thrown when setFetching', async () => {
+        it('should capture errors thrown when setQuerying', async () => {
 
             const component = makeQueryable(makeComponent());
 
             const fake = sinon.stub().rejects(Error('some error'));
 
-            await component.setFetching(fake);
+            await component.setQuerying(fake);
 
             const update = component.update as SinonStub;
 
             sinon.assert.calledWith(
                 update,
-                { isFetching: true, fetchError: null, fetchData: null }
+                { isQuerying: true, queryError: null, queryData: null }
             );
 
             const { args: [call]} = update.getCall(1);
 
-            expect(call).to.contain({ isFetching: false });
-            expect(call.fetchError.message).to.eq('some error');
+            expect(call).to.contain({ isQuerying: false });
+            expect(call.queryError.message).to.eq('some error');
         });
 
-        it('should convert a function into a fetchable function', async () => {
+        it('should convert a function into a queryable function', async () => {
 
             const component = makeQueryable(makeComponent());
 
             const fake = sinon.stub().returns({ some: 'state' });
 
-            component.someFunction = component.fnWillFetch(fake);
+            component.someFunction = component.fnWillQuery(fake);
 
             await component.someFunction!('a', 'b', 'c');
 
@@ -254,12 +256,12 @@ describe('@logos-ui/riot-utils', function () {
 
             sinon.assert.calledWithExactly(
                 update,
-                { isFetching: true, fetchError: null, fetchData: null }
+                { isQuerying: true, queryError: null, queryData: null }
             );
 
             sinon.assert.calledWithExactly(
                 update,
-                { isFetching: false, fetchError: null, fetchData: { some: 'state' } }
+                { isQuerying: false, queryError: null, queryData: { some: 'state' } }
             );
 
             sinon.assert.calledWithExactly(
@@ -268,7 +270,7 @@ describe('@logos-ui/riot-utils', function () {
             );
         });
 
-        it('should convert an array of functions into fetchables', async () => {
+        it('should convert an array of functions into queryables', async () => {
 
             const component = makeComponent();
 
@@ -278,71 +280,72 @@ describe('@logos-ui/riot-utils', function () {
             component.fake1 = fake1;
             component.fake2 = fake2;
 
-            component.fetchable = ['fake1', 'fake2'];
+            component.queryable = ['fake1', 'fake2'];
 
             const queryable = makeQueryable(component);
 
             await queryable.fake1!();
             await queryable.fake2!();
 
-            const update = component.update as SinonStub;
+            const update = component.update as SinonStub<FakeRealComp['state'][]>;
 
-            const [[load1], [res1], [load2], [res2]] = update.args;
+            type TState = QueryableComponent<FakeRiotComp, TestState>['state'];
 
-            expect(load1).to.include({ isFetching: true, fetchError: null });
-            expect(load2).to.include({ isFetching: true, fetchError: null });
+            const [[load1], [res1], [load2], [res2]] = update.args as [[TState], [TState], [TState], [TState]];
 
+            expect(load1).to.include({ isQuerying: true, queryError: null });
+            expect(load2).to.include({ isQuerying: true, queryError: null });
 
             expect(res1).to.include({
-                isFetching: false,
-                fetchError: null,
+                isQuerying: false,
+                queryError: null,
             });
 
-            expect(res1.fetchData).to.include({ some: 'state' });
+            expect(res1.queryData).to.include({ some: 'state' });
 
             expect(res2).to.include({
-                isFetching: false,
-                fetchError: null,
+                isQuerying: false,
+                queryError: null,
             });
 
-            expect(res2.fetchData).to.include({ soom: 'staat' });
+            expect(res2.queryData).to.include({ soom: 'staat' });
         });
 
-        it('should toggle fetching', async () => {
+        it('should toggle querying', async () => {
 
             const component = makeQueryable(makeComponent());
 
             const update = component.update as SinonStub;
 
-            component.toggleFetching();
+            component.toggleQuerying();
 
-            sinon.assert.calledWith(update, { isFetching: true });
+            sinon.assert.calledWith(update, { isQuerying: true });
 
-            component.toggleFetching(false);
-            sinon.assert.calledWith(update, { isFetching: false });
+            component.toggleQuerying(false);
+            sinon.assert.calledWith(update, { isQuerying: false });
 
-            component.toggleFetching(false);
-            sinon.assert.calledWith(update, { isFetching: false });
+            component.toggleQuerying(false);
+            sinon.assert.calledWith(update, { isQuerying: false });
 
-            component.toggleFetching(true);
-            sinon.assert.calledWith(update, { isFetching: true });
+            component.toggleQuerying(true);
+            sinon.assert.calledWith(update, { isQuerying: true });
 
-            component.toggleFetching(true);
-            sinon.assert.calledWith(update, { isFetching: true });
+            component.toggleQuerying(true);
+            sinon.assert.calledWith(update, { isQuerying: true });
 
-            component.toggleFetching();
-            sinon.assert.calledWith(update, { isFetching: false });
+            component.toggleQuerying();
+            sinon.assert.calledWith(update, { isQuerying: false });
         });
 
-        it('should initialize with a fetching state', () => {
+        it('should initialize with a querying state', () => {
 
             const component = makeComponent();
 
-            component.state.isFetching = true;
+            component.state.isQuerying = true;
 
             const queryable = makeQueryable(component);
 
-            expect(queryable.state.isFetching).to.be.true;
+            expect(queryable.state.isQuerying).to.be.true;
 
         })
     });

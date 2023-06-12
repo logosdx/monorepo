@@ -9,7 +9,7 @@ export type Klass = { new: Func }
 export type NonFunctionProps<T> = { [K in keyof T]: T[K] extends Func | Klass ? never : K }[keyof T];
 
 /** Extract only props that are functions */
-export type FunctionProps<T> = { [K in keyof T]: K extends NonFunctionProps<T> ? K : never }[keyof T];
+export type FunctionProps<T>    = { [K in keyof T]: T[K] extends Func | Klass ? K : never }[keyof T];
 
 
 /** Make a nested object optional all the way down the tree */
