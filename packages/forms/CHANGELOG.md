@@ -1,5 +1,12 @@
 # @logos-ui/forms
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [e5d039d]
+  - @logos-ui/utils@1.1.0
+
 ## 0.0.2
 
 ### Patch Changes
