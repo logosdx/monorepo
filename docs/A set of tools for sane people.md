@@ -1,16 +1,19 @@
+---
+permalink: '/tools-for-sane-people'
+---
 Frameworks are exhaustive. The amount of things you have to add to frameworks is exhausting. The learning curve of those frameworks and the things you have to add to them is exhausting. For this reason, Logos UI was created. It is the all-in-one toolkit for building web applications. It gives you everything in a tiny package. Building web apps should be simple, not exhausting.
 
 ## Taking a step back
 
 Sometimes, progress is good; other times, we seem to forget what we're progressing towards. We have all been sucked into the frameworks that the Facebooks and Googles of the world have made for us. They are popular, new, and smite our front-end problems with a bomb of complexity.
 
-You might ask: well, what's wrong the matter with those frameworks? Nothing! If you're ever been squirrel hunting, it's like hunting squirrels with a .50 BMG. Will you kill the squirrel? Yes, but you didn't need a 2 inch munition to do; a tiny .22 LR would suffice.
+You might ask: well, what's wrong the matter with those frameworks? Nothing! If you've ever been squirrel hunting, it's like hunting squirrels with a .50 BMG. Will you kill the squirrel? Yes, but you didn't need a 2 inch munition to do so; a tiny .22 LR would suffice.
 
-Lets break down web apps from a logical standpoint:
+Let us break down web apps from a logical standpoint:
 
 - Webapps take the form of a website, therefore, they are composed of `HTML`, `CSS`, and `JS`.
-- All modern browsers implement standardized `ECMAScript`, `CSS`, and the `DOM`. 
-	- They have done so for years now. 
+- All modern browsers implement standardized `ECMAScript`, `CSS`, and the `DOM`.
+	- They have done so for years now.
 	- These are the primary languages and APIs used to create all modern frameworks.
 - All web apps are `state machines`.
 - All web apps are `observer` patterns.
@@ -24,16 +27,16 @@ Therefore, you only ever need the following to build web apps:
 - A thing to manipulate the DOM
 - A thing to render data into HTML elements
 - A thing to style your screens and components
-- A things to manage the current web page's state
+- A thing to manage the current web page's state
 - An event emitter
 - A thing to handle user input
 - Meta-programming utilities
 
 ## The modern way
 
-Lets take the example of the most popular framework to date: `React`. In order for you to do React, you need to first become familiar with the following:
+Let us take the example of the most popular framework to date: `React`. In order for you to do React, you need to first become familiar with the following:
 
-- HTML, CSS, JS
+- HTML, CSS, JS, DOM
 - JSX
 - Hooks
 - Contexts or Prop-drilling
@@ -56,7 +59,7 @@ As previously stated, the web has progressed a lot from the days of jQuery, but 
 This toolkit is predicated on the following:
 
 - A thing to manipulate the DOM
-	- [@logos-ui/dom](packages/dom/Usage)
+	- [@logos-ui/dom](DOM.md)
 		- Utilities for managing inline `CSS`, html attributes, `DOM` events, and viewport
 - A thing to render data into HTML elements
 		- [Riot.js — Simple and elegant component-based UI library](https://riot.js.org/)
@@ -64,32 +67,32 @@ This toolkit is predicated on the following:
 	- [CSS: Cascading Style Sheets | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS)
 	- [Sass: Syntactically Awesome Style Sheets](https://sass-lang.com/)
 - A things to manage the current web page's state
-	- [@logos-ui/state-machine](packages/state-machine/Usage)
+	- [@logos-ui/state-machine](Packages/State%20Machine.md)
 		- A stream-based state manager
 - An event emitter
-		- [[@logos-ui/observer]]
+		- [[Packages/Observer|@logos-ui/observer]]
 			- An event emitter with advanced functionality
 - A thing to handle user input
 	- [Final Form](https://final-form.org/)
 - Meta-programming utilities
-	- [[@logos-ui/utils]]
-		- Well tested utilities used througout all `@logos-ui` libraries
-	- [[@logos-ui/riot-utils]]
+	- [[Packages/Utils|@logos-ui/utils]]
+		- Well tested utilities used throughout all `@logos-ui` libraries
+	- [[Packages/Riot Utils|@logos-ui/riot-utils]]
 		- RiotJS meta-programming tools
 - A thing to fetch remote data
-	- [[@logos-ui/fetch]]
+	- [[Packages/Fetch|@logos-ui/fetch]]
 		- A wrapper around [Fetch API - Web APIs | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
 - A thing to handle localization
-	- [[@logos-ui/localize]]
+	- [[Packages/Localize|@logos-ui/localize]]
 		- A localized labels handler that allows you to switch between langauges and return translated, variable-replaceable text
 - A thing to handle `localStorage`
-	- [[@logos-ui/storage]]
+	- [[Packages/Storage|@logos-ui/storage]]
 		- A storage handler that allows for scoped storage and stores everything in `JSON.stringify(...)` format
 - And more
-	- [[@logos-ui/kit]]
+	- [[Packages/Kit|@logos-ui/kit]]
 		- A boilerplate for quick-starting your web app
-	- [[@logos-ui/riot-kit]]
-		- A RiotJS boilerplate that uses [[@logos-ui/kit]] to get you started faster
+	- [[Packages/Riot Kit|@logos-ui/riot-kit]]
+		- A RiotJS boilerplate that uses [[Packages/Kit|@logos-ui/kit]] to get you started faster
 
 ## Get started
 
@@ -111,16 +114,16 @@ const composition = LogosUI.appKit({
 	observer: {
 		spy: console.log
 	},
-	
+
 	// initialize the state machine
 	stateMachine: {
-		initial: { 
+		initial: {
 			clickTimes: 0,
 			name: 'Jesus',
 			age: 33
 		},
 		reducer: (newState, currentState, ignore) => {
-			
+
 			return LogosUI.deepMerge(currentState, newState);
 		}
 	},
@@ -130,7 +133,7 @@ const composition = LogosUI.appKit({
 		implementation: localStorage || sessionStorage,
 		prefix: 'my-app'
 	},
-	
+
 	fetch: {
 		type: 'json',
 		baseUrl: 'http://example.com',
@@ -138,14 +141,14 @@ const composition = LogosUI.appKit({
 			app: 'the-webapp'
 		},
 		modifyOptions(opts, fetchState) {
-			
+
 			// add auth headers if fetch has token in its state
 			if (fetchState.token) {
 
 				const time = new Date();
 
 				opts.headers = Object.assign(opts.headers, {
-					
+
 					authorization: `Bearer ${fetchState.token}`,
 					hmac: generateHmac(fetchState.token, time),
 					time
@@ -169,15 +172,15 @@ LogosUI.html.events.on(window, 'mouseup', (e) => {
 
 // restore from the most recent app state
 composition.stateMachine.dispatch(
-	
+
 	composition.storage.get()
 );
 
 // save the app state whenever it changes
 composition.stateMachine.addListener(
-	
+
 	debounce((state) => {
-		
+
 		composition.storage.set(state);
 	}, 50)
 );
@@ -216,16 +219,16 @@ const composition = LogosUI.riotKit({
 	observer: {
 		spy: console.log
 	},
-	
+
 	// initialize the state machine
 	stateMachine: {
-		initial: { 
+		initial: {
 			clickTimes: 0,
 			name: 'Jesus',
 			age: 33
 		},
 		reducer: (newState, currentState, ignore) => {
-			
+
 			return LogosUI.deepMerge(currentState, newState);
 		}
 	},
@@ -235,7 +238,7 @@ const composition = LogosUI.riotKit({
 		implementation: localStorage || sessionStorage,
 		prefix: 'my-app'
 	},
-	
+
 	fetch: {
 		type: 'json',
 		baseUrl: 'http://example.com',
@@ -243,14 +246,14 @@ const composition = LogosUI.riotKit({
 			app: 'the-webapp'
 		},
 		modifyOptions(opts, fetchState) {
-			
+
 			// add auth headers if fetch has token in its state
 			if (fetchState.token) {
 
 				const time = new Date();
 
 				opts.headers = Object.assign(opts.headers, {
-					
+
 					authorization: `Bearer ${fetchState.token}`,
 					hmac: generateHmac(fetchState.token, time),
 					time
@@ -280,7 +283,7 @@ composition.stateMachine.dispatch(
 // save the app state whenever it changes
 composition.stateMachine.addListener(
 	debounce((state) => {
-		
+
 		composition.storage.set(state);
 	}, 50)
 );
@@ -310,8 +313,8 @@ export default composition;
 
 				await fetch('/events');
 			}
-	
-			// binds component to state machine and updates whenever 
+
+			// binds component to state machine and updates whenever
 			// there are changes only
 			mapToState(appState, thisState, theseProps) {
 
@@ -320,21 +323,21 @@ export default composition;
 
 			// observes this component and adds observer functions to it
 			observable: true,
-			
+
 			// adds `t(...)` function tied to translations
 			translatable: true,
-			
+
 			// loads and saves the state of this component
 			// using this key in local storage
 			saveInKey: 'some-component',
-			
+
 			// loads the follow keys from storage into state
 			// as an object
 			loadStorage: ['name', 'age'],
-		
-			// adds fetching functionality to the component, and
-			// wraps the following functions as fetchable (isFetching | Error) 
-			makeFetching: ['getTheThings']
+
+			// adds querying functionality to the component, and
+			// wraps the following functions as queryable (isQuerying | Error)
+			queryable: ['getTheThings']
 		}
 	</script>
 </some-component>

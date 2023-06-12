@@ -2,13 +2,14 @@ import { expect } from 'chai';
 import * as fc from 'fast-check';
 
 import {
-    clone,
+    deepClone,
     deepEqual,
-    addConstructorCheck,
-    merge,
+    deepMerge,
+    addHandlerFor
 } from '@logos-ui/utils';
 
 import * as otherUtils from '@logos-ui/utils';
+import Sinon from 'sinon';
 
 const stub = {
     obj: {
@@ -84,13 +85,25 @@ const stub = {
 
 describe('@logos-ui/utils', () => {
 
-    describe('clone(...)', () => {
+    const originalWarn = console.warn;
+    console.warn = Sinon.stub();
 
+    after(() => {
+
+        console.warn = originalWarn;
+    });
+
+    describe('deepClone(...)', () => {
+
+        after(() => {
+
+            expect((console.warn as Sinon.SinonStub).called);
+        })
 
         it('should clone any kind of value', function () {
 
             const predicate = (a: any) => {
-                clone(a);
+                deepClone(a);
             };
 
             fc.assert(
@@ -111,22 +124,22 @@ describe('@logos-ui/utils', () => {
 
         it('clones different data types', () => {
 
-            const obj = clone(stub.obj);
+            const obj = deepClone(stub.obj);
             expect(obj).not.to.equal(stub.obj);
 
-            const arr = clone(stub.arr);
+            const arr = deepClone(stub.arr);
             expect(arr).not.to.equal(stub.arr);
 
-            const map = clone(stub.map);
+            const map = deepClone(stub.map);
             expect(map).not.to.equal(stub.map);
 
-            const set = clone(stub.set);
+            const set = deepClone(stub.set);
             expect(set).not.to.equal(stub.set);
         });
 
         it('clones nested objects', () => {
 
-            const clonedStub = clone(stub);
+            const clonedStub = deepClone(stub);
             expect(clonedStub).not.to.equal(stub);
             expect(clonedStub.obj).not.to.equal(stub.obj);
             expect(clonedStub.arr).not.to.equal(stub.arr);
@@ -452,88 +465,13 @@ describe('@logos-ui/utils', () => {
             });
         });
 
-        describe('Add Special Types', function () {
-
-            class Triangle {
-
-                hypotenuse: number;
-                a: number;
-                b: number;
-
-                constructor(a: number, b: number, hypotenuse: number) {
-
-                    this.hypotenuse = hypotenuse,
-                    this.a = a;
-                    this.b = b;
-                }
-            }
-
-            class TriangleB extends Triangle {};
-
-            it('should not add constructors without good config', () => {
-
-                expect(() => addConstructorCheck({})).to.throw();
-                expect(() => addConstructorCheck({ constructor: Triangle })).to.throw();
-            });
-
-            it('should add special constructor and treat as object', () => {
-
-                expect(() => addConstructorCheck({
-                    constructor: Triangle,
-                    treatAs: Object
-                })).not.to.throw();
-            });
-
-            it('should deepEqual new constructor with treat as', () => {
-
-                expect(
-                    deepEqual(
-                        new Triangle(1,2,3),
-                        new Triangle(1,2,3)
-                    )
-                ).to.be.true
-
-                expect(
-                    deepEqual(
-                        new Triangle(1,2,3),
-                        new Triangle(1,1,3)
-                    )
-                ).to.be.false
-            });
-
-            it('should add special constructor with custom deepEqual func', () => {
-
-                expect(() => addConstructorCheck({
-                    constructor: TriangleB,
-                    deepEqualFunc: (a, b) => a.hypotenuse === b.hypotenuse
-                })).not.to.throw();
-            });
-
-            it('should deepEqual new constructor with custom deepEqual func', () => {
-
-                expect(
-                    deepEqual(
-                        new TriangleB(1,2,3),
-                        new TriangleB(11,12,3)
-                    )
-                ).to.be.true
-
-                expect(
-                    deepEqual(
-                        new TriangleB(1,2,3),
-                        new TriangleB(1,2,4)
-                    )
-                ).to.be.false
-            });
-        });
     });
 
-
-    describe('merge(...)', function () {
+    describe('deepMerge(...)', () => {
 
         it('should merge arrays', () => {
 
-            const val = merge(stub.a.arr, stub.b.arr);
+            const val = deepMerge(stub.a.arr, stub.b.arr);
 
 
             expect(val).to.contain.members(stub.a.arr);
@@ -542,7 +480,7 @@ describe('@logos-ui/utils', () => {
 
         it('should merge objects', () => {
 
-            const val = merge(stub.a.obj, stub.b.obj);
+            const val = deepMerge(stub.a.obj, stub.b.obj);
 
             expect(val).to.contain({
                 a: true,
@@ -559,7 +497,7 @@ describe('@logos-ui/utils', () => {
             objA.d = { some: 'values' };
             objB.d = { other: 'values' };
 
-            const val = merge(objA, objB);
+            const val = deepMerge(objA, objB);
 
             expect(val).to.include({
                 a: true,
@@ -575,7 +513,7 @@ describe('@logos-ui/utils', () => {
 
         it('should merge maps', () => {
 
-            const val = merge(stub.a.map, stub.b.map);
+            const val = deepMerge(stub.a.map, stub.b.map);
 
             const keys = [...val.keys()];
 
@@ -597,7 +535,7 @@ describe('@logos-ui/utils', () => {
                 ['b', { tats: true }],
             ]);
 
-            const val = merge(mapA, mapB);
+            const val = deepMerge(mapA, mapB);
 
 
             expect(val.get('a')).to.include({
@@ -613,7 +551,7 @@ describe('@logos-ui/utils', () => {
 
         it('should merge sets', () => {
 
-            const val = merge(stub.a.set, stub.b.set);
+            const val = deepMerge(stub.a.set, stub.b.set);
 
             const values = [...val];
 
@@ -631,8 +569,8 @@ describe('@logos-ui/utils', () => {
             const mapA = new Map([['test', []]]);
             const mapB = new Map([['test', {}]]);
 
-            const obj = merge(objA, objB);
-            const map = merge(mapA, mapB);
+            const obj = deepMerge(objA, objB);
+            const map = deepMerge(mapA, mapB);
 
             expect(obj.test.constructor).to.equal(Object);
             expect(map.get('test')!.constructor).to.equal(Object);
@@ -643,14 +581,14 @@ describe('@logos-ui/utils', () => {
             const objSample = { test: ['ok'] };
             const mapSample = new Map([['test', []]]);
 
-            const objUndefined = merge(objSample, { test: undefined }) as typeof objSample;
-            const mapUndefined = merge(mapSample, new Map([['test', undefined]]));
+            const objUndefined = deepMerge(objSample, { test: undefined }) as typeof objSample;
+            const mapUndefined = deepMerge(mapSample, new Map([['test', undefined]]));
 
             expect(objUndefined.test).to.equal(undefined);
             expect(mapUndefined.get('test')).to.equal(undefined);
 
-            const objNull = merge(objSample, { test: null }) as typeof objSample;
-            const mapNull = merge(mapSample, new Map([['test', null]]));
+            const objNull = deepMerge(objSample, { test: null }) as typeof objSample;
+            const mapNull = deepMerge(mapSample, new Map([['test', null]]));
 
             expect(objNull.test).to.equal(null);
             expect(mapNull.get('test')).to.equal(null);
@@ -664,19 +602,19 @@ describe('@logos-ui/utils', () => {
 
             const options = { mergeArrays: false };
 
-            const arrSampleResult = merge(
+            const arrSampleResult = deepMerge(
                 arrSample,
                 [4,5,6],
                 options
             );
 
-            const objArrSampleResult = merge(
+            const objArrSampleResult = deepMerge(
                 objArrSample,
                 { test: [4,5,6] },
                 options
             );
 
-            const mapArrSampleResult = merge(
+            const mapArrSampleResult = deepMerge(
                 mapArrSample,
                 new Map([['test', [4,5,6]]]),
                 options
@@ -696,19 +634,19 @@ describe('@logos-ui/utils', () => {
 
             const options = { mergeArrays: false };
 
-            const setSampleResult = merge(
+            const setSampleResult = deepMerge(
                 setSample,
                 new Set([4,5,6]),
                 options
             );
 
-            const objSetSampleResult = merge(
+            const objSetSampleResult = deepMerge(
                 objSetSample,
                 { test: new Set([4,5,6])},
                 options
             );
 
-            const mapSetSampleResult = merge(
+            const mapSetSampleResult = deepMerge(
                 mapSetSample,
                 new Map([['test', new Set([4,5,6])]]),
                 options
@@ -721,4 +659,107 @@ describe('@logos-ui/utils', () => {
         });
     });
 
+    describe('addHandlerFor(...)', () => {
+
+        class Triangle {
+
+            hypotenuse: number;
+            a: number;
+            b: number;
+
+            constructor(a: number, b: number, hypotenuse: number) {
+
+                this.hypotenuse = hypotenuse,
+                this.a = a;
+                this.b = b;
+            }
+        }
+
+        it('should not add constructors without good config', () => {
+
+            expect(() => (addHandlerFor as any)({})).to.throw();
+            expect(() => (addHandlerFor as any)({ constructor: Triangle })).to.throw();
+            expect(() => (addHandlerFor as any)('poop', { constructor: Triangle })).to.throw(/invalid function/);
+            expect(() => (addHandlerFor as any)('deepMerge', { constructor: Triangle })).to.throw(/handler/);
+        });
+
+        it('should add special constructor to respective functions', () => {
+
+            const equateTriangle = (target: Triangle, source: Triangle) => {
+
+                return target.hypotenuse === source.hypotenuse;
+            };
+
+
+            const cloneTriangle = (target: Triangle) => {
+
+                return new Triangle(
+                    target.a,
+                    target.b,
+                    target.hypotenuse
+                );
+            };
+
+            const mergeTriangle = (target: Triangle, source: Triangle) => {
+
+                target.a = source.a;
+                target.b = source.b;
+                target.hypotenuse = source.hypotenuse;
+
+                return target;
+            };
+
+            addHandlerFor('deepClone', Triangle, cloneTriangle);
+            addHandlerFor('deepEqual', Triangle, equateTriangle);
+            addHandlerFor('deepMerge', Triangle, mergeTriangle);
+        });
+
+        it('should deepEqual custom constructor', () => {
+
+            expect(
+                deepEqual(
+                    new Triangle(1,2,3),
+                    new Triangle(1,2,3)
+                )
+            ).to.be.true
+
+            expect(
+                deepEqual(
+                    new Triangle(1,2,3),
+                    new Triangle(1,1,3)
+                )
+            ).to.be.true
+
+            expect(
+                deepEqual(
+                    new Triangle(1,2,3),
+                    new Triangle(1,1,4)
+                )
+            ).to.be.false
+        });
+
+        it('should deepClone custom constructor', () => {
+
+            const x = new Triangle(1,2,3);
+            const y = deepClone(x);
+
+            expect(x === y).to.be.false;
+        });
+
+        it ('should deepMerge custom constructor', () => {
+
+            const x = new Triangle(1,2,3);
+            const y = new Triangle(1,1,1);
+
+            const z = deepMerge(x, y);
+
+            expect(x.a).to.eq(y.a);
+            expect(x.b).to.eq(y.b);
+            expect(x.hypotenuse).to.eq(y.hypotenuse);
+
+            expect(x === z).to.be.true;
+
+        });
+
+    })
 });

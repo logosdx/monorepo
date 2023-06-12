@@ -42,9 +42,10 @@ describe('@logos-ui/riot-kit', () => {
 
     type AppStateType = typeof initialState;
 
-    const stateReducer: RiotKit.ReducerFunction<AppStateType> = (val, state) => {
+    const stateReducer: RiotKit.ReducerFunction<AppStateType> = (val: any, state: any) => {
 
-        return RiotKit.merge(state, val);
+        // return RiotKit.applyDefaults({}, state, val);
+        return RiotKit.deepMerge(state, val);
     }
 
     type AppStorageType = {
@@ -175,13 +176,14 @@ describe('@logos-ui/riot-kit', () => {
         const update = sinon.stub();
         const stated: Partial<TestComponent> = {
             state: { test: true, count: null },
-            update(...args: any) {
+            update(state: any, props: any) {
 
-                RiotKit.merge(stated.state, args[0]);
+                RiotKit.deepMerge(stated.state, state);
+                update.apply(this, [state, props]);
 
-                return update.apply(this, args);
+                return stated.state;
             },
-            mapToState(aState, cState) {
+            mapToState(aState: any, cState: any) {
 
                 return RiotKit.applyDefaults({}, cState, aState);
             }
@@ -306,7 +308,7 @@ describe('@logos-ui/riot-kit', () => {
         expect(app.storage!.get('s1')).to.include({ s1: false });
     });
 
-    it ('decorates fetchable', () => {
+    it ('decorates queryable', () => {
 
         const [[decorator]] = install.args as [[RiotInstallFn]];
 
@@ -319,7 +321,7 @@ describe('@logos-ui/riot-kit', () => {
             someFn,
             otherFn,
             update,
-            fetchable: ['someFn']
+            queryable: ['someFn']
         };
 
         const fDeco = decorator(f);
@@ -328,14 +330,14 @@ describe('@logos-ui/riot-kit', () => {
         expect(fDeco.otherFn === otherFn).to.be.true;
 
         expect(fDeco.state).to.include({
-            isFetching: false,
-            fetchError: null,
-            fetchData: null
+            isQuerying: false,
+            queryError: null,
+            queryData: null
         });
 
-        expect(fDeco.setFetching, 'decorated setFetching').to.be.a('function');
-        expect(fDeco.fnWillFetch, 'decorated fnWillFetch').to.be.a('function');
-        expect(fDeco.toggleFetching, 'decorated toggleFetching').to.be.a('function');
+        expect(fDeco.setQuerying, 'decorated setQuerying').to.be.a('function');
+        expect(fDeco.fnWillQuery, 'decorated fnWillQuery').to.be.a('function');
+        expect(fDeco.toggleQuerying, 'decorated toggleQuerying').to.be.a('function');
 
     });
 });

@@ -11,9 +11,9 @@ export type RiotComponentExport<C, P = any, S = any> = (
 );
 
 export type QueryableState<S> = S & {
-    isFetching?: boolean,
-    fetchError?: Error | null;
-    fetchData?: any
+    isQuerying?: boolean,
+    queryError?: Error | null;
+    queryData?: any
 };
 
 export interface QueryableComponent<C, S> {
@@ -23,40 +23,40 @@ export interface QueryableComponent<C, S> {
     /**
      * Names of the functions to make queryable on before mount
      */
-    fetchable: (keyof Omit<C, NonFunctionProps<C>>)[],
+    queryable: (FunctionProps<C>)[],
 
     /**
-     * Toggle or set isFetching. Useful for when, for example,
+     * Toggle or set isQuerying. Useful for when, for example,
      * binding functions to events.
-     * @param isFetching set is fetching
+     * @param isQuerying set is querying
      */
-    toggleFetching(isFetching?: boolean): void,
+    toggleQuerying(isQuerying?: boolean): void,
 
     /**
-     * Sets component's state to isFetching true and captures any
-     * errors caused by the function fetching. Useful for use inside
+     * Sets component's state to isQuerying true and captures any
+     * errors caused by the function querying. Useful for use inside
      * of other functions.
      * @param {function} fn function to be executed
      */
-    setFetching<T extends Func>(fn: T): ReturnType<T>;
+    setQuerying<T extends Func>(fn: T): ReturnType<T>;
 
     /**
      * Creates a monad that will execute given function and toggle
-     * state to `isFetching` when it does. Captures errors and can
+     * state to `isQuerying` when it does. Captures errors and can
      * update state given a return value. Useful for onclick handlers
      * and event bindings.
      * @param {Function} fn function to be executed
      * @returns {function}
      */
-    fnWillFetch: <T extends Func>(fn: T) => ReturnType<T>;
+    fnWillQuery: <T extends Func>(fn: T) => ReturnType<T>;
 }
 
 /**
  * Adds functionality to riot components that allow them to
- * set its own state to isFetching while an async call is being made.
- * Any errors are recorded in the state's `fetchError` property
+ * set its own state to isQuerying while an async call is being made.
+ * Any errors are recorded in the state's `queryError` property
  * @param implement
- * @returns component with a fetchable interface
+ * @returns component with a queryable interface
  */
 export const makeQueryable = function <
     T extends RiotComponentExport<any>,
@@ -73,74 +73,74 @@ export const makeQueryable = function <
     const state = (implement.state || {}) as I['state'];
 
     mergeState(implement, {
-        isFetching: state.isFetching || false,
-        fetchError: null,
-        fetchData: null
+        isQuerying: state.isQuerying || false,
+        queryError: null,
+        queryData: null
     });
 
 
     definePrivateProps(
         implement,
         {
-            toggleFetching: function (this: I, isFetching?: boolean) {
+            toggleQuerying: function (this: I, isQuerying?: boolean) {
 
-                const change = { isFetching: !this.state.isFetching }
+                const change = { isQuerying: !this.state.isQuerying }
 
-                if (isFetching !== undefined) {
+                if (isQuerying !== undefined) {
 
-                    change.isFetching = isFetching;
+                    change.isQuerying = isQuerying;
                 }
 
                 this.update(change as QueryableState<State>);
             },
-            setFetching: async function <F extends Function>(this: I, fn: F) {
+            setQuerying: async function <F extends Function>(this: I, fn: F) {
 
                 this.update({
-                    isFetching: true,
-                    fetchError: null,
-                    fetchData: null
+                    isQuerying: true,
+                    queryError: null,
+                    queryData: null
                 } as QueryableState<State>);
 
                 try {
 
-                    const fetchData = await fn() || {};
+                    const queryData = await fn() || {};
 
                     implement.update({
-                        fetchData,
-                        fetchError: null,
-                        isFetching: false,
+                        queryData,
+                        queryError: null,
+                        isQuerying: false,
                     } as QueryableState<State>);
                 }
-                catch (fetchError) {
+                catch (queryError) {
 
                     implement.update({
-                        fetchData: null,
-                        fetchError,
-                        isFetching: false,
+                        queryData: null,
+                        queryError,
+                        isQuerying: false,
                     } as QueryableState<State>);
                 }
             },
-            fnWillFetch: function <F extends Func>(this: I, fn: F) {
+            fnWillQuery: function <F extends Func>(this: I, fn: F) {
 
                 const self = this;
 
                 return (...args: Parameters<F>) => (
 
-                    implement.setFetching(() => fn.apply(self, args))
+                    implement.setQuerying(() => fn.apply(self, args))
                 )
             }
         }
     )
 
-    if (implement.fetchable?.length) {
+    if (implement.queryable?.length) {
 
-        const exists = implement.fetchable.filter(
-            name => !!implement[name] && isFunction(implement[name])
+        const exists = implement.queryable.filter(
+            (name: keyof T) => !!implement[name] && isFunction(implement[name])
         );
 
         for (const fn of exists) {
 
-            implement[fn] = implement.fnWillFetch(implement[fn] as Func);
+            implement[fn as keyof T] = implement.fnWillQuery(implement[fn as FunctionProps<T>] as Func);
         }
     }
 

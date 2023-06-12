@@ -56,8 +56,7 @@ export const getMessage = <L extends LocaleType>(
 
 export const LOC_CHANGE = 'locale-change';
 
-export class LocaleEvent<Code extends string = string, C = any> extends Event {
-    component?: C;
+export class LocaleEvent<Code extends string = string> extends Event {
     code!: Code;
 }
 
@@ -65,4 +64,4 @@ export type LocaleEventName = (
     'locale-change'
 );
 
-export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code, any>) => void;
+export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code>) => void;

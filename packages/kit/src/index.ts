@@ -1,5 +1,5 @@
 import { LocaleFactory, LocaleOpts, LocaleType } from '@logos-ui/localize';
-import { Observable, ObservableOptions } from '@logos-ui/observer';
+import { ObserverFactory, ObservableOptions } from '@logos-ui/observer';
 import { ReducerFunction, StateMachine, StateMachineOptions } from '@logos-ui/state-machine';
 import { StorageImplementation } from '@logos-ui/storage';
 import { StorageFactory } from '@logos-ui/storage';
@@ -71,7 +71,7 @@ export const appKit = <KitType extends AppKitType = any>(
     opts: AppKitOpts<KitType>
 ) => {
 
-    type KitObserver = Observable<{}, KitType['eventsType']>;
+    type KitObserver = ObserverFactory<{}, KitType['eventsType']>;
     type KitLocales = LocaleFactory<KitType['locales']['localeType'], KitType['locales']['codes']>;
     type KitStateMachine = StateMachine<KitType['stateMachine']['stateType'], KitType['stateMachine']['reducerValType']>;
     type KitStorage = StorageFactory<KitType['storageType']>;
@@ -85,7 +85,7 @@ export const appKit = <KitType extends AppKitType = any>(
 
     if (opts.observer) {
 
-        observer = new Observable({}, opts.observer) as KitObserver;
+        observer = new ObserverFactory({}, opts.observer) as KitObserver;
     }
 
     if (opts.locales) {

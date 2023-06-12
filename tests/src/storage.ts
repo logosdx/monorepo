@@ -294,11 +294,11 @@ describe('@logos-ui/storage', () => {
             const [beforeEv1] = mapArgs(onBeforeSet);
             const [afterEv1] = mapArgs(onAfterSet);
 
-            expect(beforeEv1.key, 'before set test key').to.eq('test');
-            expect(afterEv1.key, 'after set test key').to.eq('test');
+            expect(beforeEv1!.key, 'before set test key').to.eq('test');
+            expect(afterEv1!.key, 'after set test key').to.eq('test');
 
-            expect(beforeEv1.value, 'before set test value').to.eq(true);
-            expect(afterEv1.value, 'after set test value').to.eq(true);
+            expect(beforeEv1!.value, 'before set test value').to.eq(true);
+            expect(afterEv1!.value, 'after set test value').to.eq(true);
 
             const _with: Partial<StorageItems> = {
                 buckle: 'my shoe',
@@ -311,20 +311,20 @@ describe('@logos-ui/storage', () => {
             const [,aEv2,aEv3] = mapArgs(onAfterSet);
 
             expect(
-                [bEv2.key, bEv3.key],
+                [bEv2!.key, bEv3!.key],
                 'before set object key'
             ).to.contain.members(['buckle', 'test'])
             expect(
-                [bEv2.value, bEv3.value],
+                [bEv2!.value, bEv3!.value],
                 'before set object value'
             ).to.contain.members(['my shoe', true])
 
             expect(
-                [bEv2.key, bEv3.key],
+                [bEv2!.key, bEv3!.key],
                 'before set object key'
             ).to.contain.members(['buckle', 'test'])
             expect(
-                [aEv2.value, aEv3.value],
+                [aEv2!.value, aEv3!.value],
                 'before set object value'
             ).to.contain.members(['my shoe', true])
         });
@@ -350,17 +350,17 @@ describe('@logos-ui/storage', () => {
             const [aEv1, aEv2, aEv3, aEv4] = mapArgs(onAfterSet);
 
             expect(
-                [bEv2.key, bEv3.key, bEv4.key],
+                [bEv2!.key, bEv3!.key, bEv4!.key],
                 'before '+keys.toString()
             ).to.include.members(keys);
 
             expect(
-                [aEv2.key, aEv3.key, aEv4.key],
+                [aEv2!.key, aEv3!.key, aEv4!.key],
                 'after '+keys.toString()
             ).to.include.members(keys);
 
-            expect(bEv1.key, 'test before').to.eq('test');
-            expect(aEv1.key, 'test after').to.eq('test');
+            expect(bEv1!.key, 'test before').to.eq('test');
+            expect(aEv1!.key, 'test after').to.eq('test');
         });
 
         it('dispatches events on assign', () => {
@@ -379,13 +379,13 @@ describe('@logos-ui/storage', () => {
             const [,bEv2] = mapArgs(onBeforeSet);
             const [,aEv2] = mapArgs(onAfterSet);
 
-            expect(bEv2.key, 'before assign set').to.eq('wee')
-            expect(bEv2.value, 'before assign set').to.contain(setThis);
-            expect(bEv2.value, 'before assign set').to.contain(assign);
+            expect(bEv2!.key, 'before assign set').to.eq('wee')
+            expect(bEv2!.value, 'before assign set').to.contain(setThis);
+            expect(bEv2!.value, 'before assign set').to.contain(assign);
 
-            expect(aEv2.key, 'after assign set').to.eq('wee')
-            expect(aEv2.value, 'after assign set').to.contain(setThis);
-            expect(aEv2.value, 'after assign set').to.contain(assign);
+            expect(aEv2!.key, 'after assign set').to.eq('wee')
+            expect(aEv2!.value, 'after assign set').to.contain(setThis);
+            expect(aEv2!.value, 'after assign set').to.contain(assign);
 
         });
     });

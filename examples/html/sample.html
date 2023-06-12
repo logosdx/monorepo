@@ -18,8 +18,8 @@
         <p>{ t('loaded') }</p>
         <p>{ state.numOfPapitas }</p>
         <button onclick="{loadPapitas}">How Many Papitas?</button>
-        <button disabled="{ state.isFetching }" onclick="{orderPapitas}">
-            { state.isFetching ? 'Getting papitas...' : 'Get more papitas'
+        <button disabled="{ state.isQuerying }" onclick="{orderPapitas}">
+            { state.isQuerying ? 'Getting papitas...' : 'Get more papitas'
         </button>
 
 
@@ -35,7 +35,7 @@
 
             //     observable: true,
             //     translatable: true,
-            //     fetchable: ['orderPapitas'],
+            //     queryable: ['orderPapitas'],
             //     mapToState(aState, cState){
 
             //         return {

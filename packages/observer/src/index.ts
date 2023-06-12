@@ -1,17 +1,5 @@
 import { Func, assert, definePrivateProps } from '@logos-ui/utils';
 
-/**
- * Overrideable interface
- */
-export interface ObservableEvents {}
-
-/**
- * Extendible event prefixes
- */
-export interface ObservableEventPrefix { }
-
-type PrefixNames = keyof ObservableEventPrefix;
-
 type Events<Shape> = keyof Shape;
 
 interface EventCallback<Shape> {
@@ -64,7 +52,7 @@ type Cleanup = {
     cleanup: () => void
 }
 
-export type ObservedComponent<E = ObservableEvents> = {
+export type ObservedComponent<E> = {
     on: EventListener<E, Cleanup>,
     one: EventListener<E>,
     once: EventListener<E>,
@@ -73,13 +61,13 @@ export type ObservedComponent<E = ObservableEvents> = {
     emit: EventEmit<E>,
 };
 
-export type ObservableInstanceChild<C, E = ObservableEvents> = C & ObservedComponent<E> & Cleanup
+export type ObservableChild<C, E> = C & ObservedComponent<E> & Cleanup
 
-export type ObservableInstance<T, U = ObservableEvents> = ObservedComponent<U> & {
-    observe: Observable<T, U>['observe'],
+export type ObservableInstance<T, U> = ObservedComponent<U> & {
+    observe: ObserverFactory<T, U>['observe'],
     $_spy?: ObserverSpy<T, U>;
     $_ref?: String;
-    $_observer: Observable<T, U>
+    $_observer: ObserverFactory<T, U>
 }
 
 type ObservableFunctionName = 'on' | 'one' | 'off' | 'trigger';
@@ -90,13 +78,13 @@ type OberverSpyOptions<E> = {
     data?: any,
 };
 
-type ObserverSpyEvent<C, E> = OberverSpyOptions<E> & {
+type ObserverSpyAction<C, E> = OberverSpyOptions<E> & {
     fn: ObservableFunctionName,
-    context: Observable<C, E>
+    context: ObserverFactory<C, E>
 }
 
 interface ObserverSpy<C, E> {
-    (event: ObserverSpyEvent<C, E>): void
+    (action: ObserverSpyAction<C, E>): void
 }
 
 const sendToSpy = <U>(
@@ -136,10 +124,13 @@ class EventTrace extends Error {
 
 const traceStackFilterRgx = (
     new RegExp(`(${[
-        'traceFn',
         'node_modules',
+        'node:internal',
         '$_spy',
-        'observable'
+        'makeEventTracer',
+        'sendToSpy',
+        'Function.spy',
+        'ObserverFactory',
     ].join('|')})`)
 );
 
@@ -168,8 +159,8 @@ export const makeEventTracer = (
 
     tracer.name = message;
 
-    tracer.func = event;
-    tracer.event = caller;
+    tracer.func = caller;
+    tracer.event = event;
     tracer.stack = stack;
 
     tracer.listener = null;
@@ -241,10 +232,9 @@ interface InternalListener {
 }
 
 
-export class Observable<
+export class ObserverFactory<
     Component,
-    Shape = ObservableEvents,
-    PrefixNames extends string = keyof ObservableEventPrefix
+    Shape = any
 > {
 
     private $_listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
@@ -256,7 +246,7 @@ export class Observable<
 
     private $_internalListener!: EventTarget;
 
-    $_debug(on = true) {
+    debug(on = true) {
 
         const original = this.$_spy;
 
@@ -269,59 +259,61 @@ export class Observable<
                 listener
             } = ev;
 
-            makeEventTracer(
-                event as any,
-                fn,
-                data || listener
+            console.log(
+                makeEventTracer(
+                    event as any,
+                    fn,
+                    data || listener
+                )
             );
 
             original && original(ev);
         }
 
+        let config = { $_spy: original };
+
         if (on) {
 
-            this.$_spy = spy;
+            config = { $_spy: spy };
         }
-        else {
 
-            this.$_spy = original;
+        definePrivateProps(this, config, true);
         }
-    }
 
     /**
      * Same as `observable.on`
      */
-    listen!: Observable<Component, Shape>['on'];
+    listen!: ObserverFactory<Component, Shape>['on'];
 
     /**
      * Same as `observable.one`
      */
-    once!: Observable<Component, Shape>['one'];
+    once!: ObserverFactory<Component, Shape>['one'];
 
     /**
      * Same as `observable.trigger`
      */
-    emit!: Observable<Component, Shape>['trigger'];
+    emit!: ObserverFactory<Component, Shape>['trigger'];
 
     /**
      * Same as `observable.trigger`
      */
-    send!: Observable<Component, Shape>['trigger'];
+    send!: ObserverFactory<Component, Shape>['trigger'];
 
     /**
      * Same as `observable.off`
      */
-    unlisten!: Observable<Component, Shape>['off'];
+    unlisten!: ObserverFactory<Component, Shape>['off'];
 
     /**
      * Same as `observable.off`
      */
-    remove!: Observable<Component, Shape>['off'];
+    remove!: ObserverFactory<Component, Shape>['off'];
 
     /**
      * Same as `observable.off`
      */
-    rm!: Observable<Component, Shape>['off'];
+    rm!: ObserverFactory<Component, Shape>['off'];
 
     constructor(target?: Component, options?: ObservableOptions<Component, Shape>) {
 
@@ -346,7 +338,7 @@ export class Observable<
             $_rgxListenerMap: this.$_rgxListenerMap,
             $_target: this.$_target,
             $_internalListener: new EventTarget(),
-            $_debug: this.$_debug,
+            $_debug: this.debug,
         });
 
         // Validate option if exists
@@ -365,7 +357,7 @@ export class Observable<
             );
 
             options.ref && definePrivateProps(this, { $_ref: options.ref });
-            options.spy && definePrivateProps(this, { $_spy: options.spy });
+            options.spy && definePrivateProps(this, { $_spy: options.spy }, true);
         }
 
         // Wrapper functions if you want to observe a target
@@ -375,7 +367,7 @@ export class Observable<
             const _one = (ev: any, fn: any) => self.one(ev, fn);
             const _off = (ev: any, fn: any) => self.off(ev, fn);
             const _trigger = (ev: any, data: any) => self.trigger(ev, data);
-            const _observe = (component: any, prefix?: PrefixNames) => self.observe(component, prefix);
+            const _observe = (component: any) => self.observe(component);
 
             definePrivateProps(target, {
                 on: _on,
@@ -401,40 +393,26 @@ export class Observable<
 
     /**
      * Observes given component as an extension of this observable instance.
-     * Optionally prefix for dispatching within it's own context, while still
-     * being able to be triggered by the original instance's events.
      * @param component Component to wrap events around
-     * @param prefix Prefix this component will dispatch and listen to
      *
      * @example
      *
-     * const obs = new Observable();
+     * const obs = new ObserverFactory();
      *
      * const modal = {};
      *
-     * obs.observe(modal, 'modal');
+     * obs.observe(modal);
      *
-     * modal.on('open', () => {});
+     * modal.on('modal-open', () => {});
      *
      * obs.trigger('modal-open'); // opens modal
-     * modal.trigger('open'); // calls the same event
+     * modal.trigger('modal-open'); // opens modal
      *
      * modal.cleanup(); // clears all event listeners
      */
-    observe<C>(component: C, prefix?: PrefixNames) {
+    observe<C>(component: C) {
 
         const self = this;
-
-        interface PrefixCallback {
-            <E extends Events<Shape>>(event: E): Events<Shape>
-        }
-
-        let namedEvent: PrefixCallback = (ev) => `${prefix}-${ev as string}` as any;
-
-        if (!prefix) {
-
-            namedEvent = (ev) => ev;
-        }
 
         const track = new Map<string, Set<Func>>;
 
@@ -458,10 +436,7 @@ export class Observable<
 
                 // For each function, remove listener from observer
                 [..._set].forEach(
-                    fn => self.off(
-                        namedEvent(ev as any),
-                        fn as any
-                    )
+                    fn => self.off(ev as any, fn as any)
                 );
 
                 // Clear the tracker
@@ -471,8 +446,7 @@ export class Observable<
 
         const afterOff: InternalListener = (_event) => {
 
-            const [prefEv, callback] = _event.data;
-            const event = prefix ? prefEv.replace(`${prefix}-`, '') : prefEv;
+            const [event, callback] = _event.data;
 
             if (event === ALL_CALLBACKS) {
 
@@ -493,7 +467,7 @@ export class Observable<
             on: (ev: any, fn: any) => {
 
                 return self.on(
-                    namedEvent(ev),
+                    ev,
                     trackListener(ev, fn) as any
                 );
             },
@@ -502,7 +476,7 @@ export class Observable<
             one: (ev: any, fn: any) => {
 
                 return self.one(
-                    namedEvent(ev),
+                    ev,
                     trackListener(ev, fn) as any
                 );
             },
@@ -517,7 +491,7 @@ export class Observable<
                 else {
 
                     self.off(
-                        namedEvent(event as any),
+                        event as any,
                         fn as any
                     );
                 }
@@ -526,7 +500,7 @@ export class Observable<
 
             trigger: (ev: any, data: any) => {
 
-                return self.trigger(namedEvent(ev), data);
+                return self.trigger(ev, data);
             },
 
 
@@ -536,7 +510,7 @@ export class Observable<
             }
         });
 
-        const observed = component as ObservableInstanceChild<C>;
+        const observed = component as ObservableChild<C, Shape>;
 
         definePrivateProps(observed, {
             listen: observed.on,
@@ -787,7 +761,5 @@ export class Observable<
                 );
             }
         )
-
-
     }
 }

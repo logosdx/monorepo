@@ -1,6 +1,6 @@
 import { Func, NonFunctionProps, assert, definePublicProps } from '@logos-ui/utils';
 
-export type TypeOfFactory = keyof Omit<Body, NonFunctionProps<Body>>;
+export type TypeOfFactory = 'arrayBuffer' | 'blob' | 'formData' | 'json' | 'text';
 type HttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH' | string;
 
 type RequestOptions = Omit<RequestInit, 'headers'>
@@ -607,7 +607,7 @@ export class FetchFactory<
     }
 
     /**
-     * Merges a state and its values into the fetch state
+     * Merges a passed object into the `FetchFactory` instance state
      * @param conf
      */
     setState(conf: Partial<State>) {
@@ -623,7 +623,7 @@ export class FetchFactory<
     }
 
     /**
-     * Resets the state to an empty object
+     * Resets the `FetchFactory` instance state.
      */
     resetState() {
 
@@ -637,7 +637,7 @@ export class FetchFactory<
     }
 
     /**
-     * Returns the fetch internal state
+     * Returns the `FetchFactory` instance state.
      */
     getState() {
 

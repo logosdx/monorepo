@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
+    "test": "cd tests; pnpm run test",
+    "tdd": "cd tests; pnpm run tdd",
     "clear": "rm -r packages/{dom,fetch,forms,kit,localize,observer,riot-kit,riot-utils,state-machine,storage,utils}/dist",
     "new": "sh ./scripts/new-pkg.zsh",
     "bundle": "pnpm rollup --config rollup.config.js",

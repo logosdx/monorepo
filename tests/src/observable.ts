@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { Observable } from '@logos-ui/observer';
+import { ObserverFactory } from '@logos-ui/observer';
 
-interface ObservableEvents {
+interface AppEvents {
     test: string | number
     test1: string
     test2: string
     test3: string
-    pooop: string
+    pops: string
 
     aa: string
     ba: string
@@ -21,7 +21,7 @@ interface ObservableEvents {
     'child-test': string
 }
 
-type TestObserver = Observable<any, ObservableEvents, 'child'>;
+type TestObserver = ObserverFactory<any, AppEvents>;
 
 const stub: {
     observer?: TestObserver,
@@ -52,7 +52,7 @@ const doToBoth = (fn: RunTestOnBoth) => {
 };
 describe('@logos-ui/observer', function () {
 
-    describe('new Observable(...)', function () {
+    describe('new ObserverFactory(...)', function () {
 
         afterEach(() => {
 
@@ -61,7 +61,7 @@ describe('@logos-ui/observer', function () {
 
         it('should create a new observer', function () {
 
-            const observer = new Observable();
+            const observer = new ObserverFactory();
 
             expect(typeof observer.on).to.eq('function');
             expect(typeof observer.one).to.eq('function');
@@ -72,7 +72,7 @@ describe('@logos-ui/observer', function () {
 
         it('should create a new observer with options', function () {
 
-            stub.observer = new Observable(null, {
+            stub.observer = new ObserverFactory(null, {
                 spy: stub.spy as any,
                 ref: stub.ref
             });
@@ -94,7 +94,7 @@ describe('@logos-ui/observer', function () {
             expect(typeof stub.component.trigger).to.eq('undefined');
             expect(typeof stub.component.observe).to.eq('undefined');
 
-            new Observable(stub.component, {
+            new ObserverFactory(stub.component, {
                 spy: stub.spy as any,
                 ref: stub.ref
             });
@@ -115,7 +115,6 @@ describe('@logos-ui/observer', function () {
         });
 
         it('should attach a single listener', () => {
-
 
             doToBoth((observed, which) => {
 
@@ -203,7 +202,7 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                expect(() => observed.off('pooop'), which).not.to.throw();
+                expect(() => observed.off('pops'), which).not.to.throw();
             });
         });
 
@@ -391,14 +390,14 @@ describe('@logos-ui/observer', function () {
 
         before(() => {
 
-            stub.observer = new Observable(null, {
+            stub.observer = new ObserverFactory(null, {
                 spy: stub.spy as any,
                 ref: stub.ref
             });
 
             stub.component = {};
 
-            new Observable(stub.component, {
+            new ObserverFactory(stub.component, {
                 spy: stub.spy as any,
                 ref: stub.ref
             });
@@ -448,33 +447,6 @@ describe('@logos-ui/observer', function () {
             });
         });
 
-        it('should have prefixed listeners child observers', () => {
-
-            doToBoth((parent, which) => {
-
-                const child: any = {};
-
-                parent.observe(child, 'child');
-
-                const parentFake = sinon.stub();
-                const childFake = sinon.stub();
-
-                parent.on('test', parentFake);
-                child.on('test', childFake);
-
-                parent.trigger('test');
-                child.trigger('test');
-
-                expect(parentFake.callCount, which).to.eq(1);
-                expect(childFake.callCount, which).to.eq(1);
-
-                parent.trigger('child-test');
-
-                expect(parentFake.callCount, which).to.eq(1);
-                expect(childFake.callCount, which).to.eq(2);
-            });
-        });
-
         it('should remove only child listeners on parent', () => {
 
             doToBoth((parent, which) => {
@@ -512,7 +484,7 @@ describe('@logos-ui/observer', function () {
 
             const child: any = {};
 
-            parent!.observe(child, 'child');
+            parent!.observe(child);
 
             const parentFake = sinon.stub();
             const childFake = sinon.stub();
@@ -529,11 +501,7 @@ describe('@logos-ui/observer', function () {
             const afterOff = [...(parent! as any).$_listenerMap.keys()];
 
             expect(beforeOff).to.include.members([
-                'child-test1', 'child-test2'
-            ]);
-
-            expect(afterOff).not.to.include.members([
-                'child-test1', 'child-test2'
+                'test1', 'test2'
             ]);
 
             expect(afterOff).to.include.members([
@@ -548,7 +516,7 @@ describe('@logos-ui/observer', function () {
 
             const child: any = {};
 
-            parent!.observe(child, 'child');
+            parent!.observe(child);
 
             const parentFake = sinon.stub();
             const childFake = sinon.stub();
@@ -565,11 +533,7 @@ describe('@logos-ui/observer', function () {
             const afterOff = [...(parent! as any).$_listenerMap.keys()];
 
             expect(beforeOff).to.include.members([
-                'child-test1', 'child-test2'
-            ]);
-
-            expect(afterOff).not.to.include.members([
-                'child-test1', 'child-test2'
+                'test1', 'test2'
             ]);
 
             expect(afterOff).to.include.members([

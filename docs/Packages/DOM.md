@@ -1,15 +1,20 @@
-The DOM should be an extension of your programming abilities, and not the thing that is abstracted or hidden by framework X. The idea behind library is to give you a set of utilites for DOM manipulation that saves you time and iteration:
+---
+permalink: '/packages/dom'
+aliases: ["DOM", "@logos-ui/dom"]
+---
+
+The DOM should be an extension of your programming abilities, and not the thing that is abstracted or hidden by framework X. The idea behind library is to give you a set of utilities for DOM manipulation that saves you time and iteration:
 - Instead of `document.querySelectorAll(...)` you can simply call `$(...)`.
 - Instead of `elements.forEach(el => el.addEventListener(...))` you can call `html.events.on(elements, ...)`
 - and so on...
 
 ```bash
+npm install @logos-ui/dom
 yarn add @logos-ui/dom
+pnpm add @logos-ui/dom
 ```
 
-Make sure to look at the [[packages/dom/Interfaces]] for this package to get a better idea of what will be available.
-
-### Example
+## Example
 
 ```typescript
 
@@ -412,9 +417,9 @@ const makeLink = (id: string, l: { link: string, text: string }) => {
 
 	const { link: href, text } = l;
 
-	const el = createElWith('a', { 
+	const el = createElWith('a', {
 		text,
-		attrs: { id, href } 
+		attrs: { id, href }
 	});
 
 	return el;

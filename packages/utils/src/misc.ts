@@ -165,7 +165,7 @@ export const isNonIterable = (val: any): boolean => (
  * @param val
  * @returns {boolean}
  */
-export const isNonObject = (val: any): boolean => (
+export const hasNoConstructor = (val: any): boolean => (
     val === null ||
     val === undefined
 );
@@ -216,7 +216,7 @@ export const isFunction = (a: any) => a instanceof Function;
  * @param {Function} check function to perform the check
  * @returns {boolean}
  */
-export const forInIsEqual = (item: any, check: { (v: any, i: number|string): boolean}): boolean => {
+export const forInIsEqual = (item: any, check: { (v: any, i: number|string): boolean }): boolean => {
 
     let isEqual: boolean;
 

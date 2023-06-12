@@ -22,9 +22,9 @@ export type StorageImplementation = {
 // export type AppStorageKeys = Keys;
 // export type AppStorageShapes<Values, K> = Shapes<Values, K>;
 
-export class StorageEvent<V> extends Event {
-    key?: keyof V | (keyof V)[];
-    value!: V[keyof V] | { [K in keyof V]: V[K] };
+export class StorageEvent<V, K extends keyof V> extends Event {
+    key?: K | (K)[];
+    value!: V[K];
 }
 
 export enum StorageEventNames {
@@ -41,14 +41,14 @@ const makeEvent = <V, K extends keyof V = keyof V>(
     value: V | V[K] | null
 ) => {
 
-    const ev = new StorageEvent <V>(StorageEventNames[type]);
+    const ev = new StorageEvent <V, K>(StorageEventNames[type]);
 
     definePublicProps(ev, { key, value });
 
     return ev;
 }
 
-export type L10nListener<V> = (e: StorageEvent<V>) => void;
+export type L10nListener<V, K extends keyof V = keyof V> = (e: StorageEvent<V, K>) => void;
 
 
 export class StorageFactory<Values> extends EventTarget {
