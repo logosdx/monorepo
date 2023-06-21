@@ -1,5 +1,13 @@
 # @logos-ui/forms
 
+## 0.0.4
+
+### Patch Changes
+
+- e6e4d56: Added a window stub so packages can be used in NodeJS. Now, Observer, Localize, StateMachine, Storage, and whatever non-DOM related utility functions are usefule.
+- Updated dependencies [e6e4d56]
+  - @logos-ui/utils@1.1.1
+
 ## 0.0.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/storage",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

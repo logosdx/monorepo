@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 1.1.1
+
+### Patch Changes
+
+- e6e4d56: Added a window stub so packages can be used in NodeJS. Now, Observer, Localize, StateMachine, Storage, and whatever non-DOM related utility functions are usefule.
+
 ## 1.1.0
 
 ### Minor Changes
