@@ -4,19 +4,15 @@
     "type": "split",
     "children": [
       {
-        "id": "3844a2984d4eee5e",
+        "id": "05f288a9074b9234",
         "type": "tabs",
         "children": [
           {
-            "id": "0dc73983f6de502f",
+            "id": "0f5d5c1b4b4828a4",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Packages/Riot Kit.md",
-                "mode": "source",
-                "source": false
-              }
+              "type": "empty",
+              "state": {}
             }
           }
         ]
@@ -93,7 +89,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Packages/Riot Kit.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -110,7 +105,6 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Packages/Riot Kit.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -132,9 +126,7 @@
             "type": "leaf",
             "state": {
               "type": "outline",
-              "state": {
-                "file": "Packages/Riot Kit.md"
-              }
+              "state": {}
             }
           }
         ]
@@ -156,10 +148,12 @@
       "table-editor-obsidian:Advanced Tables Toolbar": false
     }
   },
-  "active": "0dc73983f6de502f",
+  "active": "0f5d5c1b4b4828a4",
   "lastOpenFiles": [
-    "Packages/Riot Utils.md",
+    "A set of tools for sane people.md",
+    "Welcome.md",
     "Packages/Riot Kit.md",
+    "Packages/Riot Utils.md",
     "Packages/State Machine.md",
     "Packages/Utils.md",
     "Packages/Storage.md",
@@ -167,8 +161,6 @@
     "App Kit.md",
     "Packages/Localize.md",
     "Packages/Observer.md",
-    "A set of tools for sane people.md",
-    "Welcome.md",
     "favicon-32.png",
     "Packages/Forms.md",
     "Packages/Fetch.md",

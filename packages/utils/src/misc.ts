@@ -259,7 +259,7 @@ export const forOfIsEqual = (item: any, check: { (v: any): boolean }): boolean =
 /** Next tick but in the browser */
 const nextTickQueue: Func[] = [];
 
-window.addEventListener('message', function (ev) {
+window?.addEventListener('message', function (ev) {
 
     const source = ev.source;
 
@@ -288,7 +288,7 @@ window.addEventListener('message', function (ev) {
 export const _nextTick = (fn: Func) => {
 
     nextTickQueue.push(fn);
-    window.postMessage('process-tick', '*');
+    window?.postMessage('process-tick', '*');
 };
 
 /**
