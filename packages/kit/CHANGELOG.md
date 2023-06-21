@@ -1,5 +1,20 @@
 # @logos-ui/kit
 
+## 1.1.1
+
+### Patch Changes
+
+- e6e4d56: Added a window stub so packages can be used in NodeJS. Now, Observer, Localize, StateMachine, Storage, and whatever non-DOM related utility functions are usefule.
+- Updated dependencies [e6e4d56]
+  - @logos-ui/state-machine@1.1.1
+  - @logos-ui/localize@1.1.1
+  - @logos-ui/observer@1.1.1
+  - @logos-ui/storage@1.1.1
+  - @logos-ui/fetch@1.1.1
+  - @logos-ui/forms@0.0.4
+  - @logos-ui/utils@1.1.1
+  - @logos-ui/dom@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes

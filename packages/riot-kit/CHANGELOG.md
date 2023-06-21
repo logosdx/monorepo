@@ -1,5 +1,14 @@
 # @logos-ui/riot-kit
 
+## 1.1.1
+
+### Patch Changes
+
+- e6e4d56: Added a window stub so packages can be used in NodeJS. Now, Observer, Localize, StateMachine, Storage, and whatever non-DOM related utility functions are usefule.
+- Updated dependencies [e6e4d56]
+  - @logos-ui/riot-utils@1.1.1
+  - @logos-ui/kit@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes
