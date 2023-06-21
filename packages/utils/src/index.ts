@@ -1,3 +1,5 @@
+import './_stub';
+
 import * as MC from './manipulateAndCompare';
 
 export const deepClone = MC.deepClone;

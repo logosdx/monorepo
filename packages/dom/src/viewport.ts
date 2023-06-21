@@ -1,4 +1,4 @@
-const document = window.document;
+const document = window?.document;
 
 /**
  * Get the max value from a list of arguments filtering the falsy values
@@ -73,8 +73,8 @@ export function documentWidth() {
 export function scrollTop() {
 
     return max(
-        global.window.scrollY,
-        global.window.pageYOffset,
+        global.window?.scrollY,
+        global.window?.pageYOffset,
         document.documentElement.scrollTop
     );
 }
@@ -85,8 +85,8 @@ export function scrollTop() {
  */
 export function scrollLeft() {
     return max(
-        global.window.scrollX,
-        global.window.pageXOffset,
+        global.window?.scrollX,
+        global.window?.pageXOffset,
         document.documentElement.scrollLeft
     );
 }

@@ -81,7 +81,7 @@ export const cloneAndSubmitForm = <T extends HTMLFormElement>(
  */
 export const onceReady = (fn: Func) => {
 
-    window.addEventListener('DOMContentLoaded', fn);
+    window?.addEventListener('DOMContentLoaded', fn);
 }
 
 /**

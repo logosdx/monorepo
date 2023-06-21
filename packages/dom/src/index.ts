@@ -22,7 +22,7 @@ export {
     EvListener
 } from './events';
 
-const document = window.document;
+const document = window?.document;
 
 const css = {
 

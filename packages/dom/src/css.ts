@@ -28,7 +28,7 @@ function sanitize(name: CssPropNames) {
     ) as CssPropNames
 }
 
-const cssPropsFor = (el: HTMLElement) => global.window.getComputedStyle(el) as CssProps;
+const cssPropsFor = (el: HTMLElement) => global.window?.getComputedStyle(el) as CssProps;
 const extractCssProps = (props: CssProps, names: CssPropNames[]) => {
 
     const list = {} as CssProps;

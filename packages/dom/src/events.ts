@@ -110,7 +110,7 @@ export class HtmlEvents {
             (ev, el) => {
 
                 if (typeof ev === "string") {
-                    ev = new window.CustomEvent(ev, { detail: data });
+                    ev = new (window?.CustomEvent || Event)(ev, { detail: data });
                 }
 
                 el.dispatchEvent(ev);

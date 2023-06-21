@@ -7,7 +7,7 @@
   "browserFuncName": "LogosUI.RiotKit",
   "cdn": "dist/bundle.js",
   "scripts": {
-    "build": "sh ../../scripts/build.zsh utils",
+    "build": "bash ../../scripts/build.zsh utils",
     "types": "pnpm tsc --emitDeclarationOnly",
     "lint": "pnpm tsc --noEmit"
   },
