@@ -1,5 +1,14 @@
 # @logos-ui/riot-kit
 
+## 1.1.2
+
+### Patch Changes
+
+- ba8b52d: Properly detect NodeJS so as to work with electron when stubbing window.
+- Updated dependencies [ba8b52d]
+  - @logos-ui/kit@1.1.2
+  - @logos-ui/riot-utils@1.1.2
+
 ## 1.1.1
 
 ### Patch Changes

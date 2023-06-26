@@ -1,5 +1,20 @@
 # @logos-ui/kit
 
+## 1.1.2
+
+### Patch Changes
+
+- ba8b52d: Properly detect NodeJS so as to work with electron when stubbing window.
+- Updated dependencies [ba8b52d]
+  - @logos-ui/utils@1.1.2
+  - @logos-ui/dom@1.1.2
+  - @logos-ui/fetch@1.1.2
+  - @logos-ui/forms@0.0.5
+  - @logos-ui/localize@1.1.2
+  - @logos-ui/observer@1.1.2
+  - @logos-ui/state-machine@1.1.2
+  - @logos-ui/storage@1.1.2
+
 ## 1.1.1
 
 ### Patch Changes
