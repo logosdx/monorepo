@@ -43,4 +43,12 @@ const windowStub = {
     }
 };
 
-global.window = global.window || windowStub;
+
+if (
+    process !== undefined &&
+    process.version &&
+    process.versions.node
+) {
+
+    global.window = global.window || windowStub;
+}
