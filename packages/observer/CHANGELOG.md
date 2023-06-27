@@ -1,25 +1,18 @@
 # @logos-ui/observer
 
-## 1.1.3
+## 1.1.1 - 1.1.4
 
 ### Patch Changes
 
+- 5ef68a9: Once again...
+- Updated dependencies [5ef68a9]
+  - @logos-ui/utils@1.1.4
 - 432396d: Check against global to detect NodeJS because of build time issues when `process` when not reading as `global.process`
 - Updated dependencies [432396d]
   - @logos-ui/utils@1.1.3
-
-## 1.1.2
-
-### Patch Changes
-
 - ba8b52d: Properly detect NodeJS so as to work with electron when stubbing window.
 - Updated dependencies [ba8b52d]
   - @logos-ui/utils@1.1.2
-
-## 1.1.1
-
-### Patch Changes
-
 - e6e4d56: Added a window stub so packages can be used in NodeJS. Now, Observer, Localize, StateMachine, Storage, and whatever non-DOM related utility functions are usefule.
 - Updated dependencies [e6e4d56]
   - @logos-ui/utils@1.1.1
