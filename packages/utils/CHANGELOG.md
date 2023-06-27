@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 1.1.4
+
+### Patch Changes
+
+- 5ef68a9: Once again...
+
 ## 1.1.3
 
 ### Patch Changes

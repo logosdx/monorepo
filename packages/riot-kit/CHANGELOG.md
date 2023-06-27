@@ -1,5 +1,14 @@
 # @logos-ui/riot-kit
 
+## 1.1.4
+
+### Patch Changes
+
+- 5ef68a9: Once again...
+- Updated dependencies [5ef68a9]
+  - @logos-ui/kit@1.1.4
+  - @logos-ui/riot-utils@1.1.4
+
 ## 1.1.3
 
 ### Patch Changes

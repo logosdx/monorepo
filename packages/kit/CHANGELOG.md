@@ -1,5 +1,20 @@
 # @logos-ui/kit
 
+## 1.1.4
+
+### Patch Changes
+
+- 5ef68a9: Once again...
+- Updated dependencies [5ef68a9]
+  - @logos-ui/utils@1.1.4
+  - @logos-ui/dom@1.1.4
+  - @logos-ui/fetch@1.1.4
+  - @logos-ui/forms@0.0.7
+  - @logos-ui/localize@1.1.4
+  - @logos-ui/observer@1.1.4
+  - @logos-ui/state-machine@1.1.4
+  - @logos-ui/storage@1.1.4
+
 ## 1.1.3
 
 ### Patch Changes
