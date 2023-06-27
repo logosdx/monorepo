@@ -1,5 +1,13 @@
 # @logos-ui/forms
 
+## 0.0.6
+
+### Patch Changes
+
+- 432396d: Check against global to detect NodeJS because of build time issues when `process` when not reading as `global.process`
+- Updated dependencies [432396d]
+  - @logos-ui/utils@1.1.3
+
 ## 0.0.5
 
 ### Patch Changes
