@@ -43,13 +43,17 @@ const windowStub = {
     }
 };
 
-const _global = global || window;
+try {
 
-if (
-    _global.process !== undefined &&
-    _global.process.version &&
-    _global.process.versions.node
-) {
+    const _global = global || window;
 
-    _global.window = _global.window || windowStub;
+    if (
+        _global.process !== undefined &&
+        _global.process.version &&
+        _global.process.versions.node
+    ) {
+
+        _global.window = _global.window || windowStub;
+    }
 }
+catch (e) {}
