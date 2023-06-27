@@ -18,7 +18,6 @@
     "LICENSE"
   ],
   "keywords": [],
-
   "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",
@@ -28,7 +27,8 @@
   "license": "BSD-3-Clause",
   "devDependencies": {
     "@types/node": "^18.16.2",
-    "nodemon": "^2.0.22"
+    "nodemon": "^2.0.22",
+    "process": "^0.11.10"
   },
   "nodemonConfig": {
     "watch": [

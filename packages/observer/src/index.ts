@@ -278,7 +278,7 @@ export class ObserverFactory<
         }
 
         definePrivateProps(this, config, true);
-        }
+    }
 
     /**
      * Same as `observable.on`
@@ -315,7 +315,7 @@ export class ObserverFactory<
      */
     rm!: ObserverFactory<Component, Shape>['off'];
 
-    constructor(target?: Component, options?: ObservableOptions<Component, Shape>) {
+    constructor(target?: Component | null, options?: ObservableOptions<Component, Shape>) {
 
         const self = this;
         this.$_target = target || this;
@@ -338,7 +338,7 @@ export class ObserverFactory<
             $_rgxListenerMap: this.$_rgxListenerMap,
             $_target: this.$_target,
             $_internalListener: new EventTarget(),
-            $_debug: this.debug,
+            debug: this.debug,
         });
 
         // Validate option if exists
@@ -368,6 +368,7 @@ export class ObserverFactory<
             const _off = (ev: any, fn: any) => self.off(ev, fn);
             const _trigger = (ev: any, data: any) => self.trigger(ev, data);
             const _observe = (component: any) => self.observe(component);
+            const _debug = (on = true) => self.debug(on)
 
             definePrivateProps(target, {
                 on: _on,
@@ -382,6 +383,7 @@ export class ObserverFactory<
                 emit: _trigger,
                 send: _trigger,
                 observe: _observe,
+                debug: _debug,
                 $_observer: self
             });
 
