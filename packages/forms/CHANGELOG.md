@@ -1,5 +1,13 @@
 # @logos-ui/forms
 
+## 0.0.5
+
+### Patch Changes
+
+- ba8b52d: Properly detect NodeJS so as to work with electron when stubbing window.
+- Updated dependencies [ba8b52d]
+  - @logos-ui/utils@1.1.2
+
 ## 0.0.4
 
 ### Patch Changes

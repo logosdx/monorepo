@@ -4,6 +4,23 @@
 
 ### Patch Changes
 
+- Updated dependencies [ba8b52d]
+  - @logos-ui/utils@1.1.2
+  - @logos-ui/dom@1.1.2
+  - @logos-ui/fetch@1.1.2
+  - @logos-ui/forms@0.0.5
+  - @logos-ui/kit@1.1.2
+  - @logos-ui/localize@1.1.2
+  - @logos-ui/observer@1.1.2
+  - @logos-ui/riot-kit@1.1.2
+  - @logos-ui/riot-utils@1.1.2
+  - @logos-ui/state-machine@1.1.2
+  - @logos-ui/storage@1.1.2
+
+## null
+
+### Patch Changes
+
 - Updated dependencies [e6e4d56]
   - @logos-ui/state-machine@1.1.1
   - @logos-ui/riot-utils@1.1.1
