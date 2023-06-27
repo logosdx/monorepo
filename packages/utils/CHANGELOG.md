@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 1.1.3
+
+### Patch Changes
+
+- 432396d: Check against global to detect NodeJS because of build time issues when `process` when not reading as `global.process`
+
 ## 1.1.2
 
 ### Patch Changes
