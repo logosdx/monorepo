@@ -1,5 +1,11 @@
 # @logos-ui/riot-kit
 
+## 1.1.5
+
+### Patch Changes
+
+- e6a7f66: Export \* from riot utils
+
 ## 1.1.4
 
 ### Patch Changes
