@@ -1,4 +1,5 @@
 export * from '@logos-ui/kit';
+export * from '@logos-ui/riot-utils';
 
 import type { install, RiotComponent } from 'riot';
 
