@@ -4,6 +4,13 @@
 
 ### Patch Changes
 
+- Updated dependencies [e6a7f66]
+  - @logos-ui/riot-kit@1.1.5
+
+## null
+
+### Patch Changes
+
 - Updated dependencies [5ef68a9]
   - @logos-ui/utils@1.1.4
   - @logos-ui/dom@1.1.4
