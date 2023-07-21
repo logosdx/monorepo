@@ -1,5 +1,18 @@
 # @logos-ui/dom
 
+## 1.2.0
+
+### Minor Changes
+
+- 07dcb99: **Features:**
+
+  Added utilities `isInViewport` and `isScrolledIntoView` for detecting when an element is visible in the viewport.
+
+  **Fixes:**
+
+  - Fixed `# @logos-ui/dom utility only returning type of `Element[]`. It now accepts a generic that will default to `HTMLElement[]`, which is the more common use case.
+  - Fixed `createElWith()` utility which was not binding events due to a doubled `Object.entries()` call to the passed arguments.
+
 ## 1.1.1 - 1.1.4
 
 ### Patch Changes

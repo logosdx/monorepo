@@ -1,5 +1,11 @@
 # @logos-ui/riot-kit
 
+## 1.1.6
+
+### Patch Changes
+
+- @logos-ui/kit@1.1.5
+
 ## 1.1.5
 
 ### Patch Changes
