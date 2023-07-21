@@ -1,5 +1,12 @@
 # @logos-ui/kit
 
+## 1.1.5
+
+### Patch Changes
+
+- Updated dependencies [07dcb99]
+  - @logos-ui/dom@1.2.0
+
 ## 1.1.4
 
 ### Patch Changes
