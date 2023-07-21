@@ -300,7 +300,7 @@ const events = {
  * @param ctx
  * @returns
  */
-export const $ = (selector: string, ctx?: Element): Element[] => {
+export const $ = <R extends Element = HTMLElement>(selector: string, ctx?: Element): R[] => {
 
     const elements = (ctx || document).querySelectorAll(selector);
 
@@ -309,7 +309,7 @@ export const $ = (selector: string, ctx?: Element): Element[] => {
         return [];
     }
 
-    return Array.from(elements);
+    return Array.from(elements) as R[];
 };
 
 export const html = {

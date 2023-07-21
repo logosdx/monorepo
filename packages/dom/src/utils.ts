@@ -184,10 +184,8 @@ export const createElWith = <
     let cleanup = () => null as any;
 
     const attachEventsFor = (
-        events: [string, EvListener<any>][]
+        entries: [string, EvListener<any>][]
     ) => {
-
-        const entries = Object.entries(events);
 
         const cleaupCbs = entries.map(
             ([ev, fn]) => html.events.add(el, ev, fn as any)
@@ -220,4 +218,36 @@ export const createElWith = <
     ) & { cleanup: typeof cleanup };
 
     return returnEl
+};
+
+export const isInViewport = (
+    element: HTMLElement,
+    refHeight = window.innerHeight || document.documentElement.clientHeight,
+    refWidth = window.innerWidth || document.documentElement.clientWidth
+) => {
+
+    const rect = element.getBoundingClientRect();
+
+    return (
+        rect.top >= 0 &&
+        rect.left >= 0 &&
+        rect.bottom <= refHeight &&
+        rect.right <= refWidth
+    );
+};
+
+export const isScrolledIntoView = (
+    el: HTMLElement,
+    inRelationTo: HTMLElement | Window = window
+) => {
+
+    const relEl = inRelationTo as HTMLElement;
+    const relWin = inRelationTo as Window;
+
+    const top = relEl.scrollTop || relWin.scrollY;
+
+    const offset = el.offsetTop;
+    const height = el.offsetHeight;
+
+    return top >= offset && top < offset + height;
 };
