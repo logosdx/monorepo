@@ -105,6 +105,7 @@ export const createEl: Document['createElement'] = (...args: Parameters<Document
 
 type CreateElWithOpts<CustomHtmlEvents> = {
     text?: string,
+    children?: (string | HTMLElement)[],
     class?: string[],
     attrs?: Record<string, string>,
     domEvents?: { [E in keyof GlobalEventHandlersEventMap]?: EvListener<E> },
@@ -158,10 +159,26 @@ export const createElWith = <
     assert(!opts.customEvents || typeof opts.customEvents === 'object', 'invalid opts.events');
     assert(!opts.css || typeof opts.css === 'object', 'invalid opts.css');
     assert(!opts.text || typeof opts.text === 'string', 'invalid opts.text');
+    assert(!opts.children || Array.isArray(opts.children), 'invalid opts.children');
 
     if (opts.text && opts.text.length) {
 
         appendIn(el, document.createTextNode(opts.text));
+    }
+
+    if (opts.children && opts.children.length) {
+
+        const children = opts.children.map(
+
+            (c) => (
+
+                typeof c === 'string' ?
+                document.createTextNode(c) :
+                c
+            )
+        );
+
+        appendIn(el, ...children);
     }
 
     if (opts.class && opts.class.length) {
@@ -250,4 +267,22 @@ export const isScrolledIntoView = (
     const height = el.offsetHeight;
 
     return top >= offset && top < offset + height;
+};
+
+export const swapClasses = (el: HTMLElement, one: string, two: string) => {
+
+    const hasOne = el.classList.contains(one);
+    const hasTwo = el.classList.contains(two);
+
+    if (hasOne) {
+
+        el.classList.remove(one);
+        el.classList.add(two);
+    }
+
+    if (hasTwo) {
+
+        el.classList.remove(two);
+        el.classList.add(one);
+    }
 };
