@@ -1,5 +1,28 @@
 # @logos-ui/dom
 
+## 1.3.0
+
+### Minor Changes
+
+- 6f60306: Added `swapClasses(...)` DOM util. Can now pass children to `createElWith(...)`.
+
+  Example:
+
+  ```ts
+  const faIcon = createElWith("i", {
+    class: ["fa", "fa-chevron-down"],
+  });
+
+  const link = createElWith("a", {
+    children: [faIcon, "Toggle a thing"],
+    domEvents: {
+      click: () => {
+        swapClasses(faIcon, "fa-chevron-down", "fa-chevron-up");
+      },
+    },
+  });
+  ```
+
 ## 1.2.0
 
 ### Minor Changes
