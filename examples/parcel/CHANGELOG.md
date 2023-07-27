@@ -1,5 +1,11 @@
 # @logos-ui/parcel-example
 
+## 1.0.5
+
+### Patch Changes
+
+- @logos-ui/riot-kit@1.1.7
+
 ## 1.0.4
 
 ### Patch Changes
