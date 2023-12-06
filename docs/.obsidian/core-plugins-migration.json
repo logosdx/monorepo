@@ -26,5 +26,6 @@
   "file-recovery": true,
   "publish": true,
   "sync": true,
-  "bookmarks": true
+  "bookmarks": true,
+  "properties": false
 }
