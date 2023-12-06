@@ -4,6 +4,15 @@
 
 ### Patch Changes
 
+- Updated dependencies [2d7ac0d]
+  - @logos-ui/localize@1.2.0
+  - @logos-ui/kit@1.1.7
+  - @logos-ui/riot-kit@1.1.8
+
+## null
+
+### Patch Changes
+
 - Updated dependencies [6f60306]
   - @logos-ui/dom@1.3.0
   - @logos-ui/kit@1.1.6

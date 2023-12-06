@@ -1,5 +1,17 @@
 # @logos-ui/riot-kit
 
+## 1.1.8
+
+### Patch Changes
+
+- 2d7ac0d: **LocaleFactory**
+
+  - Fixed need to filter out values that cannot be converted into a string.
+  - Added ability to search and replace from nested objects or arrays when passed into replace values.
+
+- Updated dependencies [2d7ac0d]
+  - @logos-ui/kit@1.1.7
+
 ## 1.1.7
 
 ### Patch Changes
