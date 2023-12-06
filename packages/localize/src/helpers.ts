@@ -31,11 +31,68 @@ export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType
 
 export type LocaleReacher<T> = PathsToValues<T>;
 export type LocaleFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>;
+
+/**
+ * converts a nested object to a flat object
+ * where the keys are the paths to the values
+ * in 'key.key.key' format
+ */
+const objToFlatEntries = <T extends object>(obj: T) => {
+
+    const flattened: [string, any][] = [];
+
+    if (typeof obj !== 'object') {
+        return flattened;
+    }
+
+    const flatten = (o: any, prefix: string) => {
+
+        if (!o) {
+            return;
+        }
+
+        for (const [key, value] of Object.entries(o)) {
+
+            const path = prefix ? `${prefix}.${key}` : key;
+
+            if (typeof value === 'object') {
+                flatten(value, path);
+            } else {
+                flattened.push([path, value]);
+            }
+        }
+    };
+
+    flatten(obj, '');
+
+    return flattened;
+}
+
 export const format = (str: string, values: LocaleFormatArgs) => {
 
-    const args = Object.entries(values);
+    if (values.length === 0) {
+        return str;
+    }
+
+    if (Array.isArray(values)) {
+
+        values = values.filter(v => v !== undefined || v !== null);
+    }
+
+    const flatVals = objToFlatEntries(values);
+
+    const args = flatVals.filter(
+
+        ([,v]) => (
+            typeof v === 'number' ||
+            typeof v === 'string' ||
+            typeof v === 'boolean' ||
+            typeof v === 'bigint'
+        )
+    );
 
     for (const [key, value] of args) {
+
         str = str?.replace(new RegExp(`\\{${key}\\}`, 'gi'), value.toString());
     }
 

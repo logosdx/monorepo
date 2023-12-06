@@ -216,7 +216,7 @@ describe('@logos-ui/localize', function () {
     it('has a fallback locale when labels are missing', () => {
 
         l10bMngr.changeTo('pt');
-        expect(l10bMngr.text('some.more')).to.eq(portugues.some.more);
+        expect(l10bMngr.text('some.more')).to.eq(portugues.some!.more);
         expect(l10bMngr.text('some.nested.label')).to.eq(english.some.nested.label);
     });
 
@@ -226,5 +226,12 @@ describe('@logos-ui/localize', function () {
         expect(l10bMngr.locales[1]).to.contain({ code: locales.es.code, text: locales.es.text })
         expect(l10bMngr.locales[2]).to.contain({ code: locales.pt.code, text: locales.pt.text })
     });
+
+    it('does not convert null or undefined to string', () => {
+        expect(() => { l10bMngr.text('food.breakfast', [null as any]) }).to.not.throw();
+        expect(() => { l10bMngr.text('food.breakfast', [undefined as any]) }).to.not.throw();
+        expect(() => { l10bMngr.text('food.breakfast', [{ mainDish: null } as any]) }).to.not.throw();
+        expect(() => { l10bMngr.text('food.breakfast', { mainDish: null } as any) }).to.not.throw();
+    })
 
 });

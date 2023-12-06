@@ -19,7 +19,8 @@ const english = {
             key: '{0}, I like bacon. {1}, I like eggs.',
             key2: '{first}, I like steak. {second}, I like rice.'
         }
-    }
+    },
+    welcome: 'Welcome to the app, {users.0.fullName}!'
 };
 
 const spanish = {
@@ -28,7 +29,8 @@ const spanish = {
             key: '{0}, me gusta el bacon. {1}, me gustan los huevos.',
             key2: '{first}, me gusta la carne de res. {second}, me gusta el arroz.'
         }
-    }
+    },
+    welcome: '¡Bienvenidos al app, {users.0.fullName}!'
 };
 
 type LangType = typeof english;
@@ -66,6 +68,15 @@ const greeting = langMngr.t('my.nested.key2', {
 	second: 'Jacob'
 });
 // > "Thomas, I like steak. Jacob, I like rice."
+
+const greeting = langMngr.t('welcome', {
+	users: [
+		{
+			fullName: 'Peter Paul'
+		}
+	]
+})
+// > "Welcome to the app, Peter Paul!"
 ```
 
 **Interface**
