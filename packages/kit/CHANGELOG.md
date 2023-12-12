@@ -1,5 +1,17 @@
 # @logos-ui/kit
 
+## 1.1.7
+
+### Patch Changes
+
+- 2d7ac0d: **LocaleFactory**
+
+  - Fixed need to filter out values that cannot be converted into a string.
+  - Added ability to search and replace from nested objects or arrays when passed into replace values.
+
+- Updated dependencies [2d7ac0d]
+  - @logos-ui/localize@1.2.0
+
 ## 1.1.6
 
 ### Patch Changes
