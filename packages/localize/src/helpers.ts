@@ -14,6 +14,11 @@ export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType
         return;
     }
 
+    // Allow for passing a flat object
+    if (obj[path] !== undefined) {
+        return obj[path] as T;
+    }
+
     // Check if path is string or array. Regex : ensure that we do not have '.' and brackets.
     // Regex explained: https://regexr.com/58j0k
     const pathArray = Array.isArray(path) ? path as string[] : path.match(/([^[.\]])+/g)!
