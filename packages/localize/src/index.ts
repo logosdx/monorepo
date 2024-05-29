@@ -112,7 +112,6 @@ export class LocaleFactory<
 
     private _loc!: Locale;
 
-
     constructor(opts: LocaleOpts<Locale, Code>) {
 
         super();
@@ -158,6 +157,36 @@ export class LocaleFactory<
         );
     }
 
+    updateLang <C extends Code>(
+        code: C,
+        locale: DeepOptional<Locale>
+    ) {
+
+        const labels = applyDefaults <
+            Locale | DeepOptional<Locale>
+        >(
+            {} as any,
+            this._locales[code].labels,
+            locale
+        );
+
+        this._locales[code] = {
+            ...this._locales[code],
+            labels,
+        };
+
+        if (this.current === code) {
+
+            this.merge();
+
+            const event = new LocaleEvent<Code>(LOC_CHANGE);
+            event.code = code;
+
+            this.dispatchEvent(event);
+        }
+
+    }
+
 
     get locales() {
 
@@ -179,6 +208,12 @@ export class LocaleFactory<
 
         if (code === this.current) {
             return;
+        }
+
+        if (!this._locales[code]) {
+
+            console.warn(`WARNING: Locale "${code}" not found. Using fallback "${this.fallback}" instead.`);
+            code = this.fallback;
         }
 
         this.current = code;

@@ -3,10 +3,11 @@ import {
     LocaleType,
     LocaleOpts,
 } from '@logos-ui/localize';
+
 import { DeepOptional } from '@logos-ui/utils';
 
 import { expect } from 'chai';
-import sinon from 'sinon';
+import Sinon from 'sinon';
 
 const english = {
 
@@ -68,6 +69,21 @@ const locales: LocaleOpts<Lang, Codes>['locales'] = {
 describe('@logos-ui/localize', function () {
 
     let l10bMngr: LocaleFactory<Lang, Codes>;
+
+    const sandbox = Sinon.createSandbox();
+    const _console = console as any as {
+        [K in keyof Console]: Sinon.SinonStub
+    };
+
+    before(() => {
+
+        sandbox.stub(console, 'warn');
+    })
+
+    after(() => {
+
+        sandbox.restore();
+    });
 
     it('requires a proper config', () => {
 
@@ -152,12 +168,13 @@ describe('@logos-ui/localize', function () {
 
     it('has events', () => {
 
-        const stub = sinon.stub();
+        const stub = Sinon.stub();
 
         l10bMngr.on('locale-change', stub);
         l10bMngr.changeTo('en');
 
-        const [[event]] = stub.args;
+        const [arg] = stub.args;
+        const [event] = arg!;
 
         expect(event.type).to.eq('locale-change');
         expect(event.code).to.eq('en');
@@ -201,7 +218,7 @@ describe('@logos-ui/localize', function () {
 
         for (const c in tests) {
 
-            const vals = tests[c];
+            const vals = tests[c as Codes];
             const code = c as Codes;
             l10bMngr.changeTo(code);
 
@@ -234,4 +251,63 @@ describe('@logos-ui/localize', function () {
         expect(() => { l10bMngr.text('food.breakfast', { mainDish: null } as any) }).to.not.throw();
     })
 
+    it('falls back to the fallback locale when the current locale is missing', () => {
+
+
+        l10bMngr.changeTo('fr' as any);
+
+        expect(_console.warn.calledOnce).to.be.true;
+
+        expect(l10bMngr.text('some.more')).to.eq(english.some.more);
+    });
+
+    it('accesses non-nested values with dot notation', () => {
+
+        const lang = {
+            'some.more': 'cookies',
+            'some.nested.label': 'what',
+            food: {
+                breakfast: 'eggs and cheese',
+            }
+        }
+
+        const instance = new LocaleFactory <typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: lang }
+            }
+        });
+
+        expect(instance.text('some.more')).to.eq(lang['some.more']);
+        expect(instance.text('some.nested.label')).to.eq(lang['some.nested.label']);
+        expect(instance.text('food.breakfast')).to.eq(lang.food.breakfast);
+    });
+
+    it('updates a language', () => {
+
+        const lang = {
+            'some.more': 'cookies',
+            'some.nested.label': 'what',
+            food: {
+                breakfast: 'eggs and cheese',
+            }
+        }
+
+        const instance = new LocaleFactory <typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: lang }
+            }
+        });
+
+        expect(instance.text('some.more')).to.eq(lang['some.more']);
+
+        instance.updateLang('en', {
+            'some.more': 'chocolate',
+        })
+
+        expect(instance.text('some.more')).to.eq('chocolate');
+    });
 });

@@ -103,8 +103,6 @@ describe('@logos-ui/dom', () => {
             const div = document.createElement('div');
             html.css.set(div, stub.sampleCss!);
 
-            console.log('fontSize', div.style.getPropertyValue('fontSize'));
-
             expect(div.style.fontSize).to.equal(stub.sampleCss!.fontSize);
             expect(div.style.color).to.equal(stub.sampleCss!.color);
         });

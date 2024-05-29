@@ -85,19 +85,26 @@ const stub = {
 
 describe('@logos-ui/utils', () => {
 
-    const originalWarn = console.warn;
-    console.warn = Sinon.stub();
+    const sandbox = Sinon.createSandbox();
+    const _console = console as any as {
+        [K in keyof Console]: Sinon.SinonStub
+    };
+
+    before(() => {
+
+        sandbox.stub(console, 'warn');
+    })
 
     after(() => {
 
-        console.warn = originalWarn;
+        sandbox.restore();
     });
 
     describe('deepClone(...)', () => {
 
         after(() => {
 
-            expect((console.warn as Sinon.SinonStub).called);
+            expect(_console.warn.called);
         })
 
         it('should clone any kind of value', function () {

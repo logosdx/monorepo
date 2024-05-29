@@ -2,7 +2,7 @@
     "name": "tests",
     "private": true,
     "scripts": {
-        "tdd": "nodemon -e 'ts' -x 'yarn test'",
+        "tdd": "nodemon -e 'ts' -x 'pnpm test'",
         "test": "TS_NODE_TRANSPILE_ONLY='true' mocha -r ./setup.js 'src/*.ts'"
     },
     "keywords": [],
