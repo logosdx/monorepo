@@ -12,12 +12,12 @@ import { HtmlCss } from './css';
 import { HtmlAttr } from './attrs';
 import { HtmlEvents } from './events';
 
-export {
+export type {
     CssPropNames,
     CssProps
 } from './css';
 
-export {
+export type {
     GlobalEvents,
     EvListener
 } from './events';

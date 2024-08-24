@@ -18,7 +18,7 @@ const dirs = readdirSync(pkgPath()).map(
 
             return {
                 name,
-                input: pkgPath(name, 'dist/index.js'),
+                input: pkgPath(name, 'dist/cjs/index.js'),
                 output: pkgPath(name, 'dist/bundle.js'),
                 pkg,
             }

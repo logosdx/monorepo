@@ -15,7 +15,7 @@ import {
     LOC_CHANGE
 } from './helpers';
 
-export { LocaleType } from './helpers';
+export type { LocaleType } from './helpers';
 
 
 export type ManyLocales<Locale extends LocaleType, Code extends string> = {

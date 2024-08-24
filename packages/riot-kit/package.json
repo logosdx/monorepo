@@ -2,8 +2,8 @@
   "name": "@logos-ui/riot-kit",
   "version": "1.2.0",
   "description": "A feature-rich utility kit for building RiotJS apps",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
   "browserFuncName": "LogosUI.RiotKit",
   "cdn": "dist/bundle.js",
   "scripts": {

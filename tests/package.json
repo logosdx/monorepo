@@ -21,7 +21,6 @@
         "@hapi/hapi": "^21.3.2",
         "@logos-ui/dom": "workspace:^",
         "@logos-ui/fetch": "workspace:^",
-        "@logos-ui/forms": "workspace:^",
         "@logos-ui/kit": "workspace:^",
         "@logos-ui/localize": "workspace:^",
         "@logos-ui/observer": "workspace:^",

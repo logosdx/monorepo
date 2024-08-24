@@ -1,9 +1,9 @@
 {
   "name": "@logos-ui/kit",
   "version": "1.2.0",
-  "description": "A collection of strongly-typed LogosUI libraries to kitstart your app",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "description": "A collection of strongly-typed LogosUI libraries to kick-start your app",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
   "browserFuncName": "LogosUI.Kit",
   "cdn": "dist/bundle.js",
   "scripts": {
@@ -45,7 +45,6 @@
   "dependencies": {
     "@logos-ui/dom": "workspace:^",
     "@logos-ui/fetch": "workspace:^",
-    "@logos-ui/forms": "workspace:^",
     "@logos-ui/localize": "workspace:^",
     "@logos-ui/observer": "workspace:^",
     "@logos-ui/state-machine": "workspace:^",

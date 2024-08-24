@@ -187,7 +187,7 @@ export const createElWith = <
     }
 
     if (opts.css) {
-        html.css.set(el, opts.css);
+        html.css.set(el, opts.css!);
     }
 
     if (opts.attrs) {

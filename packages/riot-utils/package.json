@@ -2,8 +2,8 @@
   "name": "@logos-ui/riot-utils",
   "version": "1.1.4",
   "description": "A tiny set of tools for building RiotJS apps",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
   "browserFuncName": "LogosUI.RiotUtils",
   "cdn": "dist/bundle.js",
   "scripts": {

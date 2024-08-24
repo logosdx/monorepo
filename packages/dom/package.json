@@ -4,8 +4,8 @@
   "description": "A small set of utilities for DOM manipulation",
   "browserFuncName": "LogosUI.Dom",
   "cdn": "dist/bundle.js",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
   "scripts": {
     "build": "bash ../../scripts/build.zsh utils",
     "types": "pnpm tsc --emitDeclarationOnly",

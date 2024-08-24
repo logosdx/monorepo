@@ -50,7 +50,6 @@
   - @logos-ui/utils@1.1.4
   - @logos-ui/dom@1.1.4
   - @logos-ui/fetch@1.1.4
-  - @logos-ui/forms@0.0.7
   - @logos-ui/localize@1.1.4
   - @logos-ui/observer@1.1.4
   - @logos-ui/state-machine@1.1.4
@@ -65,7 +64,6 @@
   - @logos-ui/utils@1.1.3
   - @logos-ui/dom@1.1.3
   - @logos-ui/fetch@1.1.3
-  - @logos-ui/forms@0.0.6
   - @logos-ui/localize@1.1.3
   - @logos-ui/observer@1.1.3
   - @logos-ui/state-machine@1.1.3
@@ -80,7 +78,6 @@
   - @logos-ui/utils@1.1.2
   - @logos-ui/dom@1.1.2
   - @logos-ui/fetch@1.1.2
-  - @logos-ui/forms@0.0.5
   - @logos-ui/localize@1.1.2
   - @logos-ui/observer@1.1.2
   - @logos-ui/state-machine@1.1.2
@@ -97,7 +94,6 @@
   - @logos-ui/observer@1.1.1
   - @logos-ui/storage@1.1.1
   - @logos-ui/fetch@1.1.1
-  - @logos-ui/forms@0.0.4
   - @logos-ui/utils@1.1.1
   - @logos-ui/dom@1.1.1
 
@@ -117,7 +113,6 @@
   - @logos-ui/fetch@1.1.0
   - @logos-ui/utils@1.1.0
   - @logos-ui/dom@1.1.0
-  - @logos-ui/forms@0.0.3
 
 ## 1.0.0
 
@@ -139,4 +134,3 @@
   - @logos-ui/fetch@1.0.0
   - @logos-ui/utils@1.0.0
   - @logos-ui/dom@1.0.0
-  - @logos-ui/forms@0.0.2
