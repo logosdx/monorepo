@@ -1,5 +1,17 @@
 # @logos-ui/riot-kit
 
+## 2.0.0
+
+### Major Changes
+
+- 847eb42: Build for ESM and CJS. Modules should now work in both.
+
+### Patch Changes
+
+- Updated dependencies [847eb42]
+  - @logos-ui/riot-utils@2.0.0
+  - @logos-ui/kit@2.0.0
+
 ## 1.2.0
 
 ### Minor Changes

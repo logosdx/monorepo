@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/fetch",
-  "version": "1.1.4",
+  "version": "2.0.0",
   "description": "A full-feature wrapper around the Fetch API",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
