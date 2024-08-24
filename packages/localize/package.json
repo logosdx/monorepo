@@ -2,8 +2,13 @@
   "name": "@logos-ui/localize",
   "version": "2.0.0",
   "description": "A small, strongly-typed, full feature localization utility",
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js"
+    }
+  },
   "browserFuncName": "LogosUI.Localize",
   "cdn": "dist/bundle.js",
   "scripts": {
@@ -15,6 +20,7 @@
     "dist/",
     "docs/",
     "readme.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "keywords": [

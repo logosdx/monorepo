@@ -15,6 +15,7 @@
     "dist/",
     "docs/",
     "readme.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "keywords": [],
