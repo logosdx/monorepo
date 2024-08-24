@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.0.0
+
+### Major Changes
+
+- 847eb42: Build for ESM and CJS. Modules should now work in both.
+
 ## 1.1.4
 
 ### Patch Changes

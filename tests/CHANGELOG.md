@@ -4,6 +4,22 @@
 
 ### Patch Changes
 
+- Updated dependencies [847eb42]
+  - @logos-ui/state-machine@2.0.0
+  - @logos-ui/riot-utils@2.0.0
+  - @logos-ui/localize@2.0.0
+  - @logos-ui/observer@2.0.0
+  - @logos-ui/riot-kit@2.0.0
+  - @logos-ui/storage@2.0.0
+  - @logos-ui/fetch@2.0.0
+  - @logos-ui/utils@2.0.0
+  - @logos-ui/dom@2.0.0
+  - @logos-ui/kit@2.0.0
+
+## null
+
+### Patch Changes
+
 - Updated dependencies [14e5699]
   - @logos-ui/localize@1.3.0
   - @logos-ui/kit@1.2.0

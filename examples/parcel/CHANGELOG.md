@@ -1,5 +1,12 @@
 # @logos-ui/parcel-example
 
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [847eb42]
+  - @logos-ui/riot-kit@2.0.0
+
 ## 1.0.7
 
 ### Patch Changes
