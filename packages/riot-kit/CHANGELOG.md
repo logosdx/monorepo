@@ -1,5 +1,14 @@
 # @logos-ui/riot-kit
 
+## 2.0.1
+
+### Patch Changes
+
+- 9de5826: Export correctly for esm / cjs
+- Updated dependencies [9de5826]
+  - @logos-ui/riot-utils@2.0.1
+  - @logos-ui/kit@2.0.1
+
 ## 2.0.0
 
 ### Major Changes

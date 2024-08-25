@@ -1,10 +1,9 @@
 {
   "name": "@logos-ui/state-machine",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A powerful, stream-based, strongly-typed state management library",
   "exports": {
     ".": {
-
       "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.js"
     }

@@ -1,5 +1,18 @@
 # @logos-ui/kit
 
+## 2.0.1
+
+### Patch Changes
+
+- 9de5826: Export correctly for esm / cjs
+- Updated dependencies [9de5826]
+  - @logos-ui/state-machine@2.0.1
+  - @logos-ui/localize@2.0.1
+  - @logos-ui/observer@2.0.1
+  - @logos-ui/storage@2.0.1
+  - @logos-ui/fetch@2.0.1
+  - @logos-ui/dom@2.0.1
+
 ## 2.0.0
 
 ### Major Changes
