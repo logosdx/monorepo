@@ -1,5 +1,7 @@
+import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { expect } from 'chai';
 import sinon, { SinonStub } from 'sinon';
+
 import { RiotComponent } from 'riot';
 
 import {

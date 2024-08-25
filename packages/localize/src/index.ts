@@ -13,9 +13,9 @@ import {
     LocaleEventName,
     LocaleListener,
     LOC_CHANGE
-} from './helpers';
+} from './helpers.ts';
 
-export type { LocaleType } from './helpers';
+export type { LocaleType } from './helpers.ts';
 
 
 export type ManyLocales<Locale extends LocaleType, Code extends string> = {

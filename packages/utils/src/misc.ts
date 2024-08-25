@@ -1,4 +1,4 @@
-import { Func } from "./types";
+import { Func } from "./types.ts";
 
 /**
  * Defines visible, non-configurable properties on an object

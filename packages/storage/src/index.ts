@@ -22,7 +22,7 @@ export type StorageImplementation = {
 // export type AppStorageKeys = Keys;
 // export type AppStorageShapes<Values, K> = Shapes<Values, K>;
 
-export class StorageEvent<V, K extends keyof V> extends Event {
+export class StorageEvent<V, K extends keyof V = keyof V> extends Event {
     key?: K | (K)[];
     value!: V[K];
 }

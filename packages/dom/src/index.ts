@@ -1,5 +1,5 @@
-export * from './utils';
-export * from './viewport';
+export * from './utils.ts';
+export * from './viewport.ts';
 
 /**
  * Credit to
@@ -8,9 +8,9 @@ export * from './viewport';
  * Where most of these ideas stemmed from
  */
 
-import { HtmlCss } from './css';
-import { HtmlAttr } from './attrs';
-import { HtmlEvents } from './events';
+import { HtmlCss } from './css.ts';
+import { HtmlAttr } from './attrs.ts';
+import { HtmlEvents } from './events.ts';
 
 export type {
     CssPropNames,

@@ -4,25 +4,16 @@
   "description": "A tiny set of tools for building RiotJS apps",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.js"
+      "require": "./dist/cjs/index.cjs",
+      "import": "./dist/esm/index.mjs",
+      "types": "./src/index.ts"
     }
   },
-  "browserFuncName": "LogosUI.RiotUtils",
-  "cdn": "dist/bundle.js",
   "scripts": {
-    "build": "bash ../../scripts/build.zsh utils",
-    "types": "pnpm tsc --emitDeclarationOnly",
+    "build": "node ../../scripts/build.mjs",
     "lint": "pnpm tsc --noEmit"
   },
-  "files": [
-    "src/",
-    "dist/",
-    "docs/",
-    "readme.md",
-    "CHANGELOG.md",
-    "LICENSE"
-  ],
+  "files": [],
   "keywords": [
     "riotjs",
     "riot",
@@ -30,7 +21,7 @@
     "utilities",
     "meta programming"
   ],
-  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "homepage": "https://logosui.com/",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",
     "email": "danilo@alonso.network"

@@ -1,7 +1,5 @@
-const document = window?.document;
-
 /**
- * Get the max value from a list of arguments filtering the falsy values
+ * Gets the max value from a list of arguments filtering the falsy values
  * @private
  * @param args - list of numbers
  * @returns the highest value
@@ -13,6 +11,8 @@ const max = (...args: number[]) => Math.max(0, ...args.filter((v => !!v)), 0);
  * @returns - the browser scrollbar width
  */
 export function scrollbarWidth() {
+
+    const document = window?.document;
 
     // Create the measurement node
     const div = document.createElement('div')
@@ -42,6 +42,8 @@ export function scrollbarWidth() {
  */
 export function documentHeight() {
 
+    const document = window?.document;
+
     return max(
         document.body.scrollHeight,
         document.body.offsetHeight,
@@ -56,6 +58,8 @@ export function documentHeight() {
  * @returns width in px of the document
  */
 export function documentWidth() {
+
+    const document = window?.document;
 
     return max(
         document.body.scrollWidth,
@@ -72,6 +76,8 @@ export function documentWidth() {
  */
 export function scrollTop() {
 
+    const document = window?.document;
+
     return max(
         global.window?.scrollY,
         global.window?.pageYOffset,
@@ -84,6 +90,9 @@ export function scrollTop() {
  * @returns scroll left value in px
  */
 export function scrollLeft() {
+
+    const document = window?.document;
+
     return max(
         global.window?.scrollX,
         global.window?.pageXOffset,

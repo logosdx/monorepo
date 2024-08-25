@@ -3,12 +3,12 @@ import {
     isSameLength,
     forInIsEqual,
     forOfIsEqual,
-} from '..';
+} from '../index.ts';
 
 import type {
     AnyConstructor,
     deepEqual as DeepEqualFn,
-} from '.';
+} from './index.ts';
 
 export interface HandleEquatingOf {
     (a: any, b: any): boolean;

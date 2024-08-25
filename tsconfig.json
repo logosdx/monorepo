@@ -1,5 +1,8 @@
 {
     "compilerOptions": {
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "outDir": "out",
         "allowSyntheticDefaultImports": true,
         "allowJs": true,
         "declaration": true,

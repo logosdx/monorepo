@@ -1,7 +1,7 @@
 import { RiotComponent, RiotComponentWithoutInternals } from 'riot';
 import { definePrivateProps, Func, isFunction, NonFunctionProps, FunctionProps } from '@logos-ui/utils';
 
-import { mergeState } from './utils';
+import { mergeState } from './utils.ts';
 
 export type RiotComponentExport<C, P = any, S = any> = (
     RiotComponentWithoutInternals<

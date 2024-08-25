@@ -1,3 +1,8 @@
+import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+
+import { expect } from 'chai';
+import Sinon from 'sinon';
+
 import {
     LocaleFactory,
     LocaleType,
@@ -5,9 +10,6 @@ import {
 } from '@logos-ui/localize';
 
 import { DeepOptional } from '@logos-ui/utils';
-
-import { expect } from 'chai';
-import Sinon from 'sinon';
 
 const english = {
 

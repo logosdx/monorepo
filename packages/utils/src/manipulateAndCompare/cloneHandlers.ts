@@ -1,9 +1,9 @@
-import { _nextTick } from '..';
+import { _nextTick } from '../index.ts';
 
 import type {
     AnyConstructor,
     deepClone as DeepCloneFn,
-} from '.';
+} from './index.ts';
 
 export interface HandleCloningOf<T extends AnyConstructor> {
     (a: T): T;

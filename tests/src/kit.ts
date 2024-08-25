@@ -1,7 +1,9 @@
-import * as Kit from '@logos-ui/kit';
+import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
 import sinon from 'sinon';
+
+import * as Kit from '@logos-ui/kit';
 
 describe('@logos-ui/kit', () => {
 

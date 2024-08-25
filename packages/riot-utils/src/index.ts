@@ -1,2 +1,2 @@
-export * from './queryable';
-export * from './utils';
+export * from './queryable.ts';
+export * from './utils.ts';

@@ -1,4 +1,7 @@
+import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+
 import { expect } from 'chai';
+
 import * as fc from 'fast-check';
 
 import {
@@ -219,7 +222,7 @@ describe('@logos-ui/utils', () => {
                     deepEqual(a, b);
                 }
 
-            }).timeout(10 * 1000);
+            })
 
             it('should have changes no matter the primitive', function () {
 

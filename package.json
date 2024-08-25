@@ -1,5 +1,7 @@
 {
+  "packageManager": "pnpm@9.7.0+sha512.dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf",
   "name": "@logos-ui/monorepo",
+  "license": "BSD-3-Clause",
   "private": true,
   "scripts": {
     "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
@@ -7,30 +9,31 @@
     "tdd": "cd tests; pnpm run tdd",
     "clear": "rm -r packages/{dom,fetch,forms,kit,localize,observer,riot-kit,riot-utils,state-machine,storage,utils}/dist",
     "new": "sh ./scripts/new-pkg.zsh",
-    "bundle": "pnpm rollup --config rollup.config.js",
-    "release": "pnpm recursive run build && pnpm bundle && changeset publish"
+    "release": "pnpm recursive run build --release && changeset publish"
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.26.1",
+    "@swc/cli": "^0.1.62",
+    "@swc/core": "^1.3.55",
+    "@types/node": "^22.5.0",
+    "tslib": "^2.5.0",
+    "tsx": "^4.18.0",
+    "typescript": "5"
   },
   "files": [
-    "src/",
-    "dist/",
-    "docs/",
+    "dist",
+    "src",
     "readme.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "keywords": [],
-  "homepage": "https://publish.obsidian.md/logos-ui/A+set+of+tools+for+sane+people",
+  "homepage": "https://logosui.com/",
   "bugs": {
     "url": "https://github.com/logos-ui/discuss/issues",
     "email": "danilo@alonso.network"
   },
   "author": "Danilo Alonso <danilo@alonso.network>",
-  "license": "BSD-3-Clause",
-  "devDependencies": {
-    "@types/node": "^18.16.2",
-    "nodemon": "^2.0.22",
-    "process": "^0.11.10"
-  },
   "nodemonConfig": {
     "watch": [
       "packages"
@@ -39,15 +42,5 @@
       "*.js",
       "node_modules"
     ]
-  },
-  "dependencies": {
-    "@changesets/cli": "^2.26.1",
-    "@rollup/plugin-babel": "^6.0.3",
-    "@rollup/plugin-commonjs": "^24.1.0",
-    "@rollup/plugin-node-resolve": "^15.0.2",
-    "@rollup/plugin-terser": "^0.4.1",
-    "rollup": "^3.21.3",
-    "tslib": "^2.5.0"
-  },
-  "packageManager": "pnpm@9.7.0+sha512.dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf"
+  }
 }

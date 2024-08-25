@@ -45,7 +45,7 @@ const windowStub = {
 
 try {
 
-    const _global = global || window;
+    const _global = global|| window;
 
     if (
         _global.process !== undefined &&

@@ -1,7 +1,6 @@
 import { Func, MaybePromise, assert } from '@logos-ui/utils';
-import { html } from './';
-import { GlobalEvents } from './events';
-import { EvListener } from './events';
+import { html } from './index.ts';
+import { EvListener } from './events.ts';
 
 /**
  * Appends children to the parent element

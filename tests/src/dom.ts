@@ -1,8 +1,10 @@
-import * as Lib from '@logos-ui/dom';
-import { CssPropNames, CssProps } from '@logos-ui/dom';
+import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
 import sinon from 'sinon';
+
+import * as Lib from '@logos-ui/dom';
+import { CssPropNames, CssProps } from '@logos-ui/dom';
 
 const document = window.document;
 
@@ -12,6 +14,7 @@ const stub: {
     sampleCss?: CssProps
 } = {};
 
+console.log(Lib)
 
 describe('@logos-ui/dom', () => {
 
@@ -94,7 +97,7 @@ describe('@logos-ui/dom', () => {
     describe('css[fn] (...)', function () {
 
         stub.sampleCss = {
-            color: 'red',
+            color: 'rgb(255, 0, 0)',
             fontSize: '12px'
         }
 

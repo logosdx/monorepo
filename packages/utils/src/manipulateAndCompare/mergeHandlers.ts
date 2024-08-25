@@ -2,12 +2,12 @@ import {
     _nextTick,
     hasNoConstructor,
     hasSameConstructor,
-} from '..';
+} from '../index.ts';
 
 import type {
     AnyConstructor,
     deepMerge as DeepMergeFn,
-} from '.';
+} from './index.ts';
 
 export interface HandleMergeOf {
     (a: any, b: any, opts?: MergeOptions): any;

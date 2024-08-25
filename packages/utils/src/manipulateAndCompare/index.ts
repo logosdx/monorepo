@@ -5,30 +5,30 @@ import {
     isFunction,
     isNonIterable,
     oneIsNonIterable
-} from '..';
+} from '../index.ts';
 
 import {
     cloneHandlers,
     prepareCloneHandlers,
     HandleCloningOf
-} from './cloneHandlers';
+} from './cloneHandlers.ts';
 
 import {
     equalityHandlers,
     prepareDeepEqualHandlers,
     HandleEquatingOf
-} from './equalityhandlers';
+} from './equalityhandlers.ts';
 
 import {
     mergeHandlers,
     prepareMergeHandlers,
     HandleMergeOf,
     MergeOptions
-} from './mergeHandlers';
+} from './mergeHandlers.ts';
 
-export * from './cloneHandlers';
-export * from './equalityhandlers';
-export * from './mergeHandlers';
+export * from './cloneHandlers.ts';
+export * from './equalityhandlers.ts';
+export * from './mergeHandlers.ts';
 
 export type AnyConstructor = (
     { new(...args: any[]): any }

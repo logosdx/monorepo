@@ -1,9 +1,12 @@
+import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+
+import { expect } from 'chai';
+import sinon, { SinonStub } from 'sinon';
+
 import * as RiotKit from '@logos-ui/riot-kit';
 import { LogosUIRiotComponent } from '@logos-ui/riot-kit';
 
-import { expect } from 'chai';
 import { ComponentEnhancer, RiotComponent } from 'riot';
-import sinon, { SinonStub } from 'sinon';
 
 describe('@logos-ui/riot-kit', () => {
 

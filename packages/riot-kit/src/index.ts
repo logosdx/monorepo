@@ -16,10 +16,10 @@ import {
     QueryableState
 } from '@logos-ui/riot-utils';
 
-import { makeComponentStateable, StateMachineComponent } from './state';
-import { ObservableComponent, makeComponentObservable } from './observer';
-import { TranslatableComponent, makeComponentTranslatable } from './locales';
-import { StoragableComponent, makeComponentStoragable } from './storage';
+import { makeComponentStateable, StateMachineComponent } from './state.ts';
+import { ObservableComponent, makeComponentObservable } from './observer.ts';
+import { TranslatableComponent, makeComponentTranslatable } from './locales.ts';
+import { StoragableComponent, makeComponentStoragable } from './storage.ts';
 
 type QueryableRC<C, P, S> = C & RiotComponent<P, QueryableState<S>>;
 
