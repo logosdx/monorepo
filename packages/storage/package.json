@@ -1,10 +1,9 @@
 {
   "name": "@logos-ui/storage",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
   "exports": {
     ".": {
-
       "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.js"
     }
