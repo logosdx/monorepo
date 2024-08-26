@@ -1,5 +1,13 @@
 # @logos-ui/localize
 
+## 2.0.2
+
+### Patch Changes
+
+- c7051bb: Make modules CJS/ESM agnostic
+- Updated dependencies [c7051bb]
+  - @logos-ui/utils@2.0.1
+
 ## 2.0.1
 
 ### Patch Changes
