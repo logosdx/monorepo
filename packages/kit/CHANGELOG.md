@@ -1,5 +1,19 @@
 # @logos-ui/kit
 
+## 2.0.2
+
+### Patch Changes
+
+- c7051bb: Make modules CJS/ESM agnostic
+- Updated dependencies [c7051bb]
+  - @logos-ui/state-machine@2.0.2
+  - @logos-ui/localize@2.0.2
+  - @logos-ui/observer@2.0.2
+  - @logos-ui/storage@2.0.2
+  - @logos-ui/fetch@2.0.2
+  - @logos-ui/utils@2.0.1
+  - @logos-ui/dom@2.0.2
+
 ## 2.0.1
 
 ### Patch Changes
