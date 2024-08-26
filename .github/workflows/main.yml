@@ -1,8 +1,11 @@
 name: CI
 on:
-  push:
+  pull_request:
     branches:
       - "**"
+  push:
+    branches:
+      - "master"
 
 jobs:
   build:
@@ -29,6 +32,7 @@ jobs:
         working-directory: tests
 
       - name: Create Release Pull Request
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         id: changesets
         uses: changesets/action@v1
         with:
