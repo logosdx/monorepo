@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.0.2
+
+### Patch Changes
+
+- c167f6b: Improved types for object path names
+
 ## 2.0.1
 
 ### Patch Changes
