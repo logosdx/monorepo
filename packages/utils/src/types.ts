@@ -21,42 +21,42 @@ export type NullableObject<T> = {
     [K in keyof T]: T[K] | null
 };
 
+type FieldWithPossiblyUndefined<T, Key> = GetFieldType<Exclude<T, undefined>, Key> | Extract<T, undefined>
 
-type _Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-    11, 12, 13, 14, 15, 16, 17, 18, 19, 20, ...0[]]
+type GetIndexedField<T, K> = K extends keyof T
+    ? T[K]
+    : K extends `${number}`
+        ? '0' extends keyof T // tuples have string keys, return undefined if K is not in tuple
+            ? undefined
+            : number extends keyof T
+                ? T[number]
+                : undefined
+        : undefined
 
-type _Join<K, P> = K extends string | number
-    ? P extends string | number
-        ? `${K}${
-                  '' extends P
-                  ? ''
-                  : '.'
-                }${P}`
-        : never
-    : never
-;
+export type GetFieldType<T, P> = P extends `${infer Left}.${infer Right}`
+    ? Left extends keyof T
+        ? FieldWithPossiblyUndefined<T[Left], Right>
+        : Left extends `${infer FieldKey}[${infer IndexKey}]`
+            ? FieldKey extends keyof T
+                ? FieldWithPossiblyUndefined<GetIndexedField<Exclude<T[FieldKey], undefined>, IndexKey> | Extract<T[FieldKey], undefined>, Right>
+                : undefined
+            : undefined
+    : P extends keyof T
+        ? T[P]
+        : P extends `${infer FieldKey}[${infer IndexKey}]`
+            ? FieldKey extends keyof T
+                ? GetIndexedField<Exclude<T[FieldKey], undefined>, IndexKey> | Extract<T[FieldKey], undefined>
+                : undefined
+            : undefined
 
-/**
- * @example
- *
- * type MyObject = {
- *      some: { nested: { path: true } }
- * }
- *
- * const x: PathsToValues<MyObject> = 'some.nested.path'; // good
- * const y: PathsToValues<MyObject> = 'some.nested'; // will error
- */
-export type PathsToValues<
-    T,
-    Depth extends number = 5
-> = [Depth] extends [never]
-    ? never
-    : T extends object
-        ? {
-            [K in keyof T]-?: _Join<K, PathsToValues<T[K], _Prev[Depth]>>
-        }[keyof T]
-        : ''
-;
+
+export type PathNames<T> = T extends object ? { [K in keyof T]:
+    `${Exclude<K, symbol>}${"" | `.${PathNames<T[K]>}`}`
+}[keyof T] : never
+
+export type PathLeaves<T> = T extends object ? { [K in keyof T]:
+    `${Exclude<K, symbol>}${PathLeaves<T[K]> extends never ? "" : `.${PathLeaves<T[K]>}`}`
+}[keyof T] : never
 
 export type StrOrNum = string | number
 

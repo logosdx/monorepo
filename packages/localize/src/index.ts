@@ -1,8 +1,8 @@
 import {
     DeepOptional,
-    PathsToValues,
     assert,
-    applyDefaults
+    applyDefaults,
+    PathLeaves
 } from '@logos-ui/utils';
 
 import {
@@ -199,7 +199,7 @@ export class LocaleFactory<
         )
     }
 
-    text <K extends PathsToValues<Locale>>(key: K, values?: LocaleFormatArgs) {
+    text <K extends PathLeaves<Locale>>(key: K, values?: LocaleFormatArgs) {
 
         return getMessage(this._loc, key, values);
     }

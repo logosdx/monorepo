@@ -1,13 +1,18 @@
 import {
     StrOrNum,
-    PathsToValues
+    PathLeaves,
+    GetFieldType
 } from '@logos-ui/utils';
 
 export type LocaleType = {
     [K in StrOrNum]: StrOrNum | LocaleType;
 };
 
-export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType>, defValue: any): T | undefined => {
+export const reachIn = <
+    O extends LocaleType = LocaleType,
+    P extends PathLeaves<O> = PathLeaves<O>,
+    D extends GetFieldType<O, P> = GetFieldType<O, P>
+>(obj: O, path: P, defValue: D): GetFieldType<O, P> | undefined => {
 
     // If path is not defined or it has false value
     if (!path) {
@@ -16,7 +21,7 @@ export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType
 
     // Allow for passing a flat object
     if (obj[path] !== undefined) {
-        return obj[path] as T;
+        return obj[path] as GetFieldType<O, P>;
     }
 
     // Check if path is string or array. Regex : ensure that we do not have '.' and brackets.
@@ -33,8 +38,7 @@ export const reachIn = <T = any>(obj: LocaleType, path: PathsToValues<LocaleType
     return result === undefined ? defValue : result
 }
 
-
-export type LocaleReacher<T> = PathsToValues<T>;
+export type LocaleReacher<T> = PathLeaves<T>;
 export type LocaleFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>;
 
 /**
@@ -110,7 +114,7 @@ export const getMessage = <L extends LocaleType>(
     values?: LocaleFormatArgs
 ) => {
 
-    const str = reachIn(locale, reach, '?') as string;
+    const str = reachIn(locale, reach, '?' as never) as string;
 
     return format(str, values || []);
 };
