@@ -1,5 +1,12 @@
 # @logos-ui/dom
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [176ed64]
+  - @logos-ui/utils@2.0.3
+
 ## 2.0.3
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @logos-ui/kit
 
+## 2.0.4
+
+### Patch Changes
+
+- 176ed64: Export better utility typings for Kit
+- Updated dependencies [176ed64]
+  - @logos-ui/utils@2.0.3
+  - @logos-ui/dom@2.0.4
+  - @logos-ui/fetch@2.0.4
+  - @logos-ui/localize@2.0.4
+  - @logos-ui/observer@2.0.4
+  - @logos-ui/state-machine@2.0.4
+  - @logos-ui/storage@2.0.4
+
 ## 2.0.3
 
 ### Patch Changes
