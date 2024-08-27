@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.0.3
+
+### Patch Changes
+
+- 176ed64: Export better utility typings for Kit
+
 ## 2.0.2
 
 ### Patch Changes
