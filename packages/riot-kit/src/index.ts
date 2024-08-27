@@ -8,6 +8,7 @@ import {
     appKit,
     AppKitOpts,
     AppKitType,
+    NotUndefined,
 } from '@logos-ui/kit';
 
 import {
@@ -40,7 +41,7 @@ export type LogosUIRiotComponent<
         RiotCompState
     > &
     ObservableComponent<
-        KitType['eventsType'],
+        KitType['events'],
         QueryableRC<
             Component,
             RiotCompProps,
@@ -48,12 +49,12 @@ export type LogosUIRiotComponent<
         >
     > &
     TranslatableComponent<
-        KitType['locales']['localeType'],
-        KitType['locales']['codes']
+        NotUndefined<KitType['locales']>['locale'],
+        NotUndefined<KitType['locales']>['codes']
     > &
     StateMachineComponent<
-        KitType['stateMachine']['stateType'],
-        KitType['stateMachine']['reducerValType'],
+        NotUndefined<KitType['stateMachine']>['state'],
+        NotUndefined<KitType['stateMachine']>['reducerValue'],
         RiotCompProps,
         QueryableState<RiotCompState>
     > &

@@ -4,6 +4,7 @@ import { ReducerFunction, StateMachine, StateMachineOptions } from '@logos-ui/st
 import { StorageImplementation } from '@logos-ui/storage';
 import { StorageFactory } from '@logos-ui/storage';
 import { FetchFactory, FetchFactoryOptions, TypeOfFactory } from '@logos-ui/fetch';
+import { NotUndefined } from '@logos-ui/utils';
 
 export * from '@logos-ui/dom';
 export * from '@logos-ui/fetch';
@@ -14,52 +15,55 @@ export * from '@logos-ui/storage';
 export * from '@logos-ui/utils';
 
 export type AppKitLocale = {
-    localeType: LocaleType,
+    locale: LocaleType,
     codes: string
 }
 
 export type AppKitStateMachine = {
-    stateType: unknown,
-    reducerValType: unknown
+    state: unknown,
+    reducerValue: unknown
 }
 
 export type AppKitFetch = {
-    stateType: unknown,
-    headersType: Record<string, string>
+    state?: unknown,
+    headers?: Record<string, string>
 }
 
 export type AppKitType = {
-    eventsType: Record<string, any>,
-    storageType: Record<string, any>,
-    locales: AppKitLocale,
-    stateMachine: AppKitStateMachine,
-    fetch: AppKitFetch,
+    events?: Record<string, any>,
+    storage?: Record<string, any>,
+    locales?: AppKitLocale,
+    stateMachine?: AppKitStateMachine,
+    fetch?: AppKitFetch,
 }
 
+export type MakeKitType<KitType extends AppKitType> = KitType
 
 export type AppKitOpts<KitType extends AppKitType> = {
-    observer?: ObservableOptions<{}, KitType['eventsType']>,
+    observer?: ObservableOptions<{}, KitType['events']>,
     stateMachine?: {
-        initial: KitType['stateMachine']['stateType'],
-        options?: StateMachineOptions,
-        reducer: ReducerFunction<
-            KitType['stateMachine']['stateType'],
-            KitType['stateMachine']['reducerValType']
-        >
-    },
+            initial: KitType['stateMachine']
+            options?: StateMachineOptions,
+            reducer: ReducerFunction<
+                NotUndefined<KitType['stateMachine']>['state'],
+                NotUndefined<KitType['stateMachine']>['reducerValue']
+            >
+        },
     locales?: LocaleOpts<
-        KitType['locales']['localeType'],
-        KitType['locales']['codes']
+        NotUndefined<KitType['locales']>['locale'],
+        NotUndefined<KitType['locales']>['codes']
     >,
     storage?: {
         implementation: StorageImplementation,
         prefix?: string
     },
     fetch?: FetchFactoryOptions<
-        KitType['fetch']['stateType'],
-        KitType['fetch']['headersType']
+        NotUndefined<KitType['fetch']>['state'],
+        NotUndefined<KitType['fetch']>['headers']
     >,
 }
+
+type UndefinedOrEmpty<T, U> = T extends undefined ? {} : U
 
 /**
  * Automatically instantiates UI components when passed opts.
@@ -67,15 +71,22 @@ export type AppKitOpts<KitType extends AppKitType> = {
  * @param opts configs for different logos-ui components
  * @returns
  */
-export const appKit = <KitType extends AppKitType = any>(
-    opts: AppKitOpts<KitType>
+export const appKit = <Kit extends AppKitType = any>(
+    opts: AppKitOpts<Kit>
 ) => {
 
-    type KitObserver = ObserverFactory<{}, KitType['eventsType']>;
-    type KitLocales = LocaleFactory<KitType['locales']['localeType'], KitType['locales']['codes']>;
-    type KitStateMachine = StateMachine<KitType['stateMachine']['stateType'], KitType['stateMachine']['reducerValType']>;
-    type KitStorage = StorageFactory<KitType['storageType']>;
-    type KitFetch = FetchFactory<KitType['fetch']['stateType'], KitType['fetch']['headersType']>
+    type LocaleType = NotUndefined<Kit['locales']>['locale'];
+    type LocaleCodes = NotUndefined<Kit['locales']>['codes'];
+    type StateType = NotUndefined<Kit['stateMachine']>['state'];
+    type ReducerValType = NotUndefined<Kit['stateMachine']>['reducerValue'];
+    type FetchStateType = NotUndefined<Kit['fetch']>['state'];
+    type FetchHeadersType = NotUndefined<Kit['fetch']>['headers'];
+
+    type KitObserver = ObserverFactory<{}, Kit['events']>;
+    type KitLocales = LocaleFactory<LocaleType, LocaleCodes>;
+    type KitStateMachine = StateMachine<StateType, ReducerValType>;
+    type KitStorage = StorageFactory<Kit['storage']>;
+    type KitFetch = FetchFactory<FetchStateType, FetchHeadersType>;
 
     let observer: null | KitObserver = null;
     let locale: null | KitLocales = null;
@@ -110,7 +121,7 @@ export const appKit = <KitType extends AppKitType = any>(
         storage = new StorageFactory(opts.storage.implementation, opts.storage.prefix);
     }
 
-    if(opts.fetch) {
+    if (opts.fetch) {
 
         fetch = new FetchFactory(opts.fetch);
     }
@@ -121,5 +132,11 @@ export const appKit = <KitType extends AppKitType = any>(
         stateMachine,
         storage,
         fetch
+    } as {
+        observer: Kit['events'] extends undefined ? never : KitObserver,
+        locale: Kit['locales'] extends undefined ? never : KitLocales,
+        stateMachine: Kit['stateMachine'] extends undefined ? never : KitStateMachine,
+        storage: Kit['storage'] extends undefined ? never : KitStorage,
+        fetch: Kit['fetch'] extends undefined ? never : KitFetch
     }
 };

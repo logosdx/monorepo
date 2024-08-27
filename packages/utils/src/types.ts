@@ -68,3 +68,5 @@ export interface StringProps { [key: string]: string };
 export interface BoolProps { [key: string]: boolean };
 
 export type MaybePromise<T> = T | Promise<T>;
+
+export type NotUndefined<T> = T extends undefined ? never : T;
