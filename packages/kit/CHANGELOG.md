@@ -1,5 +1,18 @@
 # @logos-ui/kit
 
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [c167f6b]
+  - @logos-ui/localize@2.0.3
+  - @logos-ui/utils@2.0.2
+  - @logos-ui/dom@2.0.3
+  - @logos-ui/fetch@2.0.3
+  - @logos-ui/observer@2.0.3
+  - @logos-ui/state-machine@2.0.3
+  - @logos-ui/storage@2.0.3
+
 ## 2.0.2
 
 ### Patch Changes

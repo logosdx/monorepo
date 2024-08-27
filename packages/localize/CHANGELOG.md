@@ -1,5 +1,13 @@
 # @logos-ui/localize
 
+## 2.0.3
+
+### Patch Changes
+
+- c167f6b: Improved types for object path names
+- Updated dependencies [c167f6b]
+  - @logos-ui/utils@2.0.2
+
 ## 2.0.2
 
 ### Patch Changes

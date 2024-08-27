@@ -1,5 +1,12 @@
 # @logos-ui/state-machine
 
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [c167f6b]
+  - @logos-ui/utils@2.0.2
+
 ## 2.0.2
 
 ### Patch Changes

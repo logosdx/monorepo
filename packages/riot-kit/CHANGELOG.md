@@ -1,5 +1,12 @@
 # @logos-ui/riot-kit
 
+## 2.0.3
+
+### Patch Changes
+
+- @logos-ui/kit@2.0.3
+- @logos-ui/riot-utils@2.0.3
+
 ## 2.0.2
 
 ### Patch Changes
