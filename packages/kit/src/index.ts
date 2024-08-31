@@ -42,7 +42,7 @@ export type MakeKitType<KitType extends AppKitType> = KitType
 export type AppKitOpts<KitType extends AppKitType> = {
     observer?: ObservableOptions<{}, KitType['events']>,
     stateMachine?: {
-            initial: KitType['stateMachine']
+            initial: NotUndefined<KitType['stateMachine']>['state']
             options?: StateMachineOptions,
             reducer: ReducerFunction<
                 NotUndefined<KitType['stateMachine']>['state'],
