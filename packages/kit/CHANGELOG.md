@@ -1,5 +1,11 @@
 # @logos-ui/kit
 
+## 2.0.5
+
+### Patch Changes
+
+- 489c5d5: Fix typo on typing from refactor
+
 ## 2.0.4
 
 ### Patch Changes

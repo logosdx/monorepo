@@ -1,5 +1,12 @@
 # @logos-ui/riot-kit
 
+## 2.0.5
+
+### Patch Changes
+
+- Updated dependencies [489c5d5]
+  - @logos-ui/kit@2.0.5
+
 ## 2.0.4
 
 ### Patch Changes
