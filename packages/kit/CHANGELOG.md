@@ -1,5 +1,19 @@
 # @logos-ui/kit
 
+## 2.0.7
+
+### Patch Changes
+
+- ca76a50: Bump again
+- Updated dependencies [ca76a50]
+  - @logos-ui/dom@2.0.6
+  - @logos-ui/fetch@2.0.6
+  - @logos-ui/localize@2.0.6
+  - @logos-ui/observer@2.0.6
+  - @logos-ui/state-machine@2.0.6
+  - @logos-ui/storage@2.0.6
+  - @logos-ui/utils@2.0.5
+
 ## 2.0.6
 
 ### Patch Changes

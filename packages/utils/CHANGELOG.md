@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.0.5
+
+### Patch Changes
+
+- ca76a50: Bump again
+
 ## 2.0.4
 
 ### Patch Changes

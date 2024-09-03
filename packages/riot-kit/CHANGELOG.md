@@ -1,5 +1,14 @@
 # @logos-ui/riot-kit
 
+## 2.0.7
+
+### Patch Changes
+
+- ca76a50: Bump again
+- Updated dependencies [ca76a50]
+  - @logos-ui/kit@2.0.7
+  - @logos-ui/riot-utils@2.0.6
+
 ## 2.0.6
 
 ### Patch Changes

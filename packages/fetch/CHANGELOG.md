@@ -1,5 +1,13 @@
 # @logos-ui/fetch
 
+## 2.0.6
+
+### Patch Changes
+
+- ca76a50: Bump again
+- Updated dependencies [ca76a50]
+  - @logos-ui/utils@2.0.5
+
 ## 2.0.5
 
 ### Patch Changes
