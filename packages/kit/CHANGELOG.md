@@ -1,5 +1,19 @@
 # @logos-ui/kit
 
+## 2.0.6
+
+### Patch Changes
+
+- 0566a67: Bump all dependencies for cjs / esm build
+- Updated dependencies [0566a67]
+  - @logos-ui/dom@2.0.5
+  - @logos-ui/fetch@2.0.5
+  - @logos-ui/localize@2.0.5
+  - @logos-ui/observer@2.0.5
+  - @logos-ui/state-machine@2.0.5
+  - @logos-ui/storage@2.0.5
+  - @logos-ui/utils@2.0.4
+
 ## 2.0.5
 
 ### Patch Changes

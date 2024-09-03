@@ -1,5 +1,13 @@
 # @logos-ui/localize
 
+## 2.0.5
+
+### Patch Changes
+
+- 0566a67: Bump all dependencies for cjs / esm build
+- Updated dependencies [0566a67]
+  - @logos-ui/utils@2.0.4
+
 ## 2.0.4
 
 ### Patch Changes

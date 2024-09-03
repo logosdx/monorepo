@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.0.4
+
+### Patch Changes
+
+- 0566a67: Bump all dependencies for cjs / esm build
+
 ## 2.0.3
 
 ### Patch Changes

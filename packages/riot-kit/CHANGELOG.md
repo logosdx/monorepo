@@ -1,5 +1,14 @@
 # @logos-ui/riot-kit
 
+## 2.0.6
+
+### Patch Changes
+
+- 0566a67: Bump all dependencies for cjs / esm build
+- Updated dependencies [0566a67]
+  - @logos-ui/kit@2.0.6
+  - @logos-ui/riot-utils@2.0.5
+
 ## 2.0.5
 
 ### Patch Changes
