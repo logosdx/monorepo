@@ -220,7 +220,7 @@ const Pkg = {
 
     exports: {
         '.': {
-            require: './dist/cjs/index.js',
+            require: './dist/cjs/index.cjs',
             import: './dist/esm/index.mjs',
             types: './src/index.ts',
         }
