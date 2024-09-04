@@ -1,9 +1,10 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
-import sinon from 'sinon';
 
 import { ObserverFactory } from '@logos-ui/observer';
+import { SinonStub } from 'sinon';
+import { sandbox } from './_helpers';
 
 interface AppEvents {
     test: string | number
@@ -28,7 +29,7 @@ type TestObserver = ObserverFactory<any, AppEvents>;
 const stub: {
     observer?: TestObserver,
     component?: any,
-    spy: sinon.SinonStub<[{
+    spy: SinonStub<[{
         fn: string,
         event: string,
         data: any,
@@ -36,7 +37,7 @@ const stub: {
     }]>,
     ref: string
 } = {
-    spy: sinon.stub(),
+    spy: sandbox.stub(),
     ref: 'test'
 };
 
@@ -58,7 +59,7 @@ describe('@logos-ui/observer', function () {
 
         afterEach(() => {
 
-            sinon.resetHistory();
+            sandbox.resetHistory();
         });
 
         it('should create a new observer', function () {
@@ -120,7 +121,7 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fake = sinon.stub();
+                const fake = sandbox.stub();
 
                 observed.on('test', fake);
 
@@ -135,8 +136,8 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fake1 = sinon.stub();
-                const fake2 = sinon.stub();
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
 
                 observed.on('test1', fake1);
                 observed.on('test1', fake2);
@@ -156,7 +157,7 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fake = sinon.stub();
+                const fake = sandbox.stub();
 
                 observed.on('test1', fake);
                 observed.on('test2', fake);
@@ -176,9 +177,9 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fake1 = sinon.stub();
-                const fake2 = sinon.stub();
-                const fake3 = sinon.stub();
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+                const fake3 = sandbox.stub();
 
                 observed.on('test', fake1);
                 observed.on('test', fake2);
@@ -213,7 +214,7 @@ describe('@logos-ui/observer', function () {
             doToBoth((observed, which) => {
 
 
-                const fake = sinon.stub();
+                const fake = sandbox.stub();
 
                 observed.one('test', fake);
 
@@ -228,7 +229,7 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fake = sinon.stub();
+                const fake = sandbox.stub();
 
                 observed.one('test', fake);
                 observed.on('test', fake);
@@ -245,7 +246,7 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fake = sinon.stub();
+                const fake = sandbox.stub();
 
                 observed.on('test', fake);
                 observed.on('test', fake);
@@ -261,7 +262,7 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fake = sinon.stub();
+                const fake = sandbox.stub();
 
                 observed.on('test', fake);
                 observed.one('test1', fake);
@@ -301,7 +302,7 @@ describe('@logos-ui/observer', function () {
 
                 expect(calls[4]!.args[0].data).to.equal(1);
 
-                sinon.resetHistory();
+                sandbox.resetHistory();
             });
         });
 
@@ -319,8 +320,8 @@ describe('@logos-ui/observer', function () {
 
             doToBoth((observed, which) => {
 
-                const fakeEv = sinon.stub();
-                const fakeRgx = sinon.stub();
+                const fakeEv = sandbox.stub();
+                const fakeRgx = sandbox.stub();
 
                 const bindEv = () => (
 
@@ -408,7 +409,7 @@ describe('@logos-ui/observer', function () {
 
         afterEach(() => {
 
-            sinon.resetHistory();
+            sandbox.resetHistory();
         });
 
         it('should make child observers', () => {
@@ -435,8 +436,8 @@ describe('@logos-ui/observer', function () {
 
                 parent.observe(child);
 
-                const parentFake = sinon.stub();
-                const childFake = sinon.stub();
+                const parentFake = sandbox.stub();
+                const childFake = sandbox.stub();
 
                 parent.on('test', parentFake);
                 child.on('test', childFake);
@@ -457,8 +458,8 @@ describe('@logos-ui/observer', function () {
 
                 parent.observe(child);
 
-                const parentFake = sinon.stub();
-                const childFake = sinon.stub();
+                const parentFake = sandbox.stub();
+                const childFake = sandbox.stub();
 
                 parent.on('test1', parentFake);
                 parent.on('test2', parentFake);
@@ -488,8 +489,8 @@ describe('@logos-ui/observer', function () {
 
             parent!.observe(child);
 
-            const parentFake = sinon.stub();
-            const childFake = sinon.stub();
+            const parentFake = sandbox.stub();
+            const childFake = sandbox.stub();
 
             parent!.on('test1', parentFake);
             parent!.on('test2', parentFake);
@@ -520,8 +521,8 @@ describe('@logos-ui/observer', function () {
 
             parent!.observe(child);
 
-            const parentFake = sinon.stub();
-            const childFake = sinon.stub();
+            const parentFake = sandbox.stub();
+            const childFake = sandbox.stub();
 
             parent!.on('test1', parentFake);
             parent!.on('test2', parentFake);

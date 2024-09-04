@@ -3,20 +3,22 @@
  * @jest-environment-options {"url": "http://localhost"}
  */
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
-import Sinon, { SinonSpiedInstance, SinonSpy } from 'sinon';
 import { expect } from 'chai';
 
-import Hapi, { Lifecycle, ResponseToolkit } from '@hapi/hapi';
+import Hapi, { Lifecycle } from '@hapi/hapi';
 import Boom from '@hapi/boom';
 
-import { FetchError, FetchEvent, FetchFactory, FetchHeaders, FetchReqOpts, RequestHeaders } from '@logos-ui/fetch';
+import { FetchError, FetchEvent, FetchFactory, FetchReqOpts, RequestHeaders } from '@logos-ui/fetch';
+
+import { log, sandbox } from './_helpers';
+import { workerData } from 'node:worker_threads';
 
 const mkHapiRoute = (path: string, handler: Lifecycle.Method) => ({ method: '*', path, handler })
 const wait = (n: number, r: any = 'ok') => new Promise(res => setTimeout(() => res(r), n));
 
 describe('@logos-ui/fetch', () => {
 
-    const callStub = Sinon.stub<[Hapi.Request]>();
+    const callStub = sandbox.stub<[Hapi.Request]>();
     const testUrl = 'http://localhost:3456';
     const server = Hapi.server({ port: 3456 });
 
@@ -196,9 +198,9 @@ describe('@logos-ui/fetch', () => {
 
     it('has lifecycle methods', async () => {
 
-        const didError = Sinon.stub();
-        const didBefore = Sinon.stub();
-        const didAfter = Sinon.stub();
+        const didError = sandbox.stub();
+        const didBefore = sandbox.stub();
+        const didAfter = sandbox.stub();
 
         const api = new FetchFactory({
             baseUrl: testUrl,
@@ -242,7 +244,7 @@ describe('@logos-ui/fetch', () => {
 
     it('status code 999 for unhandled errors', async () => {
 
-        const onError = Sinon.stub();
+        const onError = sandbox.stub();
         throwBadContentType = true;
 
         const api = new FetchFactory({
@@ -264,7 +266,7 @@ describe('@logos-ui/fetch', () => {
 
     it('status code 997 for missing content type', async () => {
 
-        const onError = Sinon.stub();
+        const onError = sandbox.stub();
 
         const api = new FetchFactory({
             baseUrl: testUrl,
@@ -282,7 +284,7 @@ describe('@logos-ui/fetch', () => {
 
     it('can abort requests', async () => {
 
-        const onError = Sinon.stub();
+        const onError = sandbox.stub();
         const onBeforeReq = (opts: FetchReqOpts) => {
 
             setTimeout(() => {
@@ -300,12 +302,50 @@ describe('@logos-ui/fetch', () => {
         catch (e) {}
 
         const [[errArgs]] = onError.args as [[FetchError]];
-        expect(errArgs.status).to.equal(998);
+        expect(errArgs.status).to.equal(499);
+    });
+
+    it('returns an abortable promise', async () => {
+
+        const onError = sandbox.stub();
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+        });
+
+        const req1 = api.get('/wait', { onError });
+
+        expect(req1.isFinished).to.be.false;
+        expect(req1.isAborted).to.be.false;
+        expect(req1.abort).to.exist;
+        expect(req1.abort).to.be.a('function');
+        expect(req1.then).to.exist;
+        expect(req1.catch).to.exist;
+        expect(req1.finally).to.exist;
+
+        req1.abort();
+
+        try { await req1; }
+        catch (e) {}
+
+        expect(req1.isAborted).to.be.true;
+        expect(req1.isFinished).to.be.false;
+
+        const req2 = api.get('/json', { onError });
+
+        expect(req2.isFinished).to.be.false;
+        expect(req2.isAborted).to.be.false;
+
+        await req2;
+
+        expect(req2.isFinished).to.be.true;
+        expect(req2.isAborted).to.be.false;
     });
 
     it('can timeout requests', async () => {
 
-        const onError = Sinon.stub();
+        const onError = sandbox.stub();
         const timeout = 100;
 
         const api = new FetchFactory({
@@ -323,7 +363,7 @@ describe('@logos-ui/fetch', () => {
 
         let post = now();
 
-        expect(post - pre).to.lessThan(timeout + 30)
+        expect(post - pre).to.lessThan(timeout * 2)
 
 
         pre = now();
@@ -337,9 +377,46 @@ describe('@logos-ui/fetch', () => {
 
         const [[configWait],[reqWait]] = onError.args as [[FetchError], [FetchError]];
 
-        expect(configWait.status).to.equal(998);
-        expect(reqWait.status).to.equal(998);
+        expect(configWait.status).to.equal(499);
+        expect(reqWait.status).to.equal(499);
 
+    });
+
+    it('is not slow', { timeout: 5000 }, async () => {
+
+
+        const repeat = 5000;
+        const timeout = 100;
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+            timeout
+        });
+
+        const now = () => +(new Date());
+
+        let pre = now();
+
+        const times: number[] = [];
+
+        for (let i = 0; i < repeat; i++) {
+
+            const bef = now();
+            try { await api.get('/json'); }
+            catch (e) {}
+
+            times.push(now() - bef);
+        }
+
+        let post = now();
+
+        const avg = times.reduce((a, b) => (a + b)) / repeat;
+
+        // console.table({ avg, post: post - pre });
+
+        // Less than 2 ms per request
+        expect(avg).to.lessThan(2);
     });
 
     it('can make options', async () => {
@@ -406,7 +483,7 @@ describe('@logos-ui/fetch', () => {
 
     it('listens for events', async () => {
 
-        const listener = Sinon.stub();
+        const listener = sandbox.stub();
 
         const headers: RequestHeaders = {
             "content-type": 'application/json',

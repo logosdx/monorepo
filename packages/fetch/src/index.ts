@@ -18,7 +18,7 @@ type HeaderObj<T> = Record<string, string> & T;
 
 export type RequestHeaders = HeaderObj<FetchHeaders>;
 
-type FetchHeaderKeys = keyof RequestHeaders;
+export type FetchHeaderKeys = keyof RequestHeaders;
 
 export type FetchReqOpts = RequestOptions &  {
     controller: AbortController,
@@ -51,8 +51,10 @@ export type FetchFactoryOptions<
     }
 );
 
-interface AbortablePromise<T> extends Promise<T> {
+export interface AbortablePromise<T> extends Promise<T> {
 
+    isFinished: boolean
+    isAborted: boolean
     abort(reason?: string): void
 }
 
@@ -387,7 +389,7 @@ export class FetchFactory<
 
             if (options.controller.signal.aborted) {
 
-                statusCode = 998;
+                statusCode = 499;
                 error.message = message
             }
 
@@ -465,11 +467,26 @@ export class FetchFactory<
             ...options,
             controller,
             cancelTimeout
+        }).then((res) => {
+
+            call.isFinished = true;
+
+            return res;
+
         }) as AbortablePromise<Res>;
 
+
+        call.isFinished = false;
+        call.isAborted = false;
         call.abort = (reason?: string) => {
 
-            clearTimeout(cancelTimeout);
+            call.isAborted = true;
+
+            if (cancelTimeout) {
+
+                clearTimeout(cancelTimeout);
+            }
+
             controller.abort(reason);
         };
 

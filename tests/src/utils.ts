@@ -10,9 +10,7 @@ import {
     deepMerge,
     addHandlerFor
 } from '@logos-ui/utils';
-
-import * as otherUtils from '@logos-ui/utils';
-import Sinon from 'sinon';
+import { stubWarn } from './_helpers';
 
 const stub = {
     obj: {
@@ -88,26 +86,16 @@ const stub = {
 
 describe('@logos-ui/utils', () => {
 
-    const sandbox = Sinon.createSandbox();
-    const _console = console as any as {
-        [K in keyof Console]: Sinon.SinonStub
-    };
-
-    before(() => {
-
-        sandbox.stub(console, 'warn');
-    })
-
-    after(() => {
-
-        sandbox.restore();
-    });
-
     describe('deepClone(...)', () => {
+
+        before(() => {
+
+            stubWarn.resetHistory();
+        });
 
         after(() => {
 
-            expect(_console.warn.called);
+            expect(stubWarn.called);
         })
 
         it('should clone any kind of value', function () {

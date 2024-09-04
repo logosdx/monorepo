@@ -1,6 +1,6 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { expect } from 'chai';
-import sinon, { SinonStub } from 'sinon';
+import { SinonStub } from 'sinon';
 
 import { RiotComponent } from 'riot';
 
@@ -18,8 +18,7 @@ import {
     RiotComponentExport
 } from '@logos-ui/riot-utils';
 import { Func } from '@logos-ui/utils';
-
-
+import { sandbox } from './_helpers';
 type TestState = {
     something: string
 }
@@ -45,7 +44,7 @@ const makeComponent = (): (
     }
 ) => ({
     state: { something: 'intheway' },
-    update: sinon.stub(),
+    update: sandbox.stub(),
     fake1: () => {},
     fake2: () => {},
 });
@@ -55,13 +54,13 @@ describe('@logos-ui/riot-utils', function () {
 
         afterEach(() => {
 
-            sinon.resetHistory();
+            sandbox.resetHistory();
         });
 
         it('should make custom hooks', function () {
 
-            const original = sinon.stub();
-            const override = sinon.stub();
+            const original = sandbox.stub();
+            const override = sandbox.stub();
 
             const hook = mkHook('onBeforeMount');
 
@@ -79,7 +78,7 @@ describe('@logos-ui/riot-utils', function () {
 
         it('should not error if hook does not exist', () => {
 
-            const override = sinon.stub();
+            const override = sandbox.stub();
 
             const hook = mkHook('onBeforeMount');
 
@@ -93,9 +92,9 @@ describe('@logos-ui/riot-utils', function () {
 
         it('should run hooks before or after', function () {
 
-            const original = sinon.stub();
-            const before = sinon.stub();
-            const after = sinon.stub();
+            const original = sandbox.stub();
+            const before = sandbox.stub();
+            const after = sandbox.stub();
 
             const hook = mkHook('onBeforeMount');
 
@@ -110,7 +109,7 @@ describe('@logos-ui/riot-utils', function () {
             expect(before.calledOnce, 'runBefore - before').to.be.true;
             expect(after.calledOnce, 'runBefore - after').to.be.false;
 
-            sinon.resetHistory();
+            sandbox.resetHistory();
 
             component.onBeforeMount = original;
 
@@ -123,8 +122,8 @@ describe('@logos-ui/riot-utils', function () {
 
         it('should make riot lifecycle hooks', () => {
 
-            const original = sinon.stub();
-            const override = sinon.stub();
+            const original = sandbox.stub();
+            const override = sandbox.stub();
 
             const hooks = [
                 'onBeforeMount',
@@ -195,11 +194,11 @@ describe('@logos-ui/riot-utils', function () {
 
             expect(component.setQuerying).to.be.a('function');
 
-            const fake = sinon.stub().resolves({ some: 'state' });
+            const fake = sandbox.stub().resolves({ some: 'state' });
 
             await component.setQuerying(fake);
 
-            sinon.assert.calledOnce(fake);
+            sandbox.assert.calledOnce(fake);
 
             const update = component.update as SinonStub;
 
@@ -226,13 +225,13 @@ describe('@logos-ui/riot-utils', function () {
 
             const component = makeQueryable(makeComponent());
 
-            const fake = sinon.stub().rejects(Error('some error'));
+            const fake = sandbox.stub().rejects(Error('some error'));
 
             await component.setQuerying(fake);
 
             const update = component.update as SinonStub;
 
-            sinon.assert.calledWith(
+            sandbox.assert.calledWith(
                 update,
                 { isQuerying: true, queryError: null, queryData: null }
             );
@@ -247,7 +246,7 @@ describe('@logos-ui/riot-utils', function () {
 
             const component = makeQueryable(makeComponent());
 
-            const fake = sinon.stub().returns({ some: 'state' });
+            const fake = sandbox.stub().returns({ some: 'state' });
 
             component.someFunction = component.fnWillQuery(fake);
 
@@ -256,17 +255,17 @@ describe('@logos-ui/riot-utils', function () {
             const update = component.update as SinonStub;
 
 
-            sinon.assert.calledWithExactly(
+            sandbox.assert.calledWithExactly(
                 update,
                 { isQuerying: true, queryError: null, queryData: null }
             );
 
-            sinon.assert.calledWithExactly(
+            sandbox.assert.calledWithExactly(
                 update,
                 { isQuerying: false, queryError: null, queryData: { some: 'state' } }
             );
 
-            sinon.assert.calledWithExactly(
+            sandbox.assert.calledWithExactly(
                 fake,
                 'a', 'b', 'c'
             );
@@ -276,8 +275,8 @@ describe('@logos-ui/riot-utils', function () {
 
             const component = makeComponent();
 
-            const fake1 = sinon.stub().returns({ some: 'state' });
-            const fake2 = sinon.stub().returns({ soom: 'staat' });
+            const fake1 = sandbox.stub().returns({ some: 'state' });
+            const fake2 = sandbox.stub().returns({ soom: 'staat' });
 
             component.fake1 = fake1;
             component.fake2 = fake2;
@@ -321,22 +320,22 @@ describe('@logos-ui/riot-utils', function () {
 
             component.toggleQuerying();
 
-            sinon.assert.calledWith(update, { isQuerying: true });
+            sandbox.assert.calledWith(update, { isQuerying: true });
 
             component.toggleQuerying(false);
-            sinon.assert.calledWith(update, { isQuerying: false });
+            sandbox.assert.calledWith(update, { isQuerying: false });
 
             component.toggleQuerying(false);
-            sinon.assert.calledWith(update, { isQuerying: false });
+            sandbox.assert.calledWith(update, { isQuerying: false });
 
             component.toggleQuerying(true);
-            sinon.assert.calledWith(update, { isQuerying: true });
+            sandbox.assert.calledWith(update, { isQuerying: true });
 
             component.toggleQuerying(true);
-            sinon.assert.calledWith(update, { isQuerying: true });
+            sandbox.assert.calledWith(update, { isQuerying: true });
 
             component.toggleQuerying();
-            sinon.assert.calledWith(update, { isQuerying: false });
+            sandbox.assert.calledWith(update, { isQuerying: false });
         });
 
         it('should initialize with a querying state', () => {

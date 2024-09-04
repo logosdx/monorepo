@@ -4,9 +4,7 @@ import { expect } from 'chai';
 
 import { StateMachine } from '@logos-ui/state-machine';
 
-const stub: any = {
-
-};
+const stub: any = {};
 
 describe('@logos-ui/state-machine', function () {
 

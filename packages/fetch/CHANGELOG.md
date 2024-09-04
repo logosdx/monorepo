@@ -1,5 +1,13 @@
 # @logos-ui/fetch
 
+## 3.0.0
+
+### Major Changes
+
+- 2b64cfa: Abortable promise is exported. Can now check abortable promises if isFinished and isAborted.
+
+  BREAKING: Abandoned or aborted promises will throw a 499 status code instead of a 998. See https://www.belugacdn.com/499-error-code for more information. Many CDNs and proxies will return a 499 status code when a client aborts a request. This is closer to the commonly used 499 nginx status code for client-initiated aborts.
+
 ## 2.0.6
 
 ### Patch Changes

@@ -1,10 +1,12 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
-import sinon from 'sinon';
+import Sinon from 'sinon';
 
 import * as Lib from '@logos-ui/dom';
 import { CssPropNames, CssProps } from '@logos-ui/dom';
+
+import { sandbox } from './_helpers';
 
 const document = window.document;
 
@@ -13,8 +15,6 @@ const { html, $ } = Lib;
 const stub: {
     sampleCss?: CssProps
 } = {};
-
-console.log(Lib)
 
 describe('@logos-ui/dom', () => {
 
@@ -208,20 +208,20 @@ describe('@logos-ui/dom', () => {
 
         afterEach(() => {
 
-            sinon.resetBehavior();
+            sandbox.resetBehavior();
         });
 
         it('should add a single event', () => {
 
             const div = document.createElement('div');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            sinon.spy(div);
+            sandbox.spy(div);
 
             html.events.on(div, 'click', listener);
 
 
-            const addEventListener = div.addEventListener as sinon.SinonSpy;
+            const addEventListener = div.addEventListener as Sinon.SinonSpy;
 
             expect(addEventListener.calledOnce).to.be.true;
             expect(addEventListener.calledWith('click', listener)).to.be.true;
@@ -231,16 +231,16 @@ describe('@logos-ui/dom', () => {
 
             const div = document.createElement('div');
             const span = document.createElement('span');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            const divSpy = sinon.spy(div);
-            const spanSpy = sinon.spy(span);
+            const divSpy = sandbox.spy(div);
+            const spanSpy = sandbox.spy(span);
 
             html.events.on([div, span], 'click', listener);
 
             const addEvents = [
-                divSpy.addEventListener as sinon.SinonSpy,
-                spanSpy.addEventListener as sinon.SinonSpy
+                divSpy.addEventListener as Sinon.SinonSpy,
+                spanSpy.addEventListener as Sinon.SinonSpy
             ];
 
             for (const addEventListener of addEvents) {
@@ -253,13 +253,13 @@ describe('@logos-ui/dom', () => {
         it('should add many events', () => {
 
             const div = document.createElement('div');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            sinon.spy(div);
+            sandbox.spy(div);
 
             html.events.on(div, ['click', 'mousedown', 'blur'], listener);
 
-            const addEventListener = div.addEventListener as sinon.SinonSpy;
+            const addEventListener = div.addEventListener as Sinon.SinonSpy;
 
             expect(addEventListener.calledThrice).to.be.true;
             expect(addEventListener.calledWith('click', listener)).to.be.true;
@@ -271,16 +271,16 @@ describe('@logos-ui/dom', () => {
 
             const div = document.createElement('div');
             const span = document.createElement('span');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            sinon.spy(div);
-            sinon.spy(span);
+            sandbox.spy(div);
+            sandbox.spy(span);
 
             html.events.on([div, span], ['click', 'mousedown', 'blur'], listener);
 
             const addEvents = [
-                div.addEventListener as sinon.SinonSpy,
-                span.addEventListener as sinon.SinonSpy
+                div.addEventListener as Sinon.SinonSpy,
+                span.addEventListener as Sinon.SinonSpy
             ];
 
             for (const addEventListener of addEvents) {
@@ -295,14 +295,14 @@ describe('@logos-ui/dom', () => {
         it('should remove a single event', () => {
 
             const div = document.createElement('div');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            sinon.spy(div);
+            sandbox.spy(div);
 
             html.events.on(div, 'click', listener);
             html.events.off(div, 'click', listener);
 
-            const removeEventListener = div.removeEventListener as sinon.SinonSpy;
+            const removeEventListener = div.removeEventListener as Sinon.SinonSpy;
 
             expect(removeEventListener.calledOnce).to.be.true;
             expect(removeEventListener.calledWith('click', listener)).to.be.true;
@@ -312,17 +312,17 @@ describe('@logos-ui/dom', () => {
 
             const div = document.createElement('div');
             const span = document.createElement('span');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            sinon.spy(div);
-            sinon.spy(span);
+            sandbox.spy(div);
+            sandbox.spy(span);
 
             html.events.on([div, span], ['click', 'mousedown', 'blur'], listener);
             html.events.off([div, span], ['click', 'mousedown', 'blur'], listener);
 
             const addEvents = [
-                div.removeEventListener as sinon.SinonSpy,
-                span.removeEventListener as sinon.SinonSpy
+                div.removeEventListener as Sinon.SinonSpy,
+                span.removeEventListener as Sinon.SinonSpy
             ];
 
             for (const removeEventListener of addEvents) {
@@ -337,9 +337,9 @@ describe('@logos-ui/dom', () => {
         it('should trigger a single event with data', () => {
 
             const div = document.createElement('div');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            const divSpy = sinon.spy(div);
+            const divSpy = sandbox.spy(div);
 
             html.events.on(div, 'click', listener);
             html.events.trigger(div, 'click', { data: true });
@@ -359,9 +359,9 @@ describe('@logos-ui/dom', () => {
         it('should only trigger an event once', () => {
 
             const div = document.createElement('div');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
-            sinon.spy(div);
+            sandbox.spy(div);
 
             html.events.one(div, 'click', listener);
             html.events.trigger(div, 'click');
@@ -375,7 +375,7 @@ describe('@logos-ui/dom', () => {
 
             const div = document.createElement('div');
             const span = document.createElement('span');
-            const listener = sinon.fake();
+            const listener = sandbox.fake();
 
             html.events.one([div, span], ['click', 'blur', 'focus'], listener);
             html.events.trigger([div, span], 'click');

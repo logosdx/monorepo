@@ -1,5 +1,8 @@
 import { JSDOM } from 'jsdom';
-import { readdirSync } from 'fs';
+import { readdirSync, statSync } from 'fs';
+import { join } from 'path';
+import { setup, teardown } from './_helpers';
+import { afterEach, beforeEach } from 'node:test';
 
 const DOM = new JSDOM('', {
     url: 'http://localhost'
@@ -8,8 +11,31 @@ const DOM = new JSDOM('', {
 global.window = DOM.window as never;
 global.document = DOM.window.document;
 
-readdirSync(
-    __dirname
-).forEach(
-    (file) => import(`./${file}`)
-);
+
+const run = async () => {
+
+    beforeEach(setup);
+    afterEach(teardown);
+
+    const files = readdirSync(
+        __dirname
+    )
+    .filter(
+        (file) => (
+            statSync(join(__dirname, file)).isFile() &&
+            file.endsWith('.ts') &&
+            !file.endsWith('.d.ts') &&
+            !file.startsWith('index') &&
+            !file.startsWith('_')
+        )
+    )
+
+    for (const file of files) {
+
+        await import(
+            join(__dirname, file)
+        );
+    }
+}
+
+run();

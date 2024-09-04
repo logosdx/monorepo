@@ -54,28 +54,28 @@ describe('@logos-ui/kit', () => {
         age: number
     };
 
-    type AppKitType = {
-        eventsType: AppEventsType,
-        storageType: AppStorageType,
+    type AppKitType = Kit.MakeKitType<{
+        events: AppEventsType,
+        storage: AppStorageType,
         locales: {
-            localeType: AppLocaleType,
+            locale: AppLocaleType,
             codes: LocaleCodes
         },
         stateMachine: {
-            stateType: AppStateType,
-            reducerValType: AppStateType
+            state: AppStateType,
+            reducerValue: AppStateType
         },
         fetch: {
-            stateType: {
-                authToken: string
+            state: {
+                authToken: string,
             },
-            headersType: {
+            headers: {
                 authorization?: string,
                 hmac?: string,
                 timestamp?: string
             },
         }
-    };
+    }>;
 
     const localesOpts: any = {
         current: 'en',

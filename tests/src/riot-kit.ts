@@ -1,16 +1,17 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
-import sinon, { SinonStub } from 'sinon';
+import { SinonStub } from 'sinon';
 
 import * as RiotKit from '@logos-ui/riot-kit';
 import { LogosUIRiotComponent } from '@logos-ui/riot-kit';
 
 import { ComponentEnhancer, RiotComponent } from 'riot';
+import { sandbox } from './_helpers';
 
 describe('@logos-ui/riot-kit', () => {
 
-    const install = sinon.stub();
+    const install = sandbox.stub();
 
     type AppEventsType = {
         'mint': (
@@ -57,28 +58,28 @@ describe('@logos-ui/riot-kit', () => {
         s1: { s1: boolean }
     };
 
-    type AppKitType = {
-        eventsType: AppEventsType,
-        storageType: AppStorageType,
+    type AppKitType = RiotKit.MakeKitType<{
+        events: AppEventsType,
+        storage: AppStorageType,
         locales: {
-            localeType: AppLocaleType,
+            locale: AppLocaleType,
             codes: LocaleCodes
         },
         stateMachine: {
-            stateType: AppStateType,
-            reducerValType: AppStateType
+            state: AppStateType,
+            reducerValue: AppStateType
         },
         fetch: {
-            stateType: {
+            state: {
                 authToken: string
             },
-            headersType: {
+            headers: {
                 authorization?: string,
                 hmac?: string,
                 timestamp?: string
             }
         }
-    };
+    }>;
 
     type TestComponent = RiotKit.LogosUIRiotComponent<
         AppKitType,
@@ -176,7 +177,7 @@ describe('@logos-ui/riot-kit', () => {
 
         const [[decorator]] = install.args as [[RiotInstallFn]];
 
-        const update = sinon.stub();
+        const update = sandbox.stub();
         const stated: Partial<TestComponent> = {
             state: { test: true, count: null },
             update(state: any, props: any) {
@@ -235,7 +236,7 @@ describe('@logos-ui/riot-kit', () => {
 
         const [[decorator]] = install.args as [[RiotInstallFn]];
 
-        const update = sinon.stub();
+        const update = sandbox.stub();
 
         const l10n: Partial<TestComponent> = {
             translatable: true,
@@ -315,9 +316,9 @@ describe('@logos-ui/riot-kit', () => {
 
         const [[decorator]] = install.args as [[RiotInstallFn]];
 
-        const someFn = sinon.stub();
-        const otherFn = sinon.stub();
-        const update = sinon.stub();
+        const someFn = sandbox.stub();
+        const otherFn = sandbox.stub();
+        const update = sandbox.stub();
 
         const f: Partial<TestComponent> = {
             state: {},

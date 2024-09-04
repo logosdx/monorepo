@@ -1,7 +1,6 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
-import Sinon from 'sinon';
 
 import {
     LocaleFactory,
@@ -10,6 +9,7 @@ import {
 } from '@logos-ui/localize';
 
 import { DeepOptional } from '@logos-ui/utils';
+import { sandbox, stubWarn } from './_helpers';
 
 const english = {
 
@@ -71,21 +71,6 @@ const locales: LocaleOpts<Lang, Codes>['locales'] = {
 describe('@logos-ui/localize', function () {
 
     let l10bMngr: LocaleFactory<Lang, Codes>;
-
-    const sandbox = Sinon.createSandbox();
-    const _console = console as any as {
-        [K in keyof Console]: Sinon.SinonStub
-    };
-
-    before(() => {
-
-        sandbox.stub(console, 'warn');
-    })
-
-    after(() => {
-
-        sandbox.restore();
-    });
 
     it('requires a proper config', () => {
 
@@ -170,7 +155,7 @@ describe('@logos-ui/localize', function () {
 
     it('has events', () => {
 
-        const stub = Sinon.stub();
+        const stub = sandbox.stub();
 
         l10bMngr.on('locale-change', stub);
         l10bMngr.changeTo('en');
@@ -258,7 +243,7 @@ describe('@logos-ui/localize', function () {
 
         l10bMngr.changeTo('fr' as any);
 
-        expect(_console.warn.calledOnce).to.be.true;
+        expect(stubWarn.calledOnce).to.be.true;
 
         expect(l10bMngr.text('some.more')).to.eq(english.some.more);
     });

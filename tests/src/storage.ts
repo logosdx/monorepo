@@ -1,11 +1,9 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import { SinonSpy } from 'sinon';
 
 import { expect } from 'chai';
-import Sinon, { assert, createSandbox } from 'sinon';
-
 import { StorageEvent, StorageFactory, StorageImplementation } from '@logos-ui/storage';
-
-const sandbox = createSandbox();
+import { sandbox } from './_helpers';
 
 const clearStores = () => {
 
@@ -280,15 +278,14 @@ describe('@logos-ui/storage', () => {
         storage.on('storage-after-set', onAfterSet);
         storage.on('storage-after-unset', onAfterRemove);
 
-        afterEach(() => {
+        beforeEach(() => {
 
-            sandbox.resetHistory();
+            sandbox.reset();
         });
-
 
         const getKeys = (setTo: Partial<StorageItems>) => Object.keys(setTo) as (keyof StorageItems)[];
         const getVals = (setTo: Partial<StorageItems>) => Object.keys(setTo) as (StorageItems[keyof StorageItems])[];
-        const mapArgs = <S extends Sinon.SinonSpy<[StorageEvent<StorageItems>]>>(spy: S) => spy.args.map(([e]) => e)
+        const mapArgs = <S extends SinonSpy<[StorageEvent<StorageItems>]>>(spy: S) => spy.args.map(([e]) => e)
 
         it('dispatches events on set', () => {
 
