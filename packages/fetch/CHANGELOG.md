@@ -1,5 +1,11 @@
 # @logos-ui/fetch
 
+## 3.1.0
+
+### Minor Changes
+
+- 5ee6904: Fix bad assumptions around responses without content types
+
 ## 3.0.0
 
 ### Major Changes

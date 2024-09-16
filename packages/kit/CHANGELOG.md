@@ -1,5 +1,12 @@
 # @logos-ui/kit
 
+## 2.0.9
+
+### Patch Changes
+
+- Updated dependencies [5ee6904]
+  - @logos-ui/fetch@3.1.0
+
 ## 2.0.8
 
 ### Patch Changes
