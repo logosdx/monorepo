@@ -45,6 +45,8 @@ describe('@logos-ui/fetch', () => {
             mkHapiRoute('/wait', () => wait(1000, 'ok')),
             mkHapiRoute('/drop', (_, h) => h.close),
             mkHapiRoute('/abandon', (_, h) => h.abandon),
+            mkHapiRoute('/empty', () => { return null; }),
+            mkHapiRoute('/empty2', (_, h) => { return h.response().code(204); }),
         ]
     );
 
@@ -260,24 +262,6 @@ describe('@logos-ui/fetch', () => {
 
         const [[dropReq]] = onError.args as [[FetchError]];
         expect(dropReq.status).to.equal(999);
-
-        throwBadContentType = false;
-    });
-
-    it('status code 997 for missing content type', async () => {
-
-        const onError = sandbox.stub();
-
-        const api = new FetchFactory({
-            baseUrl: testUrl,
-            type: 'json',
-        });
-
-        try { await api.get('/drop', { onError }); }
-        catch(e) {}
-
-        const [[dropReq]] = onError.args as [[FetchError]];
-        expect(dropReq.status).to.equal(997);
 
         throwBadContentType = false;
     });
@@ -666,6 +650,20 @@ describe('@logos-ui/fetch', () => {
 
         expect(listener.called).to.be.false
 
+    });
+
+    it('handles empty responses', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+        });
+
+        const res1 = await api.get('/empty');
+        const res2 = await api.get('/empty2');
+
+        expect(res1).to.be.empty;
+        expect(res2).to.be.empty;
     });
 
 });

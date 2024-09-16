@@ -319,9 +319,7 @@ export class FetchFactory<
             let { status, statusText } = response;
 
             if (contentType) {
-
-
-                if (/text/.test(contentType!)) {
+                if (/text|xml|html|form-urlencoded/.test(contentType!)) {
 
                     data = await response.text() as any;
                 }
@@ -329,35 +327,40 @@ export class FetchFactory<
 
                     data = await response.json();
                 }
+                else if (/audio|video|font|binary|application/.test(contentType!)) {
+
+                    data = await response.blob();
+                }
+                else if (/form-data/.test(contentType!)) {
+
+                    data = await response.formData();
+                }
                 else {
 
                     data = await response[type]() as Res;
                 }
-
-                if (response.ok) {
-
-                    this.dispatchEvent(
-
-                        new FetchEvent(FetchEventNames['fetch-response'], {
-                            ...opts,
-                            payload,
-                            url,
-                            state: this._state,
-                            response,
-                            data
-                        })
-                    );
-
-                    return data as Res;
-                }
             }
             else {
 
-                data = 'No content type.'
-                statusText = 'No content type. Possible response cancellation by the server.'
-                status = 997;
+                data = await response.text();
             }
 
+            if (response.ok) {
+
+                this.dispatchEvent(
+
+                    new FetchEvent(FetchEventNames['fetch-response'], {
+                        ...opts,
+                        payload,
+                        url,
+                        state: this._state,
+                        response,
+                        data
+                    })
+                );
+
+                return data as Res;
+            }
 
             error = new FetchError(statusText);
             error.data = data as any;
