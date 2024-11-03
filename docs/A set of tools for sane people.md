@@ -1,7 +1,6 @@
 ---
 permalink: '/tools-for-sane-people'
 ---
-
 Frameworks are exhaustive. The amount of things you have to add to frameworks is exhausting. The learning curve of those frameworks and the things you have to add to them is exhausting. For this reason, Logos UI was created. It is the all-in-one toolkit for building web applications. It gives you everything in a tiny package. Building web apps should be simple, not exhausting.
 
 ## Taking a step back

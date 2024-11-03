@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { setup, teardown } from './_helpers';
 import { afterEach, beforeEach } from 'node:test';
 
@@ -11,6 +11,7 @@ const DOM = new JSDOM('', {
 global.window = DOM.window as never;
 global.document = DOM.window.document;
 
+const args = process.argv.slice(2);
 
 const run = async () => {
 
@@ -26,7 +27,13 @@ const run = async () => {
             file.endsWith('.ts') &&
             !file.endsWith('.d.ts') &&
             !file.startsWith('index') &&
-            !file.startsWith('_')
+            !file.startsWith('_') &&
+            (
+                args.length === 0 ||
+                args.includes(
+                    basename(file, '.ts')
+                )
+            )
         )
     )
 

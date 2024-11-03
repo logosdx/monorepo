@@ -181,6 +181,9 @@ importers:
       '@hapi/hapi':
         specifier: ^21.3.2
         version: 21.3.2
+      '@hapi/hoek':
+        specifier: ^11.0.6
+        version: 11.0.6
       '@logos-ui/dom':
         specifier: workspace:^
         version: link:../packages/dom
@@ -1152,8 +1155,8 @@ packages:
   '@hapi/heavy@8.0.1':
     resolution: {integrity: sha512-gBD/NANosNCOp6RsYTsjo2vhr5eYA3BEuogk6cxY0QdhllkkTaJFYtTXv46xd6qhBVMbMMqcSdtqey+UQU3//w==}
 
-  '@hapi/hoek@11.0.2':
-    resolution: {integrity: sha512-aKmlCO57XFZ26wso4rJsW4oTUnrgTFw2jh3io7CAtO9w4UltBNwRXvXIVzzyfkaaLRo3nluP/19msA8vDUUuKw==}
+  '@hapi/hoek@11.0.6':
+    resolution: {integrity: sha512-mu8He+jghTDJ+la/uGBT4b1rqQdqFADZiXhzd98b3XW5nb/c+5woXx3FiNco2nm4wPJFHQVRGxYeWeSDPIYpYw==}
 
   '@hapi/iron@7.0.1':
     resolution: {integrity: sha512-tEZnrOujKpS6jLKliyWBl3A9PaE+ppuL/+gkbyPPDb/l2KSKQyH4lhMkVb+sBhwN+qaxxlig01JRqB8dk/mPxQ==}
@@ -4840,41 +4843,41 @@ snapshots:
   '@hapi/accept@6.0.1':
     dependencies:
       '@hapi/boom': 10.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/ammo@6.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/b64@6.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/boom@10.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/bounce@3.0.1':
     dependencies:
       '@hapi/boom': 10.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/bourne@3.0.0': {}
 
   '@hapi/call@9.0.1':
     dependencies:
       '@hapi/boom': 10.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/catbox-memory@6.0.1':
     dependencies:
       '@hapi/boom': 10.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/catbox@12.1.1':
     dependencies:
       '@hapi/boom': 10.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/podium': 5.0.1
       '@hapi/validate': 2.0.1
 
@@ -4898,7 +4901,7 @@ snapshots:
       '@hapi/catbox': 12.1.1
       '@hapi/catbox-memory': 6.0.1
       '@hapi/heavy': 8.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/mimos': 7.0.1
       '@hapi/podium': 5.0.1
       '@hapi/shot': 6.0.1
@@ -4912,10 +4915,10 @@ snapshots:
   '@hapi/heavy@8.0.1':
     dependencies:
       '@hapi/boom': 10.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/validate': 2.0.1
 
-  '@hapi/hoek@11.0.2': {}
+  '@hapi/hoek@11.0.6': {}
 
   '@hapi/iron@7.0.1':
     dependencies:
@@ -4923,16 +4926,16 @@ snapshots:
       '@hapi/boom': 10.0.1
       '@hapi/bourne': 3.0.0
       '@hapi/cryptiles': 6.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/mimos@7.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       mime-db: 1.52.0
 
   '@hapi/nigel@5.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/vise': 5.0.1
 
   '@hapi/pez@6.1.0':
@@ -4940,24 +4943,24 @@ snapshots:
       '@hapi/b64': 6.0.1
       '@hapi/boom': 10.0.1
       '@hapi/content': 6.0.0
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/nigel': 5.0.1
 
   '@hapi/podium@5.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/teamwork': 6.0.0
       '@hapi/validate': 2.0.1
 
   '@hapi/shot@6.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/validate': 2.0.1
 
   '@hapi/somever@4.1.1':
     dependencies:
       '@hapi/bounce': 3.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/statehood@8.1.1':
     dependencies:
@@ -4965,7 +4968,7 @@ snapshots:
       '@hapi/bounce': 3.0.1
       '@hapi/bourne': 3.0.0
       '@hapi/cryptiles': 6.0.1
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/iron': 7.0.1
       '@hapi/validate': 2.0.1
 
@@ -4975,7 +4978,7 @@ snapshots:
       '@hapi/bourne': 3.0.0
       '@hapi/content': 6.0.0
       '@hapi/file': 3.0.0
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/pez': 6.1.0
       '@hapi/wreck': 18.0.1
 
@@ -4983,22 +4986,22 @@ snapshots:
 
   '@hapi/topo@6.0.2':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/validate@2.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
       '@hapi/topo': 6.0.2
 
   '@hapi/vise@5.0.1':
     dependencies:
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@hapi/wreck@18.0.1':
     dependencies:
       '@hapi/boom': 10.0.1
       '@hapi/bourne': 3.0.0
-      '@hapi/hoek': 11.0.2
+      '@hapi/hoek': 11.0.6
 
   '@jridgewell/gen-mapping@0.3.3':
     dependencies:

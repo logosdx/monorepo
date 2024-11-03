@@ -11,8 +11,12 @@
             "id": "0f5d5c1b4b4828a4",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {}
+              "type": "markdown",
+              "state": {
+                "file": "Packages/Observer.md",
+                "mode": "source",
+                "source": false
+              }
             }
           }
         ]
@@ -89,6 +93,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "Packages/Observer.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -105,6 +110,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
+                "file": "Packages/Observer.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -126,7 +132,9 @@
             "type": "leaf",
             "state": {
               "type": "outline",
-              "state": {}
+              "state": {
+                "file": "Packages/Observer.md"
+              }
             }
           }
         ]
@@ -150,8 +158,20 @@
   },
   "active": "0f5d5c1b4b4828a4",
   "lastOpenFiles": [
-    "A set of tools for sane people.md",
+    "Packages/DOM.md",
+    "Packages/Observer.md",
     "Welcome.md",
+    "types/riot-kit/src/storage.d.ts",
+    "types/riot-kit/src/state.d.ts",
+    "types/riot-kit/src/observer.d.ts",
+    "types/riot-kit/src/locales.d.ts",
+    "types/riot-kit/src/index.d.ts",
+    "types/riot-kit/src",
+    "types/riot-kit",
+    "types/riot-utils/src/utils.d.ts",
+    "types/riot-utils/src/queryable.d.ts",
+    "types/riot-utils/src/index.d.ts",
+    "A set of tools for sane people.md",
     "Packages/Riot Kit.md",
     "Packages/Riot Utils.md",
     "Packages/State Machine.md",
@@ -160,11 +180,9 @@
     "Packages/Kit.md",
     "App Kit.md",
     "Packages/Localize.md",
-    "Packages/Observer.md",
     "favicon-32.png",
     "Packages/Forms.md",
     "Packages/Fetch.md",
-    "Packages/DOM.md",
     "Interfaces/Riot Kit.md",
     "Interfaces/Fetch.md",
     "Interfaces/Forms.md",
@@ -176,17 +194,6 @@
     "Interfaces/State Machine.md",
     "Interfaces/Storage.md",
     "Packges/Utils.md",
-    "Packges",
-    "Interfaces/DOM Utilities.md",
-    "publish.admonition.js",
-    "Packages/dom",
-    "packages/dom",
-    "publish.js",
-    "publish.css",
-    "Packages",
-    "docs",
-    "packages/utils/dist/bundle.js",
-    "packages/utils/dist/bundle.js.map",
     "favicon.png"
   ]
 }

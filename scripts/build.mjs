@@ -1,6 +1,6 @@
 #!/user/bin/env node
 import readline from 'readline';
-import fs from 'fs';
+import fs, { mkdirSync } from 'fs';
 import path from 'path';
 import proc from 'child_process';
 
@@ -158,6 +158,19 @@ const shell = (cmd) => {
         env: process.env
     })
 }
+
+
+// Build the typescript declaration files
+if (
+    CWD === ROOT &&
+    !process.env.CI
+) {
+
+    shell(`pnpm tsc --project tsconfig.docs.json`);
+
+    process.exit(0);
+}
+
 
 // Clean up the build folder and recreate it
 rmRf(PATHS.BUILD);
