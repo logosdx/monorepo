@@ -7,7 +7,7 @@ If you have ever thought to yourself:
 
 > It's 2023 and we're still using Axios when there's an entire `Fetch` API available to us on everything single browser
 
-Then say hello to `FetchFactory` is. It simplifies the process of making HTTP requests using the `Fetch` API. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL, fetch type, and additional headers for your FetchFactory instance.
+Then say hello to `FetchFactory`. It simplifies the process of making HTTP requests using the `Fetch` API. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL, fetch type, and additional headers for your FetchFactory instance.
 
 A great feature of `FetchFactory` is its ability to customize request options based on the current state. Through the `modifyOptions` callback function, you can dynamically modify the request options before each request is sent. This enables tasks like adding authentication headers or applying specific logic based on the instance's state. `FetchFactory` also provides a convenient way to handle response data, allowing developers to access and process the results of their API requests.
 
@@ -41,6 +41,11 @@ const api = new FetchFactory<FecthState, FetchHeaders>({
 		'content-type': 'application/json',
 		'authorization': 'abc123'
 	},
+	methodHeaders: {
+		POST: {
+			'x-some-key': process.env.SOME_KEY
+		}
+	},
 	modifyOptions(opts, state) {
 
 		if (state.authToken) {
@@ -48,6 +53,26 @@ const api = new FetchFactory<FecthState, FetchHeaders>({
 			opts.headers.authorization = state.authToken;
 			opts.headers.hmac = makeHmac(time);
 			opts.headers.time = time;
+		}
+	},
+	modifyMethodOptions: {
+		PATCH(opts, state) {
+
+			if (state.permission) {
+				opts.headers['special-patch-only-header'] = 'abc123'
+			}
+		}
+	},
+	validate: {
+
+		headers(headers) {
+
+			Joi.assert(headersSchema, headers);
+		},
+
+		state(state) {
+
+			Joi.assert(fetchStateSchema, state);
 		}
 	}
 });
@@ -342,6 +367,8 @@ api.setState({
 	authToken: 'abc123',
 	isAuthenticated: true
 });
+
+api.setState('isAuthenticated', false);
 ```
 
 **Interface**
@@ -349,6 +376,7 @@ api.setState({
 ```ts
 declare class FetchFactory /* ... */ {
 
+	setState<N extends keyof State>(name: N, value: State[N]): void;
 	setState(conf: Partial<State>): void;
 }
 ```
@@ -520,7 +548,19 @@ declare class FetchFactory<
 
 	hasHeader(name: (keyof HeaderObj<InstanceHeaders>)): boolean;
 
+	get headers(): {
+		readonly default: Readonly<HeaderObj<InstanceHeaders>>;
+		readonly get?: Readonly<HeaderObj<InstanceHeaders>>;
+		readonly post?: Readonly<HeaderObj<InstanceHeaders>>;
+		readonly put?: Readonly<HeaderObj<InstanceHeaders>>;
+		readonly delete?: Readonly<HeaderObj<InstanceHeaders>>;
+		readonly options?: Readonly<HeaderObj<InstanceHeaders>>;
+		readonly patch?: Readonly<HeaderObj<InstanceHeaders>>;
+	};
+
+	setState<N extends keyof State>(name: N, value: State[N]): void;
 	setState(conf: Partial<State>): void;
+
 	resetState(): void;
 	getState(): State;
 
@@ -546,11 +586,21 @@ declare class FetchFactory<
 ```ts
 type TypeOfFactory = "arrayBuffer" | "blob" | "formData" | "json" | "text";
 
-type HttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH' | string;
+type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
+type HttpMethods = _InternalHttpMethods | string;
 
-type RequestOptions = Omit<RequestInit, 'headers'>;
+type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
 
-type HeaderObj<T> = Record<string, string> & T;
+type HeaderObj<T> = Record<string, string> & Partial<T>;
+
+/**
+ * Override this interface with the headers you intend
+ * to use and set throughout your app.
+ */
+interface FetchHeaders {
+    authorization?: string;
+    'content-type'?: string;
+}
 
 type RequestHeaders = HeaderObj<FetchHeaders>;
 
@@ -571,14 +621,61 @@ type FetchFactoryOptions<
 	InstanceHeaders = RequestHeaders
 > = (
 
-	Omit<FetchReqOpts, 'method' | 'body' | 'integrity' | 'controller'> & {
+	Omit<
+		FetchReqOpts,
+		'method' | 'body' | 'integrity' | 'controller'
+	> & {
+		/**
+		 * The base URL for all requests
+		 */
+		baseUrl: string,
 
-		modifyOptions?: (opts: FetchReqOpts, state: State) => FetchReqOpts;
-		baseUrl: string;
-		type: TypeOfFactory;
-		headers?: HeaderObj<InstanceHeaders>;
-		timeout?: number;
-	}
+		/**
+		 * The type of response expected from the server.
+		 * This will be used to determine how to parse the
+		 * response from the server.
+		 */
+		type: TypeOfFactory,
+
+		/**
+		 * The headers to be set on all requests
+		 */
+		headers?: HeaderObj<InstanceHeaders>,
+
+		/**
+		 * The headers to be set on requests of a specific method
+		 * @example
+		 * {
+		 *     GET: { 'content-type': 'application/json' },
+		 *     POST: { 'content-type': 'application/x-www-form-urlencoded'
+		 * }
+		 */
+		methodHeaders?: HttpMethodOpts<HeaderObj<InstanceHeaders>>,
+
+		/**
+		 *
+		 * @param opts
+		 * @param state
+		 * @returns
+		 */
+		modifyOptions?: (opts: FetchReqOpts, state: State) => FetchReqOpts
+		modifyMethodOptions?: HttpMethodOpts<
+			FetchFactoryOptions<
+				State,
+				InstanceHeaders
+>	['modifyOptions']
+>	,
+
+		timeout?: number,
+		validate?: {
+			headers?: (headers: HeaderObj<InstanceHeaders>, method?: HttpMethods) => void
+			state?: (state: State) => void
+
+			perRequest?: {
+				headers?: boolean
+			}
+		}
+    }
 );
 
 interface AbortablePromise<T> extends Promise<T> {

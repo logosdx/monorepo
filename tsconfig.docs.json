@@ -1,7 +1,8 @@
 {
     "compilerOptions": {
+        "declarationDir": "docs/types",
         "allowImportingTsExtensions": true,
-        "noEmit": true,
+        "emitDeclarationOnly": true,
         "outDir": "out",
         "allowSyntheticDefaultImports": true,
         "allowJs": true,
@@ -19,10 +20,13 @@
         "noUncheckedIndexedAccess": true,
         "skipLibCheck": true,
     },
+    "include": [
+        "packages/**/*.ts"
+    ],
     "exclude": [
-        "./docs/*",
-        "./examples/*",
-        "./internals/*",
-        "./scripts/*"
+        "dist",
+        "**/*.js",
+        "**/*.cjs",
+        "**/*.mjs",
     ]
 }

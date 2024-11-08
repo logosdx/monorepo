@@ -308,3 +308,20 @@ export const isFunctionOrObject = <T extends Function | Object>(val: T): boolean
  */
 export const isUndefined = (val: any) => val === undefined;
 
+/**
+ * Creates a deferred promise
+ */
+export class Deferred<T> {
+
+    public promise: Promise<T>;
+    public resolve!: (value: T) => void;
+    public reject!: (reason?: any) => void;
+
+    constructor() {
+
+        this.promise = new Promise<T>((resolve, reject) => {
+            this.resolve = resolve;
+            this.reject = reject;
+        });
+    }
+}

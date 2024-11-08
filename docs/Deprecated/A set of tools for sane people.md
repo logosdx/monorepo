@@ -1,7 +1,6 @@
 ---
 permalink: '/tools-for-sane-people'
 ---
-
 Frameworks are exhaustive. The amount of things you have to add to frameworks is exhausting. The learning curve of those frameworks and the things you have to add to them is exhausting. For this reason, Logos UI was created. It is the all-in-one toolkit for building web applications. It gives you everything in a tiny package. Building web apps should be simple, not exhausting.
 
 ## Taking a step back
@@ -78,7 +77,7 @@ This toolkit is predicated on the following:
 - Meta-programming utilities
     - [[Packages/Utils|@logos-ui/utils]]
         - Well tested utilities used throughout all `@logos-ui` libraries
-    - [[Packages/Riot Utils|@logos-ui/riot-utils]]
+    - [[Riot Utils|@logos-ui/riot-utils]]
         - RiotJS meta-programming tools
 - A thing to fetch remote data
     - [[Packages/Fetch|@logos-ui/fetch]]
@@ -92,7 +91,7 @@ This toolkit is predicated on the following:
 - And more
     - [[Packages/Kit|@logos-ui/kit]]
         - A boilerplate for quick-starting your web app
-    - [[Packages/Riot Kit|@logos-ui/riot-kit]]
+    - [[Riot Kit|@logos-ui/riot-kit]]
         - A RiotJS boilerplate that uses [[Packages/Kit|@logos-ui/kit]] to get you started faster
 
 ## Get started

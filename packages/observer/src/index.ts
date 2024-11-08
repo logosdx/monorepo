@@ -8,12 +8,12 @@ interface EventCallback<Shape> {
 
 const ALL_CALLBACKS = '*'
 
-type RgxEmitData<Shape> = {
+export type RgxEmitData<Shape> = {
     event: Events<Shape>,
     data: any
 }
 
-type EventCbData<E, Shape> = (
+export type EventCbData<E, Shape> = (
     E extends Events<Shape>
     ? Shape[E]
     : E extends RegExp
@@ -48,9 +48,7 @@ export interface RemoveEventListener<Shape> {
 }
 
 
-type Cleanup = {
-    cleanup: () => void
-}
+export type Cleanup = () => void
 
 export type ObservedComponent<E> = {
     on: EventListener<E, Cleanup>,
@@ -61,7 +59,9 @@ export type ObservedComponent<E> = {
     emit: EventEmit<E>,
 };
 
-export type ObservableChild<C, E> = C & ObservedComponent<E> & Cleanup
+export type ObservableChild<C, E> = C & ObservedComponent<E> & {
+    cleanup: Cleanup
+}
 
 export type ObservableInstance<T, U> = ObservedComponent<U> & {
     observe: ObserverFactory<T, U>['observe'],
@@ -70,20 +70,20 @@ export type ObservableInstance<T, U> = ObservedComponent<U> & {
     $_observer: ObserverFactory<T, U>
 }
 
-type ObservableFunctionName = 'on' | 'one' | 'off' | 'trigger';
+export type ObservableFunctionName = 'on' | 'once' | 'off' | 'emit';
 
-type OberverSpyOptions<E> = {
+export type OberverSpyOptions<E> = {
     event: keyof E | RegExp | '*',
     listener?: Function,
     data?: any,
 };
 
-type ObserverSpyAction<C, E> = OberverSpyOptions<E> & {
+export type ObserverSpyAction<C, E> = OberverSpyOptions<E> & {
     fn: ObservableFunctionName,
     context: ObserverFactory<C, E>
 }
 
-interface ObserverSpy<C, E> {
+export interface ObserverSpy<C, E> {
     (action: ObserverSpyAction<C, E>): void
 }
 
@@ -133,6 +133,134 @@ const traceStackFilterRgx = (
         'ObserverFactory',
     ].join('|')})`)
 );
+
+class EventError extends Error {
+    event?: string | RegExp;
+    listener?: Function
+    data?: any
+    constructor (
+        message: string,
+        opts?: {
+            event: string,
+            listener: Function,
+            data: any
+        }
+    ) {
+
+        super(message);
+
+        this.event = opts?.event;
+        this.listener = opts?.listener;
+        this.data = opts?.data;
+    }
+}
+
+class EventPromise<T> extends Promise<T> {
+
+    cleanup?: () => void
+}
+
+class DeferredEvent<T> {
+
+    private _resolve!: Function;
+    private _reject!: Function;
+    private _promise: EventPromise<T>;
+
+    constructor() {
+        this._promise = new EventPromise((resolve, reject) => {
+            this._resolve = resolve;
+            this._reject = reject;
+        });
+    }
+
+    resolve(data: T) {
+        this._resolve(data);
+    }
+
+    reject(err: any) {
+        this._reject(err);
+    }
+
+    get promise() {
+        return this._promise;
+    }
+}
+
+class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
+
+    #observer: ObserverFactory<any, any>;
+    #event: E | RegExp | '*';
+    #defer: DeferredEvent<any>;
+    #done: boolean = false;
+    #listener: EventCallback<S> | null = null;
+
+    destroy!: Cleanup
+
+    next: () => Promise<
+        E extends Events<S>
+        ? S[E]
+        : E extends RegExp
+            ? RgxEmitData<S>
+            : S[Events<S>]
+    >;
+
+    constructor(
+        observer: ObserverFactory<any, any>,
+        event: E | RegExp | '*'
+    ) {
+
+        this.#observer = observer;
+        this.#event = event;
+        this.#defer = new DeferredEvent();
+        this.#listener = (data: any) => {
+
+            this.#defer.resolve(data);
+            this.#defer = new DeferredEvent();
+        }
+
+        const cleanup = observer.on(
+            event as never,
+            this.#listener! as never
+        );
+
+        this.next = () => this.#defer.promise;
+
+        this.destroy = () => {
+
+            cleanup();
+
+            this.#defer.reject(
+                new EventError(
+                    `Event generator for ${this.#event.toString()} has been destroyed`,
+                    {
+                        event: this.#event as string,
+                        listener: this.#listener!,
+                        data: null
+                    }
+                )
+
+            );
+            this.#done = true;
+        }
+    }
+
+    get done() {
+        return this.#done;
+    }
+
+    emit(
+        data?: (
+            E extends Events<S>
+            ? S[E]
+            : S[Events<S>]
+        )
+    ) {
+
+        if (this.#done) return;
+
+        this.#observer.emit(this.#event, data);
+    }
+}
 
 export const makeEventTracer = (
     event: string,
@@ -210,7 +338,7 @@ enum InternalEvs {
 
     on = 'on',
     off = 'off',
-    trigger = 'trigger',
+    emit = 'emit',
     clear = 'clear',
 }
 
@@ -231,24 +359,102 @@ interface InternalListener {
     (e: InternalEvent): void
 }
 
+const validateEvent = (fn: string, opts: any) => {
+
+    if (
+        opts.event === undefined ||
+        typeof opts.event !== 'string' &&
+        opts.event instanceof RegExp === false
+    ) {
+
+        throw new EventError(
+            `observer.${fn}: Event must be a string or RegExp`,
+            opts
+        );
+    }
+};
+
+const validateListener = (fn: string, opts: any) => {
+
+    if (
+        opts.listener !== undefined &&
+        typeof opts.listener !== 'function'
+    ) {
+
+        throw new EventError(
+            `observer.${fn}: Listener must be a function`,
+            opts
+        );
+    }
+}
 
 export class ObserverFactory<
     Component,
     Shape = any
 > {
 
-    private $_listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
-    private $_rgxListenerMap: Map<string, Set<Func>> = new Map();
-    private $_target: any = null;
+    #_listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
+    #_rgxListenerMap: Map<string, Set<Func>> = new Map();
+    #_target: any = null;
+    #_ref?: String;
+    #_internalListener = new EventTarget();
 
     private $_spy?: ObserverSpy<Component, Shape>;
-    private $_ref?: String;
 
-    private $_internalListener!: EventTarget;
+    /**
+     * Returns facts about the the internal state of the observable instance.
+     */
+    $_facts() {
+
+
+        const listenKeys = [...this.#_listenerMap.keys()];
+        const rgxKeys = [...this.#_rgxListenerMap.keys()];
+        const listenerCounts = Object.fromEntries([
+            listenKeys.map(
+                k => [k, this.#_listenerMap.get(k)?.size]
+            ),
+            rgxKeys.map(
+                k => [k, this.#_rgxListenerMap.get(k)?.size]
+            )
+        ].flat());
+
+        return {
+            listeners: listenKeys,
+            rgxListeners: rgxKeys,
+            listenerCounts,
+            hasSpy: !!this.$_spy
+        }
+    }
+
+	/**
+	 * The internals themselves.
+     *
+	 * ! CAUTION: Do no meddle with this because. It is not meant to be used directly.
+     * ! This is only exposed for debugging purposes.
+	 */
+    $_internals() {
+
+        return {
+            listenerMap: this.#_listenerMap,
+            rgxListenerMap: this.#_rgxListenerMap,
+            internalListener: this.#_internalListener,
+            target: this.#_target,
+            ref: this.#_ref,
+            spy: this.$_spy
+        }
+    }
+
+    #_spy(...args: Parameters<ObserverSpy<Component, Shape>>) {
+
+        if (this.$_spy) {
+
+            this.$_spy(...args);
+        }
+    }
 
     debug(on = true) {
 
-        const original = this.$_spy;
+        const original = this.#_spy;
 
         const spy: ObserverSpy<Component, Shape> = (ev) => {
 
@@ -288,17 +494,17 @@ export class ObserverFactory<
     /**
      * Same as `observable.one`
      */
-    once!: ObserverFactory<Component, Shape>['one'];
+    one!: ObserverFactory<Component, Shape>['once'];
 
     /**
      * Same as `observable.trigger`
      */
-    emit!: ObserverFactory<Component, Shape>['trigger'];
+    trigger!: ObserverFactory<Component, Shape>['emit'];
 
     /**
      * Same as `observable.trigger`
      */
-    send!: ObserverFactory<Component, Shape>['trigger'];
+    send!: ObserverFactory<Component, Shape>['emit'];
 
     /**
      * Same as `observable.off`
@@ -318,27 +524,25 @@ export class ObserverFactory<
     constructor(target?: Component | null, options?: ObservableOptions<Component, Shape>) {
 
         const self = this;
-        this.$_target = target || this;
+        this.#_target = target || this;
 
         // Make these functions non-enumerable
         definePrivateProps(this, {
             on: this.on,
             listen: this.on,
-            one: this.one,
-            once: this.one,
+            one: this.once,
+            once: this.once,
             off: this.off,
             remove: this.off,
             rm: this.off,
             unlisten: this.off,
-            trigger: this.trigger,
-            emit: this.trigger,
-            send: this.trigger,
+            trigger: this.emit,
+            emit: this.emit,
+            send: this.emit,
             observe: this.observe,
-            $_listenerMap: this.$_listenerMap,
-            $_rgxListenerMap: this.$_rgxListenerMap,
-            $_target: this.$_target,
-            $_internalListener: new EventTarget(),
             debug: this.debug,
+            $_facts: this.$_facts,
+            $_internals: this.$_internals
         });
 
         // Validate option if exists
@@ -364,24 +568,24 @@ export class ObserverFactory<
         // Defined to make them non-enumerable
         if (target) {
             const _on = (ev: any, fn: any) => self.on(ev, fn);
-            const _one = (ev: any, fn: any) => self.one(ev, fn);
+            const _once = (ev: any, fn: any) => self.once(ev, fn);
             const _off = (ev: any, fn: any) => self.off(ev, fn);
-            const _trigger = (ev: any, data: any) => self.trigger(ev, data);
+            const _emit = (ev: any, data: any) => self.emit(ev, data);
             const _observe = (component: any) => self.observe(component);
             const _debug = (on = true) => self.debug(on)
 
             definePrivateProps(target, {
                 on: _on,
                 listen: _on,
-                one: _one,
-                once: _one,
+                one: _once,
+                once: _once,
                 off: _off,
                 remove: _off,
                 rm: _off,
                 unlisten: _off,
-                trigger: _trigger,
-                emit: _trigger,
-                send: _trigger,
+                trigger: _emit,
+                emit: _emit,
+                send: _emit,
                 observe: _observe,
                 debug: _debug,
                 $_observer: self
@@ -389,7 +593,7 @@ export class ObserverFactory<
 
         }
 
-        return this.$_target;
+        return this.#_target;
     }
 
 
@@ -461,8 +665,8 @@ export class ObserverFactory<
             }
         };
 
-        this.$_internalListener.addEventListener(InternalEvs.off, afterOff as Func);
-        this.$_internalListener.addEventListener(InternalEvs.clear, rmAll as Func);
+        this.#_internalListener.addEventListener(InternalEvs.off, afterOff as Func);
+        this.#_internalListener.addEventListener(InternalEvs.clear, rmAll as Func);
 
         definePrivateProps(component, {
 
@@ -477,7 +681,7 @@ export class ObserverFactory<
 
             one: (ev: any, fn: any) => {
 
-                return self.one(
+                return self.once(
                     ev,
                     trackListener(ev, fn) as any
                 );
@@ -502,7 +706,7 @@ export class ObserverFactory<
 
             trigger: (ev: any, data: any) => {
 
-                return self.trigger(ev, data);
+                return self.emit(ev, data);
             },
 
 
@@ -527,7 +731,7 @@ export class ObserverFactory<
         return observed;
     }
 
-    private $_eventInfo(event:  Events<Shape> | RegExp | '*') {
+    #_eventInfo(event: string | RegExp | Events<Shape>) {
 
         const isRgx = (event as RegExp).constructor === RegExp;
         const eventName = event.toString() as any;
@@ -539,62 +743,115 @@ export class ObserverFactory<
         };
     }
 
-    private $_withRgxMatchKeys (rgx: RegExp) {
+    #_withRgxMatchKeys (rgx: RegExp) {
 
-        return [...this.$_listenerMap.keys()].filter(
+        return [...this.#_listenerMap.keys()].filter(
             k => rgx.test(k as string)
         ) as Events<Shape>[];
     }
 
-    private $_withKeyMatchRgx (key: string) {
+    #_withKeyMatchRgx (key: string) {
 
-        return [...this.$_rgxListenerMap.keys()].filter(
+        return [...this.#_rgxListenerMap.keys()].filter(
             s => rgxStrToRgx(s).test(key)
         ).flat();
     }
 
-    private $_matchStr (rgx: RegExp) {
+    #_matchStr (rgx: RegExp) {
 
-        const events = this.$_withRgxMatchKeys(rgx);
+        const events = this.#_withRgxMatchKeys(rgx);
 
         return arrOfMatchingValues(
             events as any,
-            this.$_listenerMap
+            this.#_listenerMap
         );
     }
 
 
-    private $_matchRgx (str: string) {
+    #_matchRgx (str: string) {
 
-        const events = this.$_withKeyMatchRgx(str);
+        const events = this.#_withKeyMatchRgx(str);
 
         return arrOfMatchingValues(
             events as any,
-            this.$_rgxListenerMap
+            this.#_rgxListenerMap
         );
     }
+
+    /**
+     * Returns an event generator that will listen for all events
+     */
+    on (event: '*'): EventGenerator<Shape, '*'>;
+
+    /**
+     * Listens for all events and executes the given callback
+     */
+    on (event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
+
+    /**
+     * Returns an event generator that will listen for the specified event
+     */
+    on <E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
+
+    /**
+     * Listens for the specified event and executes the given callback
+     */
+    on <E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
+
+    /**
+     * Returns an event generator that will listen for all events matching the regex
+     */
+    on (event: RegExp): EventGenerator<Shape, RegExp>;
+
+    /**
+     * Listens for all events matching the regex and executes the given callback
+     */
+    on (event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
+
+    /**
+     * Used internally
+     */
+    on (event: any, listener?: Func, opts?: object): Cleanup | EventGenerator<any>
 
     /**
      * Listen for an event
      * @param event
      * @param listener
-     * @returns {Cleanup}
      */
-    on<E extends Events<Shape> | RegExp>(
-        event: E | '*',
-        listener: E extends Events<Shape>
-            ? EventCallback<Shape[E]>
-            : Func
-    ): Cleanup {
+    on (
+        event: RegExp | Events<Shape> | '*',
+        listener?: Func,
+        _opts?: { once: boolean }
+    ) {
 
-        if (this.$_spy) {
+        if (!_opts?.once) {
 
-            sendToSpy <Shape>('on', this, { event, listener });
+            validateEvent('on', { event, listener });
+            validateListener('on', { event, listener });
         }
 
-        const { eventName, isRgx } = this.$_eventInfo(event);
+        const { eventName, isRgx } = this.#_eventInfo(
+            event as string | RegExp
+        );
 
-        const listenerMap = isRgx ? this.$_rgxListenerMap : this.$_listenerMap;
+        const listenerMap = isRgx ? this.#_rgxListenerMap : this.#_listenerMap;
+
+        if (listener === undefined) {
+
+            return new EventGenerator(
+                this,
+                event as never
+            ) as EventGenerator<any, any>;
+        }
+
+        sendToSpy <Shape>(
+            _opts?.once ? 'once' : 'on',
+            this,
+            {
+                event,
+                listener
+            }
+        );
 
         const cbSet = listenerMap.get(eventName) || new Set([listener]);
 
@@ -607,56 +864,102 @@ export class ObserverFactory<
             listenerMap.set(eventName, cbSet);
         }
 
-        this.$_internalListener.dispatchEvent(
+        this.#_internalListener.dispatchEvent(
             new InternalEvent(InternalEvs.on, [event as string, listener])
         );
 
-        return {
-            cleanup: () => {
+        return () => {
 
-                if (this.$_spy) {
-                    sendToSpy <Shape>('clean', this, { event, listener });
-                }
+            sendToSpy <Shape>('clean', this, { event, listener });
 
-                cbSet!.delete(listener);
+            cbSet!.delete(listener);
 
-                this.$_internalListener.dispatchEvent(
-                    new InternalEvent(InternalEvs.off, [event as string, listener])
-                );
-            }
-        };
+            this.#_internalListener.dispatchEvent(
+                new InternalEvent(InternalEvs.off, [event as string, listener])
+            );
+        }
     }
 
     /**
-     * Listen for an event once
-     * @param event
-     * @param listener
+     * Returns an event promise that resolves when
+     * any event is emitted
      */
-    one <E extends Events<Shape> | RegExp>(
-        event: E | '*',
-        listener: E extends Events<Shape>
-            ? EventCallback<Shape[E]>
-            : Func
+    once (event: '*'): EventPromise<Shape[Events<Shape>]>;
+
+    /**
+     * Executes a callback once when any event is
+     * emitted
+     */
+    once (event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
+
+    /**
+     * Returns an event promise that resolves when
+     * the specified event is emitted
+     */
+    once <E extends Events<Shape>>(event: E): EventPromise<Shape[E]>;
+
+    /**
+     * Executes a callback once when the specified
+     * event is emitted
+     */
+    once <E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
+
+    /**
+     * Returns an event promise that resolves when
+     * any events matching the regex are emitted
+     */
+    once (event: RegExp): EventPromise<RgxEmitData<Shape>>;
+
+    /**
+     * Executes a callback once when any events
+     * matching the regex are emitted
+     */
+    once (event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
+
+    /**
+     * Executes a callback once when the specified
+     * event is emitted, or returns a promise that
+     * resolves when the event is emitted
+     */
+    once (
+        event: RegExp | string,
+        listener?: Func
     ) {
 
-        if (this.$_spy) {
+        validateEvent('once', { event, listener });
+        validateListener('once', { event, listener });
 
-            sendToSpy <Shape>('one', this, { event, listener });
+        if (!listener) {
+
+            const defer = new DeferredEvent<unknown>();
+
+            const cleanup = this.once(
+                event as never,
+                ((data: unknown) => defer.resolve(data)) as never
+            );
+
+            defer.promise.cleanup = cleanup;
+
+            return defer.promise;
         }
 
         const self = this;
 
-        let listenedOn: ReturnType<typeof self.on>;
+        let cleanup: Cleanup;
 
-        const runOnce: any = function (e: E, cb: Func | EventCallback<E>) {
+        const runOnce: any = function (...args: any[]) {
 
-            listenedOn.cleanup();
-            (listener as Func).apply(self, [e, cb]);
+            cleanup?.();
+            (listener as Func).apply(self, args);
         }
 
-        listenedOn = self.on(event, runOnce);
+        cleanup = this.on(
+            event as never,
+            runOnce,
+            { once: true }
+        ) as Cleanup;
 
-        return listenedOn;
+        return cleanup;
     }
 
     /**
@@ -664,33 +967,32 @@ export class ObserverFactory<
      * @param event
      * @param listener
      */
-    off <E extends Events<Shape> | RegExp>(
-        event: E | '*',
+    off <E extends Events<Shape> | RegExp | '*'>(
+        event: E,
         listener?: E extends Events<Shape>
             ? EventCallback<Shape[E]>
             : Function
     ) {
 
-        if (this.$_spy) {
+        validateEvent('off', { event, listener });
 
-            sendToSpy <Shape>('off', this, { event, listener });
-        }
+        sendToSpy <Shape>('off', this, { event, listener });
 
         if (event === ALL_CALLBACKS && !listener) {
 
-            this.$_listenerMap.clear();
-            this.$_rgxListenerMap.clear();
+            this.#_listenerMap.clear();
+            this.#_rgxListenerMap.clear();
 
-            this.$_internalListener.dispatchEvent(
+            this.#_internalListener.dispatchEvent(
                 new InternalEvent(InternalEvs.clear, [event as string, listener])
             );
             return;
         }
 
-        const { eventName, isRgx, rgx } = this.$_eventInfo(event);
+        const { eventName, isRgx, rgx } = this.#_eventInfo(event);
 
         const matches: Events<Shape>[] = isRgx ?
-            this.$_withRgxMatchKeys(rgx) :
+            this.#_withRgxMatchKeys(rgx) :
             [eventName]
         ;
 
@@ -698,23 +1000,23 @@ export class ObserverFactory<
 
             const ev = _ev as Events<Shape>;
 
-            this.$_internalListener.dispatchEvent(
+            this.#_internalListener.dispatchEvent(
                 new InternalEvent(InternalEvs.off, [ev as string, listener])
             );
 
             if (listener) {
-                const fns = this.$_listenerMap.get(ev);
+                const fns = this.#_listenerMap.get(ev);
 
                 if (fns) {
 
                     fns.delete(listener as Func);
-                    if (fns.size === 0) this.$_listenerMap.delete(ev);
+                    if (fns.size === 0) this.#_listenerMap.delete(ev);
                 }
 
                 return;
             };
 
-            this.$_listenerMap.delete(ev);
+            this.#_listenerMap.delete(ev);
         });
 
     }
@@ -724,42 +1026,41 @@ export class ObserverFactory<
      * @param event
      * @param args
      */
-    trigger<E extends Events<Shape> | RegExp>(
-        event: E | '*',
+    emit<E extends Events<Shape> | RegExp | '*'>(
+        event: E,
         data?: E extends Events<Shape> ? Shape[E] : Shape[Events<Shape>]
     ) {
 
-        if (this.$_spy) {
+        validateEvent('emit', { event, data });
 
-            sendToSpy <Shape>('trigger', this, { event, data });
-        }
+        sendToSpy <Shape>('emit', this, { event, data });
 
-        const { eventName, isRgx, rgx } = this.$_eventInfo(event);
+        const { eventName, isRgx, rgx } = this.#_eventInfo(event);
 
         if (!isRgx) {
 
-            const cbs = this.$_listenerMap.get(eventName);
+            const cbs = this.#_listenerMap.get(eventName);
 
-            const rgxCbs = this.$_matchRgx(eventName);
+            const rgxCbs = this.#_matchRgx(eventName);
             if (cbs) cbs.forEach(fn => fn.apply(this, [data]))
             if (rgxCbs) rgxCbs.forEach(fn => fn.apply(this, [data]))
 
-            this.$_internalListener.dispatchEvent(
-                new InternalEvent(InternalEvs.trigger, [eventName, data])
+            this.#_internalListener.dispatchEvent(
+                new InternalEvent(InternalEvs.emit, [eventName, data])
             );
 
             return;
         }
 
-        const cbs = this.$_matchStr(rgx);
+        const cbs = this.#_matchStr(rgx);
 
         if (cbs) cbs.forEach(fn => fn.apply(this, [data]))
 
-        this.$_withRgxMatchKeys(rgx).forEach(
+        this.#_withRgxMatchKeys(rgx).forEach(
             ev => {
 
-                this.$_internalListener.dispatchEvent(
-                    new InternalEvent(InternalEvs.trigger, [ev as string, data])
+                this.#_internalListener.dispatchEvent(
+                    new InternalEvent(InternalEvs.emit, [ev as string, data])
                 );
             }
         )
