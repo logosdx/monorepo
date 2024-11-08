@@ -1,5 +1,12 @@
 # @logos-ui/storage
 
+## 2.0.7
+
+### Patch Changes
+
+- Updated dependencies [dd1794f]
+  - @logos-ui/utils@2.1.0
+
 ## 2.0.6
 
 ### Patch Changes
