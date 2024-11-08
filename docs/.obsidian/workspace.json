@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Packages/Observer.md",
+                "file": "Packages/Fetch.md",
                 "mode": "source",
                 "source": false
               }
@@ -93,7 +93,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Packages/Observer.md",
+                "file": "Packages/Fetch.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -110,7 +110,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Packages/Observer.md",
+                "file": "Packages/Fetch.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -133,7 +133,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Packages/Observer.md"
+                "file": "Packages/Fetch.md"
               }
             }
           }
@@ -158,8 +158,16 @@
   },
   "active": "0f5d5c1b4b4828a4",
   "lastOpenFiles": [
-    "Packages/DOM.md",
+    "Packages/Localize.md",
+    "Deprecated/Riot Utils.md",
+    "Deprecated/Riot Kit.md",
+    "Deprecated/A set of tools for sane people.md",
+    "Deprecated",
     "Packages/Observer.md",
+    "Packages/Fetch.md",
+    "Depricated/A set of tools for sane people.md",
+    "Depricated",
+    "Packages/DOM.md",
     "Welcome.md",
     "types/riot-kit/src/storage.d.ts",
     "types/riot-kit/src/state.d.ts",
@@ -169,20 +177,15 @@
     "types/riot-kit/src",
     "types/riot-kit",
     "types/riot-utils/src/utils.d.ts",
-    "types/riot-utils/src/queryable.d.ts",
-    "types/riot-utils/src/index.d.ts",
-    "A set of tools for sane people.md",
-    "Packages/Riot Kit.md",
-    "Packages/Riot Utils.md",
+    "Depricated/Riot Kit.md",
+    "Depricated/Riot Utils.md",
     "Packages/State Machine.md",
     "Packages/Utils.md",
     "Packages/Storage.md",
     "Packages/Kit.md",
     "App Kit.md",
-    "Packages/Localize.md",
     "favicon-32.png",
     "Packages/Forms.md",
-    "Packages/Fetch.md",
     "Interfaces/Riot Kit.md",
     "Interfaces/Fetch.md",
     "Interfaces/Forms.md",
@@ -192,8 +195,6 @@
     "Interfaces/Riot Utils.md",
     "Interfaces/Utils.md",
     "Interfaces/State Machine.md",
-    "Interfaces/Storage.md",
-    "Packges/Utils.md",
     "favicon.png"
   ]
 }

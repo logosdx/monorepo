@@ -35,6 +35,7 @@
         "esm": "^3.2.25",
         "fast-check": "^3.8.1",
         "final-form": "^4.20.9",
+        "joi": "^17.13.3",
         "jsdom": "^24.1.1",
         "node-test-github-reporter": "^1.2.0",
         "riot": "^7.1.0",

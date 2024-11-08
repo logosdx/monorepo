@@ -1,7 +1,11 @@
 import { Func, NonFunctionProps, assert, definePublicProps } from '@logos-ui/utils';
 
 export type TypeOfFactory = 'arrayBuffer' | 'blob' | 'formData' | 'json' | 'text';
-type HttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH' | string;
+
+type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
+type HttpMethods = _InternalHttpMethods | string;
+
+type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
 
 type RequestOptions = Omit<RequestInit, 'headers'>
 
@@ -14,7 +18,7 @@ export interface FetchHeaders {
     'content-type'?: string;
 };
 
-type HeaderObj<T> = Record<string, string> & T;
+type HeaderObj<T> = Record<string, string> & Partial<T>;
 
 export type RequestHeaders = HeaderObj<FetchHeaders>;
 
@@ -38,16 +42,62 @@ export type FetchFactoryOptions<
 > = (
 
     Omit<
-    FetchReqOpts,
+        FetchReqOpts,
         'method' | 'body' | 'integrity' | 'controller'
     > &
 
     {
-        modifyOptions?: (opts: FetchReqOpts, state: State) => FetchReqOpts
+        /**
+         * The base URL for all requests
+         */
         baseUrl: string,
+
+        /**
+         * The type of response expected from the server.
+         * This will be used to determine how to parse the
+         * response from the server.
+         */
         type: TypeOfFactory,
+
+        /**
+         * The headers to be set on all requests
+         */
         headers?: HeaderObj<InstanceHeaders>,
-        timeout?: number
+
+        /**
+         * The headers to be set on requests of a specific method
+         * @example
+         * {
+         *     GET: { 'content-type': 'application/json' },
+         *     POST: { 'content-type': 'application/x-www-form-urlencoded'
+         * }
+         */
+        methodHeaders?: HttpMethodOpts<HeaderObj<InstanceHeaders>>,
+
+        // Applies to requests of a specific method
+        /**
+         *
+         * @param opts
+         * @param state
+         * @returns
+         */
+        modifyOptions?: (opts: FetchReqOpts, state: State) => FetchReqOpts
+        modifyMethodOptions?: HttpMethodOpts<
+            FetchFactoryOptions<
+                State,
+                InstanceHeaders
+            >['modifyOptions']
+        >,
+
+        timeout?: number,
+        validate?: {
+            headers?: (headers: HeaderObj<InstanceHeaders>, method?: HttpMethods) => void
+            state?: (state: State) => void
+
+            perRequest?: {
+                headers?: boolean
+            }
+        }
     }
 );
 
@@ -144,21 +194,41 @@ export class FetchFactory<
     InstanceHeaders = FetchHeaders
 > extends EventTarget {
 
-    private _baseUrl: URL;
-    private _options: Partial<FetchReqOpts>;
-    private _headers: HeaderObj<InstanceHeaders>;
-    private _type: TypeOfFactory;
+    #_baseUrl: URL;
+    #_options: Partial<FetchReqOpts>;
+    #_headers: HeaderObj<InstanceHeaders>;
+    #_methodHeaders: HttpMethodOpts<HeaderObj<InstanceHeaders>>;
+    #_type: TypeOfFactory;
 
-    private modifyOptions?: FetchFactoryOptions<State>['modifyOptions'];
+    #_modifyOptions?: FetchFactoryOptions<State, InstanceHeaders>['modifyOptions'];
+    #_modifyMethodOptions?: HttpMethodOpts<FetchFactoryOptions<State, InstanceHeaders>['modifyOptions']>;
+
+    #_validate?: FetchFactoryOptions<State, InstanceHeaders>['validate'];
 
     /**
      * For saving values that may be needed to craft requests as the
      * application progresses; for example: as you login, you get a
      * token of some sort which is used to generate an hmac.
      */
-    private _state: State = {} as State;
+    #_state: State = {} as State;
 
     removeHeader: FetchFactory<State, InstanceHeaders>['rmHeader'];
+
+    #_validateHeaders(headers: HeaderObj<InstanceHeaders>, method?: HttpMethods) {
+
+        if (this.#_validate?.headers) {
+
+            this.#_validate.headers(headers, method);
+        }
+    }
+
+    #_validateState(state: State) {
+
+        if (this.#_validate?.state) {
+
+            this.#_validate.state(state);
+        }
+    }
 
     /**
      *
@@ -181,16 +251,31 @@ export class FetchFactory<
             assert(opts.timeout > -1, 'timeout must be positive number');
         }
 
-        this._baseUrl = new URL(baseUrl);
-        this._type = type;
+        this.#_baseUrl = new URL(baseUrl);
+        this.#_type = type;
 
-        const { modifyOptions, ...rest } = opts;
+        const {
+            modifyOptions,
+            modifyMethodOptions,
+            validate,
+            ...rest
+        } = opts;
 
-        this._options = rest;
-        this._headers = opts.headers || {} as HeaderObj<InstanceHeaders>;
+        this.#_options = rest;
+        this.#_headers = opts.headers || {} as HeaderObj<InstanceHeaders>;
+        this.#_methodHeaders = Object.fromEntries(
+            Object.keys(opts.methodHeaders || {}).map(
+                (method) => ([method.toUpperCase(), opts.methodHeaders![method as never]])
+            )
+        );
 
-        this.modifyOptions = modifyOptions;
-        this.removeHeader = this.rmHeader;
+        this.#_modifyOptions = modifyOptions;
+        this.#_modifyMethodOptions = modifyMethodOptions;
+        this.#_validate = validate;
+
+        this.removeHeader = this.rmHeader.bind(this);
+
+        this.#_validateHeaders(this.#_headers);
     }
 
     /**
@@ -198,10 +283,13 @@ export class FetchFactory<
      * @param override
      * @returns
      */
-    private makeHeaders(override: RequestHeaders = {}) {
+    private makeHeaders(override: RequestHeaders = {}, method?: HttpMethods) {
+
+        const methodHeaders = this.#_methodHeaders[method?.toUpperCase() as keyof HttpMethodOpts<HeaderObj<InstanceHeaders>>] || {};
 
         return {
-            ...this._headers,
+            ...this.#_headers,
+            ...methodHeaders,
             ...override
         };
     }
@@ -213,7 +301,7 @@ export class FetchFactory<
     private makeUrl(path: string) {
 
         path = path?.replace(/^\/{1,}/, '');
-        const url = this._baseUrl.toString().replace(/\/$/, '');
+        const url = this.#_baseUrl.toString().replace(/\/$/, '');
 
         return `${url}/${path}`;
     }
@@ -243,18 +331,17 @@ export class FetchFactory<
             onAfterReq: onAfterRequest,
             onBeforeReq: onBeforeRequest,
             onError,
-            timeout = this._options.timeout,
+            timeout = this.#_options.timeout,
             ...rest
         } = options;
 
         const url = this.makeUrl(path);
 
-        const {
-            _type: type,
-            _options: defaultOptions,
-            _state: state,
-            modifyOptions
-        } = this;
+        const type = this.#_type;
+        const defaultOptions = this.#_options;
+        const state = this.#_state;
+        const modifyOptions = this.#_modifyOptions;
+        const modifyMethodOptions = this.#_modifyMethodOptions;
 
         let opts: FetchReqOpts = {
             method: method.toUpperCase(),
@@ -264,7 +351,7 @@ export class FetchFactory<
             ...rest,
         };
 
-        opts.headers = this.makeHeaders(opts.headers);
+        opts.headers = this.makeHeaders(rest.headers, method);
 
         if (/put|post|patch|delete/i.test(method)) {
 
@@ -283,6 +370,22 @@ export class FetchFactory<
 
         opts = modifyOptions ? modifyOptions(opts, state) : opts;
 
+        const methodSpecificModify = modifyMethodOptions?.[method.toUpperCase() as never] as typeof modifyOptions;
+
+        if (methodSpecificModify) {
+
+            opts = methodSpecificModify(opts, state);
+        }
+
+
+        if (this.#_validate?.perRequest?.headers) {
+
+            this.#_validateHeaders(
+                opts.headers as HeaderObj<InstanceHeaders>,
+                method
+            );
+        }
+
 
         try {
 
@@ -291,7 +394,7 @@ export class FetchFactory<
                     ...opts,
                     payload,
                     url,
-                    state: this._state
+                    state: this.#_state
                 })
             );
 
@@ -308,7 +411,7 @@ export class FetchFactory<
                     ...opts,
                     payload,
                     url,
-                    state: this._state,
+                    state: this.#_state,
                     response: response.clone()
                 })
             );
@@ -353,7 +456,7 @@ export class FetchFactory<
                         ...opts,
                         payload,
                         url,
-                        state: this._state,
+                        state: this.#_state,
                         response,
                         data
                     })
@@ -397,7 +500,7 @@ export class FetchFactory<
             }
 
             error.status = statusCode;
-            error.data = { message };
+            error.data = error.data || { message };
             error.method = method;
             error.path = path;
             error.aborted = options.controller.signal.aborted;
@@ -411,7 +514,7 @@ export class FetchFactory<
                     ...opts,
                     payload,
                     url,
-                    state: this._state
+                    state: this.#_state
                 })
             );
         }
@@ -422,7 +525,7 @@ export class FetchFactory<
                     ...opts,
                     payload,
                     url,
-                    state: this._state,
+                    state: this.#_state,
                     error
                 })
             );
@@ -431,6 +534,39 @@ export class FetchFactory<
         onError && onError(error);
 
         throw error;
+    }
+
+    get headers() {
+
+        const method = Object.keys(this.#_methodHeaders).reduce(
+            (acc, key) => {
+
+                const headers = this.#_methodHeaders[key as keyof HttpMethodOpts<HeaderObj<InstanceHeaders>>];
+
+                if (headers) {
+
+                    acc[key] = { ...headers };
+                }
+
+                return acc;
+            },
+            {} as any
+        );
+
+        return {
+            default: {
+                ...this.#_headers
+            },
+            ...method
+        } as {
+            readonly default: Readonly<HeaderObj<InstanceHeaders>>,
+            readonly get?: Readonly<HeaderObj<InstanceHeaders>>,
+            readonly post?: Readonly<HeaderObj<InstanceHeaders>>,
+            readonly put?: Readonly<HeaderObj<InstanceHeaders>>,
+            readonly delete?: Readonly<HeaderObj<InstanceHeaders>>,
+            readonly options?: Readonly<HeaderObj<InstanceHeaders>>,
+            readonly patch?: Readonly<HeaderObj<InstanceHeaders>>,
+        }
     }
 
     /**
@@ -453,7 +589,7 @@ export class FetchFactory<
         const controller = new AbortController();
 
         let cancelTimeout!: NodeJS.Timeout;
-        const timeout = options.timeout || this._options.timeout;
+        const timeout = options.timeout || this.#_options.timeout;
 
         if (timeout) {
 
@@ -566,13 +702,51 @@ export class FetchFactory<
      * Set an object of headers
      * @param headers
      */
-    addHeader(headers: HeaderObj<InstanceHeaders>) {
+    addHeader(name: keyof InstanceHeaders, value: string): void
+    addHeader(name: string, value: string): void
+    addHeader(headers: HeaderObj<InstanceHeaders>): void
+    addHeader(headers: unknown, value?: string) {
 
-        Object.assign(this._headers, headers);
+        assert(
+            (typeof headers === 'string' && !!value) ||
+            typeof headers === 'object',
+            'addHeader requires a string and value or an object'
+        );
+
+        if (typeof headers === 'string') {
+
+            headers = headers.toLowerCase();
+        }
+
+        let updated = {
+            ...this.#_headers
+        } as FetchHeaders;
+
+        if (typeof headers === 'string') {
+
+            updated[headers as keyof FetchHeaders] = value as FetchHeaders[keyof FetchHeaders];
+        }
+        else {
+
+            Object
+                .keys(headers as object)
+                .forEach(
+                    (name) => {
+
+                        const key = name.toLowerCase() as keyof FetchHeaders;
+
+                        updated[key] = (headers as FetchHeaders)[key];
+                    }
+                );
+        }
+
+        this.#_validateHeaders(updated as never);
+
+        this.#_headers = updated as HeaderObj<InstanceHeaders>;
 
         this.dispatchEvent(
             new FetchEvent(FetchEventNames['fetch-header-add'], {
-                state: this._state,
+                state: this.#_state,
                 data: headers
             })
         );
@@ -594,7 +768,7 @@ export class FetchFactory<
 
         if (typeof headers === 'string') {
 
-            delete this._headers[headers];
+            delete this.#_headers[headers];
         }
 
         let _names = headers as (keyof HeaderObj<InstanceHeaders>)[];
@@ -605,12 +779,14 @@ export class FetchFactory<
         }
 
         for (const name of _names) {
-            delete this._headers[name];
+            delete this.#_headers[name];
         }
+
+        this.#_validateHeaders(this.#_headers);
 
         this.dispatchEvent(
             new FetchEvent(FetchEventNames['fetch-header-remove'], {
-                state: this._state,
+                state: this.#_state,
                 data: headers
             })
         );
@@ -623,20 +799,56 @@ export class FetchFactory<
      */
     hasHeader(name: (keyof HeaderObj<InstanceHeaders>)) {
 
-        return this._headers.hasOwnProperty(name);
+        return this.#_headers.hasOwnProperty(name);
     }
 
     /**
      * Merges a passed object into the `FetchFactory` instance state
      * @param conf
      */
-    setState(conf: Partial<State>) {
+    setState<N extends keyof State>(name: N, value: State[N]): void
+    setState(conf: Partial<State>): void
+    setState(conf: unknown, value?: unknown) {
 
-        Object.assign(this._state || {}, conf);
+        assert(
+            typeof conf === 'object' || typeof conf === 'string',
+            'setState requires an object or string'
+        );
+
+        const updated = {
+            ...this.#_state
+        };
+
+        if (typeof conf === 'string') {
+
+            assert(
+                typeof value !== 'undefined',
+                'setState requires a value when setting a single property'
+            );
+
+            updated[conf as keyof State] = value as State[keyof State];
+        }
+        else {
+
+            Object
+                .keys(conf as object)
+                .forEach(
+                    (name) => {
+
+                        const key = name as keyof State;
+
+                        updated[key] = (conf as State)[key];
+                    }
+                );
+        }
+
+        this.#_validateState(updated);
+
+        this.#_state = updated as State;
 
         this.dispatchEvent(
             new FetchEvent(FetchEventNames['fetch-state-set'], {
-                state: this._state,
+                state: updated,
                 data: conf
             })
         );
@@ -647,11 +859,13 @@ export class FetchFactory<
      */
     resetState() {
 
-        this._state = {} as State;
+        this.#_state = {} as State;
+
+        this.#_validateState(this.#_state);
 
         this.dispatchEvent(
             new FetchEvent(FetchEventNames['fetch-state-reset'], {
-                state: this._state,
+                state: this.#_state,
             })
         );
     }
@@ -661,7 +875,7 @@ export class FetchFactory<
      */
     getState() {
 
-        return this._state;
+        return this.#_state;
     }
 
     /**
@@ -670,11 +884,11 @@ export class FetchFactory<
      */
     changeBaseUrl(url: string) {
 
-        this._baseUrl = new URL(url);
+        this.#_baseUrl = new URL(url);
 
         this.dispatchEvent(
             new FetchEvent(FetchEventNames['fetch-url-change'], {
-                state: this._state,
+                state: this.#_state,
                 data: url
             })
         );

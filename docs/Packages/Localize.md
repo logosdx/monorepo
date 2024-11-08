@@ -2,7 +2,9 @@
 permalink: '/packages/localize'
 aliases: ["Localize", "@logos-ui/localize"]
 ---
-The `LocaleFactory` class is a powerful module designed to handle text and labels throughout your application and components, allowing for seamless localization and translation of text strings based on the selected language. It provides a comprehensive and flexible solution for managing text localization in your application, empowering you to create multilingual user experiences with ease and maintainability.
+The `LocaleFactory` class offers a type-safe solution for managing localization in applications. It utilizes locale configurations and language codes to facilitate easy switching between languages, ensuring a seamless user experience. Users can retrieve translated strings using keys and dynamic values, which simplifies the integration of localization into UI elements as well as its integration with backend elements.
+
+The class also allows for language changes at runtime, providing flexibility to adapt to user preferences. It also allows for updating language dictionaries dynamically. This design maintains clarity and type safety, reducing the likelihood of errors when accessing localized content. Overall, `LocaleFactory` streamlines the implementation of internationalization in TypeScript applications.
 
 ```sh
 npm install @logos-ui/localize
@@ -131,6 +133,34 @@ declare class LocaleFactory<LocType, LocCode> /* ... */ {
 }
 ```
 
+### `updateLang(...)`
+
+The `updateLang` function allows users to dynamically update the available localization data for a specified language code. This enables the application to incorporate new or updated translations without needing to reload or reinitialize the entire localization manager. By providing the language code and the corresponding locale data, developers can ensure that the application remains up-to-date with the latest translations, enhancing the user experience and supporting multilingual environments effectively.
+
+**Example**
+
+```ts
+const fetchLang = (code: string) => fetch.get(`/lang/${code}`);
+
+langMngr.updateLang(
+	'fr',
+	await fetchLang('fr')
+);
+```
+
+**Interface**
+
+```ts
+declare class LocaleFactory<LocType, LocCode> extends EventTarget {
+
+    updateLang<C extends Code>(
+	    code: C, 
+	    locale: DeepOptional<Locale>
+	): void;
+
+}
+```
+
 
 ## Events
 
@@ -246,6 +276,11 @@ declare class LocaleFactory<
 		text: string;
 
 	}[];
+
+    updateLang<C extends Code>(
+	    code: C, 
+	    locale: DeepOptional<Locale>
+	): void;
 
 	text <K extends PathsToValues<Locale>>(
 		key: K,

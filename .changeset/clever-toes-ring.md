@@ -1,6 +1,7 @@
 ---
 "@logos-ui/observer": major
 "@logos-ui/utils": minor
+"@logos-ui/fetch": minor
 ---
 
 ## @logos-ui/observer
@@ -23,6 +24,28 @@
 
 - Observer functions are now validated to ensure runtime safety.
 
+## @logos-ui/fetch
+
+### New Features
+
+- Added FetchOptions:
+  - `methodHeaders` allows for the configuration of headers based on the HTTP method.
+  - `modifyMethodOptions` allows for the modification of options based on the HTTP method.
+  - `validate` allows for validation configuration for:
+    - `headers(...httpHeaders)` - Validates headers.
+    - `state(...instanceState)` - Validates the state of the instance.
+    - `perRequest.headers: boolean` - Validates headers on a per-request basis.
+  - `fetch.headers` returns the headers configuration.
+
+### Improvements
+
+- `fetch.addHeader()` can now be passed key, value arguments to add a single header: `fetch.addHeader('key', 'value')`.
+- `fetch.setState()` can now be passed a key, value argument to set a single state: `fetch.setState('key', 'value')`.
+
+### Fixes
+
+- Headers typings allow configuration of headers as partials.
+- `FetchError` correctly passes the HTTP body to the error message on `FetchError.data`, if available.
 
 ## @logos-ui/utils
 

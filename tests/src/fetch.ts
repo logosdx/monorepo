@@ -7,13 +7,19 @@ import { expect } from 'chai';
 
 import Hapi, { Lifecycle } from '@hapi/hapi';
 import Boom from '@hapi/boom';
+import Hoek from '@hapi/hoek';
+import Joi from 'joi';
 
 import { FetchError, FetchEvent, FetchFactory, FetchReqOpts, RequestHeaders } from '@logos-ui/fetch';
 
 import { log, sandbox } from './_helpers';
 import { workerData } from 'node:worker_threads';
 
-const mkHapiRoute = (path: string, handler: Lifecycle.Method) => ({ method: '*', path, handler })
+const mkHapiRoute = (
+    path: string,
+    handler: Lifecycle.Method,
+    options: Hapi.RouteOptions = {}
+) => ({ method: '*', path, handler, options })
 const wait = (n: number, r: any = 'ok') => new Promise(res => setTimeout(() => res(r), n));
 
 describe('@logos-ui/fetch', () => {
@@ -41,12 +47,35 @@ describe('@logos-ui/fetch', () => {
     server.route(
         [
             mkHapiRoute('/json{n?}', (req) => { callStub(req); return { ok: true }; }),
-            mkHapiRoute('/fail', () => { return Boom.badRequest(); }),
+            mkHapiRoute('/fail', () => { return Boom.badRequest('message', { the: 'data' }); }),
             mkHapiRoute('/wait', () => wait(1000, 'ok')),
             mkHapiRoute('/drop', (_, h) => h.close),
             mkHapiRoute('/abandon', (_, h) => h.abandon),
             mkHapiRoute('/empty', () => { return null; }),
             mkHapiRoute('/empty2', (_, h) => { return h.response().code(204); }),
+
+            mkHapiRoute('/validate', () => true, {
+                validate: {
+                    query: Joi.object({
+                        name: Joi.string().required(),
+                        age: Joi.number().min(18).max(65)
+                    }),
+                    failAction: async (req, h, err) => {
+
+                        if (err) {
+
+                            return err;
+                        }
+
+                        if ((req as unknown as Boom.Boom).isBoom) {
+
+                            return req;
+                        }
+
+                        return h.continue;
+                    }
+                },
+            }),
         ]
     );
 
@@ -130,6 +159,56 @@ describe('@logos-ui/fetch', () => {
             'content-type': 'application/json',
             'authorization': 'abc123'
         });
+    });
+
+    it('sets default method headers', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+            headers: {
+                'x-text-type': 'text/*',
+            },
+            methodHeaders: {
+                POST: {
+                    'x-text-type': 'text/post',
+                },
+                PUT: {
+                    'x-text-type': 'text/put',
+                },
+            }
+        });
+
+        const onReq = sandbox.stub();
+
+        api.on('fetch-before', onReq);
+
+        api.headers.default['x-text-type'];
+
+        const anyReq = (method: 'get' | 'post' | 'put' | 'delete' | 'options' | 'patch') => {
+
+            const fn = api[method];
+
+            return fn.call(api, '/json').catch(Hoek.ignore);
+        };
+
+        await anyReq('get');
+        await anyReq('delete');
+        await anyReq('patch');
+        await anyReq('options');
+        await anyReq('post');
+        await anyReq('put');
+
+        const calls = onReq.getCalls().map(
+            c => (c.args[0] as FetchEvent).headers
+        );
+
+        expect(calls.shift()).to.contain({ 'x-text-type': 'text/*' });
+        expect(calls.shift()).to.contain({ 'x-text-type': 'text/*' });
+        expect(calls.shift()).to.contain({ 'x-text-type': 'text/*' });
+        expect(calls.shift()).to.contain({ 'x-text-type': 'text/*' });
+        expect(calls.shift()).to.contain({ 'x-text-type': 'text/post' });
+        expect(calls.shift()).to.contain({ 'x-text-type': 'text/put' });
     });
 
     it('sets and removes headers', async () => {
@@ -228,7 +307,13 @@ describe('@logos-ui/fetch', () => {
         expect(didAfter.calledOnce).to.eq(true);
 
         const [[errArgs]] = didError.args as [[FetchError<any>]];
-        expect(errArgs.data.message).to.contain(errRes.message);
+
+        expect(errArgs.data).to.contain({
+            statusCode: errRes.statusCode,
+            error: errRes.message,
+            message: 'message',
+        });
+
         expect(errArgs.status).to.eq(errRes.statusCode);
 
         const [[beforeArgs]] = didBefore.args as [[RequestInit]];
@@ -366,11 +451,10 @@ describe('@logos-ui/fetch', () => {
 
     });
 
-    it('is not slow', { timeout: 5000 }, async () => {
+    it('is not slow (500 requests)', { timeout: 1000 }, async () => {
 
-
-        const repeat = 5000;
-        const timeout = 100;
+        const repeat = 1000;
+        const timeout = 10;
 
         const api = new FetchFactory({
             baseUrl: testUrl,
@@ -378,26 +462,13 @@ describe('@logos-ui/fetch', () => {
             timeout
         });
 
-        const now = () => +(new Date());
-
-        let pre = now();
-
-        const times: number[] = [];
+        const bench = new Hoek.Bench();
 
         for (let i = 0; i < repeat; i++) {
-
-            const bef = now();
-            try { await api.get('/json'); }
-            catch (e) {}
-
-            times.push(now() - bef);
+            await api.get('/json');
         }
 
-        let post = now();
-
-        const avg = times.reduce((a, b) => (a + b)) / repeat;
-
-        // console.table({ avg, post: post - pre });
+        const avg = bench.elapsed() / repeat;
 
         // Less than 2 ms per request
         expect(avg).to.lessThan(2);
@@ -425,6 +496,58 @@ describe('@logos-ui/fetch', () => {
         const [[req]] = callStub.args as [[Hapi.Request]];
 
         expect(req.headers).to.contain({ 'was-set': 'true' });
+    });
+
+    it('can make options per method', async () => {
+
+        const modifyOptions = sandbox.stub().returns({ headers: { 'was-set': 'true' } });
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+            modifyMethodOptions: {
+                POST: modifyOptions,
+                PUT: modifyOptions,
+            }
+        });
+
+        const onReq = sandbox.stub();
+
+        api.on('fetch-before', onReq);
+
+        const anyReq = (method: 'get' | 'post' | 'put' | 'delete' | 'options' | 'patch') => {
+
+            const fn = api[method];
+
+            return fn.call(api, '/json').catch(Hoek.ignore);
+        };
+
+        await anyReq('get');
+        await anyReq('delete');
+
+        expect(modifyOptions.called).to.be.false;
+
+        await anyReq('post');
+        await anyReq('put');
+
+        expect(modifyOptions.calledTwice).to.be.true;
+
+        await anyReq('patch');
+
+        expect(modifyOptions.calledTwice).to.be.true;
+
+        const calls = onReq.getCalls().map(
+            c => (c.args[0] as FetchEvent).headers
+        );
+
+        expect(calls.shift()).to.not.contain({ 'was-set': 'true' });
+        expect(calls.shift()).to.not.contain({ 'was-set': 'true' });
+        expect(calls.shift()).to.contain({ 'was-set': 'true' });
+        expect(calls.shift()).to.contain({ 'was-set': 'true' });
+        expect(calls.shift()).to.not.contain({ 'was-set': 'true' });
+
+        expect(calls).to.be.empty;
+
     });
 
     it('can set a state for use in make options', async () => {
@@ -470,18 +593,17 @@ describe('@logos-ui/fetch', () => {
         const listener = sandbox.stub();
 
         const headers: RequestHeaders = {
-            "content-type": 'application/json',
+            'content-type': 'application/json',
             authorization: 'weeee'
         }
 
-        const state = {};
+        const state: Record<string, string | boolean> = {};
 
         const api = new FetchFactory<any>({
             baseUrl: testUrl,
             type: 'json',
             headers
         });
-
 
         api.on('*', listener);
 
@@ -579,9 +701,9 @@ describe('@logos-ui/fetch', () => {
          * Test Non-request events
          */
         listener.reset();
-
         api.resetState();
-        (state as any).flowers = true;
+
+        state.flowers = true;
 
         api.setState(state);
         api.addHeader({ wee: 'woo' });
@@ -603,12 +725,14 @@ describe('@logos-ui/fetch', () => {
         ];
 
         const evs = [
-            evResetState,
             evSetState,
             evAddHeader,
             evRmHeader,
             evChangeUrl
         ];
+
+        expect(evResetState.state).to.exist;
+        expect(evResetState.state).to.be.empty;
 
         for (const ev of evs as FetchEvent[]) {
 
@@ -635,7 +759,7 @@ describe('@logos-ui/fetch', () => {
         api.resetState();
         (state as any).flowers = true;
 
-        api.setState(state);
+        api.setState({ flowers: true });
         api.addHeader({ wee: 'woo' });
         api.rmHeader(['wee']);
         api.changeBaseUrl(testUrl);
@@ -664,6 +788,129 @@ describe('@logos-ui/fetch', () => {
 
         expect(res1).to.be.empty;
         expect(res2).to.be.empty;
+    });
+
+    it('handles types', () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+            headers: {
+                'content-type': 'application/json',
+                authorization: 'abc123',
+                hmac: 'def456',
+                time: '1234567890'
+            }
+        });
+
+        api.addHeader({ hmac: 'ghi789', poop: 'asd' });
+        api.addHeader('poop', '987654321');
+
+
+    });
+
+    it('validates headers', () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+            headers: {
+                'content-type': 'application/json',
+            },
+            validate: {
+                headers(h) {
+
+                    expect(h['content-type']).to.eq('application/json');
+
+                    if (h['test']) {
+
+                        expect(h['test']).to.eq('true');
+                    }
+
+                    expect(h['poop']).to.not.exist;
+                },
+            }
+        });
+
+        const succeed = [
+            () => api.addHeader({ test: 'true' }),
+            () => api.addHeader('test', 'true'),
+        ];
+
+        const fail = [
+
+            () => api.addHeader({ poop: 'asd' }),
+            () => api.addHeader('poop', 'asd'),
+            () => api.addHeader('test', 'false'),
+            () => api.addHeader('content-type', 'application/xml'),
+        ]
+
+        succeed.forEach(
+            fn => expect(fn, fn.toString()).to.not.throw()
+        );
+
+        fail.forEach(
+            fn => expect(fn, fn.toString()).to.throw()
+        );
+    });
+
+    it('validates states', () => {
+
+        type TestState = {
+            theValue: string;
+        }
+
+        const fn = sandbox.stub();
+
+        const api = new FetchFactory<TestState>({
+            baseUrl: testUrl,
+            type: 'json',
+            headers: {
+                'content-type': 'application/json',
+            },
+            validate: {
+                state(s) {
+
+                    if (s.theValue) {
+
+                        expect(s.theValue).to.eq('someValue');
+                    }
+
+                    fn();
+                },
+            }
+        });
+
+        api.setState({ theValue: 'someValue' });
+        api.resetState();
+
+        expect(fn.calledTwice).to.be.true;
+    });
+
+    it('captures payload on error', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            type: 'json',
+        });
+
+        try {
+            await api.get('/validate?name=&age=17');
+
+            throw new Error('Should have thrown');
+        }
+        catch (e) {
+
+            expect(e).to.be.an.instanceOf(FetchError);
+
+            const err = e as FetchError;
+
+            expect(err.data).to.contain({
+                statusCode: 400,
+                error: 'Bad Request',
+                message: '"name" is not allowed to be empty',
+            });
+        }
     });
 
 });
