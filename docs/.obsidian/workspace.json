@@ -16,7 +16,9 @@
                 "file": "Packages/Fetch.md",
                 "mode": "source",
                 "source": false
-              }
+              },
+              "icon": "lucide-file",
+              "title": "Fetch"
             }
           }
         ]
@@ -39,7 +41,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical"
-              }
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
             }
           },
           {
@@ -54,7 +58,9 @@
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical"
-              }
+              },
+              "icon": "lucide-search",
+              "title": "Search"
             }
           },
           {
@@ -62,7 +68,9 @@
             "type": "leaf",
             "state": {
               "type": "starred",
-              "state": {}
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
             }
           },
           {
@@ -70,7 +78,9 @@
             "type": "leaf",
             "state": {
               "type": "bookmarks",
-              "state": {}
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
             }
           }
         ]
@@ -101,7 +111,9 @@
                 "searchQuery": "",
                 "backlinkCollapsed": false,
                 "unlinkedCollapsed": true
-              }
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Fetch"
             }
           },
           {
@@ -113,7 +125,9 @@
                 "file": "Packages/Fetch.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
-              }
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Fetch"
             }
           },
           {
@@ -124,7 +138,9 @@
               "state": {
                 "sortOrder": "frequency",
                 "useHierarchy": true
-              }
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
             }
           },
           {
@@ -134,7 +150,9 @@
               "type": "outline",
               "state": {
                 "file": "Packages/Fetch.md"
-              }
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Fetch"
             }
           }
         ]
@@ -158,12 +176,19 @@
   },
   "active": "0f5d5c1b4b4828a4",
   "lastOpenFiles": [
+    "types/fetch/src/factory.d.ts",
+    "types/fetch/src/types.d.ts",
+    "types/fetch/src/helpers.d.ts",
+    "Packages/Utils.md",
+    "Packages/Observer.md",
+    "types/observer/src/types.d.ts",
+    "types/observer/src/factory.d.ts",
+    "types/observer/src/helpers.d.ts",
     "Packages/Localize.md",
     "Deprecated/Riot Utils.md",
     "Deprecated/Riot Kit.md",
     "Deprecated/A set of tools for sane people.md",
     "Deprecated",
-    "Packages/Observer.md",
     "Packages/Fetch.md",
     "Depricated/A set of tools for sane people.md",
     "Depricated",
@@ -172,15 +197,9 @@
     "types/riot-kit/src/storage.d.ts",
     "types/riot-kit/src/state.d.ts",
     "types/riot-kit/src/observer.d.ts",
-    "types/riot-kit/src/locales.d.ts",
-    "types/riot-kit/src/index.d.ts",
-    "types/riot-kit/src",
-    "types/riot-kit",
-    "types/riot-utils/src/utils.d.ts",
     "Depricated/Riot Kit.md",
     "Depricated/Riot Utils.md",
     "Packages/State Machine.md",
-    "Packages/Utils.md",
     "Packages/Storage.md",
     "Packages/Kit.md",
     "App Kit.md",
@@ -194,7 +213,6 @@
     "Interfaces/Observer.md",
     "Interfaces/Riot Utils.md",
     "Interfaces/Utils.md",
-    "Interfaces/State Machine.md",
     "favicon.png"
   ]
 }

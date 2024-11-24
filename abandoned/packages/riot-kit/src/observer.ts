@@ -1,9 +1,8 @@
-import { ObserverFactory, ObservableChild } from "@logos-ui/kit"
-import { makeOnBeforeUnmount } from "@logos-ui/riot-utils";
-import { RiotComponent } from "riot";
+import { ObserverFactory, Observable } from '@logos-ui/kit'
+import { makeOnBeforeUnmount } from '@logos-ui/riot-utils';
 
 export type ObservableComponent<E, R> = Partial<
-    ObservableChild<R, E>
+    Observable.Child<R, E>
 > & { observable?: true };
 
 type MakeObservableOpts<C> = {

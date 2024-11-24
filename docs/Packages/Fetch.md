@@ -7,7 +7,7 @@ If you have ever thought to yourself:
 
 > It's 2023 and we're still using Axios when there's an entire `Fetch` API available to us on everything single browser
 
-Then say hello to `FetchFactory`. It simplifies the process of making HTTP requests using the `Fetch` API. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL, fetch type, and additional headers for your FetchFactory instance.
+Then say hello to `FetchFactory`. It simplifies the process of making HTTP requests using the `Fetch` API while giving you access to all of its features. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL and additional headers for your FetchFactory instance.
 
 A great feature of `FetchFactory` is its ability to customize request options based on the current state. Through the `modifyOptions` callback function, you can dynamically modify the request options before each request is sent. This enables tasks like adding authentication headers or applying specific logic based on the instance's state. `FetchFactory` also provides a convenient way to handle response data, allowing developers to access and process the results of their API requests.
 
@@ -34,9 +34,11 @@ type FetchState = {
 	refreshToken?: string,
 }
 
-const api = new FetchFactory<FecthState, FetchHeaders>({
+const api = new FetchFactory<FetchHeaders, FetchState>({
+
+	// FetchOptions
 	baseUrl: testUrl,
-	type: 'json',
+	defaultType: 'json',
 	headers: {
 		'content-type': 'application/json',
 		'authorization': 'abc123'
@@ -74,7 +76,12 @@ const api = new FetchFactory<FecthState, FetchHeaders>({
 
 			Joi.assert(fetchStateSchema, state);
 		}
-	}
+	},
+
+	// RequestInit options
+	cache: 'no-cache',
+	credentials: 'include',
+	mode: 'cors'
 });
 
 const res = await api.get <SomeType>('/some-endpoint');
@@ -114,10 +121,10 @@ declare class FetchFactory /* ... */ {
         method: HttpMethods,
         path: string,
         options: (
-            FetchFactoryRequestOptions<InstanceHeaders> &
+            LogosUiFetch.CallOptions<H> &
             ({ payload: Data | null } | {})
          ) = { payload: null }
-    ): AbortablePromise<Res>
+    ): LogosUiFetch.AbortablePromise<Res>
 }
 ```
 
@@ -140,8 +147,8 @@ declare class FetchFactory /* ... */ {
 
     options <Res = any>(
 	    path: string,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
+	    options: LogosUiFetch.CallOptions<H> = {}
+	): LogosUiFetch.AbortablePromise<Res>
 }
 ```
 
@@ -165,8 +172,8 @@ declare class FetchFactory /* ... */ {
 
     get <Res = any>(
 	    path: string,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
+	    options: LogosUiFetch.CallOptions<H> = {}
+	): LogosUiFetch.AbortablePromise<Res>
 }
 ```
 
@@ -195,8 +202,8 @@ declare class FetchFactory /* ... */ {
     post <Res = any, Data = any>(
 	    path: string,
 	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
+	    options: LogosUiFetch.CallOptions<H> = {}
+	): LogosUiFetch.AbortablePromise<Res>
 }
 ```
 
@@ -224,8 +231,8 @@ declare class FetchFactory /* ... */ {
     put <Res = any, Data = any>(
 	    path: string,
 	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
+	    options: LogosUiFetch.CallOptions<H> = {}
+	): LogosUiFetch.AbortablePromise<Res>
 }
 ```
 
@@ -253,8 +260,8 @@ declare class FetchFactory /* ... */ {
     delete <Res = any, Data = any>(
 	    path: string,
 	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
+	    options: LogosUiFetch.CallOptions<H> = {}
+	): LogosUiFetch.AbortablePromise<Res>
 }
 ```
 
@@ -282,8 +289,8 @@ declare class FetchFactory /* ... */ {
     patch <Res = any, Data = any>(
 	    path: string,
 	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
+	    options: LogosUiFetch.CallOptions<H> = {}
+	): LogosUiFetch.AbortablePromise<Res>
 }
 ```
 
@@ -304,7 +311,9 @@ api.addHeader({ authorization: 'abc123' });
 ```ts
 declare class FetchFactory /* ... */ {
 
-	addHeader(headers: HeaderObj<InstanceHeaders>): void
+    addHeader<K extends keyof H>(name: K, value: H[K]): void;
+    addHeader(name: string, value: string): void;
+    addHeader(headers: LogosUiFetch.Headers<H>): void;
 
 }
 ```
@@ -325,10 +334,10 @@ api.rmHeader(['authorization', 'x-api-key']);
 ```ts
 declare class FetchFactory /* ... */ {
 
-	rmHeader (headers: keyof InstanceHeaders): void;
-    rmHeader (headers: (keyof InstanceHeaders)[]): void;
-    rmHeader (headers: string): void;
-    rmHeader (headers: string[]): void;
+    rmHeader(headers: keyof H): void;
+    rmHeader(headers: (keyof H)[]): void;
+    rmHeader(headers: string): void;
+    rmHeader(headers: string[]): void;
 }
 ```
 
@@ -349,7 +358,7 @@ api.hasHeader('authorization');
 ```ts
 declare class FetchFactory /* ... */ {
 
-	hasHeader(name: (keyof HeaderObj<InstanceHeaders>)): boolean;
+    hasHeader(name: (keyof LogosUiFetch.Headers<H>)): boolean;
 
 }
 ```
@@ -376,8 +385,8 @@ api.setState('isAuthenticated', false);
 ```ts
 declare class FetchFactory /* ... */ {
 
-	setState<N extends keyof State>(name: N, value: State[N]): void;
-	setState(conf: Partial<State>): void;
+	setState<N extends keyof S>(name: N, value: S[N]): void;
+	setState(conf: Partial<S>): void;
 }
 ```
 
@@ -415,7 +424,7 @@ const state = api.getState();
 ```ts
 declare class FetchFactory /* ... */ {
 
-	getState(): State;
+	getState(): S;
 }
 ```
 
@@ -478,98 +487,93 @@ const res = await call;
 ## Main Interfaces
 
 ```ts
-interface FetchHeaders {
-	authorization?: string;
-	'content-type'?: string;
-}
-
 declare class FetchFactory<
-	State = {},
-	InstanceHeaders = FetchHeaders
+	H = FetchHeaders,
+	S = {},
 > extends EventTarget {
 
-	removeHeader: FetchFactory<State, InstanceHeaders>['rmHeader'];
+	removeHeader: FetchFactory<H, S>['rmHeader'];
 
-	constructor({ baseUrl, type, ...opts }: FetchFactoryOptions<State, InstanceHeaders>);
+	constructor({ baseUrl, type, ...opts }: LogosUiFetch.Options<H, S>);
 
 	request<Res = any, Data = any>(
 		method: HttpMethods,
 		path: string,
 		options?: (
-			FetchFactoryRequestOptions<InstanceHeaders> & (
+			LogosUiFetch.CallOptions<H> & (
 				{
 					payload: Data | null;
 				} |
 				{}
 			)
 		)
-	): AbortablePromise<Res>;
+	): LogosUiFetch.AbortablePromise<Res>;
 
 	options<Res = any>(
 		path: string,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
+		options?: LogosUiFetch.CallOptions<H>
+	): LogosUiFetch.AbortablePromise<Res>;
 
 	get<Res = any>(
 		path: string,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
+		options?: LogosUiFetch.CallOptions<H>
+	): LogosUiFetch.AbortablePromise<Res>;
 
 	delete<Res = any, Data = any>(
 		path: string,
 		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
+		options?: LogosUiFetch.CallOptions<H>
+	): LogosUiFetch.AbortablePromise<Res>;
 
 	post<Res = any, Data = any>(
 		path: string,
 		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
+		options?: LogosUiFetch.CallOptions<H>
+	): LogosUiFetch.AbortablePromise<Res>;
 
 	put<Res = any, Data = any>(
 		path: string,
 		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
+		options?: LogosUiFetch.CallOptions<H>
+	): LogosUiFetch.AbortablePromise<Res>;
 
 	patch<Res = any, Data = any>(
 		path: string,
 		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
+		options?: LogosUiFetch.CallOptions<H>
+	): LogosUiFetch.AbortablePromise<Res>;
 
-	addHeader(headers: HeaderObj<InstanceHeaders>): void;
+	addHeader(headers: HeaderObj<H>): void;
 
-	rmHeader(headers: keyof InstanceHeaders): void;
-	rmHeader(headers: (keyof InstanceHeaders)[]): void;
+	rmHeader(headers: keyof H): void;
+	rmHeader(headers: (keyof H)[]): void;
 	rmHeader(headers: string): void;
 	rmHeader(headers: string[]): void;
 
-	hasHeader(name: (keyof HeaderObj<InstanceHeaders>)): boolean;
+	hasHeader(name: (keyof HeaderObj<H>)): boolean;
 
 	get headers(): {
-		readonly default: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly get?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly post?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly put?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly delete?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly options?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly patch?: Readonly<HeaderObj<InstanceHeaders>>;
+		readonly default: Readonly<HeaderObj<H>>;
+		readonly get?: Readonly<HeaderObj<H>>;
+		readonly post?: Readonly<HeaderObj<H>>;
+		readonly put?: Readonly<HeaderObj<H>>;
+		readonly delete?: Readonly<HeaderObj<H>>;
+		readonly options?: Readonly<HeaderObj<H>>;
+		readonly patch?: Readonly<HeaderObj<H>>;
 	};
 
-	setState<N extends keyof State>(name: N, value: State[N]): void;
-	setState(conf: Partial<State>): void;
+	setState<N extends keyof S>(name: N, value: S[N]): void;
+	setState(conf: Partial<S>): void;
 
 	resetState(): void;
-	getState(): State;
+	getState(): S;
 
 	changeBaseUrl(url: string): void;
 
 	on(
 		ev: FetchEventName | '*',
 		listener: (
-			e: (FetchEvent<State, InstanceHeaders>)
+			e: (FetchEvent<H, S>)
 		) => void,
 		once?: boolean
 	): void;
@@ -584,109 +588,102 @@ declare class FetchFactory<
 ## Supporting Interfaces
 
 ```ts
-type TypeOfFactory = "arrayBuffer" | "blob" | "formData" | "json" | "text";
+export type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
+export type HttpMethods = _InternalHttpMethods | string;
+export type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
+export type RawRequestOptions = Omit<RequestInit, 'headers'>;
+export type HeaderObj<T> = Record<string, string> & Partial<T>;
+export type MethodHeaders<T> = HttpMethodOpts<HeaderObj<T>>;
 
-type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
-type HttpMethods = _InternalHttpMethods | string;
-
-type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
-
-type HeaderObj<T> = Record<string, string> & Partial<T>;
-
-/**
- * Override this interface with the headers you intend
- * to use and set throughout your app.
- */
-interface FetchHeaders {
-    authorization?: string;
-    'content-type'?: string;
-}
-
-type RequestHeaders = HeaderObj<FetchHeaders>;
-
-type FetchReqOpts = RequestOptions & {
-	controller: AbortController;
-	headers?: RequestHeaders;
-	timeout?: number;
-};
-
-type FetchFactoryLifecycle = {
-	onError?: (err: FetchError) => void | Promise<void>;
-	onBeforeReq?: (opts: FetchReqOpts) => void | Promise<void>;
-	onAfterReq?: (response: Response, opts: FetchReqOpts) => void | Promise<void>;
-};
-
-type FetchFactoryOptions<
-	State = {},
-	InstanceHeaders = RequestHeaders
-> = (
-
-	Omit<
-		FetchReqOpts,
-		'method' | 'body' | 'integrity' | 'controller'
-	> & {
-		/**
-		 * The base URL for all requests
-		 */
-		baseUrl: string,
-
-		/**
-		 * The type of response expected from the server.
-		 * This will be used to determine how to parse the
-		 * response from the server.
-		 */
-		type: TypeOfFactory,
-
-		/**
-		 * The headers to be set on all requests
-		 */
-		headers?: HeaderObj<InstanceHeaders>,
-
-		/**
-		 * The headers to be set on requests of a specific method
-		 * @example
-		 * {
-		 *     GET: { 'content-type': 'application/json' },
-		 *     POST: { 'content-type': 'application/x-www-form-urlencoded'
-		 * }
-		 */
-		methodHeaders?: HttpMethodOpts<HeaderObj<InstanceHeaders>>,
-
-		/**
-		 *
-		 * @param opts
-		 * @param state
-		 * @returns
-		 */
-		modifyOptions?: (opts: FetchReqOpts, state: State) => FetchReqOpts
-		modifyMethodOptions?: HttpMethodOpts<
-			FetchFactoryOptions<
-				State,
-				InstanceHeaders
->	['modifyOptions']
->	,
-
-		timeout?: number,
-		validate?: {
-			headers?: (headers: HeaderObj<InstanceHeaders>, method?: HttpMethods) => void
-			state?: (state: State) => void
-
-			perRequest?: {
-				headers?: boolean
-			}
-		}
+export declare namespace LogosUiFetch {
+    type Type = 'arrayBuffer' | 'blob' | 'formData' | 'json' | 'text';
+    /**
+     * Override this interface with the headers you intend
+     * to use and set throughout your app.
+     */
+    interface InstanceHeaders {
+        Authorization?: string;
+        'Content-Type'?: string;
     }
-);
-
-interface AbortablePromise<T> extends Promise<T> {
-	abort(reason?: string): void;
+    type Headers<T = InstanceHeaders> = HeaderObj<T>;
+    type HeaderKeys = keyof Headers;
+    interface DetermineTypeFn {
+        (response: Response): Type;
+    }
+    interface FormatHeadersFn {
+        (headers: Headers): Headers;
+    }
+    type Lifecycle = {
+        onError?: (err: FetchError) => void | Promise<void>;
+        onBeforeReq?: (opts: LogosUiFetch.RequestOpts) => void | Promise<void>;
+        onAfterReq?: (response: Response, opts: LogosUiFetch.RequestOpts) => void | Promise<void>;
+    };
+    type RequestOpts<T = InstanceHeaders> = RawRequestOptions & {
+        controller: AbortController;
+        headers?: Headers<T>;
+        timeout?: number;
+        determineType?: DetermineTypeFn;
+        formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn;
+    };
+    type Options<H = Headers, S = {}> = (Omit<RequestOpts<H>, 'method' | 'body' | 'integrity' | 'controller'> & {
+        /**
+         * The base URL for all requests
+         */
+        baseUrl: string;
+        /**
+         * The default type of response expected from the server.
+         * This will be used to determine how to parse the
+         * response from the server when content-type headers
+         * are not present or fail to do so.
+         */
+        defaultType?: Type;
+        /**
+         * The headers to be set on all requests
+         */
+        headers?: HeaderObj<H>;
+        /**
+         * The headers to be set on requests of a specific method
+         * @example
+         * {
+         *     GET: { 'content-type': 'application/json' },
+         *     POST: { 'content-type': 'application/x-www-form-urlencoded'
+         * }
+         */
+        methodHeaders?: MethodHeaders<H>;
+        /**
+         *
+         * @param opts
+         * @param state
+         * @returns
+         */
+        modifyOptions?: (opts: RequestOpts<H>, state: S) => RequestOpts<H>;
+        modifyMethodOptions?: HttpMethodOpts<Options<H, S>['modifyOptions']>;
+        timeout?: number;
+        validate?: {
+            headers?: (headers: Headers<H>, method?: _InternalHttpMethods) => void;
+            state?: (state: S) => void;
+            perRequest?: {
+                headers?: boolean;
+            };
+        };
+        determineType?: DetermineTypeFn;
+        formatHeaders?: false | 'lowercase' | 'uppercase' | FormatHeadersFn;
+    });
+    interface AbortablePromise<T> extends Promise<T> {
+        isFinished: boolean;
+        isAborted: boolean;
+        abort(reason?: string): void;
+    }
+    type CallOptions<H = InstanceHeaders> = (Lifecycle & Omit<RequestOpts, 'body' | 'method' | 'controller'> & {
+        headers?: HeaderObj<H>;
+    });
 }
 
-type FetchFactoryRequestOptions<InstanceHeaders = FetchHeaders> = (
+type FetchFactoryRequestOptions<H = FetchHeaders> = (
 	FetchFactoryLifecycle &
 	Omit<FetchReqOpts, 'body' | 'method' | 'controller'> &
 	{
-		headers?: HeaderObj<InstanceHeaders>;
+		headers?: HeaderObj<H>;
 	}
 );
 
@@ -700,12 +697,12 @@ interface FetchError<T = {}> extends Error {
 
 declare class FetchEvent<
 	State = {},
-	InstanceHeaders = FetchHeaders
+	H = FetchHeaders
 > extends Event {
 	state: State;
 	url?: string;
 	method?: HttpMethods;
-	headers?: HeaderObj<InstanceHeaders>;
+	headers?: HeaderObj<H>;
 	options?: FetchReqOpts;
 	data?: any;
 	payload?: any;

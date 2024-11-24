@@ -87,7 +87,7 @@ export class StateMachine<State = any, ReducerValue = any> {
 
     _parent!: StateMachine|null;
 
-    constructor(initialState: any = {}, options: StateMachineOptions = {}) {
+    constructor(initialState: Partial<State> = {}, options: StateMachineOptions = {}) {
 
         definePrivateProps(this, {
 
@@ -118,7 +118,7 @@ export class StateMachine<State = any, ReducerValue = any> {
         }
 
         this._setupClone();
-        this._addState(initialState);
+        this._addState(initialState as State);
     }
 
     private _setInternals(updates: StateMachineState<State>) {
@@ -138,8 +138,9 @@ export class StateMachine<State = any, ReducerValue = any> {
 
         if (statesToKeep && _states!.size >= statesToKeep) {
 
-            const { value: firstState } = _states!.keys().next();
-            _states!.delete(firstState);
+            _states!.delete(
+                _states!.keys().next().value!
+            );
         }
 
         const currentState = this._stateId();
@@ -249,7 +250,7 @@ export class StateMachine<State = any, ReducerValue = any> {
 
         for (const fn of fns) {
 
-            assertFunction(fn, 'reducer');
+            assertFunction(fn as Func, 'reducer');
 
             // Save reducer to holder
             this._reducers.add(fn);
@@ -287,7 +288,7 @@ export class StateMachine<State = any, ReducerValue = any> {
     addListener(...fns: ListenerFunction <State, ReducerValue>[]) {
 
         for (const fn of fns) {
-            assertFunction(fn, 'listener');
+            assertFunction(fn as Func, 'listener');
 
             // Save listener to holder
             this._listeners.add(fn);

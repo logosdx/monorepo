@@ -1,3 +1,4 @@
+import { log } from 'console';
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
@@ -124,15 +125,19 @@ describe('@logos-ui/utils', () => {
 
             const obj = deepClone(stub.obj);
             expect(obj).not.to.equal(stub.obj);
+            expect(obj).to.deep.equal(stub.obj);
 
             const arr = deepClone(stub.arr);
             expect(arr).not.to.equal(stub.arr);
+            expect(arr).to.deep.equal(stub.arr);
 
             const map = deepClone(stub.map);
             expect(map).not.to.equal(stub.map);
+            expect(map).to.deep.equal(stub.map);
 
             const set = deepClone(stub.set);
             expect(set).not.to.equal(stub.set);
+            expect(set).to.deep.equal(stub.set);
         });
 
         it('clones nested objects', () => {

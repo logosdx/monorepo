@@ -9,8 +9,8 @@ import type {
     deepMerge as DeepMergeFn,
 } from './index.ts';
 
-export interface HandleMergeOf {
-    (a: any, b: any, opts?: MergeOptions): any;
+export interface HandleMergeOf<T = unknown, U = unknown> {
+    (a: T, b: U, opts?: MergeOptions): T & U;
 }
 
 export const mergeHandlers: Map<AnyConstructor, HandleMergeOf> = new Map();
@@ -20,19 +20,18 @@ export type MergeOptions = {
     mergeSets?: boolean;
 };
 
-const mergeHelpers: { [k: string]: HandleMergeOf } = {};
 
-mergeHelpers.mergeArrays = (target: Array<any>, source: Array<any>) => {
+const mergeArrays = <A extends unknown[], B extends unknown[]>(target: A, source: B) => {
 
     for (const value of source) {
         target.push(value);
     }
 
-    return target
+    return target as A & B;
 };
 
 
-mergeHelpers.mergeSets = <T>(target: Set<T>, source: Set<T>) => {
+const mergeSets = <T>(target: Set<T>, source: Set<T>) => {
 
     for (const value of source) {
 
@@ -46,7 +45,7 @@ mergeHelpers.mergeSets = <T>(target: Set<T>, source: Set<T>) => {
 };
 
 
-mergeHelpers.overwriteArrays = <T>(target: Array<T>, source: Array<T>) => {
+const overwriteArrays = <T>(target: Array<T>, source: Array<T>) => {
 
     target.length = 0;
 
@@ -58,7 +57,7 @@ mergeHelpers.overwriteArrays = <T>(target: Array<T>, source: Array<T>) => {
 };
 
 
-mergeHelpers.overwriteSets = <T>(target: Set<T>, source: Set<T>) => {
+const overwriteSets = <T>(target: Set<T>, source: Set<T>) => {
 
     target.clear();
 
@@ -72,37 +71,32 @@ mergeHelpers.overwriteSets = <T>(target: Set<T>, source: Set<T>) => {
 
 export const prepareMergeHandlers = (merge: typeof DeepMergeFn) => {
 
-    mergeHandlers.set(Array, <T>(target: Array<T>, source: Array<T>, options?: MergeOptions) => {
+    mergeHandlers.set(Array, (target, source, options?: MergeOptions) => {
 
         if (options?.mergeArrays) {
 
-            return mergeHelpers.mergeArrays!(target, source);
+            return mergeArrays!(target as [], source as []);
         }
 
-        return mergeHelpers.overwriteArrays!(target, source);
+        return overwriteArrays!(target as [], source as []);
     });
 
-    mergeHandlers.set(Set, <T>(target: Set<T>, source: Set<T>, options?: MergeOptions) => {
+    mergeHandlers.set(Set, (target, source, options?: MergeOptions) => {
 
         if (options?.mergeSets) {
 
-            return mergeHelpers.mergeSets!(target, source);
+            return mergeSets!(target as Set<{}>, source as Set<{}>);
         }
 
-        return mergeHelpers.overwriteSets!(target, source);
+        return overwriteSets!(target as Set<{}>, source as Set<{}>);
     });
 
-    mergeHandlers.set(
-        Object,
-        <C extends Record<string, unknown>, I extends C>(
-            target: C,
-            source: I,
-            options?: MergeOptions
-        ) => {
+    mergeHandlers.set(Object, (_target, _source, options?: MergeOptions) => {
 
-        let key: keyof C;
+        const target = _target as Record<string, unknown>;
+        const source = _source as Record<string, unknown>;
 
-        for (key in source) {
+        for (const key in source) {
 
             if (hasNoConstructor(target[key]) || hasNoConstructor(source[key])) {
 
@@ -119,10 +113,13 @@ export const prepareMergeHandlers = (merge: typeof DeepMergeFn) => {
             target[key] = source[key];
         }
 
-        return target as C & I;
+        return target;
     });
 
-    mergeHandlers.set(Map, <K, V>(target: Map<K, V>, source: Map<K, V>, options?: MergeOptions) => {
+    mergeHandlers.set(Map, (_target, _source, options?: MergeOptions) => {
+
+        const target = _target as Map<unknown, unknown>;
+        const source = _source as Map<unknown, unknown>;
 
         for (const [key, bValue] of source.entries()) {
 

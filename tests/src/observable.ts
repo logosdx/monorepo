@@ -2,10 +2,10 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
 
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverFactory, Observable } from '@logos-ui/observer';
 import { SinonStub } from 'sinon';
 import { sandbox } from './_helpers';
-import { Deferred } from '@logos-ui/utils';
+import { log } from 'console';
 
 interface AppEvents {
     test: string | number
@@ -25,35 +25,27 @@ interface AppEvents {
     'child-test': string
 }
 
-type TestObserver = ObserverFactory<any, AppEvents>;
-
-const stub: {
-    observer?: TestObserver,
-    component?: any,
-    spy: SinonStub<[{
-        fn: string,
-        event: string,
-        data: any,
-        context: TestObserver
-    }]>,
-    ref: string
-} = {
+const stub = {
+    observer: null as unknown as ObserverFactory<AppEvents>,
     spy: sandbox.stub(),
-    ref: 'test'
+    name: 'test',
+    component: {} as any
 };
 
-interface RunTestOnBoth {
-    (observed: TestObserver, which: string): void
+const setupForHelpers = () => {
+
+    const observer = new ObserverFactory<AppEvents>(stub);
+    const fake = sandbox.stub();
+
+    observer.on('test', fake);
+    observer.on('test', fake);
+    observer.on('aa', fake);
+    observer.on('ba', fake);
+    observer.on(/e/, fake);
+
+    return { observer, fake };
 }
 
-const doToBoth = async (fn: RunTestOnBoth) => {
-
-    await fn(stub.observer!, 'observer');
-    await fn(stub.component, 'component');
-
-    stub.observer!.off('*');
-    stub.component.off('*');
-};
 
 describe('@logos-ui/observer', function () {
 
@@ -69,241 +61,184 @@ describe('@logos-ui/observer', function () {
             const observer = new ObserverFactory();
 
             expect(typeof observer.on).to.eq('function');
-            expect(typeof observer.one).to.eq('function');
+            expect(typeof observer.once).to.eq('function');
             expect(typeof observer.off).to.eq('function');
-            expect(typeof observer.trigger).to.eq('function');
+            expect(typeof observer.emit).to.eq('function');
             expect(typeof observer.observe).to.eq('function');
         });
 
         it('should create a new observer with options', function () {
 
-            stub.observer = new ObserverFactory(null, {
-                spy: stub.spy as any,
-                ref: stub.ref
-            });
+            stub.observer = new ObserverFactory(stub);
 
             expect(typeof stub.observer.on).to.eq('function');
-            expect(typeof stub.observer.one).to.eq('function');
+            expect(typeof stub.observer.once).to.eq('function');
             expect(typeof stub.observer.off).to.eq('function');
-            expect(typeof stub.observer.trigger).to.eq('function');
+            expect(typeof stub.observer.emit).to.eq('function');
             expect(typeof stub.observer.observe).to.eq('function');
-        });
-
-        it('should add an observable API to an existing component', async () => {
-
-            stub.component = {};
-
-            expect(typeof stub.component.on).to.eq('undefined');
-            expect(typeof stub.component.one).to.eq('undefined');
-            expect(typeof stub.component.off).to.eq('undefined');
-            expect(typeof stub.component.trigger).to.eq('undefined');
-            expect(typeof stub.component.observe).to.eq('undefined');
-
-            new ObserverFactory(stub.component, {
-                spy: stub.spy as any,
-                ref: stub.ref
-            });
-
-            expect(typeof stub.component.on).to.eq('function');
-            expect(typeof stub.component.one).to.eq('function');
-            expect(typeof stub.component.off).to.eq('function');
-            expect(typeof stub.component.trigger).to.eq('function');
-            expect(typeof stub.component.observe).to.eq('function');
         });
 
         it('should not have enumerable properties', async () => {
 
-            await doToBoth((observed, which) => {
-
-                expect(Object.keys(observed), which).to.have.length(0);
-            });
+            expect(Object.keys(stub.observer!)).to.have.length(0);
         });
 
         it('should attach a single listener', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
+            const fake = sandbox.stub();
 
-                const fake = sandbox.stub();
+            observer.on('test', fake);
+            observer.emit('test', 'a');
 
-                observed.on('test', fake);
-
-                observed.emit('test', 'a');
-
-                expect(fake.calledOnce, which).to.be.true;
-                expect(fake.calledWith('a'), which).to.be.true;
-            });
+            expect(fake.calledOnce).to.be.true;
+            expect(fake.calledWith('a')).to.be.true;
         });
 
         it('should remove a single listener', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
 
-                const fake1 = sandbox.stub();
-                const fake2 = sandbox.stub();
+            observer.on('test1', fake1);
+            observer.on('test1', fake2);
+            observer.emit('test1');
+            observer.off('test1', fake2);
+            observer.emit('test1');
 
-                observed.on('test1', fake1);
-                observed.on('test1', fake2);
-
-                observed.emit('test1');
-
-                observed.off('test1', fake2);
-
-                observed.emit('test1');
-
-                expect(fake1.callCount, which).to.eq(2);
-                expect(fake2.callCount, which).to.eq(1);
-            });
+            expect(fake1.callCount).to.eq(2);
+            expect(fake2.callCount).to.eq(1);
         });
 
         it('should remove all listeners', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
 
-                const fake = sandbox.stub();
+            const fake = sandbox.stub();
 
-                observed.on('test1', fake);
-                observed.on('test2', fake);
-                observed.on('test3', fake);
+            observer.on('test1', fake);
+            observer.on('test2', fake);
+            observer.on('test3', fake);
 
-                observed.off('*');
+            observer.off('*');
 
-                observed.emit('test1');
-                observed.emit('test2');
-                observed.emit('test3');
+            observer.emit('test1');
+            observer.emit('test2');
+            observer.emit('test3');
 
-                expect(fake.callCount, which).to.eq(0);
-            });
+            expect(fake.callCount).to.eq(0);
         });
 
         it('should remove all listeners of a specific event', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
 
-                const fake1 = sandbox.stub();
-                const fake2 = sandbox.stub();
-                const fake3 = sandbox.stub();
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
+            const fake3 = sandbox.stub();
 
-                observed.on('test', fake1);
-                observed.on('test', fake2);
-                observed.on('test', fake3);
+            observer.on('test', fake1);
+            observer.on('test', fake2);
+            observer.on('test', fake3);
 
-                observed.on('test3', fake3);
+            observer.on('test3', fake3);
 
-                observed.emit('test');
-                observed.emit('test3');
+            observer.emit('test');
+            observer.emit('test3');
 
-                observed.off('test');
+            observer.off('test');
 
-                observed.emit('test');
-                observed.emit('test3');
+            observer.emit('test');
+            observer.emit('test3');
 
-                expect(fake1.callCount, which).to.eq(1);
-                expect(fake2.callCount, which).to.eq(1);
-                expect(fake3.callCount, which).to.eq(3);
-            });
+            expect(fake1.callCount).to.eq(1);
+            expect(fake2.callCount).to.eq(1);
+            expect(fake3.callCount).to.eq(3);
         });
 
         it('should not error if event does not exist', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
 
-                expect(() => observed.off('pops'), which).not.to.throw();
-            });
+            expect(() => observer.off('pops')).not.to.throw();
         });
 
         it('should listen only once', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
+            const fake = sandbox.stub();
 
+            observer.once('test', fake);
+            observer.emit('test');
+            observer.emit('test');
 
-                const fake = sandbox.stub();
-
-                observed.once('test', fake);
-
-                observed.emit('test');
-                observed.emit('test');
-
-                expect(fake.calledOnce, which).to.be.true;
-            });
+            expect(fake.calledOnce).to.be.true;
         });
 
         it('should respect listen once when sharing same listener', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
+            const fake = sandbox.stub();
 
-                const fake = sandbox.stub();
+            observer.once('test', fake);
+            observer.on('test', fake);
 
-                observed.once('test', fake);
-                observed.on('test', fake);
+            observer.emit('test');
+            observer.emit('test');
+            observer.emit('test');
 
-                observed.emit('test');
-                observed.emit('test');
-                observed.emit('test');
-
-                expect(fake.callCount, which).to.eq(4);
-            });
+            expect(fake.callCount).to.eq(4);
         });
 
         it('should only listen to listener one time', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
+            const fake = sandbox.stub();
 
-                const fake = sandbox.stub();
+            observer.on('test', fake);
+            observer.on('test', fake);
+            observer.on('test', fake);
 
-                observed.on('test', fake);
-                observed.on('test', fake);
-                observed.on('test', fake);
+            observer.emit('test');
 
-                observed.emit('test');
-
-                expect(fake.callCount, which).to.eq(1);
-            });
+            expect(fake.callCount).to.eq(1);
         });
 
         it('should allow spying on observer functions', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
 
-                const fake = sandbox.stub();
+            const fake = sandbox.stub();
 
-                observed.on('test', fake);
-                observed.once('test1', fake);
-                observed.off('test1', fake);
-                observed.emit('test', 1);
+            observer.on('test', fake);
+            observer.once('test1', fake);
+            observer.off('test1', fake);
+            observer.emit('test', 1);
 
-                expect(stub.spy.callCount, which).to.eq(4);
-                const calls = stub.spy.getCalls();
+            expect(stub.spy.callCount).to.eq(4);
+            const calls = stub.spy.getCalls();
 
-                expect(calls[0]!.args[0], which).to.include({ fn: 'on', event: 'test', data: null });
-                expect(calls[1]!.args[0], which).to.include({ fn: 'once', event: 'test1', data: null });
-                expect(calls[2]!.args[0], which).to.include({ fn: 'off', event: 'test1', data: null });
-                expect(calls[3]!.args[0], which).to.include({ fn: 'emit', event: 'test', data: 1 });
+            expect(calls[0]!.args[0]).to.include({ fn: 'on', event: 'test', data: null });
+            expect(calls[1]!.args[0]).to.include({ fn: 'once', event: 'test1', data: null });
+            expect(calls[2]!.args[0]).to.include({ fn: 'off', event: 'test1', data: null });
+            expect(calls[3]!.args[0]).to.include({ fn: 'emit', event: 'test', data: 1 });
 
-                const contexts = [
-                    calls[0]!.args[0].context,
-                    calls[1]!.args[0].context,
-                    calls[2]!.args[0].context,
-                    calls[3]!.args[0].context
-                ]
+            const contexts = [
+                calls[0]!.args[0].context,
+                calls[1]!.args[0].context,
+                calls[2]!.args[0].context,
+                calls[3]!.args[0].context
+            ]
 
-                let context = observed;
+            for (const ctx of contexts) {
 
-                // Component has a reference to the observable
-                // instance that it wraps
-                if (which === 'component') {
+                expect(ctx === observer).to.be.true;
+            }
 
-                    context = (observed as any).$_observer;
-                }
+            expect(calls[3]!.args[0].data).to.equal(1);
 
-                for (const ctx of contexts) {
-
-                    expect(ctx === context, which).to.be.true;
-                }
-
-                expect(calls[3]!.args[0].data).to.equal(1);
-
-                sandbox.resetHistory();
-            });
+            sandbox.resetHistory();
         });
 
         it('should allow listening to events based on regex', async () => {
@@ -318,181 +253,311 @@ describe('@logos-ui/observer', function () {
                 'za'
             ];
 
-            await doToBoth((observed, which) => {
 
-                const fakeEv = sandbox.stub();
-                const fakeRgx = sandbox.stub();
+            const { observer } = stub;
 
-                const bindEv = () => (
+            const fakeEv = sandbox.stub();
+            const fakeRgx = sandbox.stub();
 
-                    events.map((e) => observed.on(e as any, fakeEv))
-                );
+            const bindEv = () => (
 
-                bindEv();
+                events.map((e) => observer.on(e as any, fakeEv))
+            );
 
-                observed.on(/a/i, fakeRgx);
-                observed.emit('aa', 'works');
+            bindEv();
 
-                expect(fakeEv.getCalls().length, which).to.eq(1);
-                expect(fakeRgx.getCalls().length, which).to.eq(1);
+            observer.on(/a/i, fakeRgx);
+            observer.emit('aa', 'works');
 
-                /** Test for "a" */
+            expect(fakeEv.getCalls().length).to.eq(1);
+            expect(fakeRgx.getCalls().length).to.eq(1);
 
-                fakeEv.reset(); fakeRgx.reset();
+            /** Test for "a" */
 
-                observed.emit(/a/i, 'works');
+            fakeEv.reset(); fakeRgx.reset();
 
-                expect(fakeEv.getCalls().length, which).to.eq(4);
-                expect(fakeRgx.getCalls().length, which).to.eq(0);
+            observer.emit(/a/i, 'works');
 
-                /** Test for "D" */
+            expect(fakeEv.getCalls().length).to.eq(4);
+            expect(fakeRgx.getCalls().length).to.eq(0);
 
-                fakeEv.reset(); fakeRgx.reset();
-                observed.emit(/d/, 'works');
-                expect(fakeEv.getCalls().length, which).to.eq(0);
+            /** Test for "D" */
 
-                observed.emit(/D/, 'works');
-                expect(fakeEv.getCalls().length, which).to.eq(1);
+            fakeEv.reset(); fakeRgx.reset();
+            observer.emit(/d/, 'works');
+            expect(fakeEv.getCalls().length).to.eq(0);
 
-                /** Test for Z and remove Z based on regex */
+            observer.emit(/D/, 'works');
+            expect(fakeEv.getCalls().length).to.eq(1);
 
-                fakeEv.reset(); fakeRgx.reset();
-                observed.emit(/z/, 'works');
-                expect(fakeEv.getCalls().length, which).to.eq(3);
+            /** Test for Z and remove Z based on regex */
 
-                observed.off(/z/);
-                observed.emit(/z/, 'works');
-                expect(fakeEv.getCalls().length, which).to.eq(3);
+            fakeEv.reset(); fakeRgx.reset();
+            observer.emit(/z/, 'works');
+            expect(fakeEv.getCalls().length).to.eq(3);
 
-                fakeEv.reset(); fakeRgx.reset();
+            observer.off(/z/);
+            observer.emit(/z/, 'works');
+            expect(fakeEv.getCalls().length).to.eq(3);
 
-                /** Removes all callbacks */
-                observed.off('*');
+            fakeEv.reset(); fakeRgx.reset();
 
-                observed.emit(/a/i, 'works');
-                observed.emit('aa', 'works');
+            /** Removes all callbacks */
+            observer.off('*');
 
-                expect(fakeEv.getCalls().length, which).to.eq(0);
-                expect(fakeRgx.getCalls().length, which).to.eq(0);
+            observer.emit(/a/i, 'works');
+            observer.emit('aa', 'works');
 
-                /** Removes all callbacks */
-                fakeEv.reset();
+            expect(fakeEv.getCalls().length).to.eq(0);
+            expect(fakeRgx.getCalls().length).to.eq(0);
 
-                bindEv();
+            /** Removes all callbacks */
+            fakeEv.reset();
 
-                observed.on(/.+/, fakeRgx);
+            bindEv();
 
-                events.map((e) => observed.emit(e as any))
+            observer.on(/.+/, fakeRgx);
 
-                expect(fakeRgx.getCalls().length, which).to.eq(events.length);
-            });
+            events.map((e) => observer.emit(e as any))
+
+            expect(fakeRgx.getCalls().length).to.eq(events.length);
         });
 
         it('creates an EventGenerator when calling `on` without a listener', async () => {
 
-            await doToBoth(
-                async (observer, which) => {
+            const { observer } = stub;
+            const generator = observer.on('test');
 
-                    const generator = observer.on('test');
+            expect(typeof generator).to.eq('object');
+            expect(typeof generator.emit).to.eq('function');
+            expect(typeof generator.next).to.eq('function');
+            expect(typeof generator.destroy).to.eq('function');
 
-                    expect(typeof generator, which).to.eq('object');
-                    expect(typeof generator.emit, which).to.eq('function');
-                    expect(typeof generator.next, which).to.eq('function');
-                    expect(typeof generator.destroy, which).to.eq('function');
+            const promise = generator.next();
 
-                    const promise = generator.next();
+            observer.emit('test', 'a');
 
-                    observer.emit('test', 'a');
+            const resolved1 = await promise;
 
-                    const resolved1 = await promise;
+            expect(resolved1).to.eq('a');
 
-                    expect(resolved1, which).to.eq('a');
+            const promise2 = generator.next();
 
-                    const promise2 = generator.next();
+            observer.emit('test', 'b');
 
-                    observer.emit('test', 'b');
+            const resolved2 = await promise2;
 
-                    const resolved2 = await promise2;
+            expect(resolved2).to.eq('b');
 
-                    expect(resolved2, which).to.eq('b');
+            const promise3 = generator.next();
 
-                    const promise3 = generator.next();
+            generator.emit('c');
 
-                    generator.emit('c');
+            const resolved3 = await promise3;
 
-                    const resolved3 = await promise3;
+            expect(resolved3).to.eq('c');
 
-                    expect(resolved3, which).to.eq('c');
+            generator.destroy();
 
-                    generator.destroy();
-
-                    const promise4 = generator.next();
-
-                    const deferred = new Deferred();
-
-                    promise4.then(
-                        () => deferred.reject(
-                            new Error('Should not resolve')
-                        )
-                    ).catch(deferred.resolve);
-
-                    const errored = await deferred.promise as Error;
-
-                    expect(errored, which).to.be.instanceOf(Error);
-                }
-            );
+            expect(() => generator.next()).to.throw();
+            expect(() => generator.emit()).to.throw();
         });
 
         it('handles regex with EventGenerators', async () => {
 
-            await doToBoth(async (observed, which) => {
+            const { observer } = stub;
+            const en = observer.on(/some/);
 
-                const en = observed.on(/some/);
+            const forceEmit = (event: string, val: any) => {
 
-                const forceEmit = (event: string, val: any) => {
+                observer.emit(event as never, val as never);
+            }
 
-                    observed.emit(event as never, val as never);
-                }
+            const p1 = en.next();
+            forceEmit('something', 'a');
 
-                const p1 = en.next();
-                forceEmit('something', 'a');
+            const p2 = en.next();
+            forceEmit('someone', 'b');
 
-                const p2 = en.next();
-                forceEmit('someone', 'b');
+            const p3 = en.next();
+            forceEmit('troublesome', 'c');
 
-                const p3 = en.next();
-                forceEmit('troublesome', 'c');
+            const resolved1 = await p1;
+            const resolved2 = await p2;
+            const resolved3 = await p3;
 
-                const resolved1 = await p1;
-                const resolved2 = await p2;
-                const resolved3 = await p3;
+            expect(resolved1).to.eq('a');
+            expect(resolved2).to.eq('b');
+            expect(resolved3).to.eq('c');
 
-                expect(resolved1, which).to.eq('a');
-                expect(resolved2, which).to.eq('b');
-                expect(resolved3, which).to.eq('c');
-            });
         });
 
-        it('Returns a promise when calling `once` without a listener', async () => {
+        it('returns a promise when calling `once` without a listener', async () => {
 
-            await doToBoth(async (observer, which) => {
+            const { observer } = stub;
 
-                const promise = observer.once('test');
+            const promise = observer.once('test');
 
-                observer.emit('test', 'a');
+            observer.emit('test', 'a');
 
-                const resolved = await promise;
+            const resolved = await promise;
 
-                expect(resolved, which).to.eq('a');
+            expect(resolved).to.eq('a');
 
-                const promise2 = observer.once('test');
+            const promise2 = observer.once('test');
 
-                observer.emit('test', 'b');
+            observer.emit('test', 'b');
 
-                const resolved2 = await promise2;
+            const resolved2 = await promise2;
 
-                expect(resolved2, which).to.eq('b');
-            })
+            expect(resolved2).to.eq('b');
+
+        });
+
+        it('listens to everything', async () => {
+
+            const { observer } = stub;
+            const fake = sandbox.stub();
+
+            observer.on('*', fake);
+            observer.emit('test', 'a');
+            observer.emit('test1', 'b');
+            observer.emit('test2', 'c');
+
+            expect(fake.callCount).to.eq(3);
+        });
+
+        it('listens to everything once', async () => {
+
+            const { observer } = stub;
+            const fake = sandbox.stub();
+
+            observer.once('*', fake);
+            observer.emit('test', 'a');
+            observer.emit('test1', 'b');
+            observer.emit('test2', 'c');
+
+            expect(fake.callCount).to.eq(1);
+        });
+
+        it('emits to everything', async () => {
+
+            const { observer } = stub;
+            const fake = sandbox.stub();
+
+            observer.on('test', fake);
+            observer.on('test1', fake);
+            observer.on('test2', fake);
+            observer.emit('*', 'a');
+
+            expect(fake.callCount).to.eq(3);
+        });
+
+        it('tests emit validator', async () => {
+
+            const emitValidator: Observable.EmitValidator<AppEvents> = (ev, data, ctx) => {
+
+                if (ev === 'child-test' && !ctx.$has('child-test')) {
+
+                    throw new Error('Child does not have any listeners');
+                }
+
+                if (Array.isArray(data) && data.length > 2) {
+
+                    throw new Error('Data is too long');
+                }
+            }
+
+            const observer = new ObserverFactory<AppEvents>({ emitValidator });
+
+            expect(() => observer.emit('child-test'), 'emit validator').to.throw();
+            expect(() => observer.emit('aa'), 'emit validator').to.not.throw();
+
+            const stub = sandbox.stub();
+
+            observer.on('child-test', stub);
+
+            expect(
+                () => observer.emit('child-test'),
+                'emit validator'
+            ).to.not.throw();
+
+            expect(
+                () => observer.emit('child-test', [1, 2] as never),
+                'emit validator'
+            ).to.not.throw();
+
+            expect(
+                () => observer.emit('child-test', [1, 2, 3] as never),
+                'emit validator'
+            ).to.throw();
+
+            expect(stub.callCount, 'emit validator').to.eq(2);
+        });
+
+        it('provides a helper to see if an event has been bound', async () => {
+
+            const { observer } = setupForHelpers();
+
+            expect(observer.$has('test')).to.be.true;
+            expect(observer.$has('aa')).to.be.true;
+            expect(observer.$has('ba')).to.be.true;
+            expect(observer.$has(/e/)).to.be.true;
+            expect(observer.$has('pops')).to.be.false;
+        });
+
+        it('provides a helper to see facts about the observer', async () => {
+
+            const { observer } = setupForHelpers()
+
+            const facts = observer.$facts();
+
+            console.log(facts)
+
+            expect(facts.listeners).to.include.members([
+                'test', 'aa', 'ba'
+            ]);
+
+            expect(facts.rgxListeners).to.include.members([
+                '/e/'
+            ]);
+
+            expect(facts.listenerCounts.test).to.eq(1);
+            expect(facts.listenerCounts.aa).to.eq(1);
+            expect(facts.listenerCounts.ba).to.eq(1);
+            expect(facts.listenerCounts['/e/']).to.eq(1);
+
+            expect(facts.hasSpy).to.be.true;
+        });
+
+        it('provides a helper to see internals of the observer', async () => {
+
+
+            const { observer, fake } = setupForHelpers()
+
+            const internals = observer.$internals();
+
+            expect(internals.listenerMap).to.be.an.instanceOf(Map);
+            expect(internals.listenerMap.size).to.eq(3);
+            expect(internals.rgxListenerMap).to.be.an.instanceOf(Map);
+            expect(internals.rgxListenerMap.size).to.eq(1);
+            expect(internals.listenerMap.get('test')).to.be.an.instanceOf(Set);
+            expect(internals.listenerMap.get('test')!.size).to.eq(1);
+            expect(internals.listenerMap.get('aa')!.size).to.eq(1);
+            expect(internals.listenerMap.get('ba')!.size).to.eq(1);
+            expect(internals.rgxListenerMap.get('/e/')).to.be.an.instanceOf(Set);
+
+            const lTest = internals.listenerMap.get('test')!.values();
+            const lValue = lTest.next().value;
+
+            expect(lValue).to.be.a('function');
+            expect(lValue).to.eq(fake);
+
+            const rgxTest = internals.rgxListenerMap.get('/e/')!.values();
+            const rgxValue = rgxTest.next().value;
+
+            expect(rgxValue).to.be.a('function');
+            expect(rgxValue).to.eq(fake);
         });
     });
 
@@ -500,17 +565,13 @@ describe('@logos-ui/observer', function () {
 
         before(() => {
 
-            stub.observer = new ObserverFactory(null, {
+            stub.observer = new ObserverFactory({
                 spy: stub.spy as any,
-                ref: stub.ref
             });
 
             stub.component = {};
 
-            new ObserverFactory(stub.component, {
-                spy: stub.spy as any,
-                ref: stub.ref
-            });
+            stub.observer.observe(stub.component);
 
         })
 
@@ -521,94 +582,91 @@ describe('@logos-ui/observer', function () {
 
         it('should make child observers', async () => {
 
-            await doToBoth((observed, which) => {
+            const { observer } = stub;
+            const someThing: any = {};
 
-                const someThing: any = {};
+            observer.observe(someThing);
 
-                observed.observe(someThing);
-
-                expect(typeof someThing.on, which).to.eq('function');
-                expect(typeof someThing.one, which).to.eq('function');
-                expect(typeof someThing.off, which).to.eq('function');
-                expect(typeof someThing.trigger, which).to.eq('function');
-                expect(typeof someThing.cleanup, which).to.eq('function');
-            });
+            expect(typeof someThing.on).to.eq('function');
+            expect(typeof someThing.once).to.eq('function');
+            expect(typeof someThing.off).to.eq('function');
+            expect(typeof someThing.emit).to.eq('function');
+            expect(typeof someThing.cleanup).to.eq('function');
         });
 
         it('should have bidirection emit and listen on child observers', async () => {
 
-            await doToBoth((parent, which) => {
-
-                const child: any = {};
-
-                parent.observe(child);
-
-                const parentFake = sandbox.stub();
-                const childFake = sandbox.stub();
-
-                parent.on('test', parentFake);
-                child.on('test', childFake);
-
-                parent.trigger('test');
-                child.trigger('test');
-
-                expect(parentFake.callCount, which).to.eq(2);
-                expect(childFake.callCount, which).to.eq(2);
-            });
-        });
-
-        it('should remove only child listeners on parent', async () => {
-
-            await doToBoth((parent, which) => {
-
-                const child: any = {};
-
-                parent.observe(child);
-
-                const parentFake = sandbox.stub();
-                const childFake = sandbox.stub();
-
-                parent.on('test1', parentFake);
-                parent.on('test2', parentFake);
-                child.on('test1', childFake);
-                child.on('test2', childFake);
-
-                parent.trigger('test1');
-                parent.trigger('test2');
-                child.trigger('test1');
-                child.trigger('test2');
-
-                child.off('*');
-
-                parent.trigger('test1');
-                parent.trigger('test2');
-                child.trigger('test1');
-                child.trigger('test2');
-
-                expect(parentFake.callCount, which).to.eq(8);
-                expect(childFake.callCount, which).to.eq(4);
-            });
-
-            // This part requires inspecting `$_callbacks`
-            const parent = stub.observer;
+            const parent = stub.observer!;
 
             const child: any = {};
 
-            parent!.observe(child);
+            parent.observe(child);
 
             const parentFake = sandbox.stub();
             const childFake = sandbox.stub();
 
+            parent.on('test', parentFake);
+            child.on('test', childFake);
+
+            parent.emit('test');
+            child.emit('test');
+
+            expect(parentFake.callCount).to.eq(2);
+            expect(childFake.callCount).to.eq(2);
+        });
+
+        it('should remove only child listeners on parent', async () => {
+
+
+            const parent = stub.observer!;
+
+            const child1: any = {};
+
+            parent.observe(child1);
+
+            const parentFake = sandbox.stub();
+            const childFake = sandbox.stub();
+
+            parent.on('test1', parentFake);
+            parent.on('test2', parentFake);
+            child1.on('test1', childFake);
+            child1.on('test2', childFake);
+
+            parent.emit('test1');
+            parent.emit('test2');
+            child1.emit('test1');
+            child1.emit('test2');
+
+            child1.off('*');
+
+            parent.emit('test1');
+            parent.emit('test2');
+            child1.emit('test1');
+            child1.emit('test2');
+
+            expect(parentFake.callCount).to.eq(8);
+            expect(childFake.callCount).to.eq(4);
+
+            parentFake.reset();
+            childFake.reset();
+
+
+            // This part requires inspecting `#callbacks`
+
+            const child2: any = {};
+
+            parent!.observe(child2);
+
             parent!.on('test1', parentFake);
             parent!.on('test2', parentFake);
-            child.on('test1', childFake);
-            child.on('test2', childFake);
+            child2.on('test1', childFake);
+            child2.on('test2', childFake);
 
-            const beforeParentFacts = parent!.$_facts();
+            const beforeParentFacts = parent!.$facts();
 
-            child.off('*');
+            child2.off('*');
 
-            const afterParentFacts = parent!.$_facts();
+            const afterParentFacts = parent!.$facts();
 
             expect(beforeParentFacts.listeners).to.include.members([
                 'test1', 'test2'
@@ -624,7 +682,6 @@ describe('@logos-ui/observer', function () {
             expect(afterParentFacts.listenerCounts.test1).to.eq(1);
             expect(afterParentFacts.listenerCounts.test2).to.eq(1);
         });
-
 
         it('should cleanup child observers', async () => {
 
@@ -644,11 +701,11 @@ describe('@logos-ui/observer', function () {
             child.on('test2', childFake);
 
 
-            const beforeParentFacts = parent!.$_facts();
+            const beforeParentFacts = parent!.$facts();
 
             child.cleanup();
 
-            const afterParentFacts = parent!.$_facts();
+            const afterParentFacts = parent!.$facts();
 
             expect(beforeParentFacts.listeners).to.include.members([
                 'test1', 'test2'

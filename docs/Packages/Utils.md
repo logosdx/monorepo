@@ -2,7 +2,6 @@
 permalink: '/packages/utils'
 aliases: ["@logos-ui/utils", "Utils", "utilities"]
 ---
-
 ## Value manipulation and comparisons
 
 Modern javascript has new data types. The existing set of utilities that exist out there do not offer anything to handle the manipulation, comparison, and merging of the newer data types, and as such, these tools were built.
@@ -55,8 +54,8 @@ const clone: <T>(original: T) => T;
 Recursively checks two values to check if they are equal.
 
 **Example**
-
-```ts
+[[
+]]```ts
 const { deepEqual } from '@logos-ui/utils';
 
 const stateListener = (newState, oldState) => {

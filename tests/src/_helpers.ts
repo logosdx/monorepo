@@ -29,15 +29,15 @@ export const stubTrace = sandbox.stub();
 
 export const setup = () => {
 
-    globalThis.console = {
-        ...globalConsole,
-        log: stubLog,
-        error: stubError,
-        warn: stubWarn,
-        info: stubInfo,
-        debug: stubDebug,
-        trace: stubTrace
-    }
+    // globalThis.console = {
+    //     ...globalConsole,
+    //     log: stubLog,
+    //     error: stubError,
+    //     warn: stubWarn,
+    //     info: stubInfo,
+    //     debug: stubDebug,
+    //     trace: stubTrace
+    // }
 }
 
 export const teardown = () => {

@@ -2,6 +2,7 @@
 permalink: '/packages/observer'
 aliases: ["Observer", "@logos-ui/observer"]
 ---
+
 At its core, `Observable` promotes loose coupling and modular design. It establishes a clear separation between event producers (observables) and event consumers (listeners). This decoupling allows different parts of a system to interact without direct dependencies, enhancing flexibility and maintainability.
 
 The strength of the `Observable` class lies in its ability to enforce a structured event system. The use of a `Shape` interface ensures that events are defined with specific names and corresponding data types. This type safety empowers developers to handle events with confidence, reducing the risk of runtime errors and promoting robust event handling throughout the system.
@@ -17,7 +18,7 @@ pnpm add @logos-ui/observer
 ## Example
 
 ```ts
-import { Observable } from '@logos-ui/observer';
+import { ObservableFactory } from '@logos-ui/observer';
 
 // Make many types that dispatch the same data
 type AppKeys = Record<
@@ -74,6 +75,33 @@ window.addEventListener(
 	debounce(e => observer.trigger('click', e), 30)
 );
 
+// Use event generators to better control the flow of
+// how events are handled
+const resizeForever = async () => {
+
+	const resize = observer.on('resize');
+	const modal = observer.on('open-modal');
+
+	while (true) {
+
+		const ev = await resize.next();
+
+		console.log(...);
+
+		if (ev.size > 400) {
+
+			modal.emit({ which: 'prices' })
+		}
+
+		if (ev.size < 1500) {
+
+			resize.cleanup();
+			modal.cleanup();
+			break;
+		}
+	}
+}
+
 const [btn] = $('.btn');
 
 btn.onclick = () => observer.trigger('open-modal');
@@ -92,6 +120,105 @@ person.on('Backspace', (e) => {
 ```
 
 ## Basic Usage
+
+### Instance Options
+
+ObserverFactory accepts a set of options to facilitate telemetry and debugging, as well as validation:
+
+```ts
+import { ObservableFactory, Observable } from '@logos-ui/observer';
+
+type Shape = {
+  connect: null,
+  error: Error,
+  message: { ... },
+  send: { ... }
+}
+
+const debugFn: Observable.Spy<Shape> = (action) => {
+
+	const { event, listener, data, fn, context } = action;
+
+	if (fn === 'emit' && !context.$has(event)) {
+
+		// Logs:
+		// > send event has no listeners
+		console.warn(event, 'event has no listeners');
+		return;
+	}
+
+	// Logs:
+	// > on connect () => {}
+	// > emit message { ... }
+	console.log(fn, event, listener || data);
+
+}
+
+const validateEvent: Observable.EmitValidator<Shape> = (
+	event,
+	data,
+	context
+) => {
+
+	// Listeners exist
+	if (context.$has('message')) {
+
+		validateMsg(data);
+	}
+}
+
+const observer = new ObserverFactory<Shape>({
+	name: 'app',
+	spy: debugFn,
+	emitValidator: validateEvent
+})
+```
+
+**Interface**
+
+```ts
+
+declare namespace Observable {
+
+    type Options<Shape> = {
+        name?: string;
+        spy?: Spy<Shape>,
+        emitValidator?: EmitValidator<Shape>
+    };
+
+    type FuncName = 'on' | 'once' | 'off' | 'emit';
+
+    type SpyAction<Shape> = {
+        event: keyof Shape | RegExp | '*',
+        listener?: Function | null,
+        data?: unknown,
+        fn: FuncName,
+        context: ObserverFactory<Shape>
+    }
+
+    interface Spy<Shape> {
+        (action: SpyAction<Shape>): void
+    }
+
+    interface EmitValidator<Shape> {
+        (
+            event: keyof U,
+            data: U[keyof U],
+            context: ObserverFactory<Shape>
+        ): void
+        (
+            event: RegExp,
+            data: any,
+            context: ObserverFactory<Shape>
+        ): void
+        (
+            event: '*',
+            data: any,
+            context: ObserverFactory<Shape>
+        ): void
+    }
+}
+```
 
 ### `on(...)`
 
@@ -166,7 +293,7 @@ runForever(sendMail, async () => {
 
 		sendMailFail.emit(e);
 	}
-	
+
 });
 
 runForever(sendMailFail, async () => {
@@ -175,7 +302,7 @@ runForever(sendMailFail, async () => {
 });
 
 process.on('SIGTERM', () => {
-	
+
 	sendMail.destroy()
 	sendMailSuccess.destroy();
 	sendMailFail.destroy();
@@ -186,36 +313,52 @@ process.on('SIGTERM', () => {
 
 ```ts
 export class ObserverFactory /* ... */ {
-
 	/**
-	 * Returns an event generator that will listen for all events
-	 */
-	on(event: '*'): EventGenerator<Shape, '*'>;
+     * Returns an event generator that will
+     * listen for all events
+     */
+    on(event: '*'): EventGenerator<Shape, '*'>;
 
-	/**
-	 * Listens for all events and executes the given callback
-	 */
-	on(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
+    /**
+     * Listens for all events and executes the
+     * given callback
+     */
+    on(
+        event: '*',
+        listener: Observable.EventCallback<Shape[Events<Shape>]>
+    ): Observable.Cleanup;
 
-	/**
-	 * Returns an event generator that will listen for the specified event
-	 */
-	on<E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
+    /**
+     * Returns an event generator that will listen
+     * for the specified event
+     */
+    on<E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
 
-	/**
-	 * Listens for the specified event and executes the given callback
-	 */
-	on<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
+    /**
+     * Listens for the specified event and executes
+     * the given callback
+     */
+    on<E extends Events<Shape>>(
+        event: E,
+        listener: Observable.EventCallback<Shape[E]>
+    ): Observable.Cleanup;
 
-	/**
-	 * Returns an event generator that will listen for all events matching the regex
-	 */
-	on(event: RegExp): EventGenerator<Shape, RegExp>;
+    /**
+     * Returns an event generator that will listen
+     * for all events matching the regex
+     */
+    on(event: RegExp): EventGenerator<Shape, RegExp>;
 
-	/**
-	 * Listens for all events matching the regex and executes the given callback
-	 */
-	on(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
+    /**
+     * Listens for all events matching the regex and
+     * executes the given callback
+     */
+    on(
+        event: RegExp,
+        listener: Observable.EventCallback<
+            Observable.RgxEmitData<Shape>
+        >
+    ): Observable.Cleanup;
 
 }
 ```
@@ -271,9 +414,9 @@ This can, of course, be used with regex
 
 ```ts
 const runSome = async () => {
-	
+
 	await observer.once(/some/);
-	
+
 	doSomething();
 }
 
@@ -287,43 +430,54 @@ observer.emit('awesome'); // runs
 
 ```ts
 export class ObserverFactory /* ... */ {
-
 	/**
      * Returns an event promise that resolves when
-     * any event is triggered
+     * any event is emitted
      */
     once(event: '*'): EventPromise<Shape[Events<Shape>]>;
 
     /**
      * Executes a callback once when any event is
-     * triggered
+     * emitted
      */
-    once(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
+    once(
+	    event: '*',
+	    listener: Observable.EventCallback<Shape[Events<Shape>]>
+	): Observable.Cleanup;
 
     /**
      * Returns an event promise that resolves when
-     * the specified event is triggered
+     * the specified event is emitted
      */
     once<E extends Events<Shape>>(event: E): EventPromise<Shape[E]>;
 
     /**
      * Executes a callback once when the specified
-     * event is triggered
+     * event is emitted
      */
-    once<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
+    once<E extends Events<Shape>>(
+	    event: E,
+	    listener: Observable.EventCallback<Shape[E]>
+	): Observable.Cleanup;
 
     /**
      * Returns an event promise that resolves when
-     * any events matching the regex are triggered
+     * any events matching the regex are emitted
      */
-    once(event: RegExp): EventPromise<RgxEmitData<Shape>>;
+    once(event: RegExp): EventPromise<
+	    Observable.RgxEmitData<Shape>
+	>;
 
     /**
      * Executes a callback once when any events
-     * matching the regex are triggered
+     * matching the regex are emitted
      */
-    once(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
-
+    once(
+	    event: RegExp,
+	    listener: Observable.EventCallback<
+		    Observable.RgxEmitData<Shape>
+		>
+	): Observable.Cleanup;
 }
 ```
 
@@ -357,21 +511,12 @@ observer.off(/key/, keyAction);
 ```ts
 export class ObserverFactory /* ... */ {
 
-	off <E extends Events<Shape> | RegExp>(
-        event: E | '*',
-        listener?: E extends Events<Shape>
-            ? EventCallback<Shape[E]>
-            : Function
+	off (
+        event: Events<Shape> | RegExp | '*',
+        listener?: Function
     ): void;
 }
 ```
-
-**Alternatives**
-
-- `unlisten(...)`
-- `remove(...)`
-- `rm(...)`
-
 
 ### `emit(...)`
 
@@ -398,17 +543,17 @@ observer.trigger(/key/, (e) => { /* ... */ })
 ```ts
 export class ObserverFactory /* ... */ {
 
-	emit<E extends Events<Shape> | RegExp>(
+	emit<E extends Events<Shape> | RegExp | '*'>(
         event: E | '*',
-        data?: E extends Events<Shape> ? Shape[E] : Shape[Events<Shape>]
+        data?: E extends '*'
+	        ? Shape[Events<Shape>]
+	        : E extends Events<Shape>
+		        ? Shape[E]
+		        : unknown
     ): void;
 }
 ```
 
-**Alternatives**
-
-- `trigger(...)`
-- `send(...)`
 
 ### `observe(...)`
 
@@ -498,7 +643,7 @@ obs.off('*');
 **Interface**
 
 ```ts
-export class ObserverFactory /* ... */ {
+export class ObserverFactory <{}> {
 
 	debug(on?: boolean): void;
 }
@@ -511,7 +656,7 @@ Optionally, you can pass a spy function that allows you to introspect your obser
 **Example**
 
 ```ts
-const obs = new ObserverFactory({}, {
+const obs = new ObserverFactory({
 	spy: (action) => {
 
 		if (action.fn === 'emit') {
@@ -532,71 +677,76 @@ const obs = new ObserverFactory({}, {
 **Interface**
 
 ```ts
-type ObservableFunctionName = 'on' | 'once' | 'off' | 'emit';
+declare namespace Observable {
 
-type OberverSpyOptions<E> = {
-    event: keyof E | RegExp | '*',
-    listener?: Function,
-    data?: any,
-};
+	type FuncName = 'on' | 'once' | 'off' | 'emit' | 'cleanup';
 
-type ObserverSpyAction<C, E> = OberverSpyOptions<E> & {
-    fn: ObservableFunctionName,
-    context: ObserverFactory<C, E>
-}
+    type SpyAction<Shape> = {
+        event: keyof Shape | RegExp | '*',
+        listener?: Function | null,
+        data?: unknown,
+        fn: FuncName,
+        context: ObserverFactory<Shape>
+    }
 
-interface ObserverSpy<C, E> {
-    (event: ObserverSpyAction<C, E>): void
+	interface Spy<Shape> {
+		(action: SpyAction<Shape>): void;
+	}
 }
 ```
+
+### Inspect helpers
+
+Provided are also the functions `$internals`, `$facts`, and `$has`. With these, you can peek into your observable instance and make sure things are working as normal, or make programming decisions based on the feedback given.
+
+- `observer.$facts()` Gives you parsed information about your instances
+- `observer.$internals()` Gives you a clone of the internal mappings the instance uses.
+- `observer.$has(event | RegExp)` Returns if the instance has the given event or regex event.
 
 ## Main Interfaces
 
 ```ts
-export declare class ObserverFactory<Component, Shape = any> {
+export declare class ObserverFactory<Shape = Record<string, any>> {
+    constructor(options?: Observable.Options<Shape>);
+    name: string;
 
-	constructor(
-		target?: Component | null, 
-		options?: ObservableOptions<Component, Shape>
-	);
+    /**
+     * Returns facts about the the internal state of the observable instance.
+     */
+    $facts(): {
+        listeners: (keyof Shape)[];
+        rgxListeners: string[];
+        listenerCounts: Record<string, number>;
+        hasSpy: boolean;
+    };
 
+    /**
+     * The internals of the observable instance.
+     */
+    $internals(): {
+        listenerMap: Map<keyof Shape, Set<Func>>;
+        rgxListenerMap: Map<string, Set<Func>>;
+        internalListener: EventTarget;
+        name: string;
+        spy: Observable.Spy<Shape> | undefined;
+    };
+
+    /**
+     * Returns if the observable instance has the given event
+     */
+    $has(event: Events<Shape>): boolean;
+
+    /**
+     * Returns if the observable instance has a regex event
+     */
+    $has(event: RegExp): boolean;
+
+    /**
+     * Returns if the observable instance has the given event
+     */
+    $has(event: '*' | string): boolean;
 
     debug(on?: boolean): void;
-
-    /**
-     * Same as `observable.on`
-     */
-    listen: ObserverFactory<Component, Shape>['on'];
-
-    /**
-     * Same as `observable.one`
-     */
-    one: ObserverFactory<Component, Shape>['once'];
-
-    /**
-     * Same as `observable.trigger`
-     */
-    trigger: ObserverFactory<Component, Shape>['emit'];
-
-    /**
-     * Same as `observable.trigger`
-     */
-    send: ObserverFactory<Component, Shape>['emit'];
-
-    /**
-     * Same as `observable.off`
-     */
-    unlisten: ObserverFactory<Component, Shape>['off'];
-
-    /**
-     * Same as `observable.off`
-     */
-    remove: ObserverFactory<Component, Shape>['off'];
-
-    /**
-     * Same as `observable.off`
-     */
-    rm: ObserverFactory<Component, Shape>['off'];
 
     /**
      * Observes given component as an extension of this observable instance.
@@ -617,7 +767,7 @@ export declare class ObserverFactory<Component, Shape = any> {
      *
      * modal.cleanup(); // clears all event listeners
      */
-    observe<C>(component: C): ObservableChild<C, Shape>;
+    observe<C>(component: C): Observable.Child<C, Shape>;
 
     /**
      * Returns an event generator that will listen for all events
@@ -627,7 +777,7 @@ export declare class ObserverFactory<Component, Shape = any> {
     /**
      * Listens for all events and executes the given callback
      */
-    on(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
+    on(event: '*', listener: Observable.EventCallback<Shape[Events<Shape>]>): Observable.Cleanup;
 
     /**
      * Returns an event generator that will listen for the specified event
@@ -637,7 +787,7 @@ export declare class ObserverFactory<Component, Shape = any> {
     /**
      * Listens for the specified event and executes the given callback
      */
-    on<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
+    on<E extends Events<Shape>>(event: E, listener: Observable.EventCallback<Shape[E]>): Observable.Cleanup;
 
     /**
      * Returns an event generator that will listen for all events matching the regex
@@ -647,89 +797,61 @@ export declare class ObserverFactory<Component, Shape = any> {
     /**
      * Listens for all events matching the regex and executes the given callback
      */
-    on(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
+    on(event: RegExp, listener: Observable.EventCallback<Observable.RgxEmitData<Shape>>): Observable.Cleanup;
 
     /**
      * Used internally
      */
-    on(event: any, listener?: Func, opts?: object): Cleanup | EventGenerator<any>;
+    on(event: unknown, listener?: Func, opts?: object): Observable.Cleanup | EventGenerator<any>;
 
     /**
      * Returns an event promise that resolves when
-     * any event is triggered
+     * any event is emitted
      */
     once(event: '*'): EventPromise<Shape[Events<Shape>]>;
 
     /**
      * Executes a callback once when any event is
-     * triggered
+     * emitted
      */
-    once(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
+    once(event: '*', listener: Observable.EventCallback<Shape[Events<Shape>]>): Observable.Cleanup;
 
     /**
      * Returns an event promise that resolves when
-     * the specified event is triggered
+     * the specified event is emitted
      */
     once<E extends Events<Shape>>(event: E): EventPromise<Shape[E]>;
 
     /**
      * Executes a callback once when the specified
-     * event is triggered
+     * event is emitted
      */
-    once<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
+    once<E extends Events<Shape>>(event: E, listener: Observable.EventCallback<Shape[E]>): Observable.Cleanup;
 
     /**
      * Returns an event promise that resolves when
-     * any events matching the regex are triggered
+     * any events matching the regex are emitted
      */
-    once(event: RegExp): EventPromise<RgxEmitData<Shape>>;
+    once(event: RegExp): EventPromise<Observable.RgxEmitData<Shape>>;
 
     /**
      * Executes a callback once when any events
-     * matching the regex are triggered
+     * matching the regex are emitted
      */
-    once(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
+    once(event: RegExp, listener: Observable.EventCallback<Observable.RgxEmitData<Shape>>): Observable.Cleanup;
 
     /**
      * Stop listening for an event
      * @param event
      * @param listener
      */
-    off<E extends Events<Shape> | RegExp | '*'>(event: E, listener?: E extends Events<Shape> ? EventCallback<Shape[E]> : Function): void;
+    off(event: Events<Shape> | RegExp | '*', listener?: Function): void;
 
-    /**
-     * Emits an event
-     * @param event
-     * @param args
-     */
-    emit<E extends Events<Shape> | RegExp | '*'>(event: E, data?: E extends Events<Shape> ? Shape[E] : Shape[Events<Shape>]): void;
-
-    /**
-     * Returns facts about the the internal state of the observable instance.
-     */
-	$_facts(): {
-        listeners: (keyof Shape)[];
-        rgxListeners: string[];
-        listenerCounts: any;
-        hasSpy: boolean;
-    };
-
-	/**
-	 * The internals themselves.
-     *
-	 * ! CAUTION: Do no meddle with this because. It is not meant to be used directly.
-     * ! This is only exposed for debugging purposes.
-	 */
-    $_internals(): {
-        listenerMap: Map<keyof Shape, Set<Func>>;
-        rgxListenerMap: Map<string, Set<Func>>;
-        internalListener: EventTarget;
-        target: any;
-        ref: String | undefined;
-        spy: ObserverSpy<Component, Shape> | undefined;
-    };
+    /** Emits an event */
+    emit<E extends Events<Shape> | RegExp | '*'>(event: E, data?: E extends '*' ? Shape[Events<Shape>] : E extends Events<Shape> ? Shape[E] : unknown): void;
 
 }
+
 ```
 
 ## Secondary Interfaces
@@ -737,126 +859,78 @@ export declare class ObserverFactory<Component, Shape = any> {
 ```ts
 type Events<Shape> = keyof Shape;
 
-interface EventCallback<Shape> {
-	(data: Shape): void;
+export namespace Observable {
+
+    export interface EventCallback<Shape> {
+        (data: Shape): void
+    }
+
+    export type RgxEmitData<Shape> = {
+        event: Events<Shape>,
+        data: Shape[Events<Shape>]
+    }
+
+    export type Cleanup = () => void
+
+    export type Component<Shape> = {
+        on: ObserverFactory<Shape>['on'],
+        once: ObserverFactory<Shape>['once'],
+        emit: ObserverFactory<Shape>['emit'],
+        off: ObserverFactory<Shape>['off'],
+    };
+
+    export type Child<C, Shape> = C & Component<Shape> & {
+        cleanup: Cleanup
+    }
+
+    export type Instance<Shape> = Component<Shape> & {
+        observe: ObserverFactory<Shape>['observe'],
+        $observer: ObserverFactory<Shape>
+    }
+
+    export type FuncName = 'on' | 'once' | 'off' | 'emit' | 'cleanup';
+
+    type SpyAction<Shape> = {
+        event: keyof Shape | RegExp | '*',
+        listener?: Function | null,
+        data?: unknown,
+        fn: FuncName,
+        context: ObserverFactory<Shape>
+    }
+
+    export interface Spy<Shape> {
+        (action: SpyAction<Shape>): void
+    }
+
+    export interface EmitValidator<Shape> {
+        (
+            event: keyof Ev,
+            data: Ev[keyof Ev],
+            context: ObserverFactory<Shape>
+        ): void
+        (
+            event: RegExp,
+            data: any,
+            context: ObserverFactory<Shape>
+        ): void
+        (
+            event: '*',
+            data: any,
+            context: ObserverFactory<Shape>
+        ): void
+    }
+
+    export type Options<Shape> = {
+        name?: string,
+        spy?: Spy<Shape>,
+        emitValidator?: EmitValidator<Shape>
+    };
 }
 
-type RgxEmitData<Shape> = {
-	event: Events<Shape>;
-	data: any;
-};
 
-type EventCbData<E, Shape> = (
-	E extends Events<Shape>
-	? Shape[E]
-	: E extends RegExp
-		? RgxEmitData<Shape>
-		: never
-);
-
-interface EventListener<Shape, Returns = void> {
-
-	<E extends Events<Shape> | RegExp>(
-		event: E,
-		fn: EventCallback<EventCbData<E, Shape>>
-	): Returns;
-}
-
-interface EventEmit<Shape> {
-
-	<E extends Events<Shape> | RegExp>(
-		event: E,
-		data: (
-			E extends Events<Shape>
-			? Shape[E][]
-			: any
-		)
-	): void;
-}
-
-interface RemoveEventListener<Shape> {
-
-	<E extends keyof Shape | RegExp>(
-		event: E,
-		listener?: Function
-	): void;
-}
-
-type Cleanup = () => void;
-
-type ObservedComponent<E> = {
-	on: EventListener<E, Cleanup>;
-	one: EventListener<E>;
-	once: EventListener<E>;
-	off: EventListener<E>;
-	trigger: EventEmit<E>;
-	emit: EventEmit<E>;
-};
-
-type ObservableChild<C, E> = C & ObservedComponent<E> & Cleanup;
-
-type ObservableInstance<T, U> = ObservedComponent<U> & {
-	observe: Observable<T, U>['observe'];
-	$_spy?: ObserverSpy<T, U>;
-	$_ref?: String;
-	$_observer: Observable<T, U>;
-};
-
-declare class EventPromise<T> extends Promise<T> {
-    cleanup?: () => void;
-}
-
-declare class EventGenerator<
-	S, 
-	E extends Events<S> | RegExp | '*' = Events<S>
-> {
-
-    constructor(
-	    observer: ObserverFactory<any, any>, \
-	    event: E | RegExp | '*'
-	);
-    
-    destroy: Cleanup;
-    next: () => Promise<
-	    E extends Events<S> 
-		    ? S[E] 
-		    : E extends RegExp 
-			    ? RgxEmitData<S> 
-			    : S[Events<S>]>
-		;
-    
-    get done(): boolean;
-    emit(
-	    data?: (
-		    E extends Events<S> 
-			    ? S[E] 
-			    : S[Events<S>]
-		)
-	): void;
-
-}
-
-type ObservableFunctionName = 'on' | 'once' | 'off' | 'emit';
-
-type OberverSpyOptions<E> = {
-	event: keyof E | RegExp | '*';
-	listener?: Function;
-	data?: any;
-};
-
-type ObserverSpyAction<C, E> = OberverSpyOptions<E> & {
-	fn: ObservableFunctionName;
-	context: Observable<C, E>;
-};
-
-interface ObserverSpy<C, E> {
-	(event: ObserverSpyAction<C, E>): void;
-}
-
-type ObservableOptions<T, U> = {
-	ref?: string;
-	spy?: ObserverSpy<T, U>;
-};
-
-declare const makeEventTracer: (event: string, caller: any, listenerOrData?: Function | any) => EventTrace;
+export const makeEventTracer = (
+    event: string,
+    caller: any,
+    listenerOrData?: Function | any
+) => EventTrace
 ```

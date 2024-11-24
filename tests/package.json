@@ -24,8 +24,6 @@
         "@logos-ui/kit": "workspace:^",
         "@logos-ui/localize": "workspace:^",
         "@logos-ui/observer": "workspace:^",
-        "@logos-ui/riot-kit": "workspace:^",
-        "@logos-ui/riot-utils": "workspace:^",
         "@logos-ui/state-machine": "workspace:^",
         "@logos-ui/storage": "workspace:^",
         "@logos-ui/utils": "workspace:^",
