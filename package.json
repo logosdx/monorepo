@@ -11,7 +11,8 @@
     "new": "sh ./scripts/new-pkg.zsh",
     "release": "pnpm recursive run build --release && changeset publish",
     "build": "pnpm recursive run build",
-    "dts": "node ./scripts/build.mjs"
+    "dts": "node ./scripts/build.mjs",
+    "build:docs": "zsh ./scripts/docs.zsh"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.1",

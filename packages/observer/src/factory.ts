@@ -7,7 +7,7 @@ import {
 
 import {
     Events,
-    Observable,
+    LogosUiObservable,
 } from './types.ts';
 
 import {
@@ -33,15 +33,15 @@ export class ObserverFactory<
     #listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
     #rgxListenerMap: Map<string, Set<Func>> = new Map();
     #internalListener = new EventTarget();
-    #emitValidator?: Observable.EmitValidator<Shape>;
-    #spy?: Observable.Spy<Shape>;
+    #emitValidator?: LogosUiObservable.EmitValidator<Shape>;
+    #spy?: LogosUiObservable.Spy<Shape>;
 
     // Hidden property for hoiding the spy function
     // when debugging is enabled. Used to restore the
     // original spy function when debugging is disabled.
-    #__spy?: Observable.Spy<Shape>;
+    #__spy?: LogosUiObservable.Spy<Shape>;
 
-    constructor(options?: Observable.Options<Shape>) {
+    constructor(options?: LogosUiObservable.Options<Shape>) {
 
         // Validate option if exists
         if (options) {
@@ -153,7 +153,7 @@ export class ObserverFactory<
         );
     }
 
-    #currentSpy(...args: Parameters<Observable.Spy<Shape>>) {
+    #currentSpy(...args: Parameters<LogosUiObservable.Spy<Shape>>) {
 
         if (this.#spy) {
 
@@ -165,7 +165,7 @@ export class ObserverFactory<
 
         const original = this.#spy;
 
-        const spy: Observable.Spy<Shape> = (ev) => {
+        const spy: LogosUiObservable.Spy<Shape> = (ev) => {
 
             const {
                 event,
@@ -320,7 +320,7 @@ export class ObserverFactory<
             cleanup
         });
 
-        return component as Observable.Child<C, Shape>;
+        return component as LogosUiObservable.Child<C, Shape>;
     }
 
     #eventInfo(event: string | RegExp | Events<Shape>) {
@@ -378,7 +378,7 @@ export class ObserverFactory<
     /**
      * Listens for all events and executes the given callback
      */
-    on (event: '*', listener: Observable.EventCallback<Shape[Events<Shape>]>): Observable.Cleanup;
+    on (event: '*', listener: LogosUiObservable.EventCallback<Shape[Events<Shape>]>): LogosUiObservable.Cleanup;
 
     /**
      * Returns an event generator that will listen for the specified event
@@ -388,7 +388,7 @@ export class ObserverFactory<
     /**
      * Listens for the specified event and executes the given callback
      */
-    on <E extends Events<Shape>>(event: E, listener: Observable.EventCallback<Shape[E]>): Observable.Cleanup;
+    on <E extends Events<Shape>>(event: E, listener: LogosUiObservable.EventCallback<Shape[E]>): LogosUiObservable.Cleanup;
 
     /**
      * Returns an event generator that will listen for all events matching the regex
@@ -398,12 +398,12 @@ export class ObserverFactory<
     /**
      * Listens for all events matching the regex and executes the given callback
      */
-    on (event: RegExp, listener: Observable.EventCallback<Observable.RgxEmitData<Shape>>): Observable.Cleanup;
+    on (event: RegExp, listener: LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>): LogosUiObservable.Cleanup;
 
     /**
      * Used internally
      */
-    on (event: unknown, listener?: Func, opts?: object): Observable.Cleanup | EventGenerator<any>
+    on (event: unknown, listener?: Func, opts?: object): LogosUiObservable.Cleanup | EventGenerator<any>
 
     /**
      * Listen for an event
@@ -413,8 +413,8 @@ export class ObserverFactory<
     on (
         event: RegExp | Events<Shape> | '*',
         listener?: (
-            Observable.EventCallback<Shape[Events<Shape>]> |
-            Observable.EventCallback<Observable.RgxEmitData<Shape>>
+            LogosUiObservable.EventCallback<Shape[Events<Shape>]> |
+            LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>
         ),
         _opts?: { once: boolean }
     ) {
@@ -498,7 +498,7 @@ export class ObserverFactory<
      * Executes a callback once when any event is
      * emitted
      */
-    once (event: '*', listener: Observable.EventCallback<Shape[Events<Shape>]>): Observable.Cleanup;
+    once (event: '*', listener: LogosUiObservable.EventCallback<Shape[Events<Shape>]>): LogosUiObservable.Cleanup;
 
     /**
      * Returns an event promise that resolves when
@@ -510,19 +510,19 @@ export class ObserverFactory<
      * Executes a callback once when the specified
      * event is emitted
      */
-    once <E extends Events<Shape>>(event: E, listener: Observable.EventCallback<Shape[E]>): Observable.Cleanup;
+    once <E extends Events<Shape>>(event: E, listener: LogosUiObservable.EventCallback<Shape[E]>): LogosUiObservable.Cleanup;
 
     /**
      * Returns an event promise that resolves when
      * any events matching the regex are emitted
      */
-    once (event: RegExp): EventPromise<Observable.RgxEmitData<Shape>>;
+    once (event: RegExp): EventPromise<LogosUiObservable.RgxEmitData<Shape>>;
 
     /**
      * Executes a callback once when any events
      * matching the regex are emitted
      */
-    once (event: RegExp, listener: Observable.EventCallback<Observable.RgxEmitData<Shape>>): Observable.Cleanup;
+    once (event: RegExp, listener: LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>): LogosUiObservable.Cleanup;
 
     /**
      * Executes a callback once when the specified
@@ -532,8 +532,8 @@ export class ObserverFactory<
     once (
         event: RegExp | string,
         listener?: (
-            Observable.EventCallback<Shape[Events<Shape>]> |
-            Observable.EventCallback<Observable.RgxEmitData<Shape>>
+            LogosUiObservable.EventCallback<Shape[Events<Shape>]> |
+            LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>
         )
     ) {
 
@@ -556,7 +556,7 @@ export class ObserverFactory<
 
         const self = this;
 
-        let cleanup: Observable.Cleanup;
+        let cleanup: LogosUiObservable.Cleanup;
 
         const runOnce = function (...args: unknown[]) {
 
@@ -568,7 +568,7 @@ export class ObserverFactory<
             event as never,
             runOnce,
             { once: true }
-        ) as Observable.Cleanup;
+        ) as LogosUiObservable.Cleanup;
 
         return cleanup;
     }

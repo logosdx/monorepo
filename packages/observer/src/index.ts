@@ -1,6 +1,6 @@
 export {
     Events,
-    Observable
+    LogosUiObservable
 } from './types.ts';
 
 export {

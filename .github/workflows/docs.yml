@@ -1,0 +1,25 @@
+name: Docs
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: write
+      contents: write
+      pull-requests: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GIT_SSH_COMMAND: "ssh -i /tmp/docs-key -o IdentitiesOnly=yes"
+      DOCS_SSH_KEY: ${{ secrets.DOCS_SSH_KEY }}
+    steps:
+      - name: Update docs
+        run: |
+          echo "$DOCS_SSH_KEY" > /tmp/docs-key
+          git config --global user.email "<>"
+          git config --global user.name "GitHub Actions"
+          pnpm build:docs

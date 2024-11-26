@@ -1,7 +1,7 @@
 import type { ObserverFactory } from './factory.ts';
 export type Events<Shape> = keyof Shape;
 
-export namespace Observable {
+export namespace LogosUiObservable {
 
     export interface EventCallback<Shape> {
         (data: Shape): void

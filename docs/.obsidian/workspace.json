@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "05f288a9074b9234",
+        "id": "27c163a291aa3943",
         "type": "tabs",
         "children": [
           {
-            "id": "0f5d5c1b4b4828a4",
+            "id": "611329795252e56a",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Packages/Fetch.md",
+                "file": "Packages/State Machine.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Fetch"
+              "title": "State Machine"
             }
           }
         ]
@@ -174,29 +174,29 @@
       "table-editor-obsidian:Advanced Tables Toolbar": false
     }
   },
-  "active": "0f5d5c1b4b4828a4",
+  "active": "611329795252e56a",
   "lastOpenFiles": [
+    "Packages/Observer.md",
+    "Packages/Localize.md",
+    "Packages/Fetch.md",
+    "Welcome.md",
+    "[LogosUiFetch.md",
     "types/fetch/src/factory.d.ts",
     "types/fetch/src/types.d.ts",
     "types/fetch/src/helpers.d.ts",
     "Packages/Utils.md",
-    "Packages/Observer.md",
     "types/observer/src/types.d.ts",
     "types/observer/src/factory.d.ts",
     "types/observer/src/helpers.d.ts",
-    "Packages/Localize.md",
     "Deprecated/Riot Utils.md",
     "Deprecated/Riot Kit.md",
     "Deprecated/A set of tools for sane people.md",
     "Deprecated",
-    "Packages/Fetch.md",
     "Depricated/A set of tools for sane people.md",
     "Depricated",
     "Packages/DOM.md",
-    "Welcome.md",
     "types/riot-kit/src/storage.d.ts",
     "types/riot-kit/src/state.d.ts",
-    "types/riot-kit/src/observer.d.ts",
     "Depricated/Riot Kit.md",
     "Depricated/Riot Utils.md",
     "Packages/State Machine.md",

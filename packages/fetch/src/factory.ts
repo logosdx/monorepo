@@ -57,6 +57,9 @@ export class FetchFactory<
      */
     #state: S = {} as S;
 
+    /**
+     * Removes a header from the `FetchFactory` instance
+     */
     removeHeader: FetchFactory<S, H>['rmHeader'];
 
     #validateHeaders(headers: LogosUiFetch.Headers<H>, method?: HttpMethods) {
@@ -186,10 +189,6 @@ export class FetchFactory<
         }
     }
 
-    /**
-     *
-     * @param opts
-     */
     constructor(_opts: LogosUiFetch.Options<H, S>) {
 
         super()
@@ -236,11 +235,11 @@ export class FetchFactory<
 
         const key = method?.toUpperCase() as keyof typeof methodHeaders;
 
-        return {
+        return this.#formatHeaders({
             ...this.#headers,
             ...(methodHeaders[key] || {}),
             ...override
-        };
+        });
     }
 
     /**
@@ -314,7 +313,7 @@ export class FetchFactory<
             }
         }
 
-        let error!: FetchError;
+        let error!: FetchError | Error;
         let response: Response;
 
         opts = modifyOptions
@@ -436,13 +435,15 @@ export class FetchFactory<
                 error = new FetchError(statusText);
             }
 
-            error.data = data as null;
-            error.status = status;
-            error.method = method;
-            error.path = path;
-            error.aborted = options.controller.signal.aborted;
+            const fetchError = error as FetchError;
 
-            throw error;
+            fetchError.data = data as null;
+            fetchError.status = status;
+            fetchError.method = method;
+            fetchError.path = path;
+            fetchError.aborted = options.controller.signal.aborted;
+
+            throw fetchError;
         }
         catch (e) {
 
@@ -457,7 +458,9 @@ export class FetchFactory<
                 error = err;
             }
 
-            let statusCode = error.status || 999;
+            const fetchError = error as FetchError;
+
+            let statusCode = fetchError.status || 999;
             const name = err.name;
             const message = (
                 options.controller.signal.reason ||
@@ -471,11 +474,11 @@ export class FetchFactory<
                 error.message = message
             }
 
-            error.status = statusCode;
-            error.data = error.data || { message };
-            error.method = method;
-            error.path = path;
-            error.aborted = options.controller.signal.aborted;
+            fetchError.status = statusCode;
+            fetchError.data = fetchError.data || { message };
+            fetchError.method = method;
+            fetchError.path = path;
+            fetchError.aborted = options.controller.signal.aborted;
         }
 
         if (options.controller.signal.aborted) {
@@ -497,16 +500,20 @@ export class FetchFactory<
                     payload,
                     url,
                     state: this.#state,
-                    error
+                    error: error as FetchError
                 })
             );
         }
 
-        onError && onError(error);
+        onError && onError(error as FetchError);
 
         throw error;
     }
 
+    /**
+     * Returns all the headers configured for this instance,
+     * including the method specific headers.
+     */
     get headers() {
 
         const method = Object.keys(this.#methodHeaders).reduce(
@@ -545,9 +552,6 @@ export class FetchFactory<
 
     /**
      * Makes a request
-     * @param method
-     * @param path
-     * @param options
      */
     request <Res = any, Data = any>(
         method: HttpMethods,
@@ -608,9 +612,6 @@ export class FetchFactory<
 
     /**
      * Makes a options request
-     * @param path
-     * @param headers
-     * @returns
      */
     options <Res = any>(path: string, options: LogosUiFetch.CallOptions<H> = {}) {
 
@@ -619,9 +620,6 @@ export class FetchFactory<
 
     /**
      * Makes a get request
-     * @param path
-     * @param headers
-     * @returns
      */
     get <Res = any>(path: string, options: LogosUiFetch.CallOptions<H> = {}) {
 
@@ -630,9 +628,6 @@ export class FetchFactory<
 
     /**
      * Makes a delete request
-     * @param path
-     * @param headers
-     * @returns
      */
     delete <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
 
@@ -641,9 +636,6 @@ export class FetchFactory<
 
     /**
      * Makes a post request
-     * @param path
-     * @param headers
-     * @returns
      */
     post <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
 
@@ -652,9 +644,6 @@ export class FetchFactory<
 
     /**
      * Makes a put request
-     * @param path
-     * @param headers
-     * @returns
      */
     put <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
 
@@ -663,9 +652,6 @@ export class FetchFactory<
 
     /**
      * Makes a patch request
-     * @param path
-     * @param headers
-     * @returns
      */
     patch <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
 
@@ -674,7 +660,6 @@ export class FetchFactory<
 
     /**
      * Set an object of headers
-     * @param headers
      */
     addHeader<K extends keyof H>(name: K, value: H[K]): void
     addHeader(name: string, value: string): void
@@ -736,7 +721,6 @@ export class FetchFactory<
 
     /**
      * Remove headers by reference, array of names, or single name
-     * @param headers
      */
     rmHeader (headers: keyof H): void
     rmHeader (headers: (keyof H)[]): void
@@ -776,8 +760,6 @@ export class FetchFactory<
 
     /**
      * Checks if header is set
-     * @param name
-     * @returns
      */
     hasHeader(name: (keyof LogosUiFetch.Headers<H>)) {
 
@@ -786,7 +768,6 @@ export class FetchFactory<
 
     /**
      * Merges a passed object into the `FetchFactory` instance state
-     * @param conf
      */
     setState<N extends keyof S>(name: N, value: S[N]): void
     setState(conf: Partial<S>): void
@@ -878,9 +859,6 @@ export class FetchFactory<
 
     /**
      * Listen for events on this FetchFactory instance
-     * @param ev
-     * @param listener
-     * @param once
      */
     on(
         ev: FetchEventName | '*',
@@ -906,8 +884,6 @@ export class FetchFactory<
 
     /**
      * Remove events listeners from this FetchFactory instance
-     * @param ev
-     * @param listener
      */
     off (ev: FetchEventName | '*', listener: EventListenerOrEventListenerObject) {
 

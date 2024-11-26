@@ -2,7 +2,7 @@ import type { ObserverFactory } from './factory.ts';
 
 import {
     Events,
-    Observable,
+    LogosUiObservable,
 } from './types.ts';
 
 export const ALL_CALLBACKS = '*';
@@ -88,7 +88,7 @@ export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
     #event: E | RegExp | '*';
     #defer: DeferredEvent<any>;
     #done: boolean = false;
-    #listener: Observable.EventCallback<S> | null = null;
+    #listener: LogosUiObservable.EventCallback<S> | null = null;
 
     #assertNotDestroyed = () => {
 
@@ -104,13 +104,13 @@ export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
         }
     }
 
-    destroy!: Observable.Cleanup
+    destroy!: LogosUiObservable.Cleanup
 
     next: () => Promise<
         E extends Events<S>
         ? S[E]
         : E extends RegExp
-            ? Observable.RgxEmitData<S>
+            ? LogosUiObservable.RgxEmitData<S>
             : S[Events<S>]
     >;
 
