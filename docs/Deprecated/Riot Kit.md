@@ -410,7 +410,7 @@ This type unions the following:
 
 ```ts
 import {
-	Observable,
+	LogosUiObservable,
 	LocaleFactory,
 	StateMachine,
 	StorageFactory,
@@ -433,7 +433,7 @@ type LogosUIRiotComponent<
 	 	RiotCompState
 	 > &
  	QueryableComponent<Component, RiotCompState> &
- 	ObservableComponent<
+ 	LogosUiObservable.Component<
 	 	KitType['eventsType'],
 	 	QueryableRC<
 		 	Component,

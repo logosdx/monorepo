@@ -1,5 +1,13 @@
-import { assert, definePublicProps, assertOptional, isObject, isFunction, forInIsEqual } from '@logos-ui/utils';
-import { HttpMethods, LogosUiFetch, HeaderObj } from './types.ts';
+import {
+    assert,
+    definePublicProps,
+    assertOptional,
+    isObject,
+    isFunction,
+    forInIsEqual
+} from '@logos-ui/utils';
+import type { FetchFactory } from './factory.ts';
+import { HttpMethods } from './types.ts';
 
 export interface FetchError<T = {}> extends Error {
     data: T | null;
@@ -13,14 +21,16 @@ export class FetchError<T = {}> extends Error {}
 
 
 export class  FetchEvent<
-    InstanceHeaders = LogosUiFetch.InstanceHeaders,
+    InstanceHeaders = FetchFactory.InstanceHeaders,
+    Params = FetchFactory.Params,
     State = {},
 > extends Event {
     state!: State
     url?: string
     method?: HttpMethods
-    headers?: HeaderObj<InstanceHeaders>
-    options?: LogosUiFetch.RequestOpts
+    headers?: InstanceHeaders
+    params?: Params
+    options?: FetchFactory.RequestOpts
     data?: unknown
     payload?: unknown
     response?: Response
@@ -32,11 +42,12 @@ export class  FetchEvent<
             state: State,
             url?: string,
             method?: HttpMethods,
-            headers?: LogosUiFetch.Headers,
+            headers?: FetchFactory.Headers,
+            params?: FetchFactory.Params,
             error?: FetchError,
             response?: Response,
             data?: unknown,
-            payload?: unknown
+            payload?: unknown,
         },
         initDict?: EventInit
     ) {
@@ -56,6 +67,8 @@ export enum FetchEventNames {
     'fetch-response' = 'fetch-response',
     'fetch-header-add' = 'fetch-header-add',
     'fetch-header-remove' = 'fetch-header-remove',
+    'fetch-param-add' = 'fetch-param-add',
+    'fetch-param-remove' = 'fetch-param-remove',
     'fetch-state-set' = 'fetch-state-set',
     'fetch-state-reset' = 'fetch-state-reset',
     'fetch-url-change' = 'fetch-url-change',
@@ -69,11 +82,11 @@ export const fetchTypes = [
     'formData',
     'json',
     'text',
-] satisfies LogosUiFetch.Type[];
+] satisfies FetchFactory.Type[];
 
 
-export const validateOptions = <H, S>(
-    opts: LogosUiFetch.Options<H, S>
+export const validateOptions = <H, P, S>(
+    opts: FetchFactory.Options<H, P, S>
 ) => {
 
     const {
@@ -81,6 +94,8 @@ export const validateOptions = <H, S>(
         defaultType,
         headers,
         methodHeaders,
+        params,
+        methodParams,
         modifyOptions,
         modifyMethodOptions,
         timeout,
@@ -119,6 +134,24 @@ export const validateOptions = <H, S>(
         methodHeaders,
         () => forInIsEqual(methodHeaders!, (val) => isObject(val)),
         'methodHeaders items must be objects'
+    );
+
+    assertOptional(
+        params,
+        isObject(params),
+        'params must be an object'
+    );
+
+    assertOptional(
+        methodParams,
+        isObject(methodParams),
+        'methodParams must be an object'
+    );
+
+    assertOptional(
+        methodParams,
+        () => forInIsEqual(methodParams!, (val) => isObject(val)),
+        'methodParams items must be objects'
     );
 
     assertOptional(

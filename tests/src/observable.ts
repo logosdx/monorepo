@@ -2,10 +2,9 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
 
-import { ObserverFactory, Observable } from '@logos-ui/observer';
+import { ObserverFactory } from '@logos-ui/observer';
 import { SinonStub } from 'sinon';
-import { sandbox } from './_helpers';
-import { log } from 'console';
+import { sandbox, log as console } from './_helpers';
 
 interface AppEvents {
     test: string | number
@@ -90,6 +89,12 @@ describe('@logos-ui/observer', function () {
 
             observer.on('test', fake);
             observer.emit('test', 'a');
+
+            const { args: [emitted, info] } = fake.getCall(0);
+
+            expect(emitted, 'args is passed the wrong data').to.eq('a');
+            expect(info.event, 'args[info] event is wrong').to.eq('test');
+            expect(info.listener, 'args[info] listener is wrong').to.eq(fake);
 
             expect(fake.calledOnce).to.be.true;
             expect(fake.calledWith('a')).to.be.true;
@@ -272,6 +277,12 @@ describe('@logos-ui/observer', function () {
             expect(fakeEv.getCalls().length).to.eq(1);
             expect(fakeRgx.getCalls().length).to.eq(1);
 
+            const { args: [emitted] } = fakeRgx.getCall(0);
+
+            expect(emitted.event, 'regex arg.event is the wrong event').to.eq('aa');
+            expect(emitted.data, 'regex arg.data is the wrong data').to.eq('works');
+            expect(emitted.listener, 'regex arg.listener is the wrong listener').to.eq(fakeRgx);
+
             /** Test for "a" */
 
             fakeEv.reset(); fakeRgx.reset();
@@ -386,10 +397,14 @@ describe('@logos-ui/observer', function () {
             const resolved2 = await p2;
             const resolved3 = await p3;
 
-            expect(resolved1).to.eq('a');
-            expect(resolved2).to.eq('b');
-            expect(resolved3).to.eq('c');
+            expect(resolved1.data).to.eq('a');
+            expect(resolved1.event).to.eq('something');
 
+            expect(resolved2.data).to.eq('b');
+            expect(resolved2.event).to.eq('someone');
+
+            expect(resolved3.data).to.eq('c');
+            expect(resolved3.event).to.eq('troublesome');
         });
 
         it('returns a promise when calling `once` without a listener', async () => {
@@ -411,7 +426,23 @@ describe('@logos-ui/observer', function () {
             const resolved2 = await promise2;
 
             expect(resolved2).to.eq('b');
+        });
 
+        it('handles regex when calling `once` without a listener', async () => {
+
+            const { observer } = stub;
+
+            const promise = observer.once(/some/);
+
+            observer.emit(
+                'something' as never,
+                'a' as never
+            );
+
+            const resolved = await promise;
+
+            expect(resolved.event).to.eq('something');
+            expect(resolved.data).to.eq('a');
         });
 
         it('listens to everything', async () => {
@@ -455,7 +486,7 @@ describe('@logos-ui/observer', function () {
 
         it('tests emit validator', async () => {
 
-            const emitValidator: Observable.EmitValidator<AppEvents> = (ev, data, ctx) => {
+            const emitValidator: ObserverFactory.EmitValidator<AppEvents> = (ev, data, ctx) => {
 
                 if (ev === 'child-test' && !ctx.$has('child-test')) {
 
@@ -512,7 +543,7 @@ describe('@logos-ui/observer', function () {
 
             const facts = observer.$facts();
 
-            console.log(facts)
+            console.info(observer.$internals());
 
             expect(facts.listeners).to.include.members([
                 'test', 'aa', 'ba'

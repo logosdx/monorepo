@@ -13,8 +13,7 @@ import Joi from 'joi';
 import {
     FetchError,
     FetchEvent,
-    FetchFactory,
-    LogosUiFetch
+    FetchFactory
 } from '@logos-ui/fetch';
 
 import { sandbox } from './_helpers';
@@ -130,6 +129,18 @@ describe('@logos-ui/fetch', () => {
         test(/methodHeaders items must be objects/i);
 
         opts.methodHeaders.POST = {};
+        opts.params = 'not an object';
+        test(/params must be an object/i);
+
+        opts.params = {};
+        opts.methodParams = 'not an object';
+        test(/methodParams must be an object/i);
+
+        opts.methodParams = {};
+        opts.methodParams.POST = 'not an object';
+        test(/methodParams items must be objects/i);
+
+        opts.methodParams.POST = {};
         opts.modifyOptions = 'not a function';
         test(/modifyOptions must be a function/i);
 
@@ -188,6 +199,17 @@ describe('@logos-ui/fetch', () => {
                     'content-type': 'text/xml',
                 },
             },
+            params: {
+                page: '1',
+            },
+            methodParams: {
+                POST: {
+                    page: '2',
+                },
+                PUT: {
+                    page: '3',
+                },
+            },
             modifyOptions: (opts) => opts,
             modifyMethodOptions: {
                 POST: (opts) => opts,
@@ -197,6 +219,11 @@ describe('@logos-ui/fetch', () => {
             validate: {
                 headers: () => true,
                 state: () => true,
+                params: () => true,
+                perRequest: {
+                    headers: true,
+                    params: true,
+                }
             },
             determineType: () => 'json',
             formatHeaders: (h) => h,
@@ -340,8 +367,265 @@ describe('@logos-ui/fetch', () => {
         callStub.args.forEach(
             ([req]) => expect(req.headers, req.method).to.contain(headers)
         );
+    });
+
+    it('sets and removes headers from method functions', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl
+        });
+
+        const headers = { key: '123' };
+
+        api.addHeader(headers, 'DELETE');
+
+        await api.post('/json');
+        await api.put('/json');
+        await api.patch('/json');
+        await api.delete('/json');
+        await api.get('/json');
+        await api.options('/json');
+
+        const calls = callStub.args.map(
+            ([req]) => req.headers
+        );
+
+        const shouldContain = (msg: string, key?: string) => {
+
+            const req = calls.shift()!;
+
+            if (key) {
+
+                expect(req, msg).to.contain({ key });
+            }
+            else {
+
+                expect(req, msg).not.to.contain({ key: '123' });
+            }
+        }
+
+        shouldContain('bad post headers');
+        shouldContain('bad put headers');
+        shouldContain('bad patch headers');
+        shouldContain('bad delete headers', '123');
+        shouldContain('bad get headers');
+        shouldContain('bad options headers');
 
     });
+
+    it('sets default params', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            params: {
+                page: '1',
+            }
+        });
+
+        await api.get('/json');
+
+        const [[req]] = callStub.args as [[Hapi.Request]];
+
+        expect(req.query).to.contain({ page: '1' });
+    });
+
+    it('sets default method params', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            params: {
+                page: '1',
+            },
+            methodParams: {
+                POST: {
+                    page: '2',
+                },
+                PUT: {
+                    page: '3',
+                },
+            }
+        });
+
+        const anyReq = (method: 'get' | 'post' | 'put' | 'delete' | 'options' | 'patch') => {
+
+            const fn = api[method];
+
+            return fn.call(api, '/json').catch(Hoek.ignore);
+        };
+
+        await anyReq('get');
+        await anyReq('delete');
+        await anyReq('patch');
+        await anyReq('options');
+        await anyReq('post');
+        await anyReq('put');
+
+        const calls = callStub.args.map(
+            ([req]) => req.query
+        );
+
+        expect(calls.shift(), 'bad get params').to.contain({ page: '1' });
+        expect(calls.shift(), 'bad delete params').to.contain({ page: '1' });
+        expect(calls.shift(), 'bad patch params').to.contain({ page: '1' });
+        expect(calls.shift(), 'bad options params').to.contain({ page: '1' });
+        expect(calls.shift(), 'bad post params').to.contain({ page: '2' });
+        expect(calls.shift(), 'bad put params').to.contain({ page: '3' });
+    });
+
+    it('allows param overrides from method functions', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl
+        });
+
+        const params = { page: '2' };
+
+        await api.post('/json', null, { params });
+        await api.put('/json', null, { params });
+        await api.patch('/json', null, { params });
+        await api.delete('/json', null, { params });
+        await api.get('/json', { params });
+        await api.options('/json', { params });
+
+        callStub.args.forEach(
+            ([req]) => expect(req.query, req.method).to.contain(params)
+        );
+    });
+
+    it('sets and removes params', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            params: {
+                page: '1',
+                something: 'else',
+            }
+        });
+
+        /**
+         * Remove a param
+         */
+
+        api.rmParams('page');
+
+        await api.get('/json');
+
+        const [[req]] = callStub.args as [[Hapi.Request]];
+
+        expect(req.query).to.not.contain({ page: '1' });
+        expect(req.query).to.contain({ something: 'else' });
+
+        callStub.resetHistory();
+
+        /**
+         * Add a param
+         */
+
+        api.addParam('page', '2');
+
+        await api.get('/json');
+        const [[req2]] = callStub.args as [[Hapi.Request]];
+
+        expect(req2.query).to.contain({ page: '2' });
+        expect(req2.query).to.contain({ something: 'else' });
+
+        callStub.resetHistory();
+
+    });
+
+    it('sets and removes params from method functions', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            params: {
+                page: '1',
+            }
+        });
+
+        const params = { key: '123' };
+
+        api.addParam('page', '2', 'DELETE');
+        api.addParam({ page: '2' }, 'PATCH');
+
+        callStub.resetHistory();
+
+        await api.post('/json', null, { params });
+        await api.put('/json', null, { params });
+        await api.patch('/json', null, { params });
+        await api.delete('/json', null, { params });
+        await api.get('/json', { params });
+        await api.options('/json', { params });
+
+        const calls = callStub.args.map(
+            ([req]) => req.query
+        );
+
+        const shouldContain = (msg: string, page?: string) => {
+
+            const req = calls.shift()!;
+
+            expect(req, msg).to.contain({ ...params, page });
+        }
+
+        shouldContain('bad post params', '1');
+        shouldContain('bad put params', '1');
+        shouldContain('bad patch params', '2');
+        shouldContain('bad delete params', '2');
+        shouldContain('bad get params', '1');
+        shouldContain('bad options params', '1');
+
+        callStub.resetHistory();
+
+        /**
+         * Add a param with a method
+         */
+
+        api.addParam('key', '123', 'POST');
+
+        await api.get('/json');
+        await api.post('/json');
+        const [[req3], [req4]] = callStub.args as [[Hapi.Request], [Hapi.Request]];
+
+        expect(req3.query).not.to.contain({ key: '123' });
+        expect(req4.query).to.contain({ key: '123' });
+
+        callStub.resetHistory();
+        api.addParam('key', '456', 'GET');
+
+        await api.get('/json');
+        await api.post('/json');
+        const [[req5], [req6]] = callStub.args as [[Hapi.Request], [Hapi.Request]];
+
+        expect(req5.query).to.contain({ key: '456' });
+        expect(req6.query).to.contain({ key: '123' });
+
+        callStub.resetHistory();
+
+        /**
+         * Remove a param with a method
+         */
+
+        api.rmParams('key', 'POST');
+
+        await api.get('/json');
+        await api.post('/json');
+
+        const [[req7], [req8]] = callStub.args as [[Hapi.Request], [Hapi.Request]];
+
+        expect(req7.query).to.contain({ key: '456' });
+        expect(req8.query).not.to.contain({ key: '123' });
+
+        callStub.resetHistory();
+        api.rmParams('key', 'GET');
+
+        await api.get('/json');
+
+        const [[req9]] = callStub.args as [[Hapi.Request]];
+
+        expect(req9.query).not.to.contain({ key: '456' });
+
+    });
+
 
     it('sends payloads', async () => {
 
@@ -438,7 +722,7 @@ describe('@logos-ui/fetch', () => {
     it('can abort requests', async () => {
 
         const onError = sandbox.stub();
-        const onBeforeReq = (opts: LogosUiFetch.RequestOpts) => {
+        const onBeforeReq = (opts: FetchFactory.RequestOpts) => {
 
             setTimeout(() => {
 
@@ -634,7 +918,7 @@ describe('@logos-ui/fetch', () => {
             theValue: string;
         }
 
-        const api = new FetchFactory <{}, TestState>({
+        const api = new FetchFactory <{}, {}, TestState>({
             baseUrl: testUrl,
             modifyOptions(opts, state) {
 
@@ -669,7 +953,7 @@ describe('@logos-ui/fetch', () => {
 
         const listener = sandbox.stub();
 
-        const headers: LogosUiFetch.Headers = {
+        const headers: FetchFactory.Headers = {
             'Content-Type': 'application/json',
             Authorization: 'weeee'
         }
@@ -678,7 +962,8 @@ describe('@logos-ui/fetch', () => {
 
         const api = new FetchFactory<any>({
             baseUrl: testUrl,
-            headers
+            headers,
+            formatHeaders: false
         });
 
         api.on('*', listener);
@@ -876,12 +1161,24 @@ describe('@logos-ui/fetch', () => {
             'x-toast': 'true',
         }
 
-        const api = new FetchFactory<TestHeaders, TestState>({
+        type TestParams = {
+            page: string;
+        }
+
+        const api = new FetchFactory<TestHeaders, TestParams, TestState>({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json',
                 'x-test': 'true',
                 poop: 'asd',
+            },
+            params: {
+                page: '1',
+            },
+            methodParams: {
+                POST: {
+                    page: '2',
+                },
             },
             methodHeaders: {
                 POST: {
@@ -898,6 +1195,15 @@ describe('@logos-ui/fetch', () => {
 
                     s.theValue = '123';
                 },
+                params(p) {
+
+                    p.page = '3';
+                },
+
+                perRequest: {
+                    headers: true,
+                    params: true,
+                }
             },
             modifyOptions(opts, state) {
 
@@ -918,6 +1224,14 @@ describe('@logos-ui/fetch', () => {
         api.addHeader({ hmac: 'ghi789', poop: 'asd',  });
         api.addHeader({ 'x-test': 'test' });
         api.addHeader('x-toast', 'true');
+
+        api.addParam('page', '4');
+        api.addParam({ page: '5' });
+
+        api.rmHeader('x-test');
+        api.rmHeader(['x-toast'])
+        api.rmParams('page');
+        api.rmParams(['page']);
 
         type TestPayload = {
             test: string;
@@ -1051,6 +1365,113 @@ describe('@logos-ui/fetch', () => {
         expect(failed.callCount).to.eq(fail.length);
     });
 
+    it('validates params', () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            params: {
+                page: '1',
+            },
+            validate: {
+                params(p) {
+
+                    expect(p.page).to.eq('1');
+
+                    if (p.test) {
+
+                        expect(p.test).to.eq('true');
+                    }
+
+                    expect(p.poop).to.not.exist;
+
+                }
+            }
+        });
+
+        const succeed = [
+            () => api.addParam({ test: 'true' }),
+            () => api.addParam('test', 'true'),
+        ];
+
+        const fail = [
+
+            () => api.addParam({ poop: 'asd' }),
+            () => api.addParam('poop', 'asd'),
+            () => api.addParam('test', 'false'),
+            () => api.addParam('page', '2'),
+        ];
+
+        succeed.forEach(
+            fn => expect(fn, fn.toString()).to.not.throw()
+        );
+
+        fail.forEach(
+            fn => expect(fn, fn.toString()).to.throw()
+        );
+    });
+
+    it('validates params per request', async () => {
+
+        const api = new FetchFactory({
+            baseUrl: testUrl,
+            params: {
+                page: '1',
+            },
+            validate: {
+                params(p, method) {
+
+                    if (method === 'GET') {
+
+                        expect(p.page).to.eq('1');
+                        expect(p.test).to.not.exist;
+                    }
+
+                    if (method === 'POST') {
+
+                        expect(p.page).to.eq('1');
+                        expect(p.test).to.eq('true');
+                    }
+
+                    if (method === 'PUT') {
+
+                        expect(p.page).to.eq('1');
+                        expect(p.test).to.eq('true');
+                    }
+                },
+                perRequest: {
+                    params: true
+                }
+            }
+        });
+
+        const succeed = [
+            () => api.get('/json'),
+            () => api.post('/json', null, { params: { test: 'true' } }),
+            () => api.put('/json', null, { params: { test: 'true' } }),
+        ];
+
+        const fail = [
+            () => api.get('/json', { params: { test: 'true' } }),
+            () => api.post('/json'),
+            () => api.put('/json'),
+        ];
+
+        const failed = sandbox.stub();
+
+        await Promise.all(
+            succeed.map(fn => fn().catch(failed))
+        );
+
+        expect(failed.called).to.be.false;
+
+        await Promise.all(
+            fail.map(fn => fn().catch(failed))
+        );
+
+        expect(failed.called).to.be.true;
+        expect(failed.callCount).to.eq(fail.length);
+    });
+
     it('validates states', () => {
 
         type TestState = {
@@ -1059,7 +1480,7 @@ describe('@logos-ui/fetch', () => {
 
         const fn = sandbox.stub();
 
-        const api = new FetchFactory<{}, TestState>({
+        const api = new FetchFactory<{}, {}, TestState>({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json',

@@ -5,6 +5,8 @@ import sinon from 'sinon';
 
 import * as Kit from '@logos-ui/kit';
 
+import { log as console } from './_helpers'
+
 describe('@logos-ui/kit', () => {
 
     const {
@@ -46,7 +48,7 @@ describe('@logos-ui/kit', () => {
 
     const stateReducer: Kit.ReducerFunction<AppStateType> = (val, state) => {
 
-        return Kit.deepMerge(state, val);
+        return Kit.deepMerge(state, val) as AppStateType;
     }
 
     type AppStorageType = {
@@ -74,32 +76,65 @@ describe('@logos-ui/kit', () => {
                 hmac?: string,
                 timestamp?: string
             },
+        },
+        apis: {
+            stripe: {
+                headers: { Authorization: string },
+                state: {},
+                params: {}
+            },
+            facebook: {
+                headers: {},
+                params: { access_token: string },
+                state: {}
+            }
         }
     }>;
 
-    const localesOpts: any = {
+    type Opts = Kit.AppKitOpts<AppKitType>;
+
+    const localesOpts: Opts['locales'] = {
         current: 'en',
         fallback: 'en',
         locales
     };
 
-    const observerOpts = {};
+    const observerOpts: Opts['observer'] = {};
 
-    const stateMachineOpts = {
+    const stateMachineOpts: Opts['stateMachine'] = {
         initial: initialState,
         reducer: stateReducer
     };
 
-    const storageOpts = {
+    const storageOpts: Opts['storage'] = {
         implementation: window.localStorage,
         prefix: 'kit'
     };
 
-    const fetchOpts: Kit.FetchFactoryOptions = {
+    const fetchOpts: Opts['fetch'] = {
         baseUrl: 'http://localhost:1234',
-        type: 'json',
-        headers: {}
+        defaultType: 'json',
+        headers: {
+            hmac: '123',
+        }
     };
+
+    const apis: Opts['apis'] = {
+        stripe: {
+            baseUrl: 'https://api.stripe.com',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer sk_',
+            }
+        },
+        facebook: {
+            baseUrl: 'https://graph.facebook.com',
+            params: {
+                access_token: '123'
+            },
+            headers: {}
+        }
+    }
 
     it('provides an appKit', function () {
 
@@ -110,7 +145,8 @@ describe('@logos-ui/kit', () => {
             locales: localesOpts,
             observer: observerOpts,
             stateMachine: stateMachineOpts,
-            storage: storageOpts
+            storage: storageOpts,
+            apis
         });
 
         expect(app.observer).to.exist;
@@ -118,21 +154,22 @@ describe('@logos-ui/kit', () => {
         expect(app.stateMachine).to.exist;
         expect(app.storage).to.exist;
         expect(app.fetch).to.exist;
+        expect(app.apis).to.exist;
 
+        expect(app.apis).to.have.property('stripe');
+        expect(app.apis).to.have.property('facebook');
 
-        expect(app.observer).to.have.property('on');
-        expect(app.observer).to.have.property('one');
-        expect(app.observer).to.have.property('off');
-        expect(app.observer).to.have.property('trigger');
+        expect(app.apis.stripe).to.be.an.instanceOf(Kit.FetchFactory);
+        expect(app.apis.facebook).to.be.an.instanceOf(Kit.FetchFactory);
+        expect(app.fetch).to.be.an.instanceOf(Kit.FetchFactory);
 
+        expect(app.observer).to.be.an.instanceOf(Kit.ObserverFactory);
         expect(app.locale).to.be.an.instanceOf(Kit.LocaleFactory);
         expect(app.stateMachine).to.be.an.instanceOf(Kit.StateMachine);
         expect(app.storage).to.be.an.instanceOf(Kit.StorageFactory);
 
-        expect(app.fetch).to.be.an.instanceOf(Kit.FetchFactory);
-
         app.observer!.on('mint', (data) => data === 'peppermint');
-        app.observer!.trigger('floss', true);
+        app.observer!.emit('floss', true);
 
         app.locale!.t('bear');
         app.locale!.changeTo('en');
@@ -140,6 +177,13 @@ describe('@logos-ui/kit', () => {
         app.fetch!.addHeader({ hmac: '123', nonsensee: '123' });
         app.fetch!.removeHeader('authorization');
         app.fetch!.setState({ authToken: '123' });
+
+        app.apis.stripe.addHeader({ 'Content-Type': 'application/json' });
+        app.apis.stripe.removeHeader('Content-Type');
+        app.apis.stripe.setState({});
+
+        app.apis.facebook.addParam({ access_token: '123' });
+        app.apis.facebook.rmParams('access_token');
 
         app.storage!.set('age', 123);
         app.storage!.get('name') === 'abc';

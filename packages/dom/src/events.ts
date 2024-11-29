@@ -97,7 +97,7 @@ export class HtmlEvents {
         );
     }
 
-    static trigger(
+    static emit(
 
         els: TargetsOrWin,
         event: EvType | Event,

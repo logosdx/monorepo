@@ -7,7 +7,6 @@ import {
 
 import {
     Events,
-    LogosUiObservable,
 } from './types.ts';
 
 import {
@@ -33,15 +32,16 @@ export class ObserverFactory<
     #listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
     #rgxListenerMap: Map<string, Set<Func>> = new Map();
     #internalListener = new EventTarget();
-    #emitValidator?: LogosUiObservable.EmitValidator<Shape>;
-    #spy?: LogosUiObservable.Spy<Shape>;
+    #emitValidator?: ObserverFactory.EmitValidator<Shape>;
+    #spy?: ObserverFactory.Spy<Shape>;
 
-    // Hidden property for hoiding the spy function
+    // Hidden property for holding the spy function
     // when debugging is enabled. Used to restore the
     // original spy function when debugging is disabled.
-    #__spy?: LogosUiObservable.Spy<Shape>;
+    #__spy?: ObserverFactory.Spy<Shape>;
 
-    constructor(options?: LogosUiObservable.Options<Shape>) {
+
+    constructor(options?: ObserverFactory.Options<Shape>) {
 
         // Validate option if exists
         if (options) {
@@ -113,6 +113,10 @@ export class ObserverFactory<
 
 	/**
 	 * The internals of the observable instance.
+     *
+     * NOTE: Do not use this to try to meddle with the
+     * internals of the observable instance. This is for
+     * debugging purposes only.
 	 */
     $internals() {
 
@@ -153,7 +157,7 @@ export class ObserverFactory<
         );
     }
 
-    #currentSpy(...args: Parameters<LogosUiObservable.Spy<Shape>>) {
+    #currentSpy(...args: Parameters<ObserverFactory.Spy<Shape>>) {
 
         if (this.#spy) {
 
@@ -161,11 +165,19 @@ export class ObserverFactory<
         }
     }
 
+    /**
+     * Enables or disables debugging for the observable instance.
+     * Works in conjunction with your spy function. Provides a
+     * stack trace of events that are triggered, listened to, and
+     * cleaned up.
+     *
+     * @param on Whether to enable or disable debugging
+     */
     debug(on = true) {
 
         const original = this.#spy;
 
-        const spy: LogosUiObservable.Spy<Shape> = (ev) => {
+        const spy: ObserverFactory.Spy<Shape> = (ev) => {
 
             const {
                 event,
@@ -174,7 +186,7 @@ export class ObserverFactory<
                 listener
             } = ev;
 
-            console.log(
+            console.info(
                 makeEventTracer(
                     event as any,
                     fn,
@@ -320,9 +332,13 @@ export class ObserverFactory<
             cleanup
         });
 
-        return component as LogosUiObservable.Child<C, Shape>;
+        return component as ObserverFactory.Child<C, Shape>;
     }
 
+    /**
+     * Gets information about the event, whether it's a regex or not,
+     * the event name, and the regex itself.
+     */
     #eventInfo(event: string | RegExp | Events<Shape>) {
 
         const isRgx = (event as RegExp).constructor === RegExp;
@@ -335,6 +351,9 @@ export class ObserverFactory<
         };
     }
 
+    /**
+     * Returns all event names that match the regex
+     */
     #withRgxMatchKeys (rgx: RegExp) {
 
         return [...this.#listenerMap.keys()].filter(
@@ -342,6 +361,9 @@ export class ObserverFactory<
         ) as Events<Shape>[];
     }
 
+    /**
+     * Returns all regexes that match the key
+     */
     #withKeyMatchRgx (key: string) {
 
         return [...this.#rgxListenerMap.keys()].filter(
@@ -349,6 +371,9 @@ export class ObserverFactory<
         ).flat();
     }
 
+    /**
+     * Returns all event names that match the regex
+     */
     #matchStr (rgx: RegExp) {
 
         const events = this.#withRgxMatchKeys(rgx);
@@ -359,7 +384,9 @@ export class ObserverFactory<
         );
     }
 
-
+    /**
+     * Returns all regexes that match the key
+     */
     #matchRgx (str: string) {
 
         const events = this.#withKeyMatchRgx(str);
@@ -372,38 +399,92 @@ export class ObserverFactory<
 
     /**
      * Returns an event generator that will listen for all events
+     *
+     * @example
+     *
+     * const obs = new ObserverFactory();
+     *
+     * const onEvent = obs.on('*');
+     * await onEvent.next(); // waits for next event
+     * onEvent.emit('data'); // emits data to listeners
+     *
+     * onEvent.cleanup(); // stops listening for events
      */
-    on (event: '*'): EventGenerator<Shape, '*'>;
+    on (event: '*'): EventGenerator<ObserverFactory.RgxEmitData<Shape>, '*'>;
 
     /**
      * Listens for all events and executes the given callback
+     *
+     * @example
+     *
+     * const obs = new ObserverFactory();
+     *
+     * obs.on('*', (data) => {
+     *     console.log(data);
+     * });
      */
-    on (event: '*', listener: LogosUiObservable.EventCallback<Shape[Events<Shape>]>): LogosUiObservable.Cleanup;
+    on (event: '*', listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
 
     /**
      * Returns an event generator that will listen for the specified event
+     *
+     * @example
+     *
+     * const obs = new ObserverFactory();
+     *
+     * const something = obs.on('something');
+     * const data = await something.next(); // waits for next event
+     * something.emit('special'); // emits data to listeners
+     *
+     * something.cleanup(); // stops listening for events
      */
     on <E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
 
     /**
      * Listens for the specified event and executes the given callback
+     *
+     * @example
+     *
+     * const obs = new ObserverFactory();
+     *
+     * obs.on('something', (data) => {
+     *    console.log(data);
+     * });
      */
-    on <E extends Events<Shape>>(event: E, listener: LogosUiObservable.EventCallback<Shape[E]>): LogosUiObservable.Cleanup;
+    on <E extends Events<Shape>>(event: E, listener: ObserverFactory.EventCallback<Shape[E]>): ObserverFactory.Cleanup;
 
     /**
      * Returns an event generator that will listen for all events matching the regex
+     *
+     * @example
+     *
+     * const obs = new ObserverFactory();
+     *
+     * const onEvent = obs.on(/some/);
+     * const { event, data } = await onEvent.next(); // waits for next event
+     * onEvent.emit('something'); // emits data to listeners
+     *
+     * onEvent.cleanup(); // stops listening for events
      */
     on (event: RegExp): EventGenerator<Shape, RegExp>;
 
     /**
      * Listens for all events matching the regex and executes the given callback
+     *
+     * @example
+     *
+     * const obs = new ObserverFactory();
+     *
+     * obs.on(/some/, ({ event, data }) => {
+     *     console.log(event, data);
+     * });
      */
-    on (event: RegExp, listener: LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>): LogosUiObservable.Cleanup;
+    on (event: RegExp, listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
 
     /**
      * Used internally
      */
-    on (event: unknown, listener?: Func, opts?: object): LogosUiObservable.Cleanup | EventGenerator<any>
+    on (event: unknown, listener?: Func, opts?: object): ObserverFactory.Cleanup | EventGenerator<any>
 
     /**
      * Listen for an event
@@ -413,8 +494,8 @@ export class ObserverFactory<
     on (
         event: RegExp | Events<Shape> | '*',
         listener?: (
-            LogosUiObservable.EventCallback<Shape[Events<Shape>]> |
-            LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>
+            ObserverFactory.EventCallback<Shape[Events<Shape>]> |
+            ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>
         ),
         _opts?: { once: boolean }
     ) {
@@ -492,13 +573,13 @@ export class ObserverFactory<
      * Returns an event promise that resolves when
      * any event is emitted
      */
-    once (event: '*'): EventPromise<Shape[Events<Shape>]>;
+    once (event: '*'): EventPromise<ObserverFactory.RgxEmitData<Shape>>;
 
     /**
      * Executes a callback once when any event is
      * emitted
      */
-    once (event: '*', listener: LogosUiObservable.EventCallback<Shape[Events<Shape>]>): LogosUiObservable.Cleanup;
+    once (event: '*', listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
 
     /**
      * Returns an event promise that resolves when
@@ -510,19 +591,19 @@ export class ObserverFactory<
      * Executes a callback once when the specified
      * event is emitted
      */
-    once <E extends Events<Shape>>(event: E, listener: LogosUiObservable.EventCallback<Shape[E]>): LogosUiObservable.Cleanup;
+    once <E extends Events<Shape>>(event: E, listener: ObserverFactory.EventCallback<Shape[E]>): ObserverFactory.Cleanup;
 
     /**
      * Returns an event promise that resolves when
      * any events matching the regex are emitted
      */
-    once (event: RegExp): EventPromise<LogosUiObservable.RgxEmitData<Shape>>;
+    once (event: RegExp): EventPromise<ObserverFactory.RgxEmitData<Shape>>;
 
     /**
      * Executes a callback once when any events
      * matching the regex are emitted
      */
-    once (event: RegExp, listener: LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>): LogosUiObservable.Cleanup;
+    once (event: RegExp, listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
 
     /**
      * Executes a callback once when the specified
@@ -532,8 +613,8 @@ export class ObserverFactory<
     once (
         event: RegExp | string,
         listener?: (
-            LogosUiObservable.EventCallback<Shape[Events<Shape>]> |
-            LogosUiObservable.EventCallback<LogosUiObservable.RgxEmitData<Shape>>
+            ObserverFactory.EventCallback<Shape[Events<Shape>]> |
+            ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>
         )
     ) {
 
@@ -556,7 +637,7 @@ export class ObserverFactory<
 
         const self = this;
 
-        let cleanup: LogosUiObservable.Cleanup;
+        let cleanup: ObserverFactory.Cleanup;
 
         const runOnce = function (...args: unknown[]) {
 
@@ -568,7 +649,7 @@ export class ObserverFactory<
             event as never,
             runOnce,
             { once: true }
-        ) as LogosUiObservable.Cleanup;
+        ) as ObserverFactory.Cleanup;
 
         return cleanup;
     }
@@ -681,8 +762,12 @@ export class ObserverFactory<
             const cbs = this.#listenerMap.get(eventName);
 
             const rgxCbs = this.#matchRgx(eventName as string);
-            if (cbs) cbs.forEach(fn => fn.apply(this, [data]))
-            if (rgxCbs) rgxCbs.forEach(fn => fn.apply(this, [data]))
+            if (cbs) cbs.forEach(
+                (fn) => fn.apply(this, [data, { event, listener: fn }])
+            );
+            if (rgxCbs) rgxCbs.forEach(
+                ({  func }) => func.apply(this, [{ data, event, listener: func }])
+            );
 
             this.#internalListener.dispatchEvent(
                 new InternalEvent(
@@ -699,7 +784,9 @@ export class ObserverFactory<
 
         const cbs = this.#matchStr(rgx);
 
-        if (cbs) cbs.forEach(fn => fn.apply(this, [data]))
+        if (cbs) cbs.forEach(
+            ({ event, func }) => func.apply(this, [data, { event, listener: func }])
+        );
 
         this.#withRgxMatchKeys(rgx).forEach(
             ev => {

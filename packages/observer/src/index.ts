@@ -1,7 +1,4 @@
-export {
-    Events,
-    LogosUiObservable
-} from './types.ts';
+export { Events } from './types.ts';
 
 export {
     makeEventTracer,

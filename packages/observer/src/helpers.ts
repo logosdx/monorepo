@@ -1,9 +1,7 @@
 import type { ObserverFactory } from './factory.ts';
 
-import {
-    Events,
-    LogosUiObservable,
-} from './types.ts';
+import { Events } from './types.ts';
+
 
 export const ALL_CALLBACKS = '*';
 export const MATCH_EVERYTHING = /.*/;
@@ -54,6 +52,7 @@ export class EventError extends Error {
 export class EventPromise<T> extends Promise<T> {
 
     cleanup?: () => void
+    reject?: (err: Error | string) => void
 }
 
 export class DeferredEvent<T> {
@@ -67,6 +66,8 @@ export class DeferredEvent<T> {
             this._resolve = resolve;
             this._reject = reject;
         });
+
+        this._promise.reject = this.reject.bind(this);
     }
 
     resolve(data: T) {
@@ -88,7 +89,7 @@ export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
     #event: E | RegExp | '*';
     #defer: DeferredEvent<any>;
     #done: boolean = false;
-    #listener: LogosUiObservable.EventCallback<S> | null = null;
+    #listener: ObserverFactory.EventCallback<S> | null = null;
 
     #assertNotDestroyed = () => {
 
@@ -104,13 +105,13 @@ export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
         }
     }
 
-    destroy!: LogosUiObservable.Cleanup
+    destroy!: ObserverFactory.Cleanup
 
     next: () => Promise<
         E extends Events<S>
         ? S[E]
         : E extends RegExp
-            ? LogosUiObservable.RgxEmitData<S>
+            ? ObserverFactory.RgxEmitData<S>
             : S[Events<S>]
     >;
 
@@ -121,7 +122,7 @@ export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
 
         this.#observer = observer;
         this.#event = event;
-        this.#defer = new DeferredEvent();
+
         this.#listener = (data: unknown) => {
 
             this.#defer.resolve(data);
@@ -148,6 +149,7 @@ export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
             this.#done = true;
         }
 
+        this.#defer = new DeferredEvent();
         this.#defer.promise.cleanup = this.destroy;
     }
 
@@ -227,12 +229,12 @@ export const arrOfMatchingValues = (
     map: Map<any, Set<Function>>
 ) => {
 
-    const listeners: Function[] = [];
+    const listeners: ({ event: string, func: Function })[] = [];
 
 
     for (const key of vals) {
         for (const fn of map.get(key) || new Set()) {
-            listeners.push(fn);
+            listeners.push({ event: key, func: fn });
         }
     }
 

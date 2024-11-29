@@ -1,20 +1,21 @@
-import { Func, assert, isFunction, txt } from '@logos-ui/utils';
+import { Func, assert, assertOptional, deepClone, isFunction, txt } from '@logos-ui/utils';
 
 import {
     _InternalHttpMethods,
     HttpMethodOpts,
     HttpMethods,
-    LogosUiFetch,
     MethodHeaders
 } from './types.ts';
 
-import { FetchError,
+import {
+    FetchError,
     FetchEvent,
     FetchEventName,
     FetchEventNames,
     fetchTypes,
     validateOptions
 } from './helpers.ts';
+
 
 /**
  * Creates a wrapper around `window.fetch` that allows
@@ -35,20 +36,33 @@ import { FetchError,
  * })
  */
 export class FetchFactory<
-    H = LogosUiFetch.InstanceHeaders,
+    H = FetchFactory.InstanceHeaders,
+    P = FetchFactory.InstanceParams,
     S = {},
 > extends EventTarget {
 
+    /**
+     * Symbol to use the default value or configuration
+     * for a given option. For example, if you want to
+     * handle the response type yourself, you can set the
+     * `determineType` option to a function that returns
+     * the type of the response, or you can return the
+     * `FetchFactory.useDefault` to use the internal logic.
+     */
+    static useDefault = Symbol('useDefault');
+
     #baseUrl: URL;
-    #options: Partial<LogosUiFetch.RequestOpts>;
-    #headers: LogosUiFetch.Headers<H>;
+    #options: Partial<FetchFactory.RequestOpts>;
+    #headers: FetchFactory.Headers<H>;
     #methodHeaders: MethodHeaders<H>;
-    #type: LogosUiFetch.Type;
+    #params: FetchFactory.Params<P>;
+    #methodParams: HttpMethodOpts<P>;
+    #type: FetchFactory.Type;
 
-    #modifyOptions?: LogosUiFetch.Options<H, S>['modifyOptions'];
-    #modifyMethodOptions?: HttpMethodOpts<LogosUiFetch.Options<H, S>['modifyOptions']>;
+    #modifyOptions?: FetchFactory.Options<H, P, S>['modifyOptions'];
+    #modifyMethodOptions?: HttpMethodOpts<FetchFactory.Options<H, P, S>['modifyOptions']>;
 
-    #validate?: LogosUiFetch.Options<H, S>['validate'];
+    #validate?: FetchFactory.Options<H, P, S>['validate'];
 
     /**
      * For saving values that may be needed to craft requests as the
@@ -60,14 +74,30 @@ export class FetchFactory<
     /**
      * Removes a header from the `FetchFactory` instance
      */
-    removeHeader: FetchFactory<S, H>['rmHeader'];
+    removeHeader: FetchFactory<H, P, S>['rmHeader'];
 
-    #validateHeaders(headers: LogosUiFetch.Headers<H>, method?: HttpMethods) {
+    /**
+     * Removes a param from the `FetchFactory` instance
+     */
+    removeParam: FetchFactory<H, P, S>['rmParams'];
+
+    #validateHeaders(headers: FetchFactory.Headers<H>, method?: HttpMethods) {
 
         if (this.#validate?.headers) {
 
             this.#validate.headers(
                 headers,
+                method?.toUpperCase() as _InternalHttpMethods
+            );
+        }
+    }
+
+    #validateParams(params: FetchFactory.Params<P>, method?: HttpMethods) {
+
+        if (this.#validate?.params) {
+
+            this.#validate.params(
+                params,
                 method?.toUpperCase() as _InternalHttpMethods
             );
         }
@@ -82,7 +112,7 @@ export class FetchFactory<
     }
 
     #determineType(response: Response): {
-        type: LogosUiFetch.Type,
+        type: FetchFactory.Type,
         isJson: boolean
     } {
 
@@ -90,78 +120,79 @@ export class FetchFactory<
 
             const type = this.#options.determineType(response);
 
-            if (!fetchTypes.includes(type)) {
+            if (FetchFactory.useDefault !== type) {
 
-                console.warn(`Invalid type: '${type}'. Defaulting to '${this.#type}'`);
+                if (!fetchTypes.includes(type as FetchFactory.Type)) {
+
+                    console.warn(`Invalid type: '${type}'. Defaulting to '${this.#type}'`);
+
+                    return {
+                        type: this.#type,
+                        isJson: this.#type === 'json'
+                    }
+                }
 
                 return {
-                    type: this.#type,
-                    isJson: this.#type === 'json'
-                }
+                    type: type as FetchFactory.Type,
+                    isJson: type === 'json'
+                };
             }
-
-            return {
-                type,
-                isJson: type === 'json'
-            };
         }
-        else {
 
-            const contentType = (
-                response.headers.get('content-type') ||
-                response.headers.get('Content-Type') ||
-                ''
-            );
+        const contentType = (
+            response.headers.get('content-type') ||
+            response.headers.get('Content-Type') ||
+            ''
+        );
 
-            if (contentType) {
+        if (contentType) {
 
-                if (/text|xml|html|form-urlencoded/.test(contentType)) {
+            if (/text|xml|html|form-urlencoded/.test(contentType)) {
 
-                    return { type: 'text', isJson: false };
-                }
-                else if (/json/.test(contentType)) {
+                return { type: 'text', isJson: false };
+            }
+            else if (/json/.test(contentType)) {
 
-                    return { type: 'json', isJson: true };
-                }
-                else if (/image|audio|video|font|binary|application/.test(contentType)) {
+                return { type: 'json', isJson: true };
+            }
+            else if (/form-data/.test(contentType)) {
 
-                    return { type: 'blob', isJson: false };
-                }
-                else if (/form-data/.test(contentType)) {
+                return { type: 'formData', isJson: false };
+            }
+            else if (/image|audio|video|font|binary|application/.test(contentType)) {
 
-                    return { type: 'formData', isJson: false };
-                }
-                else {
+                return { type: 'blob', isJson: false };
+            }
+            else {
 
-                    throw new FetchError(txt.msgs(
-                        'Unknown content type:',
-                        contentType,
-                        'You may need to set the "determineType" option',
-                        'to customize how the response is parsed.',
-                    ));
-                }
+                throw new FetchError(txt.msgs(
+                    'Unknown content type:',
+                    contentType,
+                    'You may need to set the "determineType" option',
+                    'to customize how the response is parsed.',
+                ));
             }
         }
 
         return { type: this.#type, isJson: this.#type === 'json' };
     }
 
-    #formatHeaders(headers: LogosUiFetch.Headers<H>) {
+    #formatHeaders(headers: FetchFactory.Headers<H>) {
 
         const opts = this.#options.formatHeaders ?? 'lowercase';
 
         if (opts === false) {
 
-            return headers as LogosUiFetch.Headers<H>;
+            return headers as FetchFactory.Headers<H>;
         }
 
         if (typeof opts === 'function') {
 
-            return opts(headers) as LogosUiFetch.Headers<H>;
+            return opts(headers) as FetchFactory.Headers<H>;
         }
 
         const formatWith = (
-            headers: LogosUiFetch.Headers<H>,
+            headers: FetchFactory.Headers<H>,
             callback: (key: string) => string
         ) => {
 
@@ -169,7 +200,7 @@ export class FetchFactory<
                 Object.keys(headers).map(
                     (key) => ([callback(key), headers[key]])
                 )
-            ) as LogosUiFetch.Headers<H>;
+            ) as FetchFactory.Headers<H>;
         }
 
         if (opts === 'lowercase') {
@@ -177,7 +208,7 @@ export class FetchFactory<
             return formatWith(
                 headers,
                 (key: string) => key.toLowerCase()
-            ) as LogosUiFetch.Headers<H>;
+            ) as FetchFactory.Headers<H>;
         }
 
         if (opts === 'uppercase') {
@@ -185,11 +216,10 @@ export class FetchFactory<
             return formatWith(
                 headers,
                 (key: string) => key.toUpperCase()
-            ) as LogosUiFetch.Headers<H>;
+            ) as FetchFactory.Headers<H>;
         }
     }
-
-    constructor(_opts: LogosUiFetch.Options<H, S>) {
+    constructor(_opts: FetchFactory.Options<H, P, S>) {
 
         super()
 
@@ -208,28 +238,29 @@ export class FetchFactory<
         } = opts;
 
         this.#options = rest;
-        this.#headers = opts.headers || {} as LogosUiFetch.Headers<H>;
+        this.#headers = opts.headers || {} as FetchFactory.Headers<H>;
         this.#methodHeaders = Object.fromEntries(
             Object.keys(opts.methodHeaders || {}).map(
                 (method) => ([method.toUpperCase(), opts.methodHeaders![method as never]])
             )
         );
+        this.#params = opts.params || {} as FetchFactory.Params<P>;
+        this.#methodParams = opts.methodParams || {} as HttpMethodOpts<P>;
 
         this.#modifyOptions = modifyOptions;
         this.#modifyMethodOptions = modifyMethodOptions ;
         this.#validate = validate;
 
-        this.removeHeader = this.rmHeader.bind(this) as FetchFactory<S, H>['rmHeader'];
+        this.removeHeader = this.rmHeader.bind(this) as FetchFactory<H, P, S>['rmHeader'];
+        this.removeParam = this.rmParams.bind(this) as FetchFactory<H, P, S>['rmParams'];
 
         this.#validateHeaders(this.#headers);
     }
 
     /**
      * Makes headers
-     * @param override
-     * @returns
      */
-    private makeHeaders(override: LogosUiFetch.Headers<H> = {}, method?: HttpMethods) {
+    private makeHeaders(override: FetchFactory.Headers<H> = {}, method?: HttpMethods) {
 
         const methodHeaders = this.#methodHeaders;
 
@@ -243,26 +274,69 @@ export class FetchFactory<
     }
 
     /**
+     * Makes params
+     */
+    private makeParams(override: FetchFactory.Params<P> = {}, method?: HttpMethods) {
+
+        const methodParams = this.#methodParams;
+
+        const key = method?.toUpperCase() as keyof typeof methodParams;
+
+        return {
+            ...(this.#params || {}),
+            ...(methodParams[key] || {}),
+            ...override
+        };
+    }
+
+    /**
      * Makes url based on basePath
      * @param path
      */
-    private makeUrl(path: string) {
+    private makeUrl(path: string, _params?: P, method?: HttpMethods) {
 
         path = path?.replace(/^\/{1,}/, '');
         const url = this.#baseUrl.toString().replace(/\/$/, '');
+        const params = this.makeParams(_params!, method);
 
-        return `${url}/${path}`;
+        const [basePath, ...rest] = path.split('?');
+
+        const existingParams = new URLSearchParams(rest.join('?'));
+        const newParams = new URLSearchParams(params);
+
+        if (
+            existingParams.size === 0 &&
+            newParams.size === 0
+        ) {
+
+            return `${url}/${path}`;
+        }
+
+        const mergedParams = new URLSearchParams([
+            ...existingParams.entries(),
+            ...newParams.entries()
+        ]);
+
+        if (this.#validate?.perRequest?.params) {
+
+            this.#validateParams(
+                Object.fromEntries(mergedParams.entries()) as FetchFactory.Params<P>,
+                method
+            );
+        }
+
+
+        return `${url}/${basePath}?${mergedParams.toString()}`;
     }
 
     /**
      * Makes an API call using fetch
-     * @returns
      */
     private async makeCall <Res>(
         _method: HttpMethods,
         path: string,
         options: (
-            LogosUiFetch.CallOptions<H> &
+            FetchFactory.CallOptions<H, P> &
             {
                 payload?: unknown,
                 controller: AbortController,
@@ -279,10 +353,10 @@ export class FetchFactory<
             onBeforeReq: onBeforeRequest,
             onError,
             timeout = this.#options.timeout,
+            params,
             ...rest
         } = options;
 
-        const url = this.makeUrl(path);
 
         const type = this.#type;
         const defaultOptions = this.#options;
@@ -290,8 +364,9 @@ export class FetchFactory<
         const modifyOptions = this.#modifyOptions;
         const modifyMethodOptions = this.#modifyMethodOptions;
         const method = _method.toUpperCase() as _InternalHttpMethods;
+        const url = this.makeUrl(path, params as P, method);
 
-        let opts: LogosUiFetch.RequestOpts = {
+        let opts: FetchFactory.RequestOpts = {
             method,
             signal: rest.signal || controller.signal,
             controller,
@@ -333,7 +408,7 @@ export class FetchFactory<
                 (
                     opts.headers ||
                     {}
-                ) as LogosUiFetch.Headers<H>,
+                ) as FetchFactory.Headers<H>,
                 method
             );
         }
@@ -540,13 +615,53 @@ export class FetchFactory<
             },
             ...method
         } as {
-            readonly default: Readonly<LogosUiFetch.Headers<H>>,
-            readonly get?: Readonly<LogosUiFetch.Headers<H>>,
-            readonly post?: Readonly<LogosUiFetch.Headers<H>>,
-            readonly put?: Readonly<LogosUiFetch.Headers<H>>,
-            readonly delete?: Readonly<LogosUiFetch.Headers<H>>,
-            readonly options?: Readonly<LogosUiFetch.Headers<H>>,
-            readonly patch?: Readonly<LogosUiFetch.Headers<H>>,
+            readonly default: Readonly<FetchFactory.Headers<H>>,
+            readonly get?: Readonly<FetchFactory.Headers<H>>,
+            readonly post?: Readonly<FetchFactory.Headers<H>>,
+            readonly put?: Readonly<FetchFactory.Headers<H>>,
+            readonly delete?: Readonly<FetchFactory.Headers<H>>,
+            readonly options?: Readonly<FetchFactory.Headers<H>>,
+            readonly patch?: Readonly<FetchFactory.Headers<H>>,
+        }
+    }
+
+    /**
+     * Returns all the params configured for this instance,
+     * including the method specific params.
+     */
+    get params() {
+
+        const method = Object.keys(this.#methodParams).reduce(
+            (acc, k) => {
+
+                const key = k as _InternalHttpMethods;
+                const methodParams = this.#methodParams;
+
+                const params = this.#methodParams[k as keyof typeof methodParams];
+
+                if (params) {
+
+                    acc[key] = { ...params };
+                }
+
+                return acc;
+            },
+            {} as HttpMethodOpts<P>
+        );
+
+        return {
+            default: {
+                ...this.#params
+            },
+            ...method
+        } as {
+            readonly default: Readonly<FetchFactory.Params<P>>,
+            readonly get?: Readonly<FetchFactory.Params<P>>,
+            readonly post?: Readonly<FetchFactory.Params<P>>,
+            readonly put?: Readonly<FetchFactory.Params<P>>,
+            readonly delete?: Readonly<FetchFactory.Params<P>>,
+            readonly options?: Readonly<FetchFactory.Params<P>>,
+            readonly patch?: Readonly<FetchFactory.Params<P>>,
         }
     }
 
@@ -557,10 +672,10 @@ export class FetchFactory<
         method: HttpMethods,
         path: string,
         options: (
-            LogosUiFetch.CallOptions<H> &
+            FetchFactory.CallOptions<H, P> &
             ({ payload: Data | null } | {})
          ) = { payload: null }
-    ): LogosUiFetch.AbortablePromise<Res> {
+    ): FetchFactory.AbortablePromise<Res> {
 
 
         // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
@@ -590,7 +705,7 @@ export class FetchFactory<
 
             return res;
 
-        }) as LogosUiFetch.AbortablePromise<Res>;
+        }) as FetchFactory.AbortablePromise<Res>;
 
 
         call.isFinished = false;
@@ -613,7 +728,7 @@ export class FetchFactory<
     /**
      * Makes a options request
      */
-    options <Res = any>(path: string, options: LogosUiFetch.CallOptions<H> = {}) {
+    options <Res = any>(path: string, options: FetchFactory.CallOptions<H, P> = {}) {
 
         return this.request <Res, null>('options', path, options);
     }
@@ -621,7 +736,7 @@ export class FetchFactory<
     /**
      * Makes a get request
      */
-    get <Res = any>(path: string, options: LogosUiFetch.CallOptions<H> = {}) {
+    get <Res = any>(path: string, options: FetchFactory.CallOptions<H, P> = {}) {
 
         return this.request <Res, null>('get', path, options);
     }
@@ -629,7 +744,7 @@ export class FetchFactory<
     /**
      * Makes a delete request
      */
-    delete <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
+    delete <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('delete', path, { ...options, payload });
     }
@@ -637,7 +752,7 @@ export class FetchFactory<
     /**
      * Makes a post request
      */
-    post <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
+    post <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('post', path, { ...options, payload });
     }
@@ -645,7 +760,7 @@ export class FetchFactory<
     /**
      * Makes a put request
      */
-    put <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
+    put <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('put', path, { ...options, payload });
     }
@@ -653,7 +768,7 @@ export class FetchFactory<
     /**
      * Makes a patch request
      */
-    patch <Res = any, Data = any>(path: string, payload: Data | null = null, options: LogosUiFetch.CallOptions<H> = {}) {
+    patch <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('patch', path, { ...options, payload });
     }
@@ -661,16 +776,17 @@ export class FetchFactory<
     /**
      * Set an object of headers
      */
-    addHeader<K extends keyof H>(name: K, value: H[K]): void
-    addHeader(name: string, value: string): void
-    addHeader(headers: LogosUiFetch.Headers<H>): void
+    addHeader<K extends keyof H>(name: K, value: H[K], method?: _InternalHttpMethods): void
+    addHeader(name: string, value: string, method?: _InternalHttpMethods): void
+    addHeader(headers: FetchFactory.Headers<H>, method?: _InternalHttpMethods): void
     addHeader(
         headers: (
-            LogosUiFetch.Headers<H> |
+            FetchFactory.Headers<H> |
             keyof H |
             string
         ),
-        value?: string | H[keyof H]
+        value?: string | H[keyof H],
+        method?: _InternalHttpMethods
     ) {
 
         assert(
@@ -679,14 +795,46 @@ export class FetchFactory<
             'addHeader requires a string and value or an object'
         );
 
+        assertOptional(
+            method,
+            !!method && typeof method === 'string',
+            'addHeader requires a string method'
+        );
+
+        const isString = typeof headers === 'string';
+
+        if (isString) {
+
+            assert(
+                typeof value !== 'undefined',
+                'addHeader requires a value when setting a single property'
+            );
+        }
+        else {
+
+            method = method || value as _InternalHttpMethods;
+        }
+
         let updated = {
             ...this.#headers
-        } as LogosUiFetch.Headers<H>;
+        } as FetchFactory.Headers<H>;
+
+        if (method) {
+
+            if (this.#methodHeaders[method]) {
+                updated = {
+                    ...this.#methodHeaders[method]
+                } as FetchFactory.Headers<H>;
+            }
+            else {
+                this.#methodHeaders[method] = {};
+            }
+        }
 
         if (typeof headers === 'string') {
 
             updated[
-                headers as keyof LogosUiFetch.Headers<H>
+                headers as keyof FetchFactory.Headers<H>
             ] = value as never;
         }
         else {
@@ -696,7 +844,7 @@ export class FetchFactory<
                 .forEach(
                     (name) => {
 
-                        const key = name as keyof LogosUiFetch.Headers<H>;
+                        const key = name as keyof FetchFactory.Headers<H>;
 
                         updated[key] = headers[key as never]
                     }
@@ -705,7 +853,14 @@ export class FetchFactory<
 
         this.#validateHeaders(updated);
 
-        this.#headers = this.#formatHeaders(updated)!;
+        if (method) {
+
+            this.#methodHeaders[method] = this.#formatHeaders(updated)!;
+        }
+        else {
+
+            this.#headers = this.#formatHeaders(updated)!;
+        }
 
         this.dispatchEvent(
             new FetchEvent(FetchEventNames['fetch-header-add'], {
@@ -713,7 +868,8 @@ export class FetchFactory<
                 data: {
                     headers,
                     value,
-                    updated
+                    updated,
+                    method
                 }
             })
         );
@@ -722,22 +878,36 @@ export class FetchFactory<
     /**
      * Remove headers by reference, array of names, or single name
      */
-    rmHeader (headers: keyof H): void
-    rmHeader (headers: (keyof H)[]): void
-    rmHeader (headers: string): void
-    rmHeader (headers: string[]): void
-    rmHeader (headers: unknown) {
+    rmHeader (headers: keyof H, method?: _InternalHttpMethods): void
+    rmHeader (headers: (keyof H)[], method?: _InternalHttpMethods): void
+    rmHeader (headers: string, method?: _InternalHttpMethods): void
+    rmHeader (headers: string[], method?: _InternalHttpMethods): void
+    rmHeader (headers: unknown, method?: _InternalHttpMethods): void {
 
         if (!headers) {
             return;
         }
 
-        if (typeof headers === 'string') {
+        let updated = { ...this.#headers };
 
-            delete this.#headers[headers];
+        if (method) {
+
+            if (this.#methodHeaders[method]) {
+                updated = {
+                    ...this.#methodHeaders[method]
+                };
+            }
+            else {
+                this.#methodHeaders[method] = {};
+            }
         }
 
-        let _names = headers as (keyof LogosUiFetch.Headers<H>)[];
+        if (typeof headers === 'string') {
+
+            delete updated[headers];
+        }
+
+        let _names = headers as (keyof FetchFactory.Headers<H>)[];
 
         if (!Array.isArray(headers)) {
 
@@ -745,15 +915,28 @@ export class FetchFactory<
         }
 
         for (const name of _names) {
-            delete this.#headers[name];
+            delete updated[name];
         }
 
-        this.#validateHeaders(this.#headers);
+        this.#validateHeaders(updated);
+
+        if (method) {
+
+            this.#methodHeaders[method] = this.#formatHeaders(updated)!;
+        }
+        else {
+
+            this.#headers = this.#formatHeaders(updated)!;
+        }
 
         this.dispatchEvent(
             new FetchEvent(FetchEventNames['fetch-header-remove'], {
                 state: this.#state,
-                data: headers
+                data: {
+                    headers,
+                    updated,
+                    method,
+                }
             })
         );
     }
@@ -761,10 +944,199 @@ export class FetchFactory<
     /**
      * Checks if header is set
      */
-    hasHeader(name: (keyof LogosUiFetch.Headers<H>)) {
+    hasHeader<K extends keyof H>(name: K, method?: _InternalHttpMethods): boolean
+    hasHeader(name: string, method?: _InternalHttpMethods): boolean
+    hasHeader(name: string, method?: _InternalHttpMethods): boolean {
+
+        if (method) {
+
+            return this.#methodHeaders[method]?.hasOwnProperty(name) || false;
+        }
 
         return this.#headers.hasOwnProperty(name);
     }
+
+    /**
+     * Sets a param
+     */
+    addParam<K extends keyof P>(name: K, value: P[K], method?: _InternalHttpMethods): void
+    addParam(name: string, value: string, method?: _InternalHttpMethods): void
+    addParam(params: FetchFactory.Params<P>, method?: _InternalHttpMethods): void
+    addParam(
+        params: (
+            FetchFactory.Params<P> |
+            keyof P |
+            string
+        ),
+        value?: string | P[keyof P],
+        method?: _InternalHttpMethods
+    ) {
+
+        assert(
+            (typeof params === 'string' && !!value) ||
+            typeof params === 'object',
+            'addParam requires a string and value or an object'
+        );
+
+        assertOptional(
+            method,
+            !!method && typeof method === 'string',
+            'addParam requires a string method'
+        );
+
+        const paramsIsString = typeof params === 'string';
+
+        if (paramsIsString) {
+
+            assert(
+                typeof value !== 'undefined',
+                'addParam requires a value when setting a single property'
+            );
+        }
+        else {
+
+            method = method || value as _InternalHttpMethods;
+        }
+
+        let updated = {
+            ...this.#params
+        } as FetchFactory.Params<P>;
+
+        if (method) {
+
+            if (this.#methodParams[method]) {
+                updated = {
+                    ...this.#methodParams[method]
+                };
+            }
+            else {
+                this.#methodParams[method] = {} as P;
+            }
+        }
+
+        if (paramsIsString) {
+
+            updated[
+                params as keyof FetchFactory.Params<P>
+            ] = value as never;
+        }
+        else {
+
+            Object
+                .keys(params)
+                .forEach(
+                    (name) => {
+
+                        const key = name as keyof FetchFactory.Params<P>;
+
+                        updated[key] = params[key as never]
+                    }
+                );
+        }
+
+        if (method) {
+
+            this.#methodParams[method] = updated as P;
+        }
+        else {
+
+            this.#params = updated;
+        }
+
+        this.#validateParams(updated);
+
+        this.dispatchEvent(
+            new FetchEvent(FetchEventNames['fetch-param-add'], {
+                state: this.#state,
+                data: {
+                    params,
+                    value,
+                    updated,
+                    method
+                }
+            })
+        );
+    }
+
+    /**
+     * Remove params by reference, array of names, or single name
+     */
+    rmParams (params: keyof P, method?: _InternalHttpMethods): void
+    rmParams (params: (keyof P)[], method?: _InternalHttpMethods): void
+    rmParams (params: string, method?: _InternalHttpMethods): void
+    rmParams (params: string[], method?: _InternalHttpMethods): void
+    rmParams (params: unknown, method?: _InternalHttpMethods): void {
+
+        if (!params) {
+            return;
+        }
+
+        let updated = { ...this.#params };
+
+        if (method) {
+
+            if (this.#methodParams[method]) {
+                updated = {
+                    ...this.#methodParams[method]
+                };
+            }
+            else {
+                this.#methodParams[method] = {} as P;
+            }
+        }
+
+        if (typeof params === 'string') {
+
+            delete updated[params];
+        }
+
+        let _names = params as (keyof FetchFactory.Params<P>)[];
+
+        if (!Array.isArray(params)) {
+
+            _names = Object.keys(params);
+        }
+
+        for (const name of _names) {
+            delete updated[name];
+        }
+
+        if (method) {
+
+            this.#methodParams[method] = updated as P;
+        }
+        else {
+
+            this.#params = updated;
+        }
+
+        this.dispatchEvent(
+            new FetchEvent(FetchEventNames['fetch-param-remove'], {
+                state: this.#state,
+                data: {
+                    params,
+                    updated,
+                    method
+                }
+            })
+        );
+    }
+
+    /**
+     * Checks if param is set
+     */
+    hasParam<K extends keyof P>(name: K, method?: _InternalHttpMethods): boolean
+    hasParam(name: string, method?: _InternalHttpMethods): boolean
+    hasParam(name: string, method?: _InternalHttpMethods): boolean {
+
+        if (method) {
+
+            return this.#methodParams[method]?.hasOwnProperty(name) || false;
+        }
+
+        return this.#params.hasOwnProperty(name);
+    }
+
 
     /**
      * Merges a passed object into the `FetchFactory` instance state
@@ -838,7 +1210,7 @@ export class FetchFactory<
      */
     getState() {
 
-        return this.#state;
+        return deepClone(this.#state);
     }
 
     /**

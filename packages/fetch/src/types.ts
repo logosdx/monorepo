@@ -6,191 +6,118 @@ export type HttpMethods = _InternalHttpMethods | string;
 export type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
 
 export type RawRequestOptions = Omit<RequestInit, 'headers'>
-export type HeaderObj<T> = Record<string, string> & Partial<T>;
-export type MethodHeaders<T> = HttpMethodOpts<HeaderObj<T>>;
+export type DictOrT<T> = Record<string, string> & Partial<T>;
+export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
 
-export namespace LogosUiFetch {
+declare module './factory.ts' {
+    export namespace FetchFactory {
 
-    export type Type = 'arrayBuffer' | 'blob' | 'formData' | 'json' | 'text';
-
-    /**
-     * Override this interface with the headers you intend
-     * to use and set throughout your app. These are the
-     * universal headers that will be set on all requests.
-     */
-    export interface InstanceHeaders {
-        Authorization?: string;
-        'Content-Type'?: string;
-    };
-
-    /**
-     * Headers helper type that can be used to set headers
-     */
-    export type Headers<T = InstanceHeaders> = HeaderObj<T>;
-
-
-    export type HeaderKeys = keyof Headers;
-
-    /**
-     * If you don't want FetchFactory to guess your content type,
-     * you can set it explicitly here. You should return the name
-     * of the function that will be used to parse the response body.
-     *
-     * @example
-     *
-     * const determineType: DetermineTypeFn = (response) => {
-     *
-     *     if (response.headers.get('content-type') === 'application/json') {
-     *         return 'json';
-     *     }
-     * }
-     *
-     */
-    export interface DetermineTypeFn {
-        (response: Response): Type;
-    }
-
-    /**
-     * Function that can be used to format headers before they are
-     * sent to the server. This can be used to format headers in
-     * a specific way before they are sent to the server.
-     *
-     * @example
-     *
-     * const formatHeaders: FormatHeadersFn = (headers) => {
-     *
-     *     return Object.keys(headers).reduce((acc, key) => {
-     *
-     *         acc[key.toLowerCase()] = headers[key];
-     *         return acc;
-     *     }, {});
-     * }
-     *
-     */
-    export interface FormatHeadersFn {
-        (headers: Headers): Headers;
-    }
-
-    /**
-     * Lifecycle hooks that can be used to handle various
-     * events during the fetch request lifecycle.
-     */
-    export type Lifecycle = {
-        /**
-         * Called when the fetch request errors
-         */
-        onError?: (err: FetchError) => void | Promise<void>
+        export type Type = 'arrayBuffer' | 'blob' | 'formData' | 'json' | 'text';
 
         /**
-         * Called before the fetch request is made
+         * Override this interface with the headers you intend
+         * to use and set throughout your app. These are the
+         * universal headers that will be set on all requests.
          */
-        onBeforeReq?: (opts: LogosUiFetch.RequestOpts) => void | Promise<void>
+        export interface InstanceHeaders {
+            Authorization?: string;
+            'Content-Type'?: string;
+        }
+
+        export interface InstanceParams {
+        }
 
         /**
-         * Called after the fetch request is made. The response
-         * object is cloned before it is passed to this function.
+         * Headers helper type that can be used to set headers
          */
-        onAfterReq?: (response: Response, opts: LogosUiFetch.RequestOpts) => void | Promise<void>
-    };
-
-
-    export type RequestOpts<T = InstanceHeaders> = RawRequestOptions & {
+        export type Headers<T = InstanceHeaders> = DictOrT<T>;
 
         /**
-         * The abort controller to be used to abort the request
+         * Params helper type that can be used to set URL parameters
+         * on requests
          */
-        controller: AbortController,
-        headers?: Headers<T>,
+        export type Params<T = InstanceParams> = DictOrT<T>;
+
+
+        export type HeaderKeys = keyof Headers;
 
         /**
-         * The headers of the request
+         * If you don't want FetchFactory to guess your content type,
+         * you can set it explicitly here. You should return the name
+         * of the function that will be used to parse the response body.
+         *
+         * @example
+         *
+         * const determineType: DetermineTypeFn = (response) => {
+         *
+         *     if (response.headers.get('content-type') === 'application/json') {
+         *         return 'json';
+         *     }
+         * }
+         *
          */
-        timeout?: number
+        export interface DetermineTypeFn {
+            (response: Response): Type | Symbol
+        }
 
         /**
-         * The type of response expected from the server
+         * Function that can be used to format headers before they are
+         * sent to the server. This can be used to format headers in
+         * a specific way before they are sent to the server.
+         *
+         * @example
+         *
+         * const formatHeaders: FormatHeadersFn = (headers) => {
+         *
+         *     return Object.keys(headers).reduce((acc, key) => {
+         *
+         *         acc[key.toLowerCase()] = headers[key];
+         *         return acc;
+         *     }, {});
+         * }
+         *
          */
-        determineType?: DetermineTypeFn,
+        export interface FormatHeadersFn {
+            (headers: Headers): Headers;
+        }
 
         /**
-         * The format to be used to format headers before they are sent
+         * Lifecycle hooks that can be used to handle various
+         * events during the fetch request lifecycle.
          */
-        formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn
-    };
-
-    export type Options<
-        H = Headers,
-        S = {},
-    > = (
-
-        Omit<
-            RequestOpts<H>,
-            'method' | 'body' | 'integrity' | 'controller'
-        > &
-
-        {
+        export type Lifecycle = {
             /**
-             * The base URL for all requests
+             * Called when the fetch request errors
              */
-            baseUrl: string,
+            onError?: (err: FetchError) => void | Promise<void>
 
             /**
-             * The default type of response expected from the server.
-             * This will be used to determine how to parse the
-             * response from the server when content-type headers
-             * are not present or fail to do so.
+             * Called before the fetch request is made
              */
-            defaultType?: Type,
+            onBeforeReq?: (opts: FetchFactory.RequestOpts) => void | Promise<void>
 
             /**
-             * The headers to be set on all requests
+             * Called after the fetch request is made. The response
+             * object is cloned before it is passed to this function.
              */
-            headers?: HeaderObj<H>,
+            onAfterReq?: (response: Response, opts: FetchFactory.RequestOpts) => void | Promise<void>
+        };
+
+
+        export type RequestOpts<T = InstanceHeaders, P = InstanceParams> = RawRequestOptions & {
 
             /**
-             * The headers to be set on requests of a specific method
-             * @example
-             * {
-             *     GET: { 'content-type': 'application/json' },
-             *     POST: { 'content-type': 'application/x-www-form-urlencoded'
-             * }
+             * The abort controller to be used to abort the request
              */
-            methodHeaders?: MethodHeaders<H>,
+            controller: AbortController,
+            headers?: Headers<T>,
 
-            // Applies to requests of a specific method
-            /**
-             *
-             * @param opts
-             * @param state
-             * @returns
-             */
-            modifyOptions?: (opts: RequestOpts<H>, state: S) => RequestOpts<H>
-            modifyMethodOptions?: HttpMethodOpts<
-                Options<
-                    H,
-                    S
-                >['modifyOptions']
-            >,
+            params?: Params<P>,
 
             /**
-             * The timeout for all requests in milliseconds
+             * The headers of the request
              */
-            timeout?: number,
-
-            /**
-             * Validators for when setting headers and state
-             */
-            validate?: {
-                headers?: (headers: Headers<H>, method?: _InternalHttpMethods) => void
-                state?: (state: S) => void
-
-                perRequest?: {
-                    /**
-                     * Whether to validate the headers before the request is made
-                     */
-                    headers?: boolean
-                }
-            },
+            timeout?: number
 
             /**
              * The type of response expected from the server
@@ -200,24 +127,124 @@ export namespace LogosUiFetch {
             /**
              * The format to be used to format headers before they are sent
              */
-            formatHeaders?: false | 'lowercase' | 'uppercase' | FormatHeadersFn
+            formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn
+        };
+
+        export type Options<
+            H = Headers,
+            P = Params,
+            S = {},
+        > = (
+
+            Omit<
+                RequestOpts<H>,
+                'method' | 'body' | 'integrity' | 'controller'
+            > &
+
+            {
+                /**
+                 * The base URL for all requests
+                 */
+                baseUrl: string,
+
+                /**
+                 * The default type of response expected from the server.
+                 * This will be used to determine how to parse the
+                 * response from the server when content-type headers
+                 * are not present or fail to do so.
+                 */
+                defaultType?: Type,
+
+                /**
+                 * The headers to be set on all requests
+                 */
+                headers?: DictOrT<H>,
+
+                /**
+                 * The headers to be set on requests of a specific method
+                 * @example
+                 * {
+                 *     GET: { 'content-type': 'application/json' },
+                 *     POST: { 'content-type': 'application/x-www-form-urlencoded'
+                 * }
+                 */
+                methodHeaders?: MethodHeaders<H>,
+
+                /**
+                 * URL parameters to be set on all requests
+                 */
+                params?: DictOrT<P>,
+
+                /**
+                 * URL parameters to be set on requests of a specific method
+                 */
+                methodParams?: HttpMethodOpts<P>,
+
+                // Applies to requests of a specific method
+                /**
+                 *
+                 * @param opts
+                 * @param state
+                 * @returns
+                 */
+                modifyOptions?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>
+                modifyMethodOptions?: HttpMethodOpts<Options<H, P, S>['modifyOptions']>,
+
+                /**
+                 * The timeout for all requests in milliseconds
+                 */
+                timeout?: number,
+
+                /**
+                 * Validators for when setting headers and state
+                 */
+                validate?: {
+                    headers?: (headers: Headers<H>, method?: _InternalHttpMethods) => void
+                    params?: (params: Params<P>, method?: _InternalHttpMethods) => void
+                    state?: (state: S) => void
+
+                    perRequest?: {
+                        /**
+                         * Whether to validate the headers before the request is made
+                         */
+                        headers?: boolean,
+
+                        /**
+                         * Whether to validate the params before the request is made
+                         */
+                        params?: boolean,
+                    }
+                },
+
+                /**
+                 * The type of response expected from the server
+                 */
+                determineType?: DetermineTypeFn,
+
+                /**
+                 * The format to be used to format headers before they are sent
+                 */
+                formatHeaders?: false | 'lowercase' | 'uppercase' | FormatHeadersFn
+            }
+        );
+
+        export interface AbortablePromise<T> extends Promise<T> {
+
+            isFinished: boolean
+            isAborted: boolean
+            abort(reason?: string): void
         }
-    );
 
-    export interface AbortablePromise<T> extends Promise<T> {
-
-        isFinished: boolean
-        isAborted: boolean
-        abort(reason?: string): void
+        /**
+         * Options used when making a fetch request
+         */
+        export type CallOptions<H = InstanceHeaders, P = InstanceParams> = (
+            Lifecycle &
+            Omit<RequestOpts, 'body' | 'method' | 'controller'> &
+            {
+                headers?: DictOrT<H>,
+                params?: DictOrT<P>,
+            }
+        );
     }
-
-    /**
-     * Options used when making a fetch request
-     */
-    export type CallOptions<H = InstanceHeaders> = (
-        Lifecycle &
-        Omit<RequestOpts, 'body' | 'method' | 'controller'> &
-        { headers?: HeaderObj<H>}
-    );
-
 }

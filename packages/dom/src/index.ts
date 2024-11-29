@@ -68,11 +68,6 @@ const css = {
     set: HtmlCss.set.bind(HtmlCss),
 
     /**
-     * See `html.css.set(...)`
-     */
-    add: HtmlCss.set.bind(HtmlCss),
-
-    /**
      * Removes properties from html elements
      * @param els list of html elements
      * @param propNames property name or array of property names
@@ -86,10 +81,6 @@ const css = {
      */
     remove: HtmlCss.remove.bind(HtmlCss),
 
-    /**
-     * see `html.css.remove(...)`
-     */
-    rm: HtmlCss.remove.bind(HtmlCss)
 };
 
 const attrs = {
@@ -127,11 +118,6 @@ const attrs = {
     set: HtmlAttr.set.bind(HtmlAttr),
 
     /**
-     * see `html.attrs.set(...)`
-     */
-    add: HtmlAttr.set.bind(HtmlAttr),
-
-    /**
      *
      * @param els
      * @param propNames
@@ -161,14 +147,9 @@ const attrs = {
      */
     remove: HtmlAttr.remove.bind(HtmlAttr),
 
-    /**
-     * see `html.attrs.remove(...)`
-     */
-    rm: HtmlAttr.remove.bind(HtmlAttr),
 };
 
 const events = {
-
 
     /**
      * Adds event listeners to dom event interfaces
@@ -187,21 +168,8 @@ const events = {
      *
      * const cleanup = html.events.on(div, 'click', () => {});
      * setTimeout(cleanup, 1000);
-     *
-     * // can use alternative name
-     * html.events.listen(...)
      */
     on: HtmlEvents.on,
-
-    /**
-     * Same as `html.events.on`
-     */
-    listen: HtmlEvents.on,
-
-    /**
-     * Same as `html.events.on`
-     */
-    add: HtmlEvents.on,
 
     /**
      * Adds event listeners to dom event interfaces that only run once
@@ -212,23 +180,16 @@ const events = {
      *
      * @example
      *
-     * html.events.one(div, 'click', () => {});
-     * html.events.one(div, ['focus', 'blur'], () => {});
-     * html.events.one([div, input], ['focus', 'blur'], () => {});
+     * html.events.once(div, 'click', () => {});
+     * html.events.once(div, ['focus', 'blur'], () => {});
+     * html.events.once([div, input], ['focus', 'blur'], () => {});
      *
      * // returns a cleaup function
      *
-     * const cleanup = html.events.one(div, 'click', () => {});
+     * const cleanup = html.events.once(div, 'click', () => {});
      * setTimeout(cleanup, 1000);
-     * // can use alternative name
-     * html.events.once(div, 'click', () => {});
      */
     once: HtmlEvents.once,
-
-    /**
-     * Same as `html.events.once`
-     */
-    one: HtmlEvents.once,
 
     /**
      * Removes event listeners on dom event interfaces
@@ -242,27 +203,8 @@ const events = {
      * html.events.off(div, 'click', callback);
      * html.events.off(div, ['focus', 'blur'], callback);
      * html.events.off([div, input], ['focus', 'blur'], callback);
-     *
-     * // can use alternative name
-     * html.events.remove(...)
-     * html.events.rm(...)
      */
     off: HtmlEvents.off,
-
-    /**
-     * Same as `html.events.off`
-     */
-    remove: HtmlEvents.off,
-
-    /**
-     * Same as `html.events.off`
-     */
-    rm: HtmlEvents.off,
-
-    /**
-     * Same as `html.events.off`
-     */
-    unlisten: HtmlEvents.off,
 
     /**
      *
@@ -272,24 +214,11 @@ const events = {
      *
      * @example
      *
-     * html.events.trigger(div, 'click', { key: 'Esc' })
-     * html.events.trigger([div, span], 'click', { key: 'Esc' })
-     *
-     * // can use alternative name
-     * html.events.emit(...);
-     * html.events.send(...);
+     * html.events.emit(div, 'click', { key: 'Esc' })
+     * html.events.emit([div, span], 'click', { key: 'Esc' })
      */
-    trigger: HtmlEvents.trigger,
+    emit: HtmlEvents.emit,
 
-    /**
-     * Same as `html.events.trigger`
-     */
-    emit: HtmlEvents.trigger,
-
-    /**
-     * Same as `html.events.trigger`
-     */
-    send: HtmlEvents.trigger,
 };
 
 

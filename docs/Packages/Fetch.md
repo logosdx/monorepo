@@ -22,20 +22,25 @@ Even though below is a somewhat complete example of how this library can be used
 
 ```ts
 
-type FetchHeaders = {
+type SomeHeaders = {
 	'authorization'?: string,
 	'x-api-key'?: string,
 	'hmac': string,
 	'time': number
 }
 
-type FetchState = {
+type SomeParams = {
+	auth_token: string,
+	scope: string
+}
+
+type SomeState = {
 	isAuthenticated?: boolean,
 	authToken?: string
 	refreshToken?: string,
 }
 
-const api = new FetchFactory<FetchHeaders, FetchState>({
+const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
 
 	// FetchOptions
 	baseUrl: testUrl,
@@ -47,6 +52,15 @@ const api = new FetchFactory<FetchHeaders, FetchState>({
 	methodHeaders: {
 		POST: {          // Headers for POST requests
 			'x-some-key': process.env.SOME_KEY
+		}
+	},
+
+	params: {
+		auth_token: ''  // default params
+	},
+	methodParams: {
+		POST: {
+			scope: ''   // params for POST requests
 		}
 	},
 
@@ -81,6 +95,16 @@ const api = new FetchFactory<FetchHeaders, FetchState>({
 		state(state) {        // Validate state
 
 			Joi.assert(fetchStateSchema, state);
+		},
+
+		params(params) {
+
+			Joi.assert(paramsSchema, params);
+		},
+
+		perRequest: {
+			headers: true,
+			params: true
 		}
 	},
 
@@ -95,7 +119,7 @@ const api = new FetchFactory<FetchHeaders, FetchState>({
 		return 'blob'
 	},
 
-	// If your server requires specific header formatting, you can 
+	// If your server requires specific header formatting, you can
 	// use this option to modify them. Set to `false` to never format.
 	formatHeaders: 'lowercase',
 
@@ -117,6 +141,96 @@ if (res.authToken) {
 }
 ```
 
+## How responses are handled
+
+When you configure your `FetchFactory` instance, you might pass the `defaultType` configuration. This only states how FetchFactory should handle your if it can't resolve it itself. Servers usually respond with the standard-place header `Content-Type` to signify the mime-type that should be used to handle the response. `FetchFactory` extracts those headers and guesses how it should handle that response.
+
+### Reponses are matched and handled in the following order
+
+| Content-Type Matches                           | Handled as            | Data Type                                      | Examples                                                                              |
+| ---------------------------------------------- | --------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------- |
+| text, xml, html, form-urlencoded               | `text`                | `string`                                       | `application/xml`<br>`text/html`<br>`text/css`<br>`application/x-www-form-urlencoded` |
+| json                                           | `json`                | Anything serializable by `JSON.stringify(...)` | `application/json`<br>`application/calendar+json`                                     |
+| form-data                                      | `formData`            | `FormData`                                     | `multipart/form-data`                                                                 |
+| image, audio, video, font, binary, application | `blob`                | Binary                                         | `image/gif`<br>`audio/aac`<br>`font/otf`<br>`application/vnd.openblox.game-binary`    |
+| No match                                       | throws `Error`        | -                                              | -                                                                                     |
+| No header                                      | `options.defaultType` | user defined                                   | -                                                                                     |
+
+### Handling your own responses
+
+If you don't want `FetchFactory` to guess your content type, you can handle it yourself. You can do this by passing a function to the `determineType` configuration option. This function should return a string that matches the type you want to handle.
+
+```ts
+const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+	// other configurations
+	determineType(response) {
+
+		if (/json/.test(response.headers.get('content-type'))) {
+			return 'text';
+		}
+
+		return 'blob'
+	}
+});
+```
+
+You can also use the static `FetchFactory.useDefault` symbol to tell FetchFactory to use the internal response handler to determine the type. This way, you can handle your very specific use cases and let FetchFactory handle the rest.
+
+```ts
+const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+	// other configurations
+	determineType(response) {
+
+		if (shouldSpecialHandle(response.headers)) {
+			return 'arrayBuffer';
+		}
+
+		// Let FetchFactory handle other cases
+		return FetchFactory.useDefault;
+	}
+});
+```
+
+## Events
+
+`FetchFactory` emits a variety of events during different phases of the request process. These events can be intercepted and processed using event listeners.
+
+
+| Event                 | Description                |
+| --------------------- | -------------------------- |
+| `fetch-before`        | Before a request           |
+| `fetch-after`         | After a request            |
+| `fetch-abort`         | When a request is aborted  |
+| `fetch-error`         | When a request failed      |
+| `fetch-response`      | On successful response     |
+| `fetch-header-add`    | When a header is added     |
+| `fetch-header-remove` | When a header is removed   |
+| `fetch-param-add`     | When a param is added      |
+| `fetch-param-remove`  | When a param is removed    |
+| `fetch-state-set`     | When the state is set      |
+| `fetch-state-reset`   | When the state is reset    |
+| `fetch-url-change`    | When the `baseUrl` changes |
+
+## Aborting Requests
+
+Aborting requests can be particularly useful in scenarios where the need for a request becomes obsolete due to user interactions, changing application state, or other factors. By promptly canceling unnecessary requests, developers can enhance the performance and responsiveness of their applications. Request abortion can also be beneficial when implementing features such as autocomplete, where users may input multiple characters quickly, triggering multiple requests. In such cases, aborting previous requests can prevent unnecessary processing and ensure that only the latest relevant response is handled.
+
+By leveraging `FetchFactory`'s request abortion functionality, developers have fine-grained control over their application's network requests, enabling efficient resource management and improved user experience.
+
+```ts
+// requests return an agumented Promise called an AbortablePromise
+const call = api.get('/');
+
+if (condition) {
+
+	call.abort();
+}
+
+const res = await call;
+```
+
+
+
 ## Making Calls
 
 ### `request(...)`
@@ -126,15 +240,23 @@ Make a request against any HTTP method
 **Example**
 
 ```ts
-const someType = await api.request <SomeType>('SEARCH', '/some-endpoint', {
-	payload: { limit: 50 },
-	headers: { ... },
-	determineType(response: Response) { return 'json' },
-	formatHeaders(headers: Headers) { snakeCase(headers) },
-	onError(err: FetchError) { ... },
-	onBeforeReq(opts: LogosUiFetch.RequestOpts) { ... }
-	onAfterReq(response: Response, opts: LogosUiFetch.RequestOpts) { ... },
-});
+const someType = await api.request <SomeType>(
+	'SEARCH',
+	'/some-endpoint',
+	{
+		payload: { categories: ['a', 'b'] },
+		params: { limit: 50, page: 1 },
+		headers: { 'x-api-key': 'abc123' },
+		determineType: () => 'json',
+		formatHeaders(headers: Headers) { return snakeCase(headers) },
+		onError(err: FetchError) { ... },
+		onBeforeReq(opts: LogosUiFetch.RequestOpts) { ... }
+		onAfterReq(
+			clonedResponse: Response,
+			opts: LogosUiFetch.RequestOpts
+		) { ... },
+	}
+);
 ```
 
 ### `options(...)`
@@ -235,6 +357,7 @@ Set an object of headers
 
 ```ts
 api.addHeader({ authorization: 'abc123' });
+api.addHeader({ something: 'else' }, 'POST');
 ```
 
 ### `rmHeader(...)`
@@ -246,6 +369,7 @@ Remove one or many headers
 ```ts
 api.rmHeader('authorization');
 api.rmHeader(['authorization', 'x-api-key']);
+api.rmHeader(['authorization', 'x-api-key'], 'POST');
 ```
 
 ### `hasHeader(...)`
@@ -256,8 +380,44 @@ Checks if header is set
 
 ```ts
 api.hasHeader('authorization');
-// true
+api.hasHeader('authorization', 'POST');
 ```
+
+
+### `addParams(...)`
+
+Set an object of params
+
+**Example**
+
+```ts
+api.addParams({ auth_token: 'abc123' });
+api.addParams({ scope: 'abc123' }, 'POST');
+```
+
+### `rmParams(...)`
+
+Remove one or many headers
+
+**Example**
+
+```ts
+api.rmParams('auth_token');
+api.rmParams(['auth_token', 'scope']);
+api.rmParams('auth_token', 'POST');
+```
+
+### `hasParam(...)`
+
+Checks if header is set
+
+**Example**
+
+```ts
+api.hasHeader('scope');
+api.hasHeader('scope', 'POST');
+```
+
 
 ### `setState(...)`
 
@@ -304,41 +464,5 @@ Changes the base URL for this fetch instance
 
 ```ts
 api.changeBaseUrl('http://dev.sample.com');
-```
-
-
-## Events
-
-`FetchFactory` emits a variety of events during different phases of the request process. These events can be intercepted and processed using event listeners.
-
-| Event                 | Description                                                             |
-| --------------------- | ----------------------------------------------------------------------- |
-| `fetch-before`        | Triggered before the request is made.                                   |
-| `fetch-after`         | Triggered after the request is made, unless there is an error.          |
-| `fetch-abort`         | Triggered when a request is explicitly aborted using the abort method.  |
-| `fetch-error`         | Triggered when an error occurs during the request.                      |
-| `fetch-response`      | Triggered when a successful response is received.                       |
-| `fetch-header-add`    | Triggered when a header is added.                                       |
-| `fetch-header-remove` | Triggered when a header is removed.                                     |
-| `fetch-state-set`     | Triggered when the instance state is set using the setState method.     |
-| `fetch-state-reset`   | Triggered when the instance state is reset using the resetState method. |
-| `fetch-url-change`    | Triggered when the instance base URL is changed.                        |
-
-## Aborting Requests
-
-Aborting requests can be particularly useful in scenarios where the need for a request becomes obsolete due to user interactions, changing application state, or other factors. By promptly canceling unnecessary requests, developers can enhance the performance and responsiveness of their applications. Request abortion can also be beneficial when implementing features such as autocomplete, where users may input multiple characters quickly, triggering multiple requests. In such cases, aborting previous requests can prevent unnecessary processing and ensure that only the latest relevant response is handled.
-
-By leveraging `FetchFactory`'s request abortion functionality, developers have fine-grained control over their application's network requests, enabling efficient resource management and improved user experience.
-
-```ts
-// requests return an agumented Promise called an AbortablePromise
-const call = api.get('/');
-
-if (condition) {
-
-	call.abort();
-}
-
-const res = await call;
 ```
 
