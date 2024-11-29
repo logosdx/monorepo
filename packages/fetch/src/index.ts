@@ -1,8 +1,4 @@
 export {
-    LogosUiFetch
-} from './types.ts';
-
-export {
     FetchError,
     FetchEvent,
     FetchEventNames

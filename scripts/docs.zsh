@@ -39,6 +39,8 @@ function step() {
     echo "----------------"
 }
 
+set -e
+
 step 'Making typedocs'
 pnpm typedoc
 cd typedoc

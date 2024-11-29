@@ -895,7 +895,7 @@ export class FetchFactory<
             if (this.#methodHeaders[method]) {
                 updated = {
                     ...this.#methodHeaders[method]
-                };
+                } as FetchFactory.Headers<H>;
             }
             else {
                 this.#methodHeaders[method] = {};
