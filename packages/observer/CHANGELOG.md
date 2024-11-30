@@ -1,5 +1,11 @@
 # @logos-ui/observer
 
+## 4.0.0-next.3
+
+### Patch Changes
+
+- d670c56: Fix bad export
+
 ## 4.0.0-next.2
 
 ### Patch Changes

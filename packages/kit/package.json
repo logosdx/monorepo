@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/kit",
-  "version": "3.0.0-next.2",
+  "version": "3.0.0-next.3",
   "description": "A collection of strongly-typed LogosUI libraries to kick-start your app",
   "exports": {
     ".": {
