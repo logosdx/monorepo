@@ -1,6 +1,6 @@
 import type { ObserverFactory } from './factory.ts';
 
-import { Events } from './types.ts';
+import type { Events } from './types.ts';
 
 
 export const ALL_CALLBACKS = '*';
