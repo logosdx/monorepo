@@ -9,7 +9,10 @@
     "@logos-ui/observer": "3.0.0",
     "@logos-ui/state-machine": "2.0.7",
     "@logos-ui/storage": "2.0.7",
-    "@logos-ui/utils": "2.1.0"
+    "@logos-ui/utils": "2.1.0",
+    "@logos-ui/tests": "0.0.1"
   },
-  "changesets": []
+  "changesets": [
+    "breezy-pets-brake"
+  ]
 }

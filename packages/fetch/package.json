@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/fetch",
-  "version": "3.2.0",
+  "version": "4.0.0-next.0",
   "description": "A full-feature wrapper around the Fetch API",
   "exports": {
     ".": {
