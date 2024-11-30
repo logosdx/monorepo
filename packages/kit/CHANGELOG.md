@@ -1,5 +1,18 @@
 # @logos-ui/kit
 
+## 3.0.0-next.1
+
+### Patch Changes
+
+- Updated dependencies [90b498a]
+  - @logos-ui/utils@2.2.0-next.0
+  - @logos-ui/dom@3.0.0-next.1
+  - @logos-ui/fetch@4.0.0-next.1
+  - @logos-ui/localize@2.0.8-next.0
+  - @logos-ui/observer@4.0.0-next.1
+  - @logos-ui/state-machine@3.0.0-next.1
+  - @logos-ui/storage@2.0.8-next.0
+
 ## 3.0.0-next.0
 
 ### Major Changes

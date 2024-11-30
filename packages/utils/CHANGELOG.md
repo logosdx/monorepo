@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.2.0-next.0
+
+### Minor Changes
+
+- 90b498a: Added new assertion utilities
+
 ## 2.1.0
 
 ### Minor Changes
