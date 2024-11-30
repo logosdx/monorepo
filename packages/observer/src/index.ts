@@ -1,4 +1,4 @@
-export { Events } from './types.ts';
+export type { Events } from './types.ts';
 
 export {
     makeEventTracer,
