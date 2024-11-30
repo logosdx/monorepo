@@ -1,9 +1,13 @@
 {
     "name": "@logos-ui/tests",
+    "version": "0.0.1",
     "private": true,
     "scripts": {
         "tdd": "nodemon -e 'ts' -x pnpm test",
+        "tdd:only": "nodemon -e 'ts' -x pnpm test:only",
         "test": "NODE_ENV=test tsx src/index.ts",
+        "test:coverage": "NODE_ENV=test tsx --experimental-test-coverage src/index.ts",
+        "test:only": "NODE_ENV=test tsx --test-only src/index.ts",
         "__ci": "NODE_ENV=test tsx --test-reporter spec --test-reporter-destination stdout --test-reporter node-test-github-reporter --test-reporter-destination stdout",
         "test:ci": "pnpm run __ci src/index.ts"
     },
@@ -24,8 +28,6 @@
         "@logos-ui/kit": "workspace:^",
         "@logos-ui/localize": "workspace:^",
         "@logos-ui/observer": "workspace:^",
-        "@logos-ui/riot-kit": "workspace:^",
-        "@logos-ui/riot-utils": "workspace:^",
         "@logos-ui/state-machine": "workspace:^",
         "@logos-ui/storage": "workspace:^",
         "@logos-ui/utils": "workspace:^",

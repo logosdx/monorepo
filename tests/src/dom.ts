@@ -334,7 +334,7 @@ describe('@logos-ui/dom', () => {
             }
         });
 
-        it('should trigger a single event with data', () => {
+        it('should emit a single event with data', () => {
 
             const div = document.createElement('div');
             const listener = sandbox.fake();
@@ -342,7 +342,7 @@ describe('@logos-ui/dom', () => {
             const divSpy = sandbox.spy(div);
 
             html.events.on(div, 'click', listener);
-            html.events.trigger(div, 'click', { data: true });
+            html.events.emit(div, 'click', { data: true });
 
             const dispatchEvent = divSpy.dispatchEvent;
 
@@ -356,34 +356,34 @@ describe('@logos-ui/dom', () => {
             expect(listener.calledOnce).to.be.true;
         });
 
-        it('should only trigger an event once', () => {
+        it('should only emit an event once', () => {
 
             const div = document.createElement('div');
             const listener = sandbox.fake();
 
             sandbox.spy(div);
 
-            html.events.one(div, 'click', listener);
-            html.events.trigger(div, 'click');
-            html.events.trigger(div, 'click');
-            html.events.trigger(div, 'click');
+            html.events.once(div, 'click', listener);
+            html.events.emit(div, 'click');
+            html.events.emit(div, 'click');
+            html.events.emit(div, 'click');
 
             expect(listener.calledOnce).to.be.true;
         });
 
-        it('should only trigger many event once on many elements', () => {
+        it('should only emit many event once on many elements', () => {
 
             const div = document.createElement('div');
             const span = document.createElement('span');
             const listener = sandbox.fake();
 
-            html.events.one([div, span], ['click', 'blur', 'focus'], listener);
-            html.events.trigger([div, span], 'click');
-            html.events.trigger([div, span], 'click');
-            html.events.trigger([div, span], 'blur');
-            html.events.trigger([div, span], 'blur');
-            html.events.trigger([div, span], 'focus');
-            html.events.trigger([div, span], 'focus');
+            html.events.once([div, span], ['click', 'blur', 'focus'], listener);
+            html.events.emit([div, span], 'click');
+            html.events.emit([div, span], 'click');
+            html.events.emit([div, span], 'blur');
+            html.events.emit([div, span], 'blur');
+            html.events.emit([div, span], 'focus');
+            html.events.emit([div, span], 'focus');
 
             expect(listener.callCount).to.eq(6);
         });

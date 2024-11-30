@@ -30,12 +30,24 @@ export const reachIn = <
 
     // Find value
     const result = pathArray.reduce(
-        (prevObj, key) => prevObj && prevObj[key],
-        obj as any
+        (prevObj, key) => {
+
+            if (
+                prevObj &&
+                prevObj[key] !== undefined
+            ) {
+                return prevObj[key] as O;
+            }
+
+            return prevObj;
+        },
+        obj
     );
 
     // If found value is undefined return default value; otherwise return the value
-    return result === undefined ? defValue : result
+    return (
+        result === undefined ? defValue : result
+    ) as GetFieldType<O, P>;
 }
 
 export type LocaleReacher<T> = PathLeaves<T>;
@@ -48,26 +60,30 @@ export type LocaleFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>;
  */
 const objToFlatEntries = <T extends object>(obj: T) => {
 
-    const flattened: [string, any][] = [];
+    const flattened: [string, string][] = [];
 
     if (typeof obj !== 'object') {
         return flattened;
     }
 
-    const flatten = (o: any, prefix: string) => {
+    const flatten = (o: unknown, prefix: string) => {
 
         if (!o) {
             return;
         }
 
-        for (const [key, value] of Object.entries(o)) {
+        for (
+            const [key, value] of
+            Object.entries(o) as [string, unknown][]
+        ) {
 
             const path = prefix ? `${prefix}.${key}` : key;
 
             if (typeof value === 'object') {
                 flatten(value, path);
-            } else {
-                flattened.push([path, value]);
+            }
+            else {
+                flattened.push([path, value as string]);
             }
         }
     };
@@ -79,16 +95,16 @@ const objToFlatEntries = <T extends object>(obj: T) => {
 
 export const format = (str: string, values: LocaleFormatArgs) => {
 
-    if (values.length === 0) {
-        return str;
-    }
-
     if (Array.isArray(values)) {
 
         values = values.filter(v => v !== undefined || v !== null);
     }
 
-    const flatVals = objToFlatEntries(values);
+    if (values.length === 0) {
+        return str;
+    }
+
+    const flatVals = objToFlatEntries(values) as [string, StrOrNum][];
 
     const args = flatVals.filter(
 

@@ -7,7 +7,7 @@ If you have ever thought to yourself:
 
 > It's 2023 and we're still using Axios when there's an entire `Fetch` API available to us on everything single browser
 
-Then say hello to `FetchFactory`. It simplifies the process of making HTTP requests using the `Fetch` API. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL, fetch type, and additional headers for your FetchFactory instance.
+Then say hello to `FetchFactory`. It simplifies the process of making HTTP requests using the `Fetch` API while giving you access to all of its features. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL and additional headers for your FetchFactory instance.
 
 A great feature of `FetchFactory` is its ability to customize request options based on the current state. Through the `modifyOptions` callback function, you can dynamically modify the request options before each request is sent. This enables tasks like adding authentication headers or applying specific logic based on the instance's state. `FetchFactory` also provides a convenient way to handle response data, allowing developers to access and process the results of their API requests.
 
@@ -16,36 +16,55 @@ npm install @logos-ui/fetch
 yarn add @logos-ui/fetch
 pnpm add @logos-ui/fetch
 ```
-
 ## Example
+
+Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logos-ui.github.io/modules/_logos_ui_fetch.LogosUiFetch.html).
 
 ```ts
 
-type FetchHeaders = {
+type SomeHeaders = {
 	'authorization'?: string,
 	'x-api-key'?: string,
 	'hmac': string,
 	'time': number
 }
 
-type FetchState = {
+type SomeParams = {
+	auth_token: string,
+	scope: string
+}
+
+type SomeState = {
 	isAuthenticated?: boolean,
 	authToken?: string
 	refreshToken?: string,
 }
 
-const api = new FetchFactory<FecthState, FetchHeaders>({
+const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+
+	// FetchOptions
 	baseUrl: testUrl,
-	type: 'json',
-	headers: {
+	defaultType: 'json', // handle type when FetchFactory cannot
+	headers: {           // default headers
 		'content-type': 'application/json',
 		'authorization': 'abc123'
 	},
 	methodHeaders: {
-		POST: {
+		POST: {          // Headers for POST requests
 			'x-some-key': process.env.SOME_KEY
 		}
 	},
+
+	params: {
+		auth_token: ''  // default params
+	},
+	methodParams: {
+		POST: {
+			scope: ''   // params for POST requests
+		}
+	},
+
+	// runs every request and allows modifying options
 	modifyOptions(opts, state) {
 
 		if (state.authToken) {
@@ -55,6 +74,8 @@ const api = new FetchFactory<FecthState, FetchHeaders>({
 			opts.headers.time = time;
 		}
 	},
+
+	// modify options per http method
 	modifyMethodOptions: {
 		PATCH(opts, state) {
 
@@ -63,18 +84,49 @@ const api = new FetchFactory<FecthState, FetchHeaders>({
 			}
 		}
 	},
+
 	validate: {
 
-		headers(headers) {
+		headers(headers) {    // Validate headers
 
 			Joi.assert(headersSchema, headers);
 		},
 
-		state(state) {
+		state(state) {        // Validate state
 
 			Joi.assert(fetchStateSchema, state);
+		},
+
+		params(params) {
+
+			Joi.assert(paramsSchema, params);
+		},
+
+		perRequest: {
+			headers: true,
+			params: true
 		}
-	}
+	},
+
+	// If you don't want FetchFactory to guess your content type,
+	// handle it yourself.
+	determineType(response) {
+
+		if (/json/.test(response.headers.get('content-type'))) {
+			return 'text';
+		}
+
+		return 'blob'
+	},
+
+	// If your server requires specific header formatting, you can
+	// use this option to modify them. Set to `false` to never format.
+	formatHeaders: 'lowercase',
+
+	// RequestInit options
+	cache: 'no-cache',
+	credentials: 'include',
+	mode: 'cors'
 });
 
 const res = await api.get <SomeType>('/some-endpoint');
@@ -89,373 +141,75 @@ if (res.authToken) {
 }
 ```
 
-## Making Calls
+## How responses are handled
 
-### `request(...)`
+When you configure your `FetchFactory` instance, you might pass the `defaultType` configuration. This only states how FetchFactory should handle your if it can't resolve it itself. Servers usually respond with the standard-place header `Content-Type` to signify the mime-type that should be used to handle the response. `FetchFactory` extracts those headers and guesses how it should handle that response.
 
-Make a request against any HTTP method
+### Reponses are matched and handled in the following order
 
-**Example**
+| Content-Type Matches                           | Handled as            | Data Type                                      | Examples                                                                              |
+| ---------------------------------------------- | --------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------- |
+| text, xml, html, form-urlencoded               | `text`                | `string`                                       | `application/xml`<br>`text/html`<br>`text/css`<br>`application/x-www-form-urlencoded` |
+| json                                           | `json`                | Anything serializable by `JSON.stringify(...)` | `application/json`<br>`application/calendar+json`                                     |
+| form-data                                      | `formData`            | `FormData`                                     | `multipart/form-data`                                                                 |
+| image, audio, video, font, binary, application | `blob`                | Binary                                         | `image/gif`<br>`audio/aac`<br>`font/otf`<br>`application/vnd.openblox.game-binary`    |
+| No match                                       | throws `Error`        | -                                              | -                                                                                     |
+| No header                                      | `options.defaultType` | user defined                                   | -                                                                                     |
+
+### Handling your own responses
+
+If you don't want `FetchFactory` to guess your content type, you can handle it yourself. You can do this by passing a function to the `determineType` configuration option. This function should return a string that matches the type you want to handle.
 
 ```ts
-const someType = await api.request <SomeType>('SEARCH', '/some-endpoint', {
-	payload: { limit: 50 },
-	headers: { ... }
+const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+	// other configurations
+	determineType(response) {
+
+		if (/json/.test(response.headers.get('content-type'))) {
+			return 'text';
+		}
+
+		return 'blob'
+	}
 });
 ```
 
-**Interface**
+You can also use the static `FetchFactory.useDefault` symbol to tell FetchFactory to use the internal response handler to determine the type. This way, you can handle your very specific use cases and let FetchFactory handle the rest.
 
 ```ts
+const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+	// other configurations
+	determineType(response) {
 
-declare class FetchFactory /* ... */ {
+		if (shouldSpecialHandle(response.headers)) {
+			return 'arrayBuffer';
+		}
 
-	request <Res = any, Data = any>(
-        method: HttpMethods,
-        path: string,
-        options: (
-            FetchFactoryRequestOptions<InstanceHeaders> &
-            ({ payload: Data | null } | {})
-         ) = { payload: null }
-    ): AbortablePromise<Res>
-}
-```
-
-### `options(...)`
-
-Makes an options request
-
-**Example**
-
-```ts
-const someData = await api.options <ResponseType>('/some-endpoint', {
-	headers: { ... }
+		// Let FetchFactory handle other cases
+		return FetchFactory.useDefault;
+	}
 });
 ```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-    options <Res = any>(
-	    path: string,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
-}
-```
-
-
-### `get(...)`
-
-Makes a get request
-
-**Example**
-
-```ts
-const someData = await api.get <ResponseType>('/some-endpoint', {
-	headers: { ... }
-});
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-    get <Res = any>(
-	    path: string,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
-}
-```
-
-
-### `post(...)`
-
-Makes a post request
-
-**Example**
-
-```ts
-const someData = await api.post <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
-);
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-    post <Res = any, Data = any>(
-	    path: string,
-	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
-}
-```
-
-### `put(...)`
-
-Makes a put request
-
-**Example**
-
-```ts
-const someData = await api.put <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
-);
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-    put <Res = any, Data = any>(
-	    path: string,
-	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
-}
-```
-
-### `delete(...)`
-
-Makes a delete request
-
-**Example**
-
-```ts
-const someData = await api.delete <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
-);
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-    delete <Res = any, Data = any>(
-	    path: string,
-	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
-}
-```
-
-### `patch(...)`
-
-Makes a put request
-
-**Example**
-
-```ts
-const someData = await api.patch <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
-);
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-    patch <Res = any, Data = any>(
-	    path: string,
-	    payload: Data | null = null,
-	    options: FetchFactoryRequestOptions<InstanceHeaders> = {}
-	): AbortablePromise<Res>
-}
-```
-
-## Modifying your fetch instance
-
-### `addHeader(...)`
-
-Set an object of headers
-
-**Example**
-
-```ts
-api.addHeader({ authorization: 'abc123' });
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-	addHeader(headers: HeaderObj<InstanceHeaders>): void
-
-}
-```
-
-### `rmHeader(...)`
-
-Remove one or many headers
-
-**Example**
-
-```ts
-api.rmHeader('authorization');
-api.rmHeader(['authorization', 'x-api-key']);
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-	rmHeader (headers: keyof InstanceHeaders): void;
-    rmHeader (headers: (keyof InstanceHeaders)[]): void;
-    rmHeader (headers: string): void;
-    rmHeader (headers: string[]): void;
-}
-```
-
-
-### `hasHeader(...)`
-
-Checks if header is set
-
-**Example**
-
-```ts
-api.hasHeader('authorization');
-// true
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-	hasHeader(name: (keyof HeaderObj<InstanceHeaders>)): boolean;
-
-}
-```
-
-
-### `setState(...)`
-
-Merges a passed object into the `FetchFactory` instance state
-
-**Example**
-
-```ts
-api.setState({
-	refreshToken: 'abc123',
-	authToken: 'abc123',
-	isAuthenticated: true
-});
-
-api.setState('isAuthenticated', false);
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-	setState<N extends keyof State>(name: N, value: State[N]): void;
-	setState(conf: Partial<State>): void;
-}
-```
-
-### `resetState()`
-
-Resets the `FetchFactory` instance state.
-
-**Example**
-
-```ts
-api.resetState();
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-	resetState(): void;
-}
-```
-
-### `getState()`
-
-Returns the `FetchFactory` instance state.
-
-**Example**
-
-```ts
-const state = api.getState();
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-	getState(): State;
-}
-```
-
-
-### `changeBaseUrl(...)`
-
-Changes the base URL for this fetch instance
-
-**Example**
-
-```ts
-api.changeBaseUrl('http://dev.sample.com');
-```
-
-**Interface**
-
-```ts
-declare class FetchFactory /* ... */ {
-
-	changeBaseUrl(url: string): void;
-}
-```
-
 
 ## Events
 
 `FetchFactory` emits a variety of events during different phases of the request process. These events can be intercepted and processed using event listeners.
 
-| Event                 | Description                                                             |
-| --------------------- | ----------------------------------------------------------------------- |
-| `fetch-before`        | Triggered before the request is made.                                   |
-| `fetch-after`         | Triggered after the request is made, unless there is an error.          |
-| `fetch-abort`         | Triggered when a request is explicitly aborted using the abort method.  |
-| `fetch-error`         | Triggered when an error occurs during the request.                      |
-| `fetch-response`      | Triggered when a successful response is received.                       |
-| `fetch-header-add`    | Triggered when a header is added.                                       |
-| `fetch-header-remove` | Triggered when a header is removed.                                     |
-| `fetch-state-set`     | Triggered when the instance state is set using the setState method.     |
-| `fetch-state-reset`   | Triggered when the instance state is reset using the resetState method. |
-| `fetch-url-change`    | Triggered when the instance base URL is changed.                        |
+
+| Event                 | Description                |
+| --------------------- | -------------------------- |
+| `fetch-before`        | Before a request           |
+| `fetch-after`         | After a request            |
+| `fetch-abort`         | When a request is aborted  |
+| `fetch-error`         | When a request failed      |
+| `fetch-response`      | On successful response     |
+| `fetch-header-add`    | When a header is added     |
+| `fetch-header-remove` | When a header is removed   |
+| `fetch-param-add`     | When a param is added      |
+| `fetch-param-remove`  | When a param is removed    |
+| `fetch-state-set`     | When the state is set      |
+| `fetch-state-reset`   | When the state is reset    |
+| `fetch-url-change`    | When the `baseUrl` changes |
 
 ## Aborting Requests
 
@@ -475,256 +229,240 @@ if (condition) {
 const res = await call;
 ```
 
-## Main Interfaces
+
+
+## Making Calls
+
+### `request(...)`
+
+Make a request against any HTTP method
+
+**Example**
 
 ```ts
-interface FetchHeaders {
-	authorization?: string;
-	'content-type'?: string;
-}
-
-declare class FetchFactory<
-	State = {},
-	InstanceHeaders = FetchHeaders
-> extends EventTarget {
-
-	removeHeader: FetchFactory<State, InstanceHeaders>['rmHeader'];
-
-	constructor({ baseUrl, type, ...opts }: FetchFactoryOptions<State, InstanceHeaders>);
-
-	request<Res = any, Data = any>(
-		method: HttpMethods,
-		path: string,
-		options?: (
-			FetchFactoryRequestOptions<InstanceHeaders> & (
-				{
-					payload: Data | null;
-				} |
-				{}
-			)
-		)
-	): AbortablePromise<Res>;
-
-	options<Res = any>(
-		path: string,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
-
-	get<Res = any>(
-		path: string,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
-
-	delete<Res = any, Data = any>(
-		path: string,
-		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
-
-	post<Res = any, Data = any>(
-		path: string,
-		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
-
-	put<Res = any, Data = any>(
-		path: string,
-		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
-
-	patch<Res = any, Data = any>(
-		path: string,
-		payload?: Data | null,
-		options?: FetchFactoryRequestOptions<InstanceHeaders>
-	): AbortablePromise<Res>;
-
-	addHeader(headers: HeaderObj<InstanceHeaders>): void;
-
-	rmHeader(headers: keyof InstanceHeaders): void;
-	rmHeader(headers: (keyof InstanceHeaders)[]): void;
-	rmHeader(headers: string): void;
-	rmHeader(headers: string[]): void;
-
-	hasHeader(name: (keyof HeaderObj<InstanceHeaders>)): boolean;
-
-	get headers(): {
-		readonly default: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly get?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly post?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly put?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly delete?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly options?: Readonly<HeaderObj<InstanceHeaders>>;
-		readonly patch?: Readonly<HeaderObj<InstanceHeaders>>;
-	};
-
-	setState<N extends keyof State>(name: N, value: State[N]): void;
-	setState(conf: Partial<State>): void;
-
-	resetState(): void;
-	getState(): State;
-
-	changeBaseUrl(url: string): void;
-
-	on(
-		ev: FetchEventName | '*',
-		listener: (
-			e: (FetchEvent<State, InstanceHeaders>)
-		) => void,
-		once?: boolean
-	): void;
-
-	off(
-		ev: FetchEventName | '*',
-		listener: EventListenerOrEventListenerObject
-	): void;
-}
-```
-
-## Supporting Interfaces
-
-```ts
-type TypeOfFactory = "arrayBuffer" | "blob" | "formData" | "json" | "text";
-
-type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
-type HttpMethods = _InternalHttpMethods | string;
-
-type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
-
-type HeaderObj<T> = Record<string, string> & Partial<T>;
-
-/**
- * Override this interface with the headers you intend
- * to use and set throughout your app.
- */
-interface FetchHeaders {
-    authorization?: string;
-    'content-type'?: string;
-}
-
-type RequestHeaders = HeaderObj<FetchHeaders>;
-
-type FetchReqOpts = RequestOptions & {
-	controller: AbortController;
-	headers?: RequestHeaders;
-	timeout?: number;
-};
-
-type FetchFactoryLifecycle = {
-	onError?: (err: FetchError) => void | Promise<void>;
-	onBeforeReq?: (opts: FetchReqOpts) => void | Promise<void>;
-	onAfterReq?: (response: Response, opts: FetchReqOpts) => void | Promise<void>;
-};
-
-type FetchFactoryOptions<
-	State = {},
-	InstanceHeaders = RequestHeaders
-> = (
-
-	Omit<
-		FetchReqOpts,
-		'method' | 'body' | 'integrity' | 'controller'
-	> & {
-		/**
-		 * The base URL for all requests
-		 */
-		baseUrl: string,
-
-		/**
-		 * The type of response expected from the server.
-		 * This will be used to determine how to parse the
-		 * response from the server.
-		 */
-		type: TypeOfFactory,
-
-		/**
-		 * The headers to be set on all requests
-		 */
-		headers?: HeaderObj<InstanceHeaders>,
-
-		/**
-		 * The headers to be set on requests of a specific method
-		 * @example
-		 * {
-		 *     GET: { 'content-type': 'application/json' },
-		 *     POST: { 'content-type': 'application/x-www-form-urlencoded'
-		 * }
-		 */
-		methodHeaders?: HttpMethodOpts<HeaderObj<InstanceHeaders>>,
-
-		/**
-		 *
-		 * @param opts
-		 * @param state
-		 * @returns
-		 */
-		modifyOptions?: (opts: FetchReqOpts, state: State) => FetchReqOpts
-		modifyMethodOptions?: HttpMethodOpts<
-			FetchFactoryOptions<
-				State,
-				InstanceHeaders
->	['modifyOptions']
->	,
-
-		timeout?: number,
-		validate?: {
-			headers?: (headers: HeaderObj<InstanceHeaders>, method?: HttpMethods) => void
-			state?: (state: State) => void
-
-			perRequest?: {
-				headers?: boolean
-			}
-		}
-    }
-);
-
-interface AbortablePromise<T> extends Promise<T> {
-	abort(reason?: string): void;
-}
-
-type FetchFactoryRequestOptions<InstanceHeaders = FetchHeaders> = (
-	FetchFactoryLifecycle &
-	Omit<FetchReqOpts, 'body' | 'method' | 'controller'> &
+const someType = await api.request <SomeType>(
+	'SEARCH',
+	'/some-endpoint',
 	{
-		headers?: HeaderObj<InstanceHeaders>;
+		payload: { categories: ['a', 'b'] },
+		params: { limit: 50, page: 1 },
+		headers: { 'x-api-key': 'abc123' },
+		determineType: () => 'json',
+		formatHeaders(headers: Headers) { return snakeCase(headers) },
+		onError(err: FetchError) { ... },
+		onBeforeReq(opts: LogosUiFetch.RequestOpts) { ... }
+		onAfterReq(
+			clonedResponse: Response,
+			opts: LogosUiFetch.RequestOpts
+		) { ... },
 	}
 );
-
-interface FetchError<T = {}> extends Error {
-	data: T | null;
-	status: number;
-	method: HttpMethods;
-	path: string;
-	aborted?: boolean;
-}
-
-declare class FetchEvent<
-	State = {},
-	InstanceHeaders = FetchHeaders
-> extends Event {
-	state: State;
-	url?: string;
-	method?: HttpMethods;
-	headers?: HeaderObj<InstanceHeaders>;
-	options?: FetchReqOpts;
-	data?: any;
-	payload?: any;
-	response?: Response;
-	error?: FetchError;
-}
-
-declare enum FetchEventNames {
-	'fetch-before' = "fetch-before",
-	'fetch-after' = "fetch-after",
-	'fetch-abort' = "fetch-abort",
-	'fetch-error' = "fetch-error",
-	'fetch-response' = "fetch-response",
-	'fetch-header-add' = "fetch-header-add",
-	'fetch-header-remove' = "fetch-header-remove",
-	'fetch-state-set' = "fetch-state-set",
-	'fetch-state-reset' = "fetch-state-reset",
-	'fetch-url-change' = "fetch-url-change"
-}
-
-type FetchEventName = keyof typeof FetchEventNames;
 ```
+
+### `options(...)`
+
+Makes an options request
+
+**Example**
+
+```ts
+const someData = await api.options <ResponseType>('/some-endpoint', {
+	headers: { ... }
+});
+```
+
+### `get(...)`
+
+Makes a get request
+
+**Example**
+
+```ts
+const someData = await api.get <ResponseType>('/some-endpoint', {
+	headers: { ... }
+});
+```
+
+### `post(...)`
+
+Makes a post request
+
+**Example**
+
+```ts
+const someData = await api.post <ResponseType, PayloadType>(
+	'/some-endpoint',
+	payload,
+	{
+		headers: { ... }
+	}
+);
+```
+
+### `put(...)`
+
+Makes a put request
+
+**Example**
+
+```ts
+const someData = await api.put <ResponseType, PayloadType>(
+	'/some-endpoint',
+	payload,
+	{
+		headers: { ... }
+	}
+);
+```
+
+### `delete(...)`
+
+Makes a delete request
+
+**Example**
+
+```ts
+const someData = await api.delete <ResponseType, PayloadType>(
+	'/some-endpoint',
+	payload,
+	{
+		headers: { ... }
+	}
+);
+```
+
+### `patch(...)`
+
+Makes a put request
+
+**Example**
+
+```ts
+const someData = await api.patch <ResponseType, PayloadType>(
+	'/some-endpoint',
+	payload,
+	{
+		headers: { ... }
+	}
+);
+```
+
+## Modifying your fetch instance
+
+### `addHeader(...)`
+
+Set an object of headers
+
+**Example**
+
+```ts
+api.addHeader({ authorization: 'abc123' });
+api.addHeader({ something: 'else' }, 'POST');
+```
+
+### `rmHeader(...)`
+
+Remove one or many headers
+
+**Example**
+
+```ts
+api.rmHeader('authorization');
+api.rmHeader(['authorization', 'x-api-key']);
+api.rmHeader(['authorization', 'x-api-key'], 'POST');
+```
+
+### `hasHeader(...)`
+
+Checks if header is set
+
+**Example**
+
+```ts
+api.hasHeader('authorization');
+api.hasHeader('authorization', 'POST');
+```
+
+
+### `addParams(...)`
+
+Set an object of params
+
+**Example**
+
+```ts
+api.addParams({ auth_token: 'abc123' });
+api.addParams({ scope: 'abc123' }, 'POST');
+```
+
+### `rmParams(...)`
+
+Remove one or many headers
+
+**Example**
+
+```ts
+api.rmParams('auth_token');
+api.rmParams(['auth_token', 'scope']);
+api.rmParams('auth_token', 'POST');
+```
+
+### `hasParam(...)`
+
+Checks if header is set
+
+**Example**
+
+```ts
+api.hasHeader('scope');
+api.hasHeader('scope', 'POST');
+```
+
+
+### `setState(...)`
+
+Merges a passed object into the `FetchFactory` instance state
+
+**Example**
+
+```ts
+api.setState({
+	refreshToken: 'abc123',
+	authToken: 'abc123',
+	isAuthenticated: true
+});
+
+api.setState('isAuthenticated', false);
+```
+
+### `resetState()`
+
+Resets the `FetchFactory` instance state.
+
+**Example**
+
+```ts
+api.resetState();
+```
+
+### `getState()`
+
+Returns the `FetchFactory` instance state.
+
+**Example**
+
+```ts
+const state = api.getState();
+```
+
+
+### `changeBaseUrl(...)`
+
+Changes the base URL for this fetch instance
+
+**Example**
+
+```ts
+api.changeBaseUrl('http://dev.sample.com');
+```
+

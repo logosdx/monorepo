@@ -1,0 +1,15 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@logos-ui/dom": "2.0.7",
+    "@logos-ui/fetch": "3.2.0",
+    "@logos-ui/kit": "2.0.10",
+    "@logos-ui/localize": "2.0.7",
+    "@logos-ui/observer": "3.0.0",
+    "@logos-ui/state-machine": "2.0.7",
+    "@logos-ui/storage": "2.0.7",
+    "@logos-ui/utils": "2.1.0"
+  },
+  "changesets": []
+}

@@ -1,6 +1,6 @@
 
 /** Generic Function */
-export type Func = (...args: any) => any | Function;
+export type Func = (...args: unknown[]) => unknown;
 
 /** Generic Class */
 export type Klass = { new: Func }
@@ -70,3 +70,12 @@ export interface BoolProps { [key: string]: boolean };
 export type MaybePromise<T> = T | Promise<T>;
 
 export type NotUndefined<T> = T extends undefined ? never : T;
+
+
+export type Truthy = (
+    string |
+    number |
+    boolean |
+    object |
+    Function
+);

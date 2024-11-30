@@ -1,11 +1,11 @@
-import { NullableObject, definePrivateProps, definePublicProps } from "@logos-ui/utils";
+import { Func, NullableObject, definePrivateProps, definePublicProps } from "@logos-ui/utils";
 
 
 class StorageError extends Error {};
 
 export type StorageImplementation = {
     clear(): void;
-    getItem(key: string, callback?: any): string | null;
+    getItem(key: string, callback?: Func): string | null;
     removeItem(key: string): void;
     setItem(key: string, value: string): void;
 };
@@ -81,7 +81,7 @@ export class StorageFactory<Values> extends EventTarget {
         once = false
     ) {
 
-        this.addEventListener(ev, listener as any, { once });
+        this.addEventListener(ev, listener as never, { once });
     }
 
     off(ev: keyof typeof StorageEventNames, listener: EventListenerOrEventListenerObject) {
@@ -151,7 +151,7 @@ export class StorageFactory<Values> extends EventTarget {
 
     set(key: unknown, value?: unknown) {
 
-        this._assertKey(key as any);
+        this._assertKey(key as string);
 
         if (typeof key === 'object') {
 
@@ -201,7 +201,7 @@ export class StorageFactory<Values> extends EventTarget {
 
         if (current === null) {
 
-            return this.set(key, val as any);
+            return this.set(key, val as Values[K]);
         }
 
         if (!current) {
@@ -311,9 +311,11 @@ export class StorageFactory<Values> extends EventTarget {
     has(key: string): boolean
 
 
-    has(keyOrKeys: any): unknown {
+    has(_arg: unknown): unknown {
 
-        this._assertKey(keyOrKeys[0]);
+        const keyOrKeys = _arg as (keyof Values)[]
+
+        this._assertKey(keyOrKeys[0] as string);
 
         if (Array.isArray(keyOrKeys)) {
 

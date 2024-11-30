@@ -1,0 +1,39 @@
+name: Docs
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: write
+      contents: write
+      pull-requests: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 22.x
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+            ssh-private-key: ${{ secrets.DOCS_SSH_KEY }}
+
+      - name: Update docs
+        run: |
+          git config --global user.email "<runner@github.com>"
+          git config --global user.name "GitHub Actions"
+          pnpm build:docs
+        shell: /bin/zsh

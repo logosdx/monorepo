@@ -24,7 +24,7 @@ function sanitize(name: CssPropNames) {
 
     return (name as string).replace(
         /(.+)-(.)/,
-        (_s, m1, m2) => m1 + m2.toUpperCase()
+        (_s, m1: string, m2: string) => m1 + m2.toUpperCase()
     ) as CssPropNames
 }
 

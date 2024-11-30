@@ -3,11 +3,14 @@ permalink: '/'
 ---
 LogosUI is an collection of utilities brought together for the purpose of simplifying the building of frontend UI's. It is perfect for building websites, small utilities, frontend components, or even full-fledged web-apps. It was designed for the purpose of giving developers a simple-to-use set of tools that they can "just use" in their applications. 
 
+- [Visit our github](https://github.com/logos-ui/monorepo)
+- [See the typedocs](https://logos-ui.github.io/modules.html)
+
 ## Objectives
 
 **To simplify the frontend space by hosting useful utilities in one place**
 
-We aim to provide the basics for developing a web application in one place. All of our tooling is dependency-free and solely distributed by the organization. The translates to needing to reach out less for 3rd party packaging.
+We aim to provide the basics for developing a web application in one place. All of our tooling is dependency-free and solely distributed by the organization. This translates to needing to reach out less for 3rd party packaging.
 
 **Providing a set of tools that perform simple tasks well**
 
@@ -37,18 +40,18 @@ If you're a DIY type of person, these utils should be a good set of utilities to
 
 ## List of Utilities 
 
-- [[DOM]]
-	- Tools to help you manipulate the DOM
-- [[Packages/Fetch|Fetch]]
-	- A simple wrapper around Fetch API for more ergonomic usage
-- [[Packages/Localize|Localize]]
-	- A simple translation tool with an emphasis on types
 - [[Packages/Observer|Observer]]
 	- A feature-rich observer with debugging capabilities, regex event emissions and listeners, and more
+- [[Packages/Fetch|Fetch]]
+	- A simple wrapper around Fetch API for more ergonomic usage
 - [[Packages/State Machine|State Machine]]
 	- A state manager with support for using newer data types in the state (Maps and Sets)
+- [[Packages/Localize|Localize]]
+	- A simple translation tool with an emphasis on types
 - [[Packages/Storage|Storage]]
 	- A storage API that saves and retrieves JSON into key-value storage systems, such as LocalStorage or AsyncStorage
+- [[DOM]]
+	- Tools to help you manipulate the DOM
 - [[Packages/Utils|Utils]]
 	- A collection of JS utilities used within the libraries
 - [[Packages/Kit|App Kit]]
