@@ -13,6 +13,7 @@
     "@logos-ui/tests": "0.0.1"
   },
   "changesets": [
-    "breezy-pets-brake"
+    "breezy-pets-brake",
+    "loud-onions-knock"
   ]
 }

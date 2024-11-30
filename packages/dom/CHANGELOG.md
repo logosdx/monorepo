@@ -1,5 +1,12 @@
 # @logos-ui/dom
 
+## 3.0.0-next.1
+
+### Patch Changes
+
+- Updated dependencies [90b498a]
+  - @logos-ui/utils@2.2.0-next.0
+
 ## 3.0.0-next.0
 
 ### Major Changes
