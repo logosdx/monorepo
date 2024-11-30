@@ -1,5 +1,12 @@
 # @logos-ui/kit
 
+## 3.0.0-next.2
+
+### Patch Changes
+
+- Updated dependencies [82b7d41]
+  - @logos-ui/observer@4.0.0-next.2
+
 ## 3.0.0-next.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @logos-ui/observer
 
+## 4.0.0-next.2
+
+### Patch Changes
+
+- 82b7d41: Make sure to export types as types
+
 ## 4.0.0-next.1
 
 ### Patch Changes
