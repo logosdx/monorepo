@@ -1,4 +1,4 @@
-import { Func } from "./types.ts";
+import { Func, Truthy } from './types';
 
 /**
  * Defines visible, non-configurable properties on an object
@@ -70,17 +70,44 @@ export const definePrivateGetters = <T, U extends Record<string, Func>>(target: 
 class AssertationError extends Error {}
 
 /**
+ * Asserts that a value is true
  *
  * @param test value that is coerced to true
  * @param message error message to display when test is false
+ * @param ErrorClass error class to throw
  */
-export const assert = (test: boolean, message?: string, ErrorClass?: typeof Error) => {
+export const assert = (
+    test: Truthy | (() => boolean),
+    message?: string,
+    ErrorClass?: typeof Error
+) => {
 
-    if (test === false) {
+    const check = test instanceof Function ? test() : !!test
+
+    if (check === false) {
 
         throw new (ErrorClass || AssertationError)(message || 'assertion failed');
     }
 };
+
+/**
+ * Asserts only if value is not undefined
+ *
+ * @param val value to test
+ * @param test
+ * @param message
+ * @param ErrorClass
+ */
+export const assertOptional = <T>(
+    val: T | undefined,
+    ...rest: Parameters<typeof assert>
+) => {
+
+    if (val !== undefined) {
+
+        assert(...rest);
+    }
+}
 
 
 /**
@@ -98,11 +125,14 @@ export const applyDefaults = <T>(target: T, ...sources: T[]) => {
             if (typeof source[k] === 'object') {
 
                 const _t = (target || {}) as T;
+                type NextVal = T[keyof T];
 
-                target[k] = applyDefaults(
-                    (_t)[k] || {} as T,
-                    source[k] as T
-                ) as any;
+                const value = applyDefaults(
+                    (_t[k] || {}) as NextVal,
+                    (source[k])
+                );
+
+                target[k as keyof T] = value as NextVal;
             }
             else {
 
@@ -150,7 +180,7 @@ export const oneOrMany = <T>(items: T[]): T | T[] => {
  * @param val
  * @returns {boolean}
  */
-export const isNonIterable = (val: any): boolean => (
+export const isNonIterable = (val: unknown): boolean => (
     val === null ||
     val === undefined ||
     val.constructor === String ||
@@ -165,7 +195,7 @@ export const isNonIterable = (val: any): boolean => (
  * @param val
  * @returns {boolean}
  */
-export const hasNoConstructor = (val: any): boolean => (
+export const hasNoConstructor = (val: unknown): boolean => (
     val === null ||
     val === undefined
 );
@@ -176,7 +206,7 @@ export const hasNoConstructor = (val: any): boolean => (
  * @param compare
  * @returns {boolean}
  */
-export const oneIsNonIterable = (value: any, compare: any): boolean => (
+export const oneIsNonIterable = (value: unknown, compare: unknown): boolean => (
     isNonIterable(value) || isNonIterable(compare)
 );
 
@@ -186,8 +216,8 @@ export const oneIsNonIterable = (value: any, compare: any): boolean => (
  * @param compare
  * @returns {boolean}
  */
-export const hasSameConstructor = (value: any, compare: any): boolean => (
-    value.constructor === compare.constructor
+export const hasSameConstructor = (value: unknown, compare: unknown): boolean => (
+    (value as {}).constructor === (compare as {}).constructor
 );
 
 /**
@@ -197,9 +227,12 @@ export const hasSameConstructor = (value: any, compare: any): boolean => (
  * @param b
  * @returns {boolean}
  */
-export const isSameLength = (a: any, b: any): boolean => (
-    a.length === b.length &&
-    a.size === b.size
+export const isSameLength = (
+    a: unknown[] | Set<unknown>,
+    b: unknown[] | Set<unknown>
+): boolean => (
+    (a as []).length === (b as []).length &&
+    (a as Set<''>).size === (b as Set<''>).size
 );
 
 /**
@@ -207,7 +240,14 @@ export const isSameLength = (a: any, b: any): boolean => (
  * @param a
  * @returns {boolean}
  */
-export const isFunction = (a: any) => a instanceof Function;
+export const isFunction = (a: unknown) => a instanceof Function;
+
+/**
+ * Checks if value is instance of an object
+ * @param a
+ * @returns {boolean}
+ */
+export const isObject = (a: unknown) => a instanceof Object;
 
 /**
  * Performs a for-in loop that breaks the instance `check` function returns false.
@@ -216,7 +256,12 @@ export const isFunction = (a: any) => a instanceof Function;
  * @param {Function} check function to perform the check
  * @returns {boolean}
  */
-export const forInIsEqual = (item: any, check: { (v: any, i: number|string): boolean }): boolean => {
+export const forInIsEqual = <T extends object>(
+    item: T,
+    check: {
+        (v: T[keyof T], i: number | string): boolean
+    }
+): boolean => {
 
     let isEqual: boolean;
 
@@ -239,7 +284,12 @@ export const forInIsEqual = (item: any, check: { (v: any, i: number|string): boo
  * @param {Function} check function to perform the check
  * @returns {boolean}
  */
-export const forOfIsEqual = (item: any, check: { (v: any): boolean }): boolean => {
+export const forOfIsEqual = <
+    I extends Iterable<unknown>
+>(
+    item: I,
+    check: (v: unknown) => boolean
+): boolean => {
 
     let isEqual: boolean;
 
@@ -259,16 +309,17 @@ export const forOfIsEqual = (item: any, check: { (v: any): boolean }): boolean =
 /** Next tick but in the browser */
 const nextTickQueue: Func[] = [];
 
-window?.addEventListener('message', function (ev) {
+window?.addEventListener('message', function (ev: MessageEvent<string>) {
 
     const source = ev.source;
+    const evName = ev.data;
 
     if (
         (
             source === window ||
             source === null
         ) &&
-        ev.data === 'process-tick'
+        evName === 'process-tick'
     ) {
 
         ev.stopPropagation();
@@ -306,7 +357,7 @@ export const isFunctionOrObject = <T extends Function | Object>(val: T): boolean
  * @param val
  * @returns
  */
-export const isUndefined = (val: any) => val === undefined;
+export const isUndefined = (val: unknown) => val === undefined;
 
 /**
  * Creates a deferred promise
@@ -315,7 +366,7 @@ export class Deferred<T> {
 
     public promise: Promise<T>;
     public resolve!: (value: T) => void;
-    public reject!: (reason?: any) => void;
+    public reject!: (reason?: Error | string) => void;
 
     constructor() {
 
@@ -323,5 +374,21 @@ export class Deferred<T> {
             this.resolve = resolve;
             this.reject = reject;
         });
+    }
+}
+
+/**
+ * Helper utilities for working with text
+ */
+export const txt = {
+
+    msgs: (...args: ({ toString(): string } | string)[]) => {
+
+        return args.map((arg) => arg.toString()).join(' ');
+    },
+
+    lines: (...args: ({ toString(): string } | string)[]) => {
+
+        return args.map((arg) => arg.toString()).join('\n');
     }
 }

@@ -34,6 +34,7 @@ export type AnyConstructor = (
     { new(...args: any[]): any }
 );
 
+
 /**
  * Deep clones Objects, Arrays, Maps and Sets
  * @param original
@@ -42,15 +43,18 @@ export type AnyConstructor = (
 export const deepClone = <T>(original: T): T => {
 
     // Primatives do not have issues with hoisting
-    if (isNonIterable(original) || (original instanceof Date)) {
+    if (
+        isNonIterable(original) ||
+        original instanceof Date ||
+        original instanceof RegExp ||
+        typeof original === 'function'
+    ) {
         return original;
     }
 
     const cloneType = cloneHandlers.get(original!.constructor as AnyConstructor);
 
-    // Warn about using specific types that are not supported
     if (!cloneType) {
-        _nextTick(() => console.warn(`Cannot clone ${original!.constructor.name} type.`));
         return original;
     }
 
@@ -64,17 +68,23 @@ export const deepClone = <T>(original: T): T => {
  * @param change changed item
  * @param current current item
  */
-export const deepEqual = (change: any, current: any): boolean => {
+export const deepEqual = (change: unknown, current: unknown): boolean => {
 
     // Non-iterables can be checked with basic js strict equality
     if (oneIsNonIterable(change, current)) return change === current;
 
     // A change in contructor means it changed
-    if (!hasSameConstructor(change, current)) return false;
+    if (
+        !hasSameConstructor(change as AnyConstructor, current as AnyConstructor)
+    )
+        return false
+    ;
+
+    const cur = current as { constructor: AnyConstructor };
 
     // Check if these items are different from one another
     // Each contructor may have a special way of deepEqualing
-    let typedeepEqualFunc = equalityHandlers.get(current.constructor);
+    let typedeepEqualFunc = equalityHandlers.get(cur.constructor);
 
     // Handles GeneratorFunction and AsyncFunction
     if (
@@ -87,12 +97,6 @@ export const deepEqual = (change: any, current: any): boolean => {
     }
 
     if (!typedeepEqualFunc) {
-
-        // Warn later
-        _nextTick(() => console.warn(
-            `deepEquals does not support ${current.constructor.name} type. `
-            + `Strict equality will be used instead.`
-        ));
 
         return change === current;
     }
@@ -136,7 +140,6 @@ export const deepMerge = <
 
         // Warn about using specific types that are not supported
         if (!mergeType) {
-            _nextTick(() => console.warn(`Cannot merge ${target!.constructor.name} type.`));
             return target;
         }
 
@@ -155,20 +158,25 @@ type AddHandleForClone<T extends AnyConstructor> = (target: InstanceType<T>) => 
 type AddHandlerForMerge<T extends AnyConstructor> = (target: InstanceType<T>, source: InstanceType<T>, opts?: MergeOptions) => InstanceType<T>;
 type AddHandlerForEquals<T extends AnyConstructor> = (target: InstanceType<T>, source: InstanceType<T>) => boolean
 
-export const addHandlerFor = <
-    T extends AnyConstructor,
-    F extends ('deepClone' | 'deepEqual' | 'deepMerge')
->(
-    fn: F,
-    cnstr: T,
-    handler: (
-        F extends 'deepClone'
-        ? AddHandleForClone<T>
-        : F extends 'deepMerge'
-        ? AddHandlerForMerge<T>
-        : AddHandlerForEquals<T>
-    )
-) => {
+interface AddHandlerFor {
+    <T extends AnyConstructor>(
+        fn: 'deepClone',
+        cnstr: T,
+        handler: AddHandleForClone<T>
+    ): void
+    <T extends AnyConstructor>(
+        fn: 'deepMerge',
+        cnstr: T,
+        handler: AddHandlerForMerge<T>
+    ): void
+    <T extends AnyConstructor>(
+        fn: 'deepEqual',
+        cnstr: T,
+        handler: AddHandlerForEquals<T>
+    ): void
+}
+
+export const addHandlerFor: AddHandlerFor = (fn, cnstr, handler) => {
 
     assert(/deep(Clone|Merge|Equal)/.test(fn), 'invalid function name');
     assert(isFunction(handler), 'handler is not a function');
@@ -176,21 +184,21 @@ export const addHandlerFor = <
     if (fn === 'deepClone') {
         cloneHandlers.set(
             cnstr,
-            handler as AddHandleForClone<T>
+            handler as never
         );
     }
 
     if (fn === 'deepEqual') {
         equalityHandlers.set(
             cnstr,
-            handler as AddHandlerForMerge<T>
+            handler as never
         );
     }
 
     if (fn === 'deepMerge') {
         mergeHandlers.set(
             cnstr,
-            handler as AddHandlerForEquals<T>
+            handler as never
         );
     }
 }

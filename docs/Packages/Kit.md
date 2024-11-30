@@ -16,7 +16,7 @@ pnpm add @logos-ui/kit
 ## Example
 
 ```ts
-import { appKit, AppKitOpts } from '@logos-ui/kit';
+import { appKit, AppKitOpts, MakeKitType, assertOptional } from '@logos-ui/kit';
 
 import { AllEvents } from './types/events';
 import { StorageTypes } from './types/storage';
@@ -34,22 +34,34 @@ const locales = {
 
 // This is the generic type that composes all your
 // appKit's types
-type MyAppKit = {
+type MyAppKit = MakeKitType<{
 	eventsType: AllEvents,
 	storageType: StorageTypes,
 	locales: {
-		localeType: LangType,
+		locale: LangType,
 		codes: keyof typeof locales
 	},
 	stateMachine: {
-		stateType: StateType,
-		reducerValType: ReducerValType
+		stat: StateType,
+		reducerValue: ReducerValType
 	},
 	fetch: {
-		stateType: FetchState,
-		headersType: FetchHeaders
+		state: FetchState,
+		headers: FetchHeaders
+	},
+	apis: {
+		stripe: { 
+			state: {}, 
+			headers: { Authorization: string } 
+		},
+		facebook: {
+			state: {},
+			params: {
+				access_token: string
+			},
+		}
 	}
-}
+}>
 
 // All values in options are optional.
 // If a value is not passed, the tool will
@@ -57,7 +69,9 @@ type MyAppKit = {
 const appKitOpts: AppKitOpts<MyAppKit> = {
 
 	observer: {
-		spy: (...args) => { /*...*/ }
+		name: '...'
+		spy: (...args) => { /* ... */ },
+		emitValidator: (...args) => { /* ... */ }
 	},
 	stateMachine: {
 		initial: initialState,
@@ -75,108 +89,42 @@ const appKitOpts: AppKitOpts<MyAppKit> = {
 	},
 	fetch: {
 		baseUrl: 'http://my.api.com/' || window.location.origin,
-		type: 'json',
-		headers: {}
+		defaultType: 'json',
+		headers: {},
+		formatHeaders: false
+	},
+	apis: {
+		stripe: {
+			baseUrl: 'https://graph.facebook.com',
+		},
+		facebook: {
+			baseUrl: 'https://graph.facebook.com',
+			validate: {
+
+				params: (p) => {
+
+					const isValid = (
+						typeof p.access_token === 'string' &&
+						p.access_token.length > 13
+					);
+
+					assertOptional(
+						p.access_token,
+						isValid,
+						'invalid access token'
+					);
+				}
+			}
+		}
 	}
 }
 
 const kit = appKit <MyAppKit>(appKitOpts);
 
-export const observer = kit.observer!;
-export const stateMachine = kit.stateMachine!;
-export const locales = kit.locales!;
-export const storage = kit.storage!;
-export const fetch = kit.fetch!;
-```
-
-## Interfaces
-
-```ts
-export * from '@logos-ui/dom';
-export * from '@logos-ui/fetch';
-export * from '@logos-ui/localize';
-export * from '@logos-ui/observer';
-export * from '@logos-ui/state-machine';
-export * from '@logos-ui/storage';
-export * from '@logos-ui/utils';
-
-type AppKitLocale = {
-	localeType: LocaleType;
-	codes: string;
-};
-
-type AppKitStateMachine = {
-	stateType: unknown
-	reducerValType: unknown;
-};
-
-type AppKitFetch = {
-	stateType: unknown;
-	headersType: Record<string, string>;
-};
-
-type AppKitType = {
-	eventsType: Record<string, any>;
-	storageType: Record<string, any>;
-	locales: AppKitLocale;
-	stateMachine: AppKitStateMachine;
-	fetch: AppKitFetch;
-};
-
-type AppKitOpts<KitType extends AppKitType> = {
-
-	observer?: ObservableOptions<{}, KitType['eventsType']>;
-
-	stateMachine?: {
-		initial: KitType['stateMachine']['stateType'];
-		options?: StateMachineOptions;
-		reducer: ReducerFunction<
-			KitType['stateMachine']['stateType'],
-			KitType['stateMachine']['reducerValType']
-		>;
-	};
-
-	locales?: LocaleOpts<
-		KitType['locales']['localeType'],
-		KitType['locales']['codes']
-	>;
-
-	storage?: {
-		implementation: StorageImplementation;
-		prefix?: string;
-	};
-
-	fetch?: FetchFactoryOptions<
-		KitType['fetch']['stateType'],
-		KitType['fetch']['headersType']
-	>;
-};
-
-declare const appKit: <KitType extends AppKitType = any>(
-	opts: AppKitOpts<KitType>
-) => {
-
-	observer: Observable<
-		{},
-		KitType["eventsType"]
-	> | null;
-
-	locale: LocaleFactory<
-		KitType["locales"]["localeType"],
-		KitType["locales"]["codes"]
-	> | null;
-
-	stateMachine: StateMachine<
-		KitType["stateMachine"]["stateType"],
-		KitType["stateMachine"]["reducerValType"]
-	> | null;
-
-	storage: StorageFactory<KitType["storageType"]> | null;
-
-	fetch: FetchFactory<
-		KitType["fetch"]["stateType"],
-		KitType["fetch"]["headersType"]
-	> | null;
-
-};
+export const observer = kit.observer;
+export const stateMachine = kit.stateMachine;
+export const locales = kit.locales;
+export const storage = kit.storage;
+export const fetch = kit.fetch;
+export const apis = kit.apis;
 ```

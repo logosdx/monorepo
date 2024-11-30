@@ -2,7 +2,6 @@
 permalink: '/packages/dom'
 aliases: ["DOM", "@logos-ui/dom"]
 ---
-
 The DOM should be an extension of your programming abilities, and not the thing that is abstracted or hidden by framework X. The idea behind library is to give you a set of utilities for DOM manipulation that saves you time and iteration:
 - Instead of `document.querySelectorAll(...)` you can simply call `$(...)`.
 - Instead of `elements.forEach(el => el.addEventListener(...))` you can call `html.events.on(elements, ...)`

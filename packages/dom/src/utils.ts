@@ -204,7 +204,7 @@ export const createElWith = <
     ) => {
 
         const cleaupCbs = entries.map(
-            ([ev, fn]) => html.events.add(el, ev, fn as any)
+            ([ev, fn]) => html.events.on(el, ev, fn as any)
         );
 
         const originalCleanup = cleanup;

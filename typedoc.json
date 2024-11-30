@@ -1,0 +1,8 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPoints": ["packages/*"],
+    "out": "./typedoc",
+    "name": "Logos UI",
+    "entryPointStrategy": "packages",
+    "includeVersion": false
+}

@@ -51,7 +51,7 @@ export class HtmlEvents {
             (ev, el) => (
 
                 el.addEventListener(
-                    ev as any,
+                    ev as string,
                     cb,
                     opts || false
                 )
@@ -97,11 +97,11 @@ export class HtmlEvents {
         );
     }
 
-    static trigger(
+    static emit(
 
         els: TargetsOrWin,
         event: EvType | Event,
-        data?: any
+        data?: unknown
     ) {
 
         eachElEachEv(

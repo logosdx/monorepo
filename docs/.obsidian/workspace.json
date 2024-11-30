@@ -4,19 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "05f288a9074b9234",
+        "id": "0730eddd9fc8a1b5",
         "type": "tabs",
         "children": [
           {
-            "id": "0f5d5c1b4b4828a4",
+            "id": "f493c6808345a362",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Packages/Fetch.md",
+                "file": "Packages/Observer.md",
                 "mode": "source",
                 "source": false
-              }
+              },
+              "icon": "lucide-file",
+              "title": "Observer"
             }
           }
         ]
@@ -39,7 +41,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical"
-              }
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
             }
           },
           {
@@ -54,7 +58,9 @@
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical"
-              }
+              },
+              "icon": "lucide-search",
+              "title": "Search"
             }
           },
           {
@@ -62,7 +68,9 @@
             "type": "leaf",
             "state": {
               "type": "starred",
-              "state": {}
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
             }
           },
           {
@@ -70,7 +78,9 @@
             "type": "leaf",
             "state": {
               "type": "bookmarks",
-              "state": {}
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
             }
           }
         ]
@@ -101,7 +111,9 @@
                 "searchQuery": "",
                 "backlinkCollapsed": false,
                 "unlinkedCollapsed": true
-              }
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Fetch"
             }
           },
           {
@@ -113,7 +125,9 @@
                 "file": "Packages/Fetch.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
-              }
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Fetch"
             }
           },
           {
@@ -124,7 +138,9 @@
               "state": {
                 "sortOrder": "frequency",
                 "useHierarchy": true
-              }
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
             }
           },
           {
@@ -134,7 +150,9 @@
               "type": "outline",
               "state": {
                 "file": "Packages/Fetch.md"
-              }
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Fetch"
             }
           }
         ]
@@ -156,45 +174,54 @@
       "table-editor-obsidian:Advanced Tables Toolbar": false
     }
   },
-  "active": "0f5d5c1b4b4828a4",
+  "active": "f493c6808345a362",
   "lastOpenFiles": [
+    "images/observable/types-1.png",
+    "images/observable/types-8.png",
+    "images/observable/types-3.png",
+    "images/observable/types-7.png",
+    "images/observable/types-6.png",
+    "images/observable/types-5.png",
+    "images/observable/types-4.png",
+    "images/observable/types-2.png",
+    "images/observable",
+    "images",
+    "Untitled.canvas",
+    "images/observable/images.md",
+    "Packages/Observer.md",
+    "images/observable/Screenshot 2024-11-28 at 2.26.44 AM.png",
+    "images/observable/Screenshot 2024-11-28 at 2.27.03 AM.png",
+    "images/observable/Screenshot 2024-11-28 at 2.18.29 AM.png",
+    "Packages/DOM.md",
+    "2024-11-28.md",
+    "Packages/Fetch.md",
+    "Welcome.md",
+    "Packages/Utils.md",
+    "Packages/Storage.md",
+    "Packages/State Machine.md",
     "Packages/Localize.md",
+    "Packages/Kit.md",
+    "[LogosUiFetch.md",
+    "types/fetch/src/factory.d.ts",
+    "types/fetch/src/types.d.ts",
+    "types/fetch/src/helpers.d.ts",
+    "types/observer/src/types.d.ts",
+    "types/observer/src/factory.d.ts",
+    "types/observer/src/helpers.d.ts",
     "Deprecated/Riot Utils.md",
     "Deprecated/Riot Kit.md",
     "Deprecated/A set of tools for sane people.md",
     "Deprecated",
-    "Packages/Observer.md",
-    "Packages/Fetch.md",
     "Depricated/A set of tools for sane people.md",
     "Depricated",
-    "Packages/DOM.md",
-    "Welcome.md",
-    "types/riot-kit/src/storage.d.ts",
-    "types/riot-kit/src/state.d.ts",
-    "types/riot-kit/src/observer.d.ts",
-    "types/riot-kit/src/locales.d.ts",
-    "types/riot-kit/src/index.d.ts",
-    "types/riot-kit/src",
-    "types/riot-kit",
-    "types/riot-utils/src/utils.d.ts",
     "Depricated/Riot Kit.md",
     "Depricated/Riot Utils.md",
-    "Packages/State Machine.md",
-    "Packages/Utils.md",
-    "Packages/Storage.md",
-    "Packages/Kit.md",
     "App Kit.md",
-    "favicon-32.png",
     "Packages/Forms.md",
     "Interfaces/Riot Kit.md",
     "Interfaces/Fetch.md",
     "Interfaces/Forms.md",
     "Interfaces/Localize.md",
-    "Interfaces/Kit.md",
-    "Interfaces/Observer.md",
-    "Interfaces/Riot Utils.md",
-    "Interfaces/Utils.md",
-    "Interfaces/State Machine.md",
-    "favicon.png"
+    "Interfaces/Kit.md"
   ]
 }

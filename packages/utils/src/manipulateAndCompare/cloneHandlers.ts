@@ -13,27 +13,27 @@ export const cloneHandlers: Map<AnyConstructor, HandleCloningOf<any>> = new Map(
 
 export const prepareCloneHandlers = (clone: typeof DeepCloneFn) => {
 
-    cloneHandlers.set(Array, (a) => a.map((v: any) => clone(v)));
+    cloneHandlers.set(Array, (arr: unknown[]) => arr.map((v) => clone(v)));
 
-    cloneHandlers.set(Object, <T>(a: T) => {
+    cloneHandlers.set(Object, <T>(obj: T) => {
 
         const copy: Partial<T> = {};
 
         let key: keyof T;
 
-        for (key in a) {
+        for (key in obj) {
 
-            copy[key] = clone(a[key]);
+            copy[key] = clone(obj[key]);
         }
 
         return copy;
     });
 
-    cloneHandlers.set(Map, (a: Map<any, any>) => {
+    cloneHandlers.set(Map, (_map: Map<unknown, unknown>) => {
 
-        const copy = new Map;
+        const copy = new Map();
 
-        for (const entry of a.entries()) {
+        for (const entry of _map.entries()) {
 
             const [key, val] = entry;
             copy.set(key, clone(val));
@@ -42,14 +42,13 @@ export const prepareCloneHandlers = (clone: typeof DeepCloneFn) => {
         return copy;
     });
 
-    cloneHandlers.set(Set, (a: Set<any>) => {
+    cloneHandlers.set(Set, (_set: Set<unknown>) => {
 
-        const copy = new Set;
+        const copy = new Set();
 
-        for (const original in [...a.values()]) {
+        for (const original of _set) {
 
-            const cloned = clone(original);
-            copy.add(cloned);
+            copy.add(clone(original));
         }
 
         return copy;

@@ -39,3 +39,6 @@ jobs:
           publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  docs:
+    needs: publish
+    uses: ./.github/workflows/docs.yml

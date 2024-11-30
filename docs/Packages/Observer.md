@@ -2,11 +2,28 @@
 permalink: '/packages/observer'
 aliases: ["Observer", "@logos-ui/observer"]
 ---
-At its core, `Observable` promotes loose coupling and modular design. It establishes a clear separation between event producers (observables) and event consumers (listeners). This decoupling allows different parts of a system to interact without direct dependencies, enhancing flexibility and maintainability.
+ObserverFactory aims to provide a consistent, familiar API that goes beyond just working with events in both Node.js and the browser. Our goal is to enable developers to leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with the maturity of a full-feature development tool.
 
-The strength of the `Observable` class lies in its ability to enforce a structured event system. The use of a `Shape` interface ensures that events are defined with specific names and corresponding data types. This type safety empowers developers to handle events with confidence, reducing the risk of runtime errors and promoting robust event handling throughout the system.
+## Features
 
-By embracing the abstract concept of observability and events, the `Observable` class serves as a powerful tool for designing systems that rely on asynchronous communication and reactive behavior. It enables developers to leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with ease.
+- [[#Type-safe Events]]
+- [[#Regex Events]]
+- [[#Event Promises]]
+- [[#Event Generators]]
+- [[#Event Cleanup]]
+- [[#Inheritance and delegation]]
+- [[#Validation]]
+- [[#Debugging Tools]]
+
+Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logos-ui.github.io/modules/_logos_ui_observer.Observable.html)
+
+## Motivations
+
+At its core, observer pattern promotes loose coupling and modular design. It establishes a clear separation between event producers (observables) and event consumers (listeners). This decoupling allows different parts of a system to interact without direct dependencies, enhancing flexibility and maintainability. In fact, observer patterns are the building block of Nodejs and the DOM. The developer experience for it, however, is somewhat broken. This library aims to fix that.
+
+Recent improvements to the builtin `EventEmitter` class in Node.js have made it easier to work with events in JavaScript. Unfortunately, `EventEmitter` only works inside of Node.js and there is no equivalent browser API.
+
+## Installation
 
 ```sh
 npm install @logos-ui/observer
@@ -14,238 +31,124 @@ yarn add @logos-ui/observer
 pnpm add @logos-ui/observer
 ```
 
-## Example
+## Usage
+
+Simply put, `ObserverFactory` allows you listen for events and emit events. In that regard, it's not much different from `EventEmitter`. In fact, `EventEmitter` even allows you to declare typings for events. The main difference is in the extra features that `ObserverFactory` provides.
+
+Let start with the basic usage of `ObserverFactory`.
 
 ```ts
-import { Observable } from '@logos-ui/observer';
+import { ObserverFactory } from '@logos-ui/observer';
 
-// Make many types that dispatch the same data
-type AppKeys = Record<
-	'Escape' | 'Enter' | 'Tab' | 'Backspace' |
-	'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown',
-	KeyboardEvent
->
-
-// Combine all your types into one
-type AppEvents = AppKeys & {
-
-	click: MouseEvent;
-	resize: UIEvent;
-	keyboard: KeyboardEvent;
-	'open-modal': { which: string },
-	'close-modal': { which: string },
+type EventType = {
+	someEvent: string;
 }
 
-// Instantiate your typed observer
-const observer = new ObserverFactory <AppEvents>({});
+// Instantiate the observer
+const observer = new ObserverFactory<EventType>();
 
-// Event names will be type-safe
-observer.on('Escape', () => thing.close());
-observer.on('Enter', (e) => {
+// Listen for an event
+observer.on('someEvent', (data) => {
 
-	const form = findFormFor(e.target);
-
-	if (isValid(form)) {
-		form.submit();
-		return;
-	}
-
-	displayErrorsFor(form);
+	doSomethingWith(data)
 });
-
-// Data passed into the events will be type-safe
-observer.on('open-modal', ({ which }) => modal.show(which));
-observer.on('close-modal', ({ which }) => modal.hide(which));
-
-window.addEventListener('keyup', (e) => {
-
-	observer.emit(e.key, e);
-});
-
-window.addEventListener('click', e => observer.trigger('click', e));
-
-window.addEventListener(
-	'keydown',
-	debounce(e => observer.trigger('keyboard', e), 30)
-);
-
-window.addEventListener(
-	'resize',
-	debounce(e => observer.trigger('click', e), 30)
-);
-
-const [btn] = $('.btn');
-
-btn.onclick = () => observer.trigger('open-modal');
-
-const person = new Person();
-
-observer.observe(person);
-
-person.on('Backspace', (e) => {
-
-	if (e.target?.id === person.id) {
-		person.remove();
-		person.cleanup();
-	}
-});
-```
-
-## Basic Usage
-
-### `on(...)`
-
-Listen for an event. Returns an object with a `cleanup()` function that will remove the passed callback.
-
-**Example**
-
-```ts
-const cleanup = observer.on('keydown', () => { /* ... */ });
 
 if (condition) {
-	cleanup();
-}
 
-// Listen to any events that match 'key'
-observer.on(/key.+/, (e) => { /* ... */ })
+	// Stop listening for an event
+	observer.emit('someEvent', 'some data');
+}
 ```
 
-**Usage without listeners**
+You might notice `EventType` is passed as a generic to `ObserverFactory`. This is what enables type-safe events. You'll see how this is useful in the next section.
 
-If for whatever reason you want to handle the events later, like a promise, and bind to a single event for a period of time, you can use the EventGenerator feature provided by this utility to do so.
+### Type-safe Events
+
+In the example above, we defined a type `EventType` that has a single event `someEvent`. This allows us to listen for `someEvent` and pass data to the callback function. To further illustrate this, let's add more events to `EventType`.
 
 ```ts
-const keyEvent = observer.on('keydown');
+import { ObserverFactory } from '@logos-ui/observer';
 
-// or regex
-const keyEvent = observer.on(/key.+/);
+type EventType = {
 
-async function alwaysListen() {
-
-	while (keyEvent.done === false) {
-
-		const event = await keyEvent.next();
-
-		if (event.key)
-			sendToTracker(event.key, event.metaKey, event.shiftKey);
-	}
+    something: { id: number, name: string }
+    awesome: { id: number, age: string }
+    worrisome: { id: number, job: string }
 }
 
-alwaysListen();
-
-html.events.on($('input'), (e) => keyEvent.emit(e));
-
-form.onsubmit = () => keyEvent.destroy();
+const observer = new ObserverFactory<EventType>();
 ```
 
-Perhaps event implement a queue
+Now, we can listen for `something`, `awesome`, and `worrisome` events and pass data to the callback function. Your IDE will also provide you with autocompletion for the event names and data types.
+
+![](types-1.png)
+
+![](types-2.png)
+
+`ObserverFactory`'s implementation, however, is different from `EventEmitter` in that it will only dispatch a single argument to your listeners. The idea is to keep the API simple and consistent. If you need to pass multiple arguments, you can use arrays or objects.
+
+Emitting events is just as simple. You can pass data to the event as the second argument.
 
 ```ts
-const sendMail = observer.on('send-mail');
-const sendMailSuccess = observer.on('send-mail-success');
-const sendMailFail = observer.on('send-mail-fail');
+observer.emit('something', { id: 1, name: 'Joab' });
+observer.emit('awesome', { id: 1, age: 240 });
+observer.emit('worrisome', { id: 1, job: 'Shepherd' });
+```
 
-const runForever = (evGen, callback) => {
+![](types-5.png)
 
-	while (evGen.done === false) {
-		await callback()
+![](types-6.png)
+
+Quite simple, right? But what happens if you want to listen for multiple events that match a certain pattern?
+
+### Regex Events
+
+Perhaps there's a pattern to a certain subset of events that you emit, and you want to listen to all of them. Lets take the previous example and suppose that we want to listen to all events with the word `some` in them. This is where regex events come in.
+
+```ts
+observer.on(/some/, ({ event, data }) => {
+
+	if (event === 'something') {
+		doSomethingWith(data)
 	}
-}
 
-runForever(sendMail, async () => {
-
-	try {
-
-		await transporter.send(
-			await sendMail.next()
-		);
-
-		sendMailSuccess.emit()
+	if (event === 'awesome') {
+		doSomethingElseWith(data)
 	}
-	catch (e) {
 
-		sendMailFail.emit(e);
+	if (event === 'worrisome') {
+		alertSomeoneAbout(data)
 	}
-	
-});
-
-runForever(sendMailFail, async () => {
-
-	sendToKibana(await sendMailFail.next());
-});
-
-process.on('SIGTERM', () => {
-	
-	sendMail.destroy()
-	sendMailSuccess.destroy();
-	sendMailFail.destroy();
 });
 ```
 
-**Interface**
+As you might have noticed, the data type for the callback function changed. This is because there is no way to know what the event name will be when using regex. The `event` property will contain the name of the event that was emitted.
+
+![[types-3.png]]
+![[types-4.png]]
+
+The same thing can happen when emitting events. Say you want to notify all listeners of events that match a certain pattern of some kind. You can do that with regex events as well.
 
 ```ts
-export class ObserverFactory /* ... */ {
+observer.on('something', ({ id, name }) => { /* ... */ });
+observer.on('awesome', ({ id, age }) => { /* ... */ });
+observer.on('worrisome', ({ id, job }) => { /* ... */ });
 
-	/**
-	 * Returns an event generator that will listen for all events
-	 */
-	on(event: '*'): EventGenerator<Shape, '*'>;
+const user = {
+	id: 1,
+	name: 'Joab',
+	age: 240,
+	job: 'Shepherd'
+};
 
-	/**
-	 * Listens for all events and executes the given callback
-	 */
-	on(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
-
-	/**
-	 * Returns an event generator that will listen for the specified event
-	 */
-	on<E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
-
-	/**
-	 * Listens for the specified event and executes the given callback
-	 */
-	on<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
-
-	/**
-	 * Returns an event generator that will listen for all events matching the regex
-	 */
-	on(event: RegExp): EventGenerator<Shape, RegExp>;
-
-	/**
-	 * Listens for all events matching the regex and executes the given callback
-	 */
-	on(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
-
-}
+observer.emit(/some/, user);
 ```
 
+But what if you want to wait for an event to be emitted as part of your control flow? This is where event promises come in.
 
-**Alternatives**
+### Event Promises
 
-- `listen(...)`
-
-
-### `once(...)`
-
-Listen for an event once.Returns an object with a `cleanup()` function that will remove the passed callback.
-
-**Example**
-
-```ts
-const cleanup = observer.once('keydown', () => { /* ... */ });
-
-if (condition) {
-	cleanup();
-}
-
-// Listen once to any events that match 'key'
-observer.once(/key/, (e) => { /* ... */ })
-```
-
-**Usage without listeners**
-
-Similarly to `.on(...)`, the `once(...)` function can be used without a handler. It returns a cancellable promise that cleans up listeners if aborted early.
+Event promises allow you to wait for an event to be emitted before continuing with your code. This can be useful when you want to wait for a certain event to be emitted before proceeding with your code.
 
 ```ts
 const onceReady = observer.once('ready');
@@ -258,605 +161,497 @@ const bootup = async () => {
 	await somethingElse();
 }
 
-bootup();
+bootup().catch(err => {
+
+	console.error(err);
+	process.exit(1)
+})
 
 database
 	.connect()
 	.then(() => observer.emit('ready'))
-	.catch(() => onceReady.cleanup())
-;
+	.catch(err => {
+		onceReady.cleanup(); // prevents anything else from triggering
+		onceReady.reject(err); // throws the promise
+	})
 ```
 
-This can, of course, be used with regex
+In the example above, you'll notice that no listener was passed to the function. The `bootup` function will wait for the `ready` event to be emitted before proceeding with the rest of the code. The `onceReady.cleanup()` function can be called to remove the listener if the event is never emitted. Not only do you receive a Promise, you receive an `EventPromise`.
+
+Perhaps you need the data from the event that was emitted. You can do that as well.
+
+```ts
+const data = await observer.once('something');
+```
+
+![[types-8.png]]
+
+And if you want to listen to regex events, you can do that as well.
+
+```ts
+const { event, data } = await observer.once(/some/);
+```
+
+![[types-7.png]]
+
+The same rules that apply when using a callback function applies here as well. You can almost guess that the `Promise` will behave the same way as the callback function.
+
+What if you want this same behavior but you want to persist? But of course! This is where event generators come in.
+
+### Event Generators
+
+Event generators allow you to listen for events and control the flow of how they are handled. This can be useful when you want to listen for events and take different actions based on the data that is emitted.
+
+```ts
+const resizeForever = async () => {
+
+	const resize = observer.on('resize');
+	const modal = observer.on('open-modal');
+
+	while (resize.done === false) {
+
+		const ev = await resize.next();
+
+		if (ev.size > 800) {
+
+			modal.emit({ which: 'app-store' })
+		}
+
+		await wait(10); // debounce
+
+		// end the loop
+		if (someCondition) {
+
+			resize.cleanup();
+			modal.cleanup();
+		}
+	}
+}
+```
+
+In the example above, the `resizeForever` function listens for the `resize` event and takes different actions based on the data that is emitted. The `resize.next()` function returns a Promise that resolves when the `resize` event is emitted.
+
+You can also listen to regex events.
 
 ```ts
 const runSome = async () => {
-	
-	await observer.once(/some/);
-	
-	doSomething();
-}
 
-runSome();
+	const some = observer.on(/some/);
 
-observer.emit('something'); // runs
-observer.emit('awesome'); // runs
-```
+	const { event, data } = await some.next();
 
-**Interface**
-
-```ts
-export class ObserverFactory /* ... */ {
-
-	/**
-     * Returns an event promise that resolves when
-     * any event is triggered
-     */
-    once(event: '*'): EventPromise<Shape[Events<Shape>]>;
-
-    /**
-     * Executes a callback once when any event is
-     * triggered
-     */
-    once(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
-
-    /**
-     * Returns an event promise that resolves when
-     * the specified event is triggered
-     */
-    once<E extends Events<Shape>>(event: E): EventPromise<Shape[E]>;
-
-    /**
-     * Executes a callback once when the specified
-     * event is triggered
-     */
-    once<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
-
-    /**
-     * Returns an event promise that resolves when
-     * any events matching the regex are triggered
-     */
-    once(event: RegExp): EventPromise<RgxEmitData<Shape>>;
-
-    /**
-     * Executes a callback once when any events
-     * matching the regex are triggered
-     */
-    once(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
-
+	if (event === 'something') {
+		doSomething(data)
+	}
 }
 ```
 
-
-**Alternatives**
-
-- `one(...)`
-
-### `off(...)`
-
-Stop listening for an event
-
-**Example**
+and emit regex events
 
 ```ts
-const keyAction = () => { /* ... */ };
+const runSome = async () => {
 
-observer.on('keydown', keyAction);
+	const some = observer.on(/some/);
 
-if (condition) {
-
-	observer.off('keydown', keyAction);
-}
-
-// Remove listener from all events that match 'key'
-observer.off(/key/, keyAction);
-```
-
-**Interface**
-
-```ts
-export class ObserverFactory /* ... */ {
-
-	off <E extends Events<Shape> | RegExp>(
-        event: E | '*',
-        listener?: E extends Events<Shape>
-            ? EventCallback<Shape[E]>
-            : Function
-    ): void;
+	// Emits to all listeners that match the regex
+	some.emit({
+		id: 1,
+		name: 'Joab',
+		age: 240,
+		job: 'Shepherd'
+	});
 }
 ```
 
-**Alternatives**
-
-- `unlisten(...)`
-- `remove(...)`
-- `rm(...)`
-
-
-### `emit(...)`
-
-Emits an event
-
-**Example**
+The uses for event generators are endless. Lets take another example, something a bit more practical, like a queue:
 
 ```ts
-observer.on('Escape', () => { /* ... */ });
+const sendMail = observer.on('send-mail');
+const sendMailSuccess = observer.on('send-mail-success');
+const sendMailFail = observer.on('send-mail-fail');
 
-window.addEventListener('keydown', (e) => {
+// Abstract the logic of running a queue
+const runForever = (evGen, callback) => {
 
-	if (e.key === 'Escape') {
-		observer.emit('Escape', e);
+	while (evGen.done === false) {
+		await callback()
+	}
+}
+
+// Continuously send emails
+runForever(
+	sendMail,
+	async () => {
+
+		try {
+
+			// Use a mail transporter to send the email
+			await transporter.send(
+
+				// Wait for the next email message to resolve
+				await sendMail.next()
+			);
+
+			// Emit the success event
+			sendMailSuccess.emit()
+		}
+		catch (e) {
+
+			// If the email fails to send, emit the error
+			sendMailFail.emit(e);
+		}
+	}
+);
+
+runForever(
+	sendMailFail,
+	async () => sendToKibana(await sendMailFail.next())
+);
+
+runForever(
+	sendMailSuccess,
+	async () => chargeCustomer(await sendMailSuccess.next())
+);
+
+// Receive messages from a queue somewhere else
+rabbitMqChannel.consume(
+	'queue.send-mail',
+	(msg) => sendMail.emit(
+		JSON.parse(msg.content.toString())
+	)
+);
+
+process.on('SIGTERM', () => {
+
+	sendMail.destroy()
+	sendMailSuccess.destroy();
+	sendMailFail.destroy();
+});
+```
+
+The above is not meant to be the most efficient queue, but it is an email of what can be done. Perhaps other parts of your system will dispatch this `send-mail` event, and external systems will do it via a RabbitMQ message.
+
+### Event Cleanup
+
+One detail that I often developers miss is the importance of cleaning up event listeners. It's an easy thing to forget that will lead to memory leaks. This is why `ObserverFactory` provides a `cleanup()` function that will remove the listener from the event. This is especially useful when you're dealing with frameworks like React, where components are mounted and unmounted, and you want to make sure that you're not updating an instance of a render that no longer exists. This will quickly lead to memory leaks.
+
+```ts
+const MyComponent = () => {
+
+	const [counter, setCounter] = useState(0);
+
+	useEffect(() => {
+
+		const cleanup = observer.on('keydown', () => {
+
+			setCounter(counter + 1);
+		});
+
+		return () => cleanup();
+	}, [counter]);
+
+	return <div>{counter}</div>
+}
+```
+
+This is one of those things which are not straight forward to do with `EventEmitter`. You would have to keep track of the listeners yourself and remove them when the component is unmounted. `ObserverFactory` was built with this in mind for both frontend and backend systems alike. All the permutations of listening to events have a way to cleanup the listener:
+
+The standard listeners
+
+```ts
+const cleanupOn = observer.on('keydown', () => { /* ... */ });
+const cleanupOnce = observer.once('keydown', () => { /* ... */ });
+const cleanupRegexOn = observer.on(/key/, () => { /* ... */ });
+const cleanupRegexOnce = observer.once(/key/, () => { /* ... */ });
+
+cleanupOn();
+cleanupOnce();
+cleanupRegexOn();
+cleanupRegexOnce();
+```
+
+Event promises
+
+```ts
+const eventPromise = observer.once('keydown');
+const eventPromiseRegex = observer.once(/key/);
+
+eventPromise.cleanup();
+eventPromiseRegex.cleanup();
+```
+
+Event generators
+
+```ts
+const eventGenerator = observer.on('keydown');
+const eventGeneratorRegex = observer.on(/key/);
+
+eventGenerator.cleanup();
+eventGeneratorRegex.cleanup();
+```
+
+With proper use, this enhancement will help you avoid memory leaks in your applications.
+
+### Inheritance and delegation
+
+`ObserverFactory` can be extended and delegated to other classes. Event emitters are standard place, and, as stated before, they are the basis of NodeJS and the DOM. This can be useful when you want to create a class that has the ability to listen for events and emit events.
+
+For example, instead of `EventEmitter`, you can use `ObserverFactory` to create a class that can listen for events and emit events.
+
+```ts
+import { ObserverFactory } from '@logos-ui/observer';
+
+type Events = {
+	openModal: null,
+	closeModal: null
+}
+
+class MyComponent extends ObserverFactory<Events> {
+
+	constructor() {
+		super();
+	}
+
+	open() {
+		this.emit('open');
+	}
+
+	close() {
+		this.emit('close');
+	}
+}
+```
+
+Or, perhaps you have a class that you want to delegate the event listening and emitting to.
+
+```ts
+import myObserver from './myObserver';
+
+class MyComponent implements ObserverFactory.Child<Events> {
+
+	// ... other class methods
+
+	constructor() {
+		myObserver.observe(this);
+	}
+
+	open() {
+		this.emit('open');
+	}
+
+	close() {
+		this.emit('close');
+	}
+}
+
+const myComponent = new MyComponent();
+
+myComponent.on('open', () => { /* ... */ });
+```
+
+### Validation
+
+`ObserverFactory` allows you to validate events before they are emitted. Sometimes, you want to make sure bad data doesn't get to parts of your system. This is where the `emitValidator` option comes in handy.
+
+```ts
+import Joi from 'joi';
+import { ObserverFactory } from '@logos-ui/observer';
+
+type Shape = {
+	connect: null,
+	error: Error,
+	message: { ... },
+	send: { ... }
+}
+
+const schemas: {
+	[key: keyof Shape]?: Joi.Schema
+} = {
+	message: Joi.object({
+		content: Joi.string().required(),
+		fields: Joi.object().required(),
+		properties: Joi.object().required(),
+	}).required(),
+	send: Joi.object().required()
+}
+
+const schema = Joi.object({
+	content: Joi.binary().required(),
+	fields: Joi.object().required()
+});
+
+const observer = new ObserverFactory<Shape>({
+	emitValidator: (event, data, self) => {
+
+		if (schemas[event]) {
+
+			Joi.assert(data, schemas[event]);
+		}
 	}
 });
 
-// emit to all listens on any events that match 'key'
-observer.trigger(/key/, (e) => { /* ... */ })
+rabbitMqChannel.consume(
+	'queue.send-mail',
+	(msg) => observer.emit('message', msg)
+);
+
+observer.on('send', (data) => {
+
+	rabbitMqChannel.sendToQueue(
+		'queue.send-mail',
+		Buffer.from(JSON.stringify(data))
+	);
+});
 ```
 
-**Interface**
+### Instance Options
+
+Very simply put, the observer instance has few options, and we just covered one of them:
 
 ```ts
-export class ObserverFactory /* ... */ {
+export class ObserverFactory <Shape> {
 
-	emit<E extends Events<Shape> | RegExp>(
-        event: E | '*',
-        data?: E extends Events<Shape> ? Shape[E] : Shape[Events<Shape>]
-    ): void;
+	constructor (opts?: {
+		name?: string;
+		spy?: ObserverFactory.Spy<Shape>;
+		emitValidator?: ObserverFactory.EmitValidator<Shape>;
+	});
 }
 ```
 
-**Alternatives**
+| Option          | Description                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `name`          | The name of the observer instance. This is useful for debugging, especially if you're using multiple instances.          |
+| `spy`           | A function that will be called whenever an event is listened to, emitted, or triggered.                                  |
+| `emitValidator` | A function that will be called before an event is emitted. This is useful for validating the data that is being emitted. |
 
-- `trigger(...)`
-- `send(...)`
+And if you're wondering what the `spy` is in the options, we'll cover that in the next section.
 
-### `observe(...)`
+### Debugging Tools
 
-Observes given component as an extension of this observable instance.
+Another "gotcha" about working with event emitters is losing track of where events are being listened to, triggered, or emitted. In order to remedy this problem, we've provided a set of debugging tools that will help to obtain information about your event emitter.
 
-**Example**
+#### `options.spy`
 
-```ts
-const obs = new ObserverFactory();
-const modal = new Modal({ /* ... */ });
-
-obs.observe(modal);
-modal.on('modal-open', () => {});
-
-obs.trigger('modal-open'); // opens modal
-modal.trigger('modal-open'); // opens modal
-
-modal.cleanup(); // clears all event listeners
-```
-
-**Interface**
+`ObserverFactory` accepts a `spy` function in the options to facilitate telemetry and debugging. This function will be called whenever an event is listened to, emitted, or triggered. This is specifically for logging, tracking, or debugging your event emitter.
 
 ```ts
-export class ObserverFactory /* ... */ {
+import { ObserverFactory } from '@logos-ui/observer';
 
-	observe<C>(component: C): ObservableChild<C, Shape>
-}
-```
+const debugFn: ObserverFactory.Spy<Shape> = (action) => {
 
-## Debugging
+	const {
+		event,
+		listener,
+		data,
+		fn,
+		context
+	} = action;
 
-One of the bigger challenges with event emitted systems is debugging. Observable gives us various options for debugging our event emitter, such as a stack trace, or a function that intercepts all incoming listeners and outgoing events.
+	if (fn === 'emit' && !context.$has(event)) {
 
-### `debug(...)`
-
-Turn debugging on and off and see where events are being listened to, triggered, or emitted. This result stack trace filters out lines from `node_modules`, `node:internals`, and anything related to this library so that what you trace is only your code.
-
-**Example**
-
-```ts
-const obs = new ObserverFactory();
-
-obs.on(/a/i, () => {});
-// EventStack (/a/i on):
-//     at .../tests/src/observable.ts:204:26
-//     at doToBoth (.../tests/src/observable.ts:14:5)
-//     at Context.<anonymous> (.../tests/src/observable.ts:199:13) {
-//   listener: [Function: functionStub],
-//   data: null,
-//   func: 'on',
-//   event: /a/i
-// }
-
-obs.trigger('aa', 'works');
-// EventStack (aa trigger):
-//     at .../tests/src/observable.ts:205:26
-//     at doToBoth (.../tests/src/observable.ts:14:5)
-//     at Context.<anonymous> (.../tests/src/observable.ts:199:13) {
-//   listener: null,
-//   data: 'works',
-//   func: 'trigger',
-//   event: 'aa'
-// }
-
-obs.off('test1', () => {});
-// EventStack (test1 off):
-//     at .../tests/src/observable.ts:160:26
-//     at doToBoth (.../tests/src/observable.ts:14:5)
-//     at Context.<anonymous> (.../tests/src/observable.ts:156:13) {
-//   listener: [Function: functionStub],
-//   data: null,
-//   func: 'off',
-//   event: 'test1'
-// }
-
-obs.off('*');
-// EventStack (* off):
-//     at doToBoth (.../tests/src/observable.ts:16:19)
-//     at Context.<anonymous> (.../tests/src/observable.ts:156:13) {
-//   listener: null,
-//   data: undefined,
-//   func: 'off',
-//   event: '*'
-// }
-```
-
-**Interface**
-
-```ts
-export class ObserverFactory /* ... */ {
-
-	debug(on?: boolean): void;
-}
-```
-
-### `spy` function option
-
-Optionally, you can pass a spy function that allows you to introspect your observer and take actions with it. This can be useful for finding function references, tracing events, logging, tracking, or whatever else you can think of.
-
-**Example**
-
-```ts
-const obs = new ObserverFactory({}, {
-	spy: (action) => {
-
-		if (action.fn === 'emit') {
-			sendToTracker(action.event, action.data);
-		}
-
-		if (/on(ce)?/.test(action.fn)) {
-			sendToDebugger(action.event, action.listener);
-		}
-
-		if (action.fn === 'off') {
-			removeFromDebugger(action.event, action.listener);
-		}
+		// Logs:
+		// > send event has no listeners
+		console.warn(event, 'is emitting but has no listeners');
+		return;
 	}
+
+	// Logs:
+	// > on connect () => {}
+	// > emit message { ... }
+	console.log(fn, event, listener || data);
+}
+
+const observer = new ObserverFactory<Shape>({
+	name: 'app',
+	spy: debugFn,
 })
 ```
 
-**Interface**
+And with this, you have the ability to trace events to their origins. When you're working with a large codebase and you want to know where events are being coming and going, this is a priceless tool.
+
+#### `instance.debug()`
+
+The `debug()` function is a simple way to turn debugging on and off. When debugging is turned on, you'll see where events are being listened to, triggered, or emitted. A stack trace will be logged into console with the relevant information about the event. This options should not override the `spy` function, but rather work in conjunction with it.
 
 ```ts
-type ObservableFunctionName = 'on' | 'once' | 'off' | 'emit';
+const observer = new ObserverFactory<Shape>();
 
-type OberverSpyOptions<E> = {
-    event: keyof E | RegExp | '*',
-    listener?: Function,
-    data?: any,
-};
+observer.debug(true);
+observer.debug(false);
+```
 
-type ObserverSpyAction<C, E> = OberverSpyOptions<E> & {
-    fn: ObservableFunctionName,
-    context: ObserverFactory<C, E>
-}
+#### `instance.$facts()`
 
-interface ObserverSpy<C, E> {
-    (event: ObserverSpyAction<C, E>): void
+The `$facts()` function returns parsed information about the internal state of the observable instance. This can be useful when you want to know how many listeners are listening to a certain event, or how many listeners are listening to events in general.
+
+```ts
+const observer = new ObserverFactory<Shape>();
+
+console.log(observer.$facts());
+```
+
+And should output something like:
+
+```ts
+{
+	listeners: ['connect', 'error', 'message', 'send'],
+	rgxListeners: [/some/],
+	listenerCounts: {
+		connect: 1,
+		error: 1,
+		message: 10,
+		send: 1,
+		'/some/': 3
+	},
+	hasSpy: false
 }
 ```
 
-## Main Interfaces
+#### `instance.$has(event | RegExp)`
+
+The `$has()` function returns `true` if the instance has the given event or regex event. This can be useful when you want to know if an event is being listened to or not.
 
 ```ts
-export declare class ObserverFactory<Component, Shape = any> {
+const observer = new ObserverFactory<Shape>();
 
-	constructor(
-		target?: Component | null, 
-		options?: ObservableOptions<Component, Shape>
-	);
+console.log(observer.$has('connect'));
+console.log(observer.$has(/some/));
+```
 
+#### `instance.$internals()`
 
-    debug(on?: boolean): void;
+> WARNING: This function is for debugging purposes only. Do not mess with the internals of the observer instance.
 
-    /**
-     * Same as `observable.on`
-     */
-    listen: ObserverFactory<Component, Shape>['on'];
+The `$internals()` function returns a clone of the internal mappings the instance uses. This can be useful when you want to know what the instance is doing internally, such as tracking down any listeners that might still be bound to an event.
 
-    /**
-     * Same as `observable.one`
-     */
-    one: ObserverFactory<Component, Shape>['once'];
+```ts
+const observer = new ObserverFactory<Shape>();
 
-    /**
-     * Same as `observable.trigger`
-     */
-    trigger: ObserverFactory<Component, Shape>['emit'];
+console.log(observer.$internals());
+```
 
-    /**
-     * Same as `observable.trigger`
-     */
-    send: ObserverFactory<Component, Shape>['emit'];
+And should output something like:
 
-    /**
-     * Same as `observable.off`
-     */
-    unlisten: ObserverFactory<Component, Shape>['off'];
-
-    /**
-     * Same as `observable.off`
-     */
-    remove: ObserverFactory<Component, Shape>['off'];
-
-    /**
-     * Same as `observable.off`
-     */
-    rm: ObserverFactory<Component, Shape>['off'];
-
-    /**
-     * Observes given component as an extension of this observable instance.
-     * @param component Component to wrap events around
-     *
-     * @example
-     *
-     * const obs = new ObserverFactory();
-     *
-     * const modal = {};
-     *
-     * obs.observe(modal);
-     *
-     * modal.on('modal-open', () => {});
-     *
-     * obs.trigger('modal-open'); // opens modal
-     * modal.trigger('modal-open'); // opens modal
-     *
-     * modal.cleanup(); // clears all event listeners
-     */
-    observe<C>(component: C): ObservableChild<C, Shape>;
-
-    /**
-     * Returns an event generator that will listen for all events
-     */
-    on(event: '*'): EventGenerator<Shape, '*'>;
-
-    /**
-     * Listens for all events and executes the given callback
-     */
-    on(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
-
-    /**
-     * Returns an event generator that will listen for the specified event
-     */
-    on<E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
-
-    /**
-     * Listens for the specified event and executes the given callback
-     */
-    on<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
-
-    /**
-     * Returns an event generator that will listen for all events matching the regex
-     */
-    on(event: RegExp): EventGenerator<Shape, RegExp>;
-
-    /**
-     * Listens for all events matching the regex and executes the given callback
-     */
-    on(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
-
-    /**
-     * Used internally
-     */
-    on(event: any, listener?: Func, opts?: object): Cleanup | EventGenerator<any>;
-
-    /**
-     * Returns an event promise that resolves when
-     * any event is triggered
-     */
-    once(event: '*'): EventPromise<Shape[Events<Shape>]>;
-
-    /**
-     * Executes a callback once when any event is
-     * triggered
-     */
-    once(event: '*', listener: EventCallback<Shape[Events<Shape>]>): Cleanup;
-
-    /**
-     * Returns an event promise that resolves when
-     * the specified event is triggered
-     */
-    once<E extends Events<Shape>>(event: E): EventPromise<Shape[E]>;
-
-    /**
-     * Executes a callback once when the specified
-     * event is triggered
-     */
-    once<E extends Events<Shape>>(event: E, listener: EventCallback<Shape[E]>): Cleanup;
-
-    /**
-     * Returns an event promise that resolves when
-     * any events matching the regex are triggered
-     */
-    once(event: RegExp): EventPromise<RgxEmitData<Shape>>;
-
-    /**
-     * Executes a callback once when any events
-     * matching the regex are triggered
-     */
-    once(event: RegExp, listener: EventCallback<RgxEmitData<Shape>>): Cleanup;
-
-    /**
-     * Stop listening for an event
-     * @param event
-     * @param listener
-     */
-    off<E extends Events<Shape> | RegExp | '*'>(event: E, listener?: E extends Events<Shape> ? EventCallback<Shape[E]> : Function): void;
-
-    /**
-     * Emits an event
-     * @param event
-     * @param args
-     */
-    emit<E extends Events<Shape> | RegExp | '*'>(event: E, data?: E extends Events<Shape> ? Shape[E] : Shape[Events<Shape>]): void;
-
-    /**
-     * Returns facts about the the internal state of the observable instance.
-     */
-	$_facts(): {
-        listeners: (keyof Shape)[];
-        rgxListeners: string[];
-        listenerCounts: any;
-        hasSpy: boolean;
-    };
-
-	/**
-	 * The internals themselves.
-     *
-	 * ! CAUTION: Do no meddle with this because. It is not meant to be used directly.
-     * ! This is only exposed for debugging purposes.
-	 */
-    $_internals(): {
-        listenerMap: Map<keyof Shape, Set<Func>>;
-        rgxListenerMap: Map<string, Set<Func>>;
-        internalListener: EventTarget;
-        target: any;
-        ref: String | undefined;
-        spy: ObserverSpy<Component, Shape> | undefined;
-    };
-
+```ts
+{
+	listenerMap: Map(4) {
+		'connect' => Set(1) { [Function: functionStub] },
+		'error' => Set(1) { [Function: functionStub] },
+		'message' => Set(10) { [Function: functionStub] },
+		'send' => Set(1) { [Function: functionStub] }
+	},
+	rgxListenerMap: Map(1) {
+		'/some/' => Set(3) { [Function: functionStub] }
+	},
+	internalListener: EventTarget {},
+	name: 'app',
+	spy: [Function: debugFn]
 }
 ```
 
-## Secondary Interfaces
+## Conclusion
 
-```ts
-type Events<Shape> = keyof Shape;
+We hope that this library will help you build better, more scalable applications. The observer pattern is a powerful algorithm that can be used to create dynamic, event-driven architectures. We believe that `ObserverFactory` will help you leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with the maturity of a full-feature development tool.
 
-interface EventCallback<Shape> {
-	(data: Shape): void;
-}
-
-type RgxEmitData<Shape> = {
-	event: Events<Shape>;
-	data: any;
-};
-
-type EventCbData<E, Shape> = (
-	E extends Events<Shape>
-	? Shape[E]
-	: E extends RegExp
-		? RgxEmitData<Shape>
-		: never
-);
-
-interface EventListener<Shape, Returns = void> {
-
-	<E extends Events<Shape> | RegExp>(
-		event: E,
-		fn: EventCallback<EventCbData<E, Shape>>
-	): Returns;
-}
-
-interface EventEmit<Shape> {
-
-	<E extends Events<Shape> | RegExp>(
-		event: E,
-		data: (
-			E extends Events<Shape>
-			? Shape[E][]
-			: any
-		)
-	): void;
-}
-
-interface RemoveEventListener<Shape> {
-
-	<E extends keyof Shape | RegExp>(
-		event: E,
-		listener?: Function
-	): void;
-}
-
-type Cleanup = () => void;
-
-type ObservedComponent<E> = {
-	on: EventListener<E, Cleanup>;
-	one: EventListener<E>;
-	once: EventListener<E>;
-	off: EventListener<E>;
-	trigger: EventEmit<E>;
-	emit: EventEmit<E>;
-};
-
-type ObservableChild<C, E> = C & ObservedComponent<E> & Cleanup;
-
-type ObservableInstance<T, U> = ObservedComponent<U> & {
-	observe: Observable<T, U>['observe'];
-	$_spy?: ObserverSpy<T, U>;
-	$_ref?: String;
-	$_observer: Observable<T, U>;
-};
-
-declare class EventPromise<T> extends Promise<T> {
-    cleanup?: () => void;
-}
-
-declare class EventGenerator<
-	S, 
-	E extends Events<S> | RegExp | '*' = Events<S>
-> {
-
-    constructor(
-	    observer: ObserverFactory<any, any>, \
-	    event: E | RegExp | '*'
-	);
-    
-    destroy: Cleanup;
-    next: () => Promise<
-	    E extends Events<S> 
-		    ? S[E] 
-		    : E extends RegExp 
-			    ? RgxEmitData<S> 
-			    : S[Events<S>]>
-		;
-    
-    get done(): boolean;
-    emit(
-	    data?: (
-		    E extends Events<S> 
-			    ? S[E] 
-			    : S[Events<S>]
-		)
-	): void;
-
-}
-
-type ObservableFunctionName = 'on' | 'once' | 'off' | 'emit';
-
-type OberverSpyOptions<E> = {
-	event: keyof E | RegExp | '*';
-	listener?: Function;
-	data?: any;
-};
-
-type ObserverSpyAction<C, E> = OberverSpyOptions<E> & {
-	fn: ObservableFunctionName;
-	context: Observable<C, E>;
-};
-
-interface ObserverSpy<C, E> {
-	(event: ObserverSpyAction<C, E>): void;
-}
-
-type ObservableOptions<T, U> = {
-	ref?: string;
-	spy?: ObserverSpy<T, U>;
-};
-
-declare const makeEventTracer: (event: string, caller: any, listenerOrData?: Function | any) => EventTrace;
-```
+If you have any questions, comments, or suggestions, please feel free to reach out to us. We're always looking for ways to improve our libraries and make them more useful for developers like you.
