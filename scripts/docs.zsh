@@ -1,5 +1,3 @@
-#!/usr/bin/env zsh
-
 PnpmOut=$(pnpm m ls --json --depth=-1)
 JqNameOut=$(echo "$PnpmOut" | jq -r 'map(select(.version != null))| .[] | .name')
 JqVersionOut=$(echo "$PnpmOut" | jq -r 'map(select(.version != null))| .[] | .version')
@@ -45,17 +43,23 @@ step 'Making typedocs'
 pnpm typedoc
 cd typedoc
 
+if [[ ! $(pwd) =~ "typedoc" ]]; then
+    echo "You must run this script from the root of the project"
+    exit 1
+fi
+
 step 'Initializing git'
 git init
 git remote add origin git@github.com:logos-ui/logos-ui.github.io.git
 git checkout -b master
 
-step 'Adding files'
+# step 'Adding files'
 git add .
-git commit -m "$(echo -e "$MSG")"
+echo -e "$MSG" > commit-msg.txt
+git commit -F commit-msg.txt
 
-step 'Pushing to github'
-git push -f origin master
+# step 'Pushing to github'
+git push origin master --force
 
 step 'Cleaning up'
 cd ..

@@ -35,5 +35,4 @@ jobs:
         run: |
           git config --global user.email "<runner@github.com>"
           git config --global user.name "GitHub Actions"
-          pnpm build:docs
-        shell: /bin/zsh
+          bash ./scripts/docs.zsh
