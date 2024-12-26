@@ -98,6 +98,10 @@ export const prepareMergeHandlers = (merge: typeof DeepMergeFn) => {
 
         for (const key in source) {
 
+            if (key === '__proto__') {
+                continue;
+            }
+
             if (hasNoConstructor(target[key]) || hasNoConstructor(source[key])) {
 
                 target[key] = source[key];

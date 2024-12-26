@@ -23,6 +23,10 @@ export const prepareCloneHandlers = (clone: typeof DeepCloneFn) => {
 
         for (key in obj) {
 
+            if (key === '__proto__') {
+                continue;
+            }
+
             copy[key] = clone(obj[key]);
         }
 
