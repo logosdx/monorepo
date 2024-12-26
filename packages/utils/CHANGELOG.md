@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.2.0-next.1
+
+### Patch Changes
+
+- 8859bc6: Prototype pollution protection
+
 ## 2.2.0-next.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @logos-ui/storage
 
+## 2.0.8-next.1
+
+### Patch Changes
+
+- Updated dependencies [8859bc6]
+  - @logos-ui/utils@2.2.0-next.1
+
 ## 2.0.8-next.0
 
 ### Patch Changes
