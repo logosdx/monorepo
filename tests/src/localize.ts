@@ -3,9 +3,7 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { expect } from 'chai';
 
 import {
-    LocaleFactory,
-    LocaleType,
-    LocaleOpts,
+    LocaleFactory
 } from '@logos-ui/localize';
 
 import { DeepOptional } from '@logos-ui/utils';
@@ -62,7 +60,7 @@ const labelsByCode = {
 type Codes = keyof typeof labelsByCode;
 type Lang = typeof english;
 
-const locales: LocaleOpts<Lang, Codes>['locales'] = {
+const locales: LocaleFactory.LocaleOpts<Lang, Codes>['locales'] = {
     en: { code: 'en', text: 'English', labels: english },
     es: { code: 'es', text: 'Spanish', labels: spanish },
     pt: { code: 'pt', text: 'Português', labels: portugues }
@@ -295,6 +293,46 @@ describe('@logos-ui/localize', function () {
             'some.more': 'chocolate',
         })
 
+        expect(instance.text('some.more')).to.eq('chocolate');
+    });
+
+    it('clones itself', () => {
+
+        const lang = {
+            'some.more': 'cookies',
+            'some.nested.label': 'what',
+            food: {
+                breakfast: 'eggs and cheese',
+            }
+        }
+
+        const instance = new LocaleFactory <typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: lang }
+            }
+        });
+
+        const clone = instance.clone();
+
+        const cloneText = clone.text('some.more');
+        const langText = lang['some.more'];
+        const cloneNested = clone.text('some.nested.label');
+        const instanceNested = instance.text('some.nested.label');
+
+        expect(clone).to.not.eq(instance);
+        expect(cloneText).to.eq(langText);
+        expect(cloneNested).to.eq(instanceNested);
+
+        const updated = {
+            ...lang,
+            'some.more': 'chocolate',
+        }
+
+        instance.updateLang('en', updated);
+
+        expect(clone.text('some.more')).to.eq(langText);
         expect(instance.text('some.more')).to.eq('chocolate');
     });
 });

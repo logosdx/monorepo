@@ -4,12 +4,10 @@ import {
     GetFieldType
 } from '@logos-ui/utils';
 
-export type LocaleType = {
-    [K in StrOrNum]: StrOrNum | LocaleType;
-};
+import type { LocaleFactory } from './factory.ts';
 
 export const reachIn = <
-    O extends LocaleType = LocaleType,
+    O extends LocaleFactory.LocaleType = LocaleFactory.LocaleType,
     P extends PathLeaves<O> = PathLeaves<O>,
     D extends GetFieldType<O, P> = GetFieldType<O, P>
 >(obj: O, path: P, defValue: D): GetFieldType<O, P> | undefined => {
@@ -49,9 +47,6 @@ export const reachIn = <
         result === undefined ? defValue : result
     ) as GetFieldType<O, P>;
 }
-
-export type LocaleReacher<T> = PathLeaves<T>;
-export type LocaleFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>;
 
 /**
  * converts a nested object to a flat object
@@ -93,7 +88,7 @@ const objToFlatEntries = <T extends object>(obj: T) => {
     return flattened;
 }
 
-export const format = (str: string, values: LocaleFormatArgs) => {
+export const format = (str: string, values: LocaleFactory.LocaleFormatArgs) => {
 
     if (Array.isArray(values)) {
 
@@ -124,10 +119,10 @@ export const format = (str: string, values: LocaleFormatArgs) => {
     return str;
 };
 
-export const getMessage = <L extends LocaleType>(
+export const getMessage = <L extends LocaleFactory.LocaleType>(
     locale: L,
-    reach: LocaleReacher<L>,
-    values?: LocaleFormatArgs
+    reach: LocaleFactory.LocaleReacher<L>,
+    values?: LocaleFactory.LocaleFormatArgs
 ) => {
 
     const str = reachIn(locale, reach, '?' as never) as string;
@@ -141,9 +136,3 @@ export const LOC_CHANGE = 'locale-change';
 export class LocaleEvent<Code extends string = string> extends Event {
     code!: Code;
 }
-
-export type LocaleEventName = (
-    'locale-change'
-);
-
-export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code>) => void;
