@@ -1,5 +1,11 @@
 # @logos-ui/localize
 
+## 3.0.0-next.2
+
+### Major Changes
+
+- 57a4d89: LocaleFactory can clone itself. Types have been moved into namespace.
+
 ## 2.0.8-next.1
 
 ### Patch Changes
