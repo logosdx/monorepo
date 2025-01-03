@@ -1,4 +1,4 @@
-import { LocaleFactory, LocaleOpts, LocaleType } from '@logos-ui/localize';
+import { LocaleFactory } from '@logos-ui/localize';
 import { ObserverFactory } from '@logos-ui/observer';
 import { ReducerFunction, StateMachine, StateMachineOptions } from '@logos-ui/state-machine';
 import { StorageImplementation } from '@logos-ui/storage';
@@ -15,7 +15,7 @@ export * from '@logos-ui/storage';
 export * from '@logos-ui/utils';
 
 export type AppKitLocale = {
-    locale: LocaleType,
+    locale: LocaleFactory.LocaleType,
     codes: string
 }
 
@@ -53,7 +53,7 @@ export type AppKitOpts<KitType extends AppKitType> = {
                 NotUndefined<KitType['stateMachine']>['reducerValue']
             >
         },
-    locales?: LocaleOpts<
+    locales?: LocaleFactory.LocaleOpts<
         NotUndefined<KitType['locales']>['locale'],
         NotUndefined<KitType['locales']>['codes']
     >,
