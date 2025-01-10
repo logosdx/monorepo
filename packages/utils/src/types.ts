@@ -58,6 +58,15 @@ export type PathLeaves<T> = T extends object ? { [K in keyof T]:
     `${Exclude<K, symbol>}${PathLeaves<T[K]> extends never ? "" : `.${PathLeaves<T[K]>}`}`
 }[keyof T] : never
 
+export type PathValue<T, P extends string> =
+    P extends `${infer Key}.${infer Rest}`
+        ? Key extends keyof T
+            ? PathValue<T[Key], Rest>
+            : never
+        : P extends keyof T
+            ? T[P]
+            : never;
+
 export type StrOrNum = string | number
 
 export type OneOrMany<T> = T | T[];

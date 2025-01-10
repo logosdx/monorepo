@@ -1,4 +1,4 @@
-import { Func, Truthy } from './types';
+import { Func, PathLeaves, PathNames, PathValue, Truthy } from './types';
 
 /**
  * Defines visible, non-configurable properties on an object
@@ -89,6 +89,55 @@ export const assert = (
         throw new (ErrorClass || AssertationError)(message || 'assertion failed');
     }
 };
+
+/**
+ * Asserts the values in an object based on the provided assertations.
+ * The assertations are a map of paths to functions that return a tuple
+ * of a boolean and a message. This is intended to be used for testing
+ * and validation when there is no schema validator available.
+ *
+ *
+ * @param obj
+ * @param assertations
+ *
+ * @example
+ *
+ * const obj = {
+ *     a: 1,
+ *     b: 'hello',
+ *     c: { d: 2 }
+ * }
+ *
+ * assertObject(obj, {
+ *     'a': (val) => [val === 1, 'a should be 1'],
+ *     'b': (val) => [val === 'hello', 'b should be hello'],
+ *     'c.d': (val) => [val === 2, 'c.d should be 2']
+ * });
+ */
+export const assertObject = <T extends object>(
+    obj: T,
+    assertations: {
+
+        [K in PathNames<T>]?: (val: PathValue<T, K>) => [boolean, string]
+    }
+) => {
+
+    for (const path in assertations) {
+
+        const val = reach(obj, path as PathNames<T>);
+        const test = assertations[path as PathNames<T>];
+
+        if (test === undefined) {
+
+            throw new Error(`assertation for path ${path} is undefined`);
+        }
+
+        const [check, message] = test?.(val!)!;
+
+        assert(check, message);
+    }
+}
+
 
 /**
  * Asserts only if value is not undefined
@@ -345,7 +394,7 @@ export const _nextTick = (fn: Func) => {
 /**
  * Checks if value is a function or an object
  * @param val
- * @returns
+ * @returns {boolean}
  */
 export const isFunctionOrObject = <T extends Function | Object>(val: T): boolean => (
     val.constructor === Function ||
@@ -355,9 +404,51 @@ export const isFunctionOrObject = <T extends Function | Object>(val: T): boolean
 /**
  * Checks if value is specifically undefined
  * @param val
- * @returns
+ * @returns {boolean}
  */
 export const isUndefined = (val: unknown) => val === undefined;
+
+/**
+ * Optional value check. If value is undefined or null, it is considered optional.
+ * If a function is provided, it is used to check the value. If a boolean is provided,
+ * it is used to check the value.
+ *
+ * @param val value to check
+ * @param check function or boolean to check value
+ *
+ * @returns {boolean}
+ */
+export const isOptional = (
+    val: unknown,
+    check: ((val: unknown) => boolean) | boolean
+) => (
+    val === undefined || val === null
+) || (
+    check instanceof Function ? check(val) : check
+);
+
+/**
+ * Reaches into an object and returns the value at the end of the path
+ */
+export const reach = <T extends object, P extends PathNames<T>>(
+    obj: T,
+    val: P
+) => {
+
+    const path = val.split('.');
+
+    return path.reduce(
+        (acc, key) => {
+
+            if (acc === undefined || acc === null) {
+                return null;
+            }
+
+            return acc[key];
+        },
+        obj as any
+    ) as PathValue<T, P> | undefined;
+}
 
 /**
  * Creates a deferred promise
