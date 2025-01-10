@@ -4,7 +4,7 @@
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.cjs",
+      "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.mjs",
       "types": "./src/index.ts"
     }

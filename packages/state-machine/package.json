@@ -4,7 +4,7 @@
   "description": "A powerful, stream-based, strongly-typed state management library",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.cjs",
+      "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.mjs",
       "types": "./src/index.ts"
     }

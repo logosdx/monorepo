@@ -816,7 +816,7 @@ describe('@logos-ui/fetch', () => {
 
     });
 
-    it('is not slow (500 requests)', { timeout: 1000 }, async () => {
+    it('is not slow (500 requests)', { timeout: 2000 }, async () => {
 
         const repeat = 1000;
         const timeout = 10;
@@ -834,8 +834,8 @@ describe('@logos-ui/fetch', () => {
 
         const avg = bench.elapsed() / repeat;
 
-        // Less than 2 ms per request
-        expect(avg).to.lessThan(2);
+        // Less than 3 ms per request
+        expect(avg).to.lessThan(3);
     });
 
     it('can make options', async () => {

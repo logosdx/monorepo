@@ -4,7 +4,7 @@
   "description": "A collection of strongly-typed LogosUI libraries to kick-start your app",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.cjs",
+      "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.mjs",
       "types": "./src/index.ts"
     }

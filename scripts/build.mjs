@@ -78,6 +78,7 @@ const renameFilesExt = async (dir, from, to) => {
     for (const file of files) {
 
         const fullPath = path.join(dir, file);
+        const newPath = fullPath.replace(from, to);
 
         const stat = fs.statSync(fullPath);
 
@@ -87,11 +88,7 @@ const renameFilesExt = async (dir, from, to) => {
         }
         else if (file.endsWith(from)) {
 
-            const newFile = fs.createWriteStream(
-                fullPath.replace(from, to),
-                { flags: 'w' }
-            );
-
+            const newFile = fs.createWriteStream(newPath, { flags: 'w' });
             const oldFile = fs.createReadStream(fullPath);
 
             const lines = readline.createInterface({
@@ -113,6 +110,7 @@ const renameFilesExt = async (dir, from, to) => {
                     )
                 ) {
 
+                    // Replace the .ts extension with .mjs
                     contents += line.replace('.ts', '.mjs');
                     contents += '\n';
                     continue;
@@ -123,7 +121,8 @@ const renameFilesExt = async (dir, from, to) => {
                     requireRgx.test(line)
                 ) {
 
-                    contents += line.replace('.ts', '.cjs');
+                    // Remove the .ts extension from the require statement
+                    contents += line.replace('.ts', '');
                     contents += '\n';
                     continue;
                 }
@@ -140,6 +139,9 @@ const renameFilesExt = async (dir, from, to) => {
             newFile.close();
 
             fs.rmSync(fullPath);
+
+            // Keep the .js extension for cjs modules
+            to === '.cjs' && fs.renameSync(newPath, fullPath);
         }
     }
 }
