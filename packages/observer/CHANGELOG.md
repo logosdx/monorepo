@@ -1,5 +1,12 @@
 # @logos-ui/observer
 
+## 4.0.0-next.5
+
+### Patch Changes
+
+- Updated dependencies [89d795c]
+  - @logos-ui/utils@2.2.0-next.2
+
 ## 4.0.0-next.4
 
 ### Patch Changes
