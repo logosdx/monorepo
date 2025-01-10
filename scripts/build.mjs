@@ -72,7 +72,6 @@ const renameFilesExt = async (dir, from, to) => {
         to = `.${to}`;
     }
 
-
     const files = fs.readdirSync(dir);
 
     for (const file of files) {
@@ -84,7 +83,7 @@ const renameFilesExt = async (dir, from, to) => {
 
         if (stat.isDirectory()) {
 
-            renameFilesExt(fullPath, from, to);
+            await renameFilesExt(fullPath, from, to);
         }
         else if (file.endsWith(from)) {
 

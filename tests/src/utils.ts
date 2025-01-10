@@ -9,7 +9,9 @@ import {
     deepClone,
     deepEqual,
     deepMerge,
-    addHandlerFor
+    addHandlerFor,
+    assertObject,
+    reach
 } from '@logos-ui/utils';
 import { stubWarn } from './_helpers';
 
@@ -500,7 +502,7 @@ describe('@logos-ui/utils', () => {
             objA.d = { some: 'values' };
             objB.d = { other: 'values' };
 
-            const val = deepMerge(objA, objB);
+            const val = deepMerge(objA, objB) as any;
 
             expect(val).to.include({
                 a: true,
@@ -516,7 +518,7 @@ describe('@logos-ui/utils', () => {
 
         it('should merge maps', () => {
 
-            const val = deepMerge(stub.a.map, stub.b.map);
+            const val = deepMerge(stub.a.map, stub.b.map) as any;
 
             const keys = [...val.keys()];
 
@@ -538,8 +540,7 @@ describe('@logos-ui/utils', () => {
                 ['b', { tats: true }],
             ]);
 
-            const val = deepMerge(mapA, mapB);
-
+            const val = deepMerge(mapA, mapB) as any;
 
             expect(val.get('a')).to.include({
                 test: true,
@@ -554,7 +555,7 @@ describe('@logos-ui/utils', () => {
 
         it('should merge sets', () => {
 
-            const val = deepMerge(stub.a.set, stub.b.set);
+            const val = deepMerge(stub.a.set, stub.b.set) as any;
 
             const values = [...val];
 
@@ -572,8 +573,8 @@ describe('@logos-ui/utils', () => {
             const mapA = new Map([['test', []]]);
             const mapB = new Map([['test', {}]]);
 
-            const obj = deepMerge(objA, objB);
-            const map = deepMerge(mapA, mapB);
+            const obj = deepMerge(objA, objB) as any;
+            const map = deepMerge(mapA, mapB) as any;
 
             expect(obj.test.constructor).to.equal(Object);
             expect(map.get('test')!.constructor).to.equal(Object);
@@ -584,14 +585,14 @@ describe('@logos-ui/utils', () => {
             const objSample = { test: ['ok'] };
             const mapSample = new Map([['test', []]]);
 
-            const objUndefined = deepMerge(objSample, { test: undefined }) as typeof objSample;
-            const mapUndefined = deepMerge(mapSample, new Map([['test', undefined]]));
+            const objUndefined = deepMerge(objSample, { test: undefined }) as any;
+            const mapUndefined = deepMerge(mapSample, new Map([['test', undefined]])) as any;
 
             expect(objUndefined.test).to.equal(undefined);
             expect(mapUndefined.get('test')).to.equal(undefined);
 
-            const objNull = deepMerge(objSample, { test: null }) as typeof objSample;
-            const mapNull = deepMerge(mapSample, new Map([['test', null]]));
+            const objNull = deepMerge(objSample, { test: null }) as any;
+            const mapNull = deepMerge(mapSample, new Map([['test', null]])) as any;
 
             expect(objNull.test).to.equal(null);
             expect(mapNull.get('test')).to.equal(null);
@@ -615,13 +616,13 @@ describe('@logos-ui/utils', () => {
                 objArrSample,
                 { test: [4,5,6] },
                 options
-            );
+            ) as any;
 
             const mapArrSampleResult = deepMerge(
                 mapArrSample,
                 new Map([['test', [4,5,6]]]),
                 options
-            );
+            ) as any;
 
             expect(arrSampleResult).to.include.members([4,5,6]);
             expect(objArrSampleResult.test).to.include.members([4,5,6]);
@@ -641,19 +642,19 @@ describe('@logos-ui/utils', () => {
                 setSample,
                 new Set([4,5,6]),
                 options
-            );
+            ) as any;
 
             const objSetSampleResult = deepMerge(
                 objSetSample,
                 { test: new Set([4,5,6])},
                 options
-            );
+            ) as any;
 
             const mapSetSampleResult = deepMerge(
                 mapSetSample,
                 new Map([['test', new Set([4,5,6])]]),
                 options
-            );
+            ) as any;
 
             expect([...setSampleResult]).to.include.members([4,5,6]);
             expect([...objSetSampleResult.test]).to.include.members([4,5,6]);
@@ -765,4 +766,53 @@ describe('@logos-ui/utils', () => {
         });
 
     })
+
+    describe('misc', () => {
+
+        const sample = {
+            a: 1,
+            b: 'two',
+            c: [1,2,3],
+            d: {
+                G: {
+                    h: 'h'
+                }
+            }
+        };
+
+        it('should assertObject', () => {
+
+            const validate = (o: any) => {
+
+                const subj = o as typeof sample;
+
+                assertObject(subj, {
+                    a: (x) => [typeof x === 'number', 'a is not a number'],
+                    b: (x) => [typeof x === 'string', 'b is not a string'],
+                    c: [
+                        (x) => [!!x, 'c is not defined'],
+                        (x) => [Array.isArray(x), 'c is not an array'],
+                    ],
+                    d: (x) => [typeof x === 'object', 'd is not an object'],
+                    'd.G.h': (x) => [!!x, 'd.G.h is not defined'],
+                })
+            };
+
+            expect(() => validate(sample)).to.not.throw();
+            expect(() => validate({ ...sample, a: 'one' })).to.throw(/a is not a number/);
+            expect(() => validate({ ...sample, b: 2 })).to.throw(/b is not a string/);
+            expect(() => validate({ ...sample, c: 1 })).to.throw(/c is not an array/);
+            expect(() => validate({ ...sample, c: null })).to.throw(/c is not defined/);
+            expect(() => validate({ ...sample, d: 1 })).to.throw(/d is not an object/);
+            expect(() => validate({ ...sample, d: { G: {} } })).to.throw(/d.G.h is not defined/);
+        });
+
+        it('should reach for properties on object', () => {
+
+            expect(reach(sample, 'a')).to.equal(1);
+            expect(reach(sample, 'b')).to.equal('two');
+            expect(reach(sample, 'c')).to.deep.equal([1,2,3]);
+            expect(reach(sample, 'd.G.h')).to.equal('h');
+        });
+    });
 });

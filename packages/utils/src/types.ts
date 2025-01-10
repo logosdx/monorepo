@@ -1,6 +1,6 @@
 
 /** Generic Function */
-export type Func = (...args: unknown[]) => unknown;
+export type Func<A extends unknown[] = unknown[], R = unknown> = (...args: A) => R;
 
 /** Generic Class */
 export type Klass = { new: Func }

@@ -543,8 +543,6 @@ describe('@logos-ui/observer', function () {
 
             const facts = observer.$facts();
 
-            console.info(observer.$internals());
-
             expect(facts.listeners).to.include.members([
                 'test', 'aa', 'ba'
             ]);

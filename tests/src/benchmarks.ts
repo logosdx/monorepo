@@ -35,9 +35,6 @@ describe('Benchmarks', { skip }, () => {
 
     after(() => {
 
-        console.log('EventEmitter:', store.EventEmitter);
-        console.log('ObserverFactory:', store.ObserverFactory);
-
         const { EventEmitter, ObserverFactory } = store;
 
         const evVsObs = 100 - Math.round(EventEmitter / ObserverFactory * 100);

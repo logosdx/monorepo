@@ -90,6 +90,8 @@ export const assert = (
     }
 };
 
+type AssertObjTestFn<T, P extends string> = (val: PathValue<T, P>) => [boolean, string];
+
 /**
  * Asserts the values in an object based on the provided assertations.
  * The assertations are a map of paths to functions that return a tuple
@@ -98,7 +100,7 @@ export const assert = (
  *
  *
  * @param obj
- * @param assertations
+ * @param assertions
  *
  * @example
  *
@@ -109,30 +111,52 @@ export const assert = (
  * }
  *
  * assertObject(obj, {
- *     'a': (val) => [val === 1, 'a should be 1'],
- *     'b': (val) => [val === 'hello', 'b should be hello'],
+ *     a: (val) => [val === 1, 'a should be 1'],
+ *     b: (val) => [val === 'hello', 'b should be hello'],
+ *     c: [
+ *         (val) => [!!val, 'c should not be empty'],
+ *         (val) => [isObject(val), 'c should be an object']
+ *     ],
  *     'c.d': (val) => [val === 2, 'c.d should be 2']
  * });
  */
 export const assertObject = <T extends object>(
     obj: T,
-    assertations: {
-
-        [K in PathNames<T>]?: (val: PathValue<T, K>) => [boolean, string]
+    assertions: {
+        [K in PathNames<T>]?: AssertObjTestFn<T, K> | AssertObjTestFn<T, K>[]
     }
 ) => {
 
-    for (const path in assertations) {
+    const tests = [] as [
+        unknown,
+        AssertObjTestFn<T, any>
+    ][]
 
-        const val = reach(obj, path as PathNames<T>);
-        const test = assertations[path as PathNames<T>];
+    for (const path in assertions) {
+
+        const val = reach(obj, path as never);
+        const test = assertions[path as never] as AssertObjTestFn<T, any> | AssertObjTestFn<T, any>[];
 
         if (test === undefined) {
 
             throw new Error(`assertation for path ${path} is undefined`);
         }
 
-        const [check, message] = test?.(val!)!;
+        if (test instanceof Array) {
+
+            for (const t of test) {
+
+                tests.push([val, t]);
+            }
+            continue;
+        }
+
+        tests.push([val, test]);
+    }
+
+    for (const [val, test] of tests) {
+
+        const [check, message] = test(val as never);
 
         assert(check, message);
     }
