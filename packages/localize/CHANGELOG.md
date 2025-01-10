@@ -1,5 +1,12 @@
 # @logos-ui/localize
 
+## 3.0.0-next.5
+
+### Patch Changes
+
+- Updated dependencies [bd7c0e0]
+  - @logos-ui/utils@2.2.0-next.4
+
 ## 3.0.0-next.4
 
 ### Patch Changes

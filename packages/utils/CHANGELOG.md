@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.2.0-next.4
+
+### Patch Changes
+
+- bd7c0e0: assertObj accept array of validators
+
 ## 2.2.0-next.3
 
 ### Patch Changes
