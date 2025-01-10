@@ -1,5 +1,13 @@
 # @logos-ui/observer
 
+## 4.0.0-next.6
+
+### Patch Changes
+
+- e4e671a: Fix build script
+- Updated dependencies [e4e671a]
+  - @logos-ui/utils@2.2.0-next.3
+
 ## 4.0.0-next.5
 
 ### Patch Changes
