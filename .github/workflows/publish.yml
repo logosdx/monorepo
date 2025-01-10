@@ -42,3 +42,5 @@ jobs:
   docs:
     needs: publish
     uses: ./.github/workflows/docs.yml
+    secrets:
+      DOCS_SSH_KEY: ${{ secrets.DOCS_SSH_KEY }}
