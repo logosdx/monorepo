@@ -23,7 +23,7 @@ export type StorageImplementation = {
 // export type AppStorageShapes<Values, K> = Shapes<Values, K>;
 
 export class StorageEvent<V, K extends keyof V = keyof V> extends Event {
-    key?: K | (K)[];
+    key?: K | (K)[] | undefined;
     value!: V[K];
 }
 
@@ -54,7 +54,7 @@ export type L10nListener<V, K extends keyof V = keyof V> = (e: StorageEvent<V, K
 export class StorageFactory<Values> extends EventTarget {
 
     readonly storage: StorageImplementation;
-    readonly prefix?: string
+    readonly prefix?: string | undefined
 
     /**
      * Same as storage.rm();
@@ -69,7 +69,7 @@ export class StorageFactory<Values> extends EventTarget {
         super();
 
         this.storage = storage;
-        this.prefix = prefixOrOptions;
+        this.prefix = prefixOrOptions!;
 
         this.remove = this.rm;
         this.reset = this.clear;

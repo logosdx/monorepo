@@ -4,7 +4,10 @@ declare module './factory.ts' {
     export namespace ObserverFactory {
 
         export interface EventCallback<Shape> {
-            (data: Shape, info?: { event: string, listener: Function }): void
+            (
+                data: Shape,
+                info?: { event: string, listener: Function } | undefined
+            ): void
         }
 
         export type RgxEmitData<Shape> = {
@@ -34,8 +37,8 @@ declare module './factory.ts' {
 
         export type SpyAction<Ev> =  {
             event: keyof Ev | RegExp | '*',
-            listener?: Function | null,
-            data?: unknown,
+            listener?: Function | null | undefined,
+            data?: unknown | undefined,
             fn: FuncName,
             context: ObserverFactory<Ev>
         }
@@ -63,9 +66,9 @@ declare module './factory.ts' {
         }
 
         export type Options<Ev> = {
-            name?: string,
-            spy?: Spy<Ev>,
-            emitValidator?: EmitValidator<Ev>
+            name?: string | undefined,
+            spy?: Spy<Ev> | undefined,
+            emitValidator?: EmitValidator<Ev> | undefined
         };
     }
 }

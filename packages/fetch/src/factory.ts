@@ -13,6 +13,7 @@ import {
     FetchEventName,
     FetchEventNames,
     fetchTypes,
+    mapErrCodeToStatus,
     validateOptions
 } from './helpers.ts';
 
@@ -248,7 +249,7 @@ export class FetchFactory<
         this.#methodParams = opts.methodParams || {} as HttpMethodOpts<P>;
 
         this.#modifyOptions = modifyOptions;
-        this.#modifyMethodOptions = modifyMethodOptions ;
+        this.#modifyMethodOptions = modifyMethodOptions!;
         this.#validate = validate;
 
         this.removeHeader = this.rmHeader.bind(this) as FetchFactory<H, P, S>['rmHeader'];
@@ -429,7 +430,7 @@ export class FetchFactory<
 
             onBeforeRequest && onBeforeRequest(opts);
 
-            response = await fetch(url, opts) as Response;
+            response = await fetch(url, opts as never) as Response;
 
             clearTimeout(cancelTimeout);
 
@@ -478,7 +479,7 @@ export class FetchFactory<
 
                 ok = false;
                 error = new FetchError(err.message);
-                error.stack = err.stack;
+                error.stack = err.stack!;
 
                 data = null;
                 status = 999;
@@ -524,6 +525,20 @@ export class FetchFactory<
 
             const err = e as FetchError | Error;
 
+            let errors: Error[] = [];
+            let errCode: string = '';
+
+            // Handle undici errors
+            if (err?.cause instanceof AggregateError) {
+
+                errors = err.cause.errors;
+            }
+
+            if ((err as any)?.code) {
+
+                errCode = (err as any).code;
+            }
+
             if (err instanceof FetchError === false) {
 
                 error = new FetchError(err.message);
@@ -535,7 +550,7 @@ export class FetchFactory<
 
             const fetchError = error as FetchError;
 
-            let statusCode = fetchError.status || 999;
+            let statusCode = fetchError.status || mapErrCodeToStatus(errCode) || 999;
             const name = err.name;
             const message = (
                 options.controller.signal.reason ||

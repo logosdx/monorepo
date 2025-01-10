@@ -64,7 +64,7 @@ export class ObserverFactory<
                 TypeError
             );
 
-            this.#spy = options.spy;
+            this.#spy = options.spy!;
         }
 
         // Make these functions non-enumerable
@@ -81,7 +81,7 @@ export class ObserverFactory<
             name: options?.name || Math.random().toString(36).substring(7)
         });
 
-        this.#emitValidator = options?.emitValidator;
+        this.#emitValidator = options?.emitValidator!;
     }
 
     name!: string;
@@ -200,12 +200,12 @@ export class ObserverFactory<
         if (on) {
 
             this.#spy = spy;
-            this.#__spy = original;
+            this.#__spy = original!;
 
             return;
         }
 
-        this.#spy = this.#__spy;
+        this.#spy = this.#__spy!;
     }
 
     /**

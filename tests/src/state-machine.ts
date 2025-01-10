@@ -314,7 +314,7 @@ describe('@logos-ui/state-machine', function () {
 
         stream.addReducer((n, o) => {
             stub.parentModifier++;
-            return { ...o, ...n };
+            return { ...(o!), ...n };
         });
 
         stream.dispatch ({ a: 1 });
@@ -356,7 +356,7 @@ describe('@logos-ui/state-machine', function () {
 
         stream.addReducer((n, o) => {
             stub.reducer++;
-            return { ...o, ...n };
+            return { ...(o!), ...n };
         });
 
         const clone = stream.clone({ bidirectional: true });

@@ -18,6 +18,7 @@
         "target": "ESNext",
         "noUncheckedIndexedAccess": true,
         "skipLibCheck": true,
+        "exactOptionalPropertyTypes": true,
     },
     "exclude": [
         "./docs/*",

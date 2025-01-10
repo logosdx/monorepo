@@ -89,18 +89,18 @@ declare module './factory.ts' {
             /**
              * Called when the fetch request errors
              */
-            onError?: (err: FetchError) => void | Promise<void>
+            onError?: (err: FetchError) => void | Promise<void> | undefined
 
             /**
              * Called before the fetch request is made
              */
-            onBeforeReq?: (opts: FetchFactory.RequestOpts) => void | Promise<void>
+            onBeforeReq?: (opts: FetchFactory.RequestOpts) => void | Promise<void> | undefined
 
             /**
              * Called after the fetch request is made. The response
              * object is cloned before it is passed to this function.
              */
-            onAfterReq?: (response: Response, opts: FetchFactory.RequestOpts) => void | Promise<void>
+            onAfterReq?: (response: Response, opts: FetchFactory.RequestOpts) => void | Promise<void> | undefined
         };
 
 
@@ -110,24 +110,23 @@ declare module './factory.ts' {
              * The abort controller to be used to abort the request
              */
             controller: AbortController,
-            headers?: Headers<T>,
-
-            params?: Params<P>,
+            headers?: Headers<T> | undefined,
+            params?: Params<P> | undefined,
 
             /**
              * The headers of the request
              */
-            timeout?: number
+            timeout?: number | undefined
 
             /**
              * The type of response expected from the server
              */
-            determineType?: DetermineTypeFn,
+            determineType?: DetermineTypeFn | undefined,
 
             /**
              * The format to be used to format headers before they are sent
              */
-            formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn
+            formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn | undefined
         };
 
         export type Options<
@@ -153,12 +152,12 @@ declare module './factory.ts' {
                  * response from the server when content-type headers
                  * are not present or fail to do so.
                  */
-                defaultType?: Type,
+                defaultType?: Type | undefined,
 
                 /**
                  * The headers to be set on all requests
                  */
-                headers?: DictOrT<H>,
+                headers?: DictOrT<H> | undefined,
 
                 /**
                  * The headers to be set on requests of a specific method
@@ -168,17 +167,17 @@ declare module './factory.ts' {
                  *     POST: { 'content-type': 'application/x-www-form-urlencoded'
                  * }
                  */
-                methodHeaders?: MethodHeaders<H>,
+                methodHeaders?: MethodHeaders<H> | undefined,
 
                 /**
                  * URL parameters to be set on all requests
                  */
-                params?: DictOrT<P>,
+                params?: DictOrT<P> | undefined,
 
                 /**
                  * URL parameters to be set on requests of a specific method
                  */
-                methodParams?: HttpMethodOpts<P>,
+                methodParams?: HttpMethodOpts<P> | undefined,
 
                 // Applies to requests of a specific method
                 /**
@@ -187,44 +186,44 @@ declare module './factory.ts' {
                  * @param state
                  * @returns
                  */
-                modifyOptions?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>
-                modifyMethodOptions?: HttpMethodOpts<Options<H, P, S>['modifyOptions']>,
+                modifyOptions?: ((opts: RequestOpts<H, P>, state: S) => RequestOpts<H>) | undefined
+                modifyMethodOptions?: HttpMethodOpts<Options<H, P, S>['modifyOptions']> | undefined,
 
                 /**
                  * The timeout for all requests in milliseconds
                  */
-                timeout?: number,
+                timeout?: number | undefined,
 
                 /**
                  * Validators for when setting headers and state
                  */
                 validate?: {
-                    headers?: (headers: Headers<H>, method?: _InternalHttpMethods) => void
-                    params?: (params: Params<P>, method?: _InternalHttpMethods) => void
-                    state?: (state: S) => void
+                    headers?: ((headers: Headers<H>, method?: _InternalHttpMethods) => void) | undefined,
+                    params?: ((params: Params<P>, method?: _InternalHttpMethods) => void) | undefined,
+                    state?: ((state: S) => void) | undefined,
 
                     perRequest?: {
                         /**
                          * Whether to validate the headers before the request is made
                          */
-                        headers?: boolean,
+                        headers?: boolean | undefined,
 
                         /**
                          * Whether to validate the params before the request is made
                          */
-                        params?: boolean,
-                    }
+                        params?: boolean | undefined,
+                    } | undefined
                 },
 
                 /**
                  * The type of response expected from the server
                  */
-                determineType?: DetermineTypeFn,
+                determineType?: DetermineTypeFn | undefined,
 
                 /**
                  * The format to be used to format headers before they are sent
                  */
-                formatHeaders?: false | 'lowercase' | 'uppercase' | FormatHeadersFn
+                formatHeaders?: false | 'lowercase' | 'uppercase' | FormatHeadersFn | undefined
             }
         );
 
@@ -232,7 +231,7 @@ declare module './factory.ts' {
 
             isFinished: boolean
             isAborted: boolean
-            abort(reason?: string): void
+            abort(reason?: string): void | undefined
         }
 
         /**
@@ -242,8 +241,8 @@ declare module './factory.ts' {
             Lifecycle &
             Omit<RequestOpts, 'body' | 'method' | 'controller'> &
             {
-                headers?: DictOrT<H>,
-                params?: DictOrT<P>,
+                headers?: DictOrT<H> | undefined,
+                params?: DictOrT<P> | undefined,
             }
         );
     }

@@ -43,8 +43,8 @@ export class EventError extends Error {
 
         super(message);
 
-        this.event = opts?.event;
-        this.listener = opts?.listener;
+        this.event = opts?.event!;
+        this.listener = opts?.listener!;
         this.data = opts?.data;
     }
 }

@@ -14,7 +14,7 @@ export interface FetchError<T = {}> extends Error {
     status: number;
     method: HttpMethods;
     path: string;
-    aborted?: boolean;
+    aborted?: boolean | undefined;
 }
 
 export class FetchError<T = {}> extends Error {}
@@ -26,30 +26,30 @@ export class  FetchEvent<
     State = {},
 > extends Event {
     state!: State
-    url?: string
-    method?: HttpMethods
-    headers?: InstanceHeaders
-    params?: Params
-    options?: FetchFactory.RequestOpts
-    data?: unknown
-    payload?: unknown
-    response?: Response
-    error?: FetchError
+    url?: string | undefined
+    method?: HttpMethods | undefined
+    headers?: InstanceHeaders | undefined
+    params?: Params | undefined
+    options?: FetchFactory.RequestOpts | undefined
+    data?: unknown | undefined
+    payload?: unknown | undefined
+    response?: Response | undefined
+    error?: FetchError | undefined
 
     constructor(
         event: FetchEventName,
         opts: {
             state: State,
-            url?: string,
-            method?: HttpMethods,
-            headers?: FetchFactory.Headers,
-            params?: FetchFactory.Params,
-            error?: FetchError,
-            response?: Response,
-            data?: unknown,
-            payload?: unknown,
+            url?: string | undefined,
+            method?: HttpMethods | undefined,
+            headers?: FetchFactory.Headers | undefined,
+            params?: FetchFactory.Params | undefined,
+            error?: FetchError | undefined,
+            response?: Response | undefined,
+            data?: unknown | undefined,
+            payload?: unknown | undefined,
         },
-        initDict?: EventInit
+        initDict?: EventInit | undefined
     ) {
 
         super(event, initDict);
@@ -247,3 +247,9 @@ export const validateOptions = <H, P, S>(
             );
     }
 }
+
+export const mapErrCodeToStatus = (code: string) => ({
+    ECONNREFUSED: 503,
+    ECONNRESET: 503,
+    ECONNABORTED: 503,
+})[code]

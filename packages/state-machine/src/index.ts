@@ -34,25 +34,25 @@ export const generateId = () => '_' + Math.random().toString(36).slice(2, 9);
 export type StateMachineOptions = {
 
     /** How many states changes to keep in memory */
-    statesToKeep?: number;
+    statesToKeep?: number | undefined;
 
     /** Removes states after reading */
-    flushOnRead?: boolean;
+    flushOnRead?: boolean | undefined;
 
     /** Parent stream */
-    parent?: StateMachine;
+    parent?: StateMachine | undefined;
 
     /** Child stream should update parent stream */
-    bidirectional?: boolean;
+    bidirectional?: boolean | undefined;
 };
 
 export type StateMachineState<State = any> = {
 
-    state?: Readonly<State>;
-    currentState?: number|null;
-    latestState?: number|null;
-    parentListener?: Function|null;
-    childListener?: Function|null;
+    state?: Readonly<State> | undefined;
+    currentState?: number | null | undefined;
+    latestState?: number | null | undefined;
+    parentListener?: Function | null | undefined;
+    childListener?: Function | null | undefined;
 };
 
 export interface ReducerFunction<State = any, Value = State> {
