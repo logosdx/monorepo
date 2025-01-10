@@ -1,5 +1,11 @@
 # @logos-ui/state-machine
 
+## 3.0.0-next.6
+
+### Patch Changes
+
+- a05786d: mapErrCodetoStatus() and exactOptionalPropertyTypes
+
 ## 3.0.0-next.5
 
 ### Patch Changes

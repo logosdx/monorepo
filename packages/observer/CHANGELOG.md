@@ -1,5 +1,11 @@
 # @logos-ui/observer
 
+## 4.0.0-next.8
+
+### Patch Changes
+
+- a05786d: mapErrCodetoStatus() and exactOptionalPropertyTypes
+
 ## 4.0.0-next.7
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @logos-ui/kit
 
+## 3.0.0-next.9
+
+### Patch Changes
+
+- Updated dependencies [a05786d]
+  - @logos-ui/state-machine@3.0.0-next.6
+  - @logos-ui/observer@4.0.0-next.8
+  - @logos-ui/storage@2.0.8-next.5
+  - @logos-ui/fetch@4.0.0-next.6
+
 ## 3.0.0-next.8
 
 ### Patch Changes

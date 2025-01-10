@@ -1,5 +1,11 @@
 # @logos-ui/storage
 
+## 2.0.8-next.5
+
+### Patch Changes
+
+- a05786d: mapErrCodetoStatus() and exactOptionalPropertyTypes
+
 ## 2.0.8-next.4
 
 ### Patch Changes

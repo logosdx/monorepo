@@ -1,5 +1,11 @@
 # @logos-ui/fetch
 
+## 4.0.0-next.6
+
+### Patch Changes
+
+- a05786d: mapErrCodetoStatus() and exactOptionalPropertyTypes
+
 ## 4.0.0-next.5
 
 ### Patch Changes
