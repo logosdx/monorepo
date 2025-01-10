@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 2.2.0-next.3
+
+### Patch Changes
+
+- e4e671a: Fix build script
+
 ## 2.2.0-next.2
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # @logos-ui/kit
 
+## 3.0.0-next.7
+
+### Patch Changes
+
+- e4e671a: Fix build script
+- Updated dependencies [e4e671a]
+  - @logos-ui/dom@3.0.0-next.4
+  - @logos-ui/fetch@4.0.0-next.4
+  - @logos-ui/localize@3.0.0-next.4
+  - @logos-ui/observer@4.0.0-next.6
+  - @logos-ui/state-machine@3.0.0-next.4
+  - @logos-ui/storage@2.0.8-next.3
+  - @logos-ui/utils@2.2.0-next.3
+
 ## 3.0.0-next.6
 
 ### Patch Changes
