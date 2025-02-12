@@ -1,5 +1,24 @@
 # @logos-ui/utils
 
+## 2.2.0
+
+### Minor Changes
+
+- 90b498a: Added new assertion utilities
+- 89d795c: `assertObject(val, assertions)` - Asserts the values in an object based on the provided assertations. The assertations are a map of paths to functions that return a tuple of a boolean and a message. This is intended to be used for testing and validation when there is no schema validator available.
+
+  `isOptional(val, check)` - Optional value check. If value is undefined or null, it is considered optional. If a function is provided, it is used to check the value. If a boolean is provided, it is used to check the value.
+
+  `reach(obj, path)` - Reaches into an object and returns the value at the end of the path.
+
+  `PathValue<T, P>` - A utility type that gets the value at a path in an object.
+
+### Patch Changes
+
+- 8859bc6: Prototype pollution protection
+- e4e671a: Fix build script
+- bd7c0e0: assertObj accept array of validators
+
 ## 2.2.0-next.4
 
 ### Patch Changes
