@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Packages/Observer.md",
+                "file": "Welcome.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Observer"
+              "title": "Welcome"
             }
           }
         ]
@@ -176,6 +176,7 @@
   },
   "active": "f493c6808345a362",
   "lastOpenFiles": [
+    "Packages/Observer.md",
     "images/observable/types-8.png",
     "images/observable/types-7.png",
     "images/observable/types-6.png",
@@ -188,7 +189,6 @@
     "images",
     "Untitled.canvas",
     "images/observable/images.md",
-    "Packages/Observer.md",
     "images/observable/Screenshot 2024-11-28 at 2.26.44 AM.png",
     "images/observable/Screenshot 2024-11-28 at 2.27.03 AM.png",
     "Packages/DOM.md",
