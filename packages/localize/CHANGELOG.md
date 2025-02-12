@@ -1,5 +1,32 @@
 # @logos-ui/localize
 
+## 3.0.0
+
+### Major Changes
+
+- f870720: # Better semantics
+
+  Rename classes to use more precise and semantic names.
+
+  - `FetchFactory` -> `FetchEngine`
+  - `ObserverFactory` -> `ObserverEngine`
+  - `LocaleFactory` -> `LocaleManager`
+  - `StorageFactory` -> `StorageAdapter`
+
+  Why? Because these abstractions aren't factories, they are engines or adapters. They provide a way to interact with a specific system in a highly configurable way. It's more accurate to call them engines or adapters or managers.
+
+- 57a4d89: LocaleManager can clone itself. Types have been moved into namespace.
+
+### Patch Changes
+
+- e4e671a: Fix build script
+- Updated dependencies [8859bc6]
+- Updated dependencies [90b498a]
+- Updated dependencies [e4e671a]
+- Updated dependencies [bd7c0e0]
+- Updated dependencies [89d795c]
+  - @logos-ui/utils@2.2.0
+
 ## 3.0.0-next.5
 
 ### Patch Changes
