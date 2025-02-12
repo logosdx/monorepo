@@ -1,7 +1,7 @@
 export type Events<Shape> = keyof Shape;
 
-declare module './factory.ts' {
-    export namespace ObserverFactory {
+declare module './engine.ts' {
+    export namespace ObserverEngine {
 
         export interface EventCallback<Shape> {
             (
@@ -18,10 +18,10 @@ declare module './factory.ts' {
         export type Cleanup = () => void
 
         export type Component<Ev> = {
-            on: ObserverFactory<Ev>['on'],
-            once: ObserverFactory<Ev>['once'],
-            emit: ObserverFactory<Ev>['emit'],
-            off: ObserverFactory<Ev>['off'],
+            on: ObserverEngine<Ev>['on'],
+            once: ObserverEngine<Ev>['once'],
+            emit: ObserverEngine<Ev>['emit'],
+            off: ObserverEngine<Ev>['off'],
         };
 
         export type Child<C, Ev> = C & Component<Ev> & {
@@ -29,8 +29,8 @@ declare module './factory.ts' {
         }
 
         export type Instance<Ev> = Component<Ev> & {
-            observe: ObserverFactory<Ev>['observe'],
-            $observer: ObserverFactory<Ev>
+            observe: ObserverEngine<Ev>['observe'],
+            $observer: ObserverEngine<Ev>
         }
 
         export type FuncName = 'on' | 'once' | 'off' | 'emit' | 'cleanup';
@@ -40,7 +40,7 @@ declare module './factory.ts' {
             listener?: Function | null | undefined,
             data?: unknown | undefined,
             fn: FuncName,
-            context: ObserverFactory<Ev>
+            context: ObserverEngine<Ev>
         }
 
         export interface Spy<Ev> {
@@ -51,17 +51,17 @@ declare module './factory.ts' {
             (
                 event: keyof Ev,
                 data: Ev[keyof Ev],
-                context: ObserverFactory<Ev>
+                context: ObserverEngine<Ev>
             ): void
             (
                 event: RegExp,
                 data: unknown,
-                context: ObserverFactory<Ev>
+                context: ObserverEngine<Ev>
             ): void
             (
                 event: '*',
                 data: unknown,
-                context: ObserverFactory<Ev>
+                context: ObserverEngine<Ev>
             ): void
         }
 

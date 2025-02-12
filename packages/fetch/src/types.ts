@@ -9,8 +9,8 @@ export type RawRequestOptions = Omit<RequestInit, 'headers'>
 export type DictOrT<T> = Record<string, string> & Partial<T>;
 export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
 
-declare module './factory.ts' {
-    export namespace FetchFactory {
+declare module './engine.ts' {
+    export namespace FetchEngine {
 
         export type Type = 'arrayBuffer' | 'blob' | 'formData' | 'json' | 'text';
 
@@ -42,7 +42,7 @@ declare module './factory.ts' {
         export type HeaderKeys = keyof Headers;
 
         /**
-         * If you don't want FetchFactory to guess your content type,
+         * If you don't want FetchEngine to guess your content type,
          * you can set it explicitly here. You should return the name
          * of the function that will be used to parse the response body.
          *
@@ -94,13 +94,13 @@ declare module './factory.ts' {
             /**
              * Called before the fetch request is made
              */
-            onBeforeReq?: (opts: FetchFactory.RequestOpts) => void | Promise<void> | undefined
+            onBeforeReq?: (opts: FetchEngine.RequestOpts) => void | Promise<void> | undefined
 
             /**
              * Called after the fetch request is made. The response
              * object is cloned before it is passed to this function.
              */
-            onAfterReq?: (response: Response, opts: FetchFactory.RequestOpts) => void | Promise<void> | undefined
+            onAfterReq?: (response: Response, opts: FetchEngine.RequestOpts) => void | Promise<void> | undefined
         };
 
 
@@ -181,12 +181,32 @@ declare module './factory.ts' {
 
                 // Applies to requests of a specific method
                 /**
+                 * Function that can be used to change the options in a specific
+                 * way before they are used to make a request. The passed options
+                 * are mutable objects. The returned object will be used instead
+                 * of the original.
                  *
-                 * @param opts
-                 * @param state
-                 * @returns
+                 * @example
+                 *
+                 * const modifyOptions: ModifyOptionsFn = (opts, state) => {
+                 *     return opts;
+                 * }
                  */
                 modifyOptions?: ((opts: RequestOpts<H, P>, state: S) => RequestOpts<H>) | undefined
+
+                /**
+                 * Object that can be used to modify the options for requests of a specific method
+                 * @example
+                 *
+                 * const modifyMethodOptions: ModifyMethodOptions = {
+                 *     GET: (opts, state) => {
+                 *         return opts;
+                 *     },
+                 *     POST: (opts, state) => {
+                 *         return opts;
+                 *     }
+                 * }
+                 */
                 modifyMethodOptions?: HttpMethodOpts<Options<H, P, S>['modifyOptions']> | undefined,
 
                 /**

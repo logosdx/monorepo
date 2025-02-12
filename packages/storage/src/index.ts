@@ -51,7 +51,7 @@ const makeEvent = <V, K extends keyof V = keyof V>(
 export type L10nListener<V, K extends keyof V = keyof V> = (e: StorageEvent<V, K>) => void;
 
 
-export class StorageFactory<Values> extends EventTarget {
+export class StorageAdapter<Values> extends EventTarget {
 
     readonly storage: StorageImplementation;
     readonly prefix?: string | undefined
@@ -59,10 +59,10 @@ export class StorageFactory<Values> extends EventTarget {
     /**
      * Same as storage.rm();
      */
-    remove: StorageFactory<Values>['rm'];
+    remove: StorageAdapter<Values>['rm'];
 
     /** Same as storage.clear() */
-    reset: StorageFactory<Values>['clear'];
+    reset: StorageAdapter<Values>['clear'];
 
     constructor(storage: StorageImplementation, prefixOrOptions?: string) {
 

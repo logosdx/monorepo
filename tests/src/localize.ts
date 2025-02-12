@@ -3,7 +3,7 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { expect } from 'chai';
 
 import {
-    LocaleFactory
+    LocaleManager
 } from '@logos-ui/localize';
 
 import { DeepOptional } from '@logos-ui/utils';
@@ -60,7 +60,7 @@ const labelsByCode = {
 type Codes = keyof typeof labelsByCode;
 type Lang = typeof english;
 
-const locales: LocaleFactory.LocaleOpts<Lang, Codes>['locales'] = {
+const locales: LocaleManager.LocaleOpts<Lang, Codes>['locales'] = {
     en: { code: 'en', text: 'English', labels: english },
     es: { code: 'es', text: 'Spanish', labels: spanish },
     pt: { code: 'pt', text: 'Português', labels: portugues }
@@ -68,14 +68,14 @@ const locales: LocaleFactory.LocaleOpts<Lang, Codes>['locales'] = {
 
 describe('@logos-ui/localize', function () {
 
-    let l10bMngr: LocaleFactory<Lang, Codes>;
+    let l10bMngr: LocaleManager<Lang, Codes>;
 
     it('requires a proper config', () => {
 
         expect(
             () => (
 
-                new LocaleFactory <Lang, Codes>({
+                new LocaleManager <Lang, Codes>({
                     // current: 'en',
                     fallback: 'en',
                     locales
@@ -86,7 +86,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new LocaleFactory <Lang, Codes>({
+                new LocaleManager <Lang, Codes>({
                     current: 'en',
                     // fallback: 'en',
                     locales
@@ -97,7 +97,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new LocaleFactory <Lang, Codes>({
+                new LocaleManager <Lang, Codes>({
                     current: 'en',
                     fallback: 'en',
                     // langs
@@ -108,7 +108,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new LocaleFactory <Lang, Codes>({
+                new LocaleManager <Lang, Codes>({
                     current: 'en',
                     fallback: 'en',
                     locales: 'wee'
@@ -119,7 +119,7 @@ describe('@logos-ui/localize', function () {
         expect(
             () => (
 
-                new LocaleFactory <Lang, Codes>({
+                new LocaleManager <Lang, Codes>({
                     current: 'en',
                     fallback: 'en',
                     locales: []
@@ -130,7 +130,7 @@ describe('@logos-ui/localize', function () {
 
     it('instantiates', () => {
 
-        l10bMngr = new LocaleFactory <Lang, Codes>({
+        l10bMngr = new LocaleManager <Lang, Codes>({
             current: 'en',
             fallback: 'en',
             locales: locales
@@ -256,7 +256,7 @@ describe('@logos-ui/localize', function () {
             }
         }
 
-        const instance = new LocaleFactory <typeof lang, 'en'>({
+        const instance = new LocaleManager <typeof lang, 'en'>({
             current: 'en',
             fallback: 'en',
             locales: {
@@ -279,7 +279,7 @@ describe('@logos-ui/localize', function () {
             }
         }
 
-        const instance = new LocaleFactory <typeof lang, 'en'>({
+        const instance = new LocaleManager <typeof lang, 'en'>({
             current: 'en',
             fallback: 'en',
             locales: {
@@ -306,7 +306,7 @@ describe('@logos-ui/localize', function () {
             }
         }
 
-        const instance = new LocaleFactory <typeof lang, 'en'>({
+        const instance = new LocaleManager <typeof lang, 'en'>({
             current: 'en',
             fallback: 'en',
             locales: {

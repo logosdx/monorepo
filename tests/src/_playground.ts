@@ -1,4 +1,4 @@
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 
 type EventType = {
 
@@ -7,7 +7,7 @@ type EventType = {
     worrisome: { id: number, job: string }
 }
 
-const observer = new ObserverFactory<EventType>({
+const observer = new ObserverEngine<EventType>({
     name: 'test',
     emitValidator: (event, data) => {},
     spy: (action) => {}

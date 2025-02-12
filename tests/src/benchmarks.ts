@@ -4,7 +4,7 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { expect } from 'chai';
 import Sinon from 'sinon';
 import { Bench } from '@hapi/hoek';
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 
 const skip = process.env.CI;
 
@@ -14,7 +14,7 @@ describe('Benchmarks', { skip }, () => {
 
     const store = {
         EventEmitter: 0,
-        ObserverFactory: 0
+        ObserverEngine: 0
     }
 
     const benchmarkTime = 1000;
@@ -35,16 +35,16 @@ describe('Benchmarks', { skip }, () => {
 
     after(() => {
 
-        const { EventEmitter, ObserverFactory } = store;
+        const { EventEmitter, ObserverEngine } = store;
 
-        const evVsObs = 100 - Math.round(EventEmitter / ObserverFactory * 100);
-        const obsVsEv = 100 - Math.round(ObserverFactory / EventEmitter * 100);
+        const evVsObs = 100 - Math.round(EventEmitter / ObserverEngine * 100);
+        const obsVsEv = 100 - Math.round(ObserverEngine / EventEmitter * 100);
 
         if (evVsObs > 0) {
-            console.log('ObserverFactory is', evVsObs, '% faster than EventEmitter');
+            console.log('ObserverEngine is', evVsObs, '% faster than EventEmitter');
         }
         else {
-            console.log('EventEmitter is', obsVsEv, '% faster than ObserverFactory');
+            console.log('EventEmitter is', obsVsEv, '% faster than ObserverEngine');
         }
     });
 
@@ -55,10 +55,10 @@ describe('Benchmarks', { skip }, () => {
         store.EventEmitter = listener.callCount;
     });
 
-    it('benchmarks ObserverFactory', { timeout }, function () {
+    it('benchmarks ObserverEngine', { timeout }, function () {
 
-        benchmark(new ObserverFactory());
+        benchmark(new ObserverEngine());
 
-        store.ObserverFactory = listener.callCount;
+        store.ObserverEngine = listener.callCount;
     });
 });

@@ -1,9 +1,9 @@
-import { LocaleFactory } from '@logos-ui/localize';
-import { ObserverFactory } from '@logos-ui/observer';
+import { LocaleManager } from '@logos-ui/localize';
+import { ObserverEngine } from '@logos-ui/observer';
 import { ReducerFunction, StateMachine, StateMachineOptions } from '@logos-ui/state-machine';
 import { StorageImplementation } from '@logos-ui/storage';
-import { StorageFactory } from '@logos-ui/storage';
-import { FetchFactory } from '@logos-ui/fetch';
+import { StorageAdapter } from '@logos-ui/storage';
+import { FetchEngine } from '@logos-ui/fetch';
 import { assert, isObject, NotUndefined } from '@logos-ui/utils';
 
 export * from '@logos-ui/dom';
@@ -15,7 +15,7 @@ export * from '@logos-ui/storage';
 export * from '@logos-ui/utils';
 
 export type AppKitLocale = {
-    locale: LocaleFactory.LocaleType,
+    locale: LocaleManager.LocaleType,
     codes: string
 }
 
@@ -44,7 +44,7 @@ export type AppKitType = {
 export type MakeKitType<KitType extends AppKitType> = KitType
 
 export type AppKitOpts<KitType extends AppKitType> = {
-    observer?: ObserverFactory.Options<KitType['events']>,
+    observer?: ObserverEngine.Options<KitType['events']>,
     stateMachine?: {
             initial: NotUndefined<KitType['stateMachine']>['state']
             options?: StateMachineOptions,
@@ -53,7 +53,7 @@ export type AppKitOpts<KitType extends AppKitType> = {
                 NotUndefined<KitType['stateMachine']>['reducerValue']
             >
         },
-    locales?: LocaleFactory.LocaleOpts<
+    locales?: LocaleManager.LocaleOpts<
         NotUndefined<KitType['locales']>['locale'],
         NotUndefined<KitType['locales']>['codes']
     >,
@@ -61,12 +61,12 @@ export type AppKitOpts<KitType extends AppKitType> = {
         implementation: StorageImplementation,
         prefix?: string
     },
-    fetch?: FetchFactory.Options<
+    fetch?: FetchEngine.Options<
         NotUndefined<KitType['fetch']>['headers'],
         NotUndefined<KitType['fetch']>['state']
     >,
     apis?: {
-        [key in keyof KitType['apis']]: FetchFactory.Options<
+        [key in keyof KitType['apis']]: FetchEngine.Options<
             NotUndefined<KitType['apis']>[key]['headers'],
             NotUndefined<KitType['apis']>[key]['params'],
             NotUndefined<KitType['apis']>[key]['state']
@@ -93,13 +93,13 @@ export const appKit = <Kit extends AppKitType = any>(
     type FetchStateType = NotUndefined<Kit['fetch']>['state'];
     type FetchHeadersType = NotUndefined<Kit['fetch']>['headers'];
 
-    type KitObserver = ObserverFactory<Kit['events']>;
-    type KitLocales = LocaleFactory<LocaleType, LocaleCodes>;
+    type KitObserver = ObserverEngine<Kit['events']>;
+    type KitLocales = LocaleManager<LocaleType, LocaleCodes>;
     type KitStateMachine = StateMachine<StateType, ReducerValType>;
-    type KitStorage = StorageFactory<Kit['storage']>;
-    type KitFetch = FetchFactory<FetchStateType, FetchHeadersType>;
+    type KitStorage = StorageAdapter<Kit['storage']>;
+    type KitFetch = FetchEngine<FetchStateType, FetchHeadersType>;
     type KitApis = {
-        [key in keyof Kit['apis']]: FetchFactory<
+        [key in keyof Kit['apis']]: FetchEngine<
             NotUndefined<Kit['apis']>[key]['headers'],
             NotUndefined<Kit['apis']>[key]['state']
         >
@@ -114,12 +114,12 @@ export const appKit = <Kit extends AppKitType = any>(
 
     if (opts.observer) {
 
-        observer = new ObserverFactory(opts.observer) as KitObserver;
+        observer = new ObserverEngine(opts.observer) as KitObserver;
     }
 
     if (opts.locales) {
 
-        locale = new LocaleFactory(opts.locales);
+        locale = new LocaleManager(opts.locales);
     }
 
     if (opts.stateMachine) {
@@ -136,12 +136,12 @@ export const appKit = <Kit extends AppKitType = any>(
 
     if (opts.storage) {
 
-        storage = new StorageFactory(opts.storage.implementation, opts.storage.prefix);
+        storage = new StorageAdapter(opts.storage.implementation, opts.storage.prefix);
     }
 
     if (opts.fetch) {
 
-        fetch = new FetchFactory(opts.fetch) as KitFetch;
+        fetch = new FetchEngine(opts.fetch) as KitFetch;
     }
 
     if (opts.apis) {
@@ -157,7 +157,7 @@ export const appKit = <Kit extends AppKitType = any>(
 
             assert(isObject(opts.apis[key]), `apis key ${key} must be an object`);
 
-            apis[key] = new FetchFactory(opts.apis[key]) as never
+            apis[key] = new FetchEngine(opts.apis[key]) as never
 
             i++;
         }
@@ -179,7 +179,7 @@ export const appKit = <Kit extends AppKitType = any>(
         storage: Kit['storage'] extends undefined ? never : KitStorage,
         fetch: Kit['fetch'] extends undefined ? never : KitFetch,
         apis: {
-            [key in keyof Kit['apis']]: FetchFactory<
+            [key in keyof Kit['apis']]: FetchEngine<
                 NotUndefined<Kit['apis']>[key]['headers'],
                 NotUndefined<Kit['apis']>[key]['params'],
                 NotUndefined<Kit['apis']>[key]['state']

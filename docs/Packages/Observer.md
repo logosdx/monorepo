@@ -2,7 +2,7 @@
 permalink: '/packages/observer'
 aliases: ["Observer", "@logos-ui/observer"]
 ---
-ObserverFactory aims to provide a consistent, familiar API that goes beyond just working with events in both Node.js and the browser. Our goal is to enable developers to leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with the maturity of a full-feature development tool.
+ObserverEngine aims to provide a consistent, familiar API that goes beyond just working with events in both Node.js and the browser. Our goal is to enable developers to leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with the maturity of a full-feature development tool.
 
 ## Features
 
@@ -33,19 +33,19 @@ pnpm add @logos-ui/observer
 
 ## Usage
 
-Simply put, `ObserverFactory` allows you listen for events and emit events. In that regard, it's not much different from `EventEmitter`. In fact, `EventEmitter` even allows you to declare typings for events. The main difference is in the extra features that `ObserverFactory` provides.
+Simply put, `ObserverEngine` allows you listen for events and emit events. In that regard, it's not much different from `EventEmitter`. In fact, `EventEmitter` even allows you to declare typings for events. The main difference is in the extra features that `ObserverEngine` provides.
 
-Let start with the basic usage of `ObserverFactory`.
+Let start with the basic usage of `ObserverEngine`.
 
 ```ts
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 
 type EventType = {
 	someEvent: string;
 }
 
 // Instantiate the observer
-const observer = new ObserverFactory<EventType>();
+const observer = new ObserverEngine<EventType>();
 
 // Listen for an event
 observer.on('someEvent', (data) => {
@@ -60,14 +60,14 @@ if (condition) {
 }
 ```
 
-You might notice `EventType` is passed as a generic to `ObserverFactory`. This is what enables type-safe events. You'll see how this is useful in the next section.
+You might notice `EventType` is passed as a generic to `ObserverEngine`. This is what enables type-safe events. You'll see how this is useful in the next section.
 
 ### Type-safe Events
 
 In the example above, we defined a type `EventType` that has a single event `someEvent`. This allows us to listen for `someEvent` and pass data to the callback function. To further illustrate this, let's add more events to `EventType`.
 
 ```ts
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 
 type EventType = {
 
@@ -76,7 +76,7 @@ type EventType = {
     worrisome: { id: number, job: string }
 }
 
-const observer = new ObserverFactory<EventType>();
+const observer = new ObserverEngine<EventType>();
 ```
 
 Now, we can listen for `something`, `awesome`, and `worrisome` events and pass data to the callback function. Your IDE will also provide you with autocompletion for the event names and data types.
@@ -85,7 +85,7 @@ Now, we can listen for `something`, `awesome`, and `worrisome` events and pass d
 
 ![](types-2.png)
 
-`ObserverFactory`'s implementation, however, is different from `EventEmitter` in that it will only dispatch a single argument to your listeners. The idea is to keep the API simple and consistent. If you need to pass multiple arguments, you can use arrays or objects.
+`ObserverEngine`'s implementation, however, is different from `EventEmitter` in that it will only dispatch a single argument to your listeners. The idea is to keep the API simple and consistent. If you need to pass multiple arguments, you can use arrays or objects.
 
 Emitting events is just as simple. You can pass data to the event as the second argument.
 
@@ -333,7 +333,7 @@ The above is not meant to be the most efficient queue, but it is an email of wha
 
 ### Event Cleanup
 
-One detail that I often developers miss is the importance of cleaning up event listeners. It's an easy thing to forget that will lead to memory leaks. This is why `ObserverFactory` provides a `cleanup()` function that will remove the listener from the event. This is especially useful when you're dealing with frameworks like React, where components are mounted and unmounted, and you want to make sure that you're not updating an instance of a render that no longer exists. This will quickly lead to memory leaks.
+One detail that I often developers miss is the importance of cleaning up event listeners. It's an easy thing to forget that will lead to memory leaks. This is why `ObserverEngine` provides a `cleanup()` function that will remove the listener from the event. This is especially useful when you're dealing with frameworks like React, where components are mounted and unmounted, and you want to make sure that you're not updating an instance of a render that no longer exists. This will quickly lead to memory leaks.
 
 ```ts
 const MyComponent = () => {
@@ -354,7 +354,7 @@ const MyComponent = () => {
 }
 ```
 
-This is one of those things which are not straight forward to do with `EventEmitter`. You would have to keep track of the listeners yourself and remove them when the component is unmounted. `ObserverFactory` was built with this in mind for both frontend and backend systems alike. All the permutations of listening to events have a way to cleanup the listener:
+This is one of those things which are not straight forward to do with `EventEmitter`. You would have to keep track of the listeners yourself and remove them when the component is unmounted. `ObserverEngine` was built with this in mind for both frontend and backend systems alike. All the permutations of listening to events have a way to cleanup the listener:
 
 The standard listeners
 
@@ -394,19 +394,19 @@ With proper use, this enhancement will help you avoid memory leaks in your appli
 
 ### Inheritance and delegation
 
-`ObserverFactory` can be extended and delegated to other classes. Event emitters are standard place, and, as stated before, they are the basis of NodeJS and the DOM. This can be useful when you want to create a class that has the ability to listen for events and emit events.
+`ObserverEngine` can be extended and delegated to other classes. Event emitters are standard place, and, as stated before, they are the basis of NodeJS and the DOM. This can be useful when you want to create a class that has the ability to listen for events and emit events.
 
-For example, instead of `EventEmitter`, you can use `ObserverFactory` to create a class that can listen for events and emit events.
+For example, instead of `EventEmitter`, you can use `ObserverEngine` to create a class that can listen for events and emit events.
 
 ```ts
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 
 type Events = {
 	openModal: null,
 	closeModal: null
 }
 
-class MyComponent extends ObserverFactory<Events> {
+class MyComponent extends ObserverEngine<Events> {
 
 	constructor() {
 		super();
@@ -427,7 +427,7 @@ Or, perhaps you have a class that you want to delegate the event listening and e
 ```ts
 import myObserver from './myObserver';
 
-class MyComponent implements ObserverFactory.Child<Events> {
+class MyComponent implements ObserverEngine.Child<Events> {
 
 	// ... other class methods
 
@@ -451,11 +451,11 @@ myComponent.on('open', () => { /* ... */ });
 
 ### Validation
 
-`ObserverFactory` allows you to validate events before they are emitted. Sometimes, you want to make sure bad data doesn't get to parts of your system. This is where the `emitValidator` option comes in handy.
+`ObserverEngine` allows you to validate events before they are emitted. Sometimes, you want to make sure bad data doesn't get to parts of your system. This is where the `emitValidator` option comes in handy.
 
 ```ts
 import Joi from 'joi';
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 
 type Shape = {
 	connect: null,
@@ -480,7 +480,7 @@ const schema = Joi.object({
 	fields: Joi.object().required()
 });
 
-const observer = new ObserverFactory<Shape>({
+const observer = new ObserverEngine<Shape>({
 	emitValidator: (event, data, self) => {
 
 		if (schemas[event]) {
@@ -509,12 +509,12 @@ observer.on('send', (data) => {
 Very simply put, the observer instance has few options, and we just covered one of them:
 
 ```ts
-export class ObserverFactory <Shape> {
+export class ObserverEngine <Shape> {
 
 	constructor (opts?: {
 		name?: string;
-		spy?: ObserverFactory.Spy<Shape>;
-		emitValidator?: ObserverFactory.EmitValidator<Shape>;
+		spy?: ObserverEngine.Spy<Shape>;
+		emitValidator?: ObserverEngine.EmitValidator<Shape>;
 	});
 }
 ```
@@ -533,12 +533,12 @@ Another "gotcha" about working with event emitters is losing track of where even
 
 #### `options.spy`
 
-`ObserverFactory` accepts a `spy` function in the options to facilitate telemetry and debugging. This function will be called whenever an event is listened to, emitted, or triggered. This is specifically for logging, tracking, or debugging your event emitter.
+`ObserverEngine` accepts a `spy` function in the options to facilitate telemetry and debugging. This function will be called whenever an event is listened to, emitted, or triggered. This is specifically for logging, tracking, or debugging your event emitter.
 
 ```ts
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 
-const debugFn: ObserverFactory.Spy<Shape> = (action) => {
+const debugFn: ObserverEngine.Spy<Shape> = (action) => {
 
 	const {
 		event,
@@ -562,7 +562,7 @@ const debugFn: ObserverFactory.Spy<Shape> = (action) => {
 	console.log(fn, event, listener || data);
 }
 
-const observer = new ObserverFactory<Shape>({
+const observer = new ObserverEngine<Shape>({
 	name: 'app',
 	spy: debugFn,
 })
@@ -575,7 +575,7 @@ And with this, you have the ability to trace events to their origins. When you'r
 The `debug()` function is a simple way to turn debugging on and off. When debugging is turned on, you'll see where events are being listened to, triggered, or emitted. A stack trace will be logged into console with the relevant information about the event. This options should not override the `spy` function, but rather work in conjunction with it.
 
 ```ts
-const observer = new ObserverFactory<Shape>();
+const observer = new ObserverEngine<Shape>();
 
 observer.debug(true);
 observer.debug(false);
@@ -586,7 +586,7 @@ observer.debug(false);
 The `$facts()` function returns parsed information about the internal state of the observable instance. This can be useful when you want to know how many listeners are listening to a certain event, or how many listeners are listening to events in general.
 
 ```ts
-const observer = new ObserverFactory<Shape>();
+const observer = new ObserverEngine<Shape>();
 
 console.log(observer.$facts());
 ```
@@ -613,7 +613,7 @@ And should output something like:
 The `$has()` function returns `true` if the instance has the given event or regex event. This can be useful when you want to know if an event is being listened to or not.
 
 ```ts
-const observer = new ObserverFactory<Shape>();
+const observer = new ObserverEngine<Shape>();
 
 console.log(observer.$has('connect'));
 console.log(observer.$has(/some/));
@@ -626,7 +626,7 @@ console.log(observer.$has(/some/));
 The `$internals()` function returns a clone of the internal mappings the instance uses. This can be useful when you want to know what the instance is doing internally, such as tracking down any listeners that might still be bound to an event.
 
 ```ts
-const observer = new ObserverFactory<Shape>();
+const observer = new ObserverEngine<Shape>();
 
 console.log(observer.$internals());
 ```
@@ -652,6 +652,6 @@ And should output something like:
 
 ## Conclusion
 
-We hope that this library will help you build better, more scalable applications. The observer pattern is a powerful algorithm that can be used to create dynamic, event-driven architectures. We believe that `ObserverFactory` will help you leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with the maturity of a full-feature development tool.
+We hope that this library will help you build better, more scalable applications. The observer pattern is a powerful algorithm that can be used to create dynamic, event-driven architectures. We believe that `ObserverEngine` will help you leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with the maturity of a full-feature development tool.
 
 If you have any questions, comments, or suggestions, please feel free to reach out to us. We're always looking for ways to improve our libraries and make them more useful for developers like you.

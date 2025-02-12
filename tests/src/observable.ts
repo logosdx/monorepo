@@ -2,7 +2,7 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 import { expect } from 'chai';
 
-import { ObserverFactory } from '@logos-ui/observer';
+import { ObserverEngine } from '@logos-ui/observer';
 import { SinonStub } from 'sinon';
 import { sandbox, log as console } from './_helpers';
 
@@ -25,7 +25,7 @@ interface AppEvents {
 }
 
 const stub = {
-    observer: null as unknown as ObserverFactory<AppEvents>,
+    observer: null as unknown as ObserverEngine<AppEvents>,
     spy: sandbox.stub(),
     name: 'test',
     component: {} as any
@@ -33,7 +33,7 @@ const stub = {
 
 const setupForHelpers = () => {
 
-    const observer = new ObserverFactory<AppEvents>(stub);
+    const observer = new ObserverEngine<AppEvents>(stub);
     const fake = sandbox.stub();
 
     observer.on('test', fake);
@@ -48,7 +48,7 @@ const setupForHelpers = () => {
 
 describe('@logos-ui/observer', function () {
 
-    describe('new ObserverFactory(...)', function () {
+    describe('new ObserverEngine(...)', function () {
 
         afterEach(() => {
 
@@ -57,7 +57,7 @@ describe('@logos-ui/observer', function () {
 
         it('should create a new observer', function () {
 
-            const observer = new ObserverFactory();
+            const observer = new ObserverEngine();
 
             expect(typeof observer.on).to.eq('function');
             expect(typeof observer.once).to.eq('function');
@@ -68,7 +68,7 @@ describe('@logos-ui/observer', function () {
 
         it('should create a new observer with options', function () {
 
-            stub.observer = new ObserverFactory(stub);
+            stub.observer = new ObserverEngine(stub);
 
             expect(typeof stub.observer.on).to.eq('function');
             expect(typeof stub.observer.once).to.eq('function');
@@ -486,7 +486,7 @@ describe('@logos-ui/observer', function () {
 
         it('tests emit validator', async () => {
 
-            const emitValidator: ObserverFactory.EmitValidator<AppEvents> = (ev, data, ctx) => {
+            const emitValidator: ObserverEngine.EmitValidator<AppEvents> = (ev, data, ctx) => {
 
                 if (ev === 'child-test' && !ctx.$has('child-test')) {
 
@@ -499,7 +499,7 @@ describe('@logos-ui/observer', function () {
                 }
             }
 
-            const observer = new ObserverFactory<AppEvents>({ emitValidator });
+            const observer = new ObserverEngine<AppEvents>({ emitValidator });
 
             expect(() => observer.emit('child-test'), 'emit validator').to.throw();
             expect(() => observer.emit('aa'), 'emit validator').to.not.throw();
@@ -594,7 +594,7 @@ describe('@logos-ui/observer', function () {
 
         before(() => {
 
-            stub.observer = new ObserverFactory({
+            stub.observer = new ObserverEngine({
                 spy: stub.spy as any,
             });
 

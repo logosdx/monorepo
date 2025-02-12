@@ -7,9 +7,9 @@ import {
 
 import type { LocaleEvent } from './helpers.ts';
 
-declare module './factory.ts' {
+declare module './manager.ts' {
 
-    export namespace LocaleFactory {
+    export namespace LocaleManager {
 
         export type LocaleReacher<T> = PathLeaves<T>;
         export type LocaleFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>;

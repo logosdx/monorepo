@@ -7,9 +7,9 @@ If you have ever thought to yourself:
 
 > It's 2023 and we're still using Axios when there's an entire `Fetch` API available to us on everything single browser
 
-Then say hello to `FetchFactory`. It simplifies the process of making HTTP requests using the `Fetch` API while giving you access to all of its features. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL and additional headers for your FetchFactory instance.
+Then say hello to `FetchEngine`. It simplifies the process of making HTTP requests using the `Fetch` API while giving you access to all of its features. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL and additional headers for your FetchEngine instance.
 
-A great feature of `FetchFactory` is its ability to customize request options based on the current state. Through the `modifyOptions` callback function, you can dynamically modify the request options before each request is sent. This enables tasks like adding authentication headers or applying specific logic based on the instance's state. `FetchFactory` also provides a convenient way to handle response data, allowing developers to access and process the results of their API requests.
+A great feature of `FetchEngine` is its ability to customize request options based on the current state. Through the `modifyOptions` callback function, you can dynamically modify the request options before each request is sent. This enables tasks like adding authentication headers or applying specific logic based on the instance's state. `FetchEngine` also provides a convenient way to handle response data, allowing developers to access and process the results of their API requests.
 
 ```sh
 npm install @logos-ui/fetch
@@ -40,11 +40,11 @@ type SomeState = {
 	refreshToken?: string,
 }
 
-const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
 
 	// FetchOptions
 	baseUrl: testUrl,
-	defaultType: 'json', // handle type when FetchFactory cannot
+	defaultType: 'json', // handle type when FetchEngine cannot
 	headers: {           // default headers
 		'content-type': 'application/json',
 		'authorization': 'abc123'
@@ -108,7 +108,7 @@ const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
 		}
 	},
 
-	// If you don't want FetchFactory to guess your content type,
+	// If you don't want FetchEngine to guess your content type,
 	// handle it yourself.
 	determineType(response) {
 
@@ -143,7 +143,7 @@ if (res.authToken) {
 
 ## How responses are handled
 
-When you configure your `FetchFactory` instance, you might pass the `defaultType` configuration. This only states how FetchFactory should handle your if it can't resolve it itself. Servers usually respond with the standard-place header `Content-Type` to signify the mime-type that should be used to handle the response. `FetchFactory` extracts those headers and guesses how it should handle that response.
+When you configure your `FetchEngine` instance, you might pass the `defaultType` configuration. This only states how FetchEngine should handle your if it can't resolve it itself. Servers usually respond with the standard-place header `Content-Type` to signify the mime-type that should be used to handle the response. `FetchEngine` extracts those headers and guesses how it should handle that response.
 
 ### Reponses are matched and handled in the following order
 
@@ -158,10 +158,10 @@ When you configure your `FetchFactory` instance, you might pass the `defaultType
 
 ### Handling your own responses
 
-If you don't want `FetchFactory` to guess your content type, you can handle it yourself. You can do this by passing a function to the `determineType` configuration option. This function should return a string that matches the type you want to handle.
+If you don't want `FetchEngine` to guess your content type, you can handle it yourself. You can do this by passing a function to the `determineType` configuration option. This function should return a string that matches the type you want to handle.
 
 ```ts
-const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
 	// other configurations
 	determineType(response) {
 
@@ -174,10 +174,10 @@ const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
 });
 ```
 
-You can also use the static `FetchFactory.useDefault` symbol to tell FetchFactory to use the internal response handler to determine the type. This way, you can handle your very specific use cases and let FetchFactory handle the rest.
+You can also use the static `FetchEngine.useDefault` symbol to tell FetchEngine to use the internal response handler to determine the type. This way, you can handle your very specific use cases and let FetchEngine handle the rest.
 
 ```ts
-const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
+const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
 	// other configurations
 	determineType(response) {
 
@@ -185,15 +185,15 @@ const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
 			return 'arrayBuffer';
 		}
 
-		// Let FetchFactory handle other cases
-		return FetchFactory.useDefault;
+		// Let FetchEngine handle other cases
+		return FetchEngine.useDefault;
 	}
 });
 ```
 
 ## Events
 
-`FetchFactory` emits a variety of events during different phases of the request process. These events can be intercepted and processed using event listeners.
+`FetchEngine` emits a variety of events during different phases of the request process. These events can be intercepted and processed using event listeners.
 
 
 | Event                 | Description                |
@@ -215,7 +215,7 @@ const api = new FetchFactory<SomeHeaders, SomeParams, SomeState>({
 
 Aborting requests can be particularly useful in scenarios where the need for a request becomes obsolete due to user interactions, changing application state, or other factors. By promptly canceling unnecessary requests, developers can enhance the performance and responsiveness of their applications. Request abortion can also be beneficial when implementing features such as autocomplete, where users may input multiple characters quickly, triggering multiple requests. In such cases, aborting previous requests can prevent unnecessary processing and ensure that only the latest relevant response is handled.
 
-By leveraging `FetchFactory`'s request abortion functionality, developers have fine-grained control over their application's network requests, enabling efficient resource management and improved user experience.
+By leveraging `FetchEngine`'s request abortion functionality, developers have fine-grained control over their application's network requests, enabling efficient resource management and improved user experience.
 
 ```ts
 // requests return an agumented Promise called an AbortablePromise
@@ -421,7 +421,7 @@ api.hasHeader('scope', 'POST');
 
 ### `setState(...)`
 
-Merges a passed object into the `FetchFactory` instance state
+Merges a passed object into the `FetchEngine` instance state
 
 **Example**
 
@@ -437,7 +437,7 @@ api.setState('isAuthenticated', false);
 
 ### `resetState()`
 
-Resets the `FetchFactory` instance state.
+Resets the `FetchEngine` instance state.
 
 **Example**
 
@@ -447,7 +447,7 @@ api.resetState();
 
 ### `getState()`
 
-Returns the `FetchFactory` instance state.
+Returns the `FetchEngine` instance state.
 
 **Example**
 

@@ -2,4 +2,4 @@
 "@logos-ui/localize": major
 ---
 
-LocaleFactory can clone itself. Types have been moved into namespace.
+LocaleManager can clone itself. Types have been moved into namespace.

@@ -1,4 +1,4 @@
-import type { ObserverFactory } from './factory.ts';
+import type { ObserverEngine } from './engine.ts';
 
 import type { Events } from './types.ts';
 
@@ -22,7 +22,7 @@ export const traceStackFilterRgx = (
         'makeEventTracer',
         'sendToSpy',
         'Function.spy',
-        'Observable.Factory',
+        'Observable.Engine',
     ].join('|')})`)
 );
 
@@ -85,11 +85,11 @@ export class DeferredEvent<T> {
 
 export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
 
-    #observer: ObserverFactory<S>;
+    #observer: ObserverEngine<S>;
     #event: E | RegExp | '*';
     #defer: DeferredEvent<any>;
     #done: boolean = false;
-    #listener: ObserverFactory.EventCallback<S> | null = null;
+    #listener: ObserverEngine.EventCallback<S> | null = null;
 
     #assertNotDestroyed = () => {
 
@@ -105,18 +105,18 @@ export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
         }
     }
 
-    destroy!: ObserverFactory.Cleanup
+    destroy!: ObserverEngine.Cleanup
 
     next: () => Promise<
         E extends Events<S>
         ? S[E]
         : E extends RegExp
-            ? ObserverFactory.RgxEmitData<S>
+            ? ObserverEngine.RgxEmitData<S>
             : S[Events<S>]
     >;
 
     constructor(
-        observer: ObserverFactory<S>,
+        observer: ObserverEngine<S>,
         event: E | RegExp | '*'
     ) {
 

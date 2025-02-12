@@ -8,4 +8,4 @@ export {
     reachIn
 } from './helpers.ts'
 
-export { LocaleFactory } from './factory.ts'
+export { LocaleManager } from './manager.ts'

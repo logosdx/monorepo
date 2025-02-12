@@ -4,10 +4,10 @@ import {
     GetFieldType
 } from '@logos-ui/utils';
 
-import type { LocaleFactory } from './factory.ts';
+import type { LocaleManager } from './manager.ts';
 
 export const reachIn = <
-    O extends LocaleFactory.LocaleType = LocaleFactory.LocaleType,
+    O extends LocaleManager.LocaleType = LocaleManager.LocaleType,
     P extends PathLeaves<O> = PathLeaves<O>,
     D extends GetFieldType<O, P> = GetFieldType<O, P>
 >(obj: O, path: P, defValue: D): GetFieldType<O, P> | undefined => {
@@ -88,7 +88,7 @@ const objToFlatEntries = <T extends object>(obj: T) => {
     return flattened;
 }
 
-export const format = (str: string, values: LocaleFactory.LocaleFormatArgs) => {
+export const format = (str: string, values: LocaleManager.LocaleFormatArgs) => {
 
     if (Array.isArray(values)) {
 
@@ -119,10 +119,10 @@ export const format = (str: string, values: LocaleFactory.LocaleFormatArgs) => {
     return str;
 };
 
-export const getMessage = <L extends LocaleFactory.LocaleType>(
+export const getMessage = <L extends LocaleManager.LocaleType>(
     locale: L,
-    reach: LocaleFactory.LocaleReacher<L>,
-    values?: LocaleFactory.LocaleFormatArgs
+    reach: LocaleManager.LocaleReacher<L>,
+    values?: LocaleManager.LocaleFormatArgs
 ) => {
 
     const str = reachIn(locale, reach, '?' as never) as string;

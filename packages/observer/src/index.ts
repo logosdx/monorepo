@@ -7,4 +7,4 @@ export {
     DeferredEvent,
 } from './helpers.ts';
 
-export { ObserverFactory } from './factory.ts';
+export { ObserverEngine } from './engine.ts';

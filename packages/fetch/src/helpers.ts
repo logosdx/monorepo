@@ -6,7 +6,7 @@ import {
     isFunction,
     forInIsEqual
 } from '@logos-ui/utils';
-import type { FetchFactory } from './factory.ts';
+import type { FetchEngine } from './engine.ts';
 import { HttpMethods } from './types.ts';
 
 export interface FetchError<T = {}> extends Error {
@@ -21,8 +21,8 @@ export class FetchError<T = {}> extends Error {}
 
 
 export class  FetchEvent<
-    InstanceHeaders = FetchFactory.InstanceHeaders,
-    Params = FetchFactory.Params,
+    InstanceHeaders = FetchEngine.InstanceHeaders,
+    Params = FetchEngine.Params,
     State = {},
 > extends Event {
     state!: State
@@ -30,7 +30,7 @@ export class  FetchEvent<
     method?: HttpMethods | undefined
     headers?: InstanceHeaders | undefined
     params?: Params | undefined
-    options?: FetchFactory.RequestOpts | undefined
+    options?: FetchEngine.RequestOpts | undefined
     data?: unknown | undefined
     payload?: unknown | undefined
     response?: Response | undefined
@@ -42,8 +42,8 @@ export class  FetchEvent<
             state: State,
             url?: string | undefined,
             method?: HttpMethods | undefined,
-            headers?: FetchFactory.Headers | undefined,
-            params?: FetchFactory.Params | undefined,
+            headers?: FetchEngine.Headers | undefined,
+            params?: FetchEngine.Params | undefined,
             error?: FetchError | undefined,
             response?: Response | undefined,
             data?: unknown | undefined,
@@ -82,11 +82,11 @@ export const fetchTypes = [
     'formData',
     'json',
     'text',
-] satisfies FetchFactory.Type[];
+] satisfies FetchEngine.Type[];
 
 
 export const validateOptions = <H, P, S>(
-    opts: FetchFactory.Options<H, P, S>
+    opts: FetchEngine.Options<H, P, S>
 ) => {
 
     const {

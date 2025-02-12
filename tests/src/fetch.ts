@@ -13,7 +13,7 @@ import Joi from 'joi';
 import {
     FetchError,
     FetchEvent,
-    FetchFactory
+    FetchEngine
 } from '@logos-ui/fetch';
 
 import { sandbox } from './_helpers';
@@ -104,7 +104,7 @@ describe('@logos-ui/fetch', () => {
 
         const test = (throws: string | RegExp) => {
 
-            expect(() => new FetchFactory(opts)).to.throw(throws);
+            expect(() => new FetchEngine(opts)).to.throw(throws);
         }
 
         test(/baseUrl.+required/);
@@ -185,7 +185,7 @@ describe('@logos-ui/fetch', () => {
 
     it('accepts a proper config', () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             defaultType: 'json',
             headers: {
@@ -243,7 +243,7 @@ describe('@logos-ui/fetch', () => {
 
         const expectation = { ok: true };
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             defaultType: 'json'
         });
@@ -260,7 +260,7 @@ describe('@logos-ui/fetch', () => {
 
         const expectation = { ok: true };
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             defaultType: 'json',
             headers: {
@@ -281,7 +281,7 @@ describe('@logos-ui/fetch', () => {
 
     it('sets default method headers', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             defaultType: 'json',
             headers: {
@@ -329,7 +329,7 @@ describe('@logos-ui/fetch', () => {
 
     it('sets and removes headers', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl
         });
 
@@ -351,7 +351,7 @@ describe('@logos-ui/fetch', () => {
 
     it('allows header overrides from method functions', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl
         });
 
@@ -371,7 +371,7 @@ describe('@logos-ui/fetch', () => {
 
     it('sets and removes headers from method functions', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl
         });
 
@@ -415,7 +415,7 @@ describe('@logos-ui/fetch', () => {
 
     it('sets default params', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             params: {
                 page: '1',
@@ -431,7 +431,7 @@ describe('@logos-ui/fetch', () => {
 
     it('sets default method params', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             params: {
                 page: '1',
@@ -474,7 +474,7 @@ describe('@logos-ui/fetch', () => {
 
     it('allows param overrides from method functions', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl
         });
 
@@ -494,7 +494,7 @@ describe('@logos-ui/fetch', () => {
 
     it('sets and removes params', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             params: {
                 page: '1',
@@ -535,7 +535,7 @@ describe('@logos-ui/fetch', () => {
 
     it('sets and removes params from method functions', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             params: {
                 page: '1',
@@ -632,7 +632,7 @@ describe('@logos-ui/fetch', () => {
         const payload = { pay: 'load' };
         const expectedPayload = JSON.stringify(payload);
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl
         });
 
@@ -653,7 +653,7 @@ describe('@logos-ui/fetch', () => {
         const didBefore = sandbox.stub();
         const didAfter = sandbox.stub();
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl
         });
 
@@ -703,7 +703,7 @@ describe('@logos-ui/fetch', () => {
         const onError = sandbox.stub();
         throwBadContentType = true;
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json'
@@ -722,7 +722,7 @@ describe('@logos-ui/fetch', () => {
     it('can abort requests', async () => {
 
         const onError = sandbox.stub();
-        const onBeforeReq = (opts: FetchFactory.RequestOpts) => {
+        const onBeforeReq = (opts: FetchEngine.RequestOpts) => {
 
             setTimeout(() => {
 
@@ -730,7 +730,7 @@ describe('@logos-ui/fetch', () => {
             }, 50);
         }
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
         });
 
@@ -745,7 +745,7 @@ describe('@logos-ui/fetch', () => {
 
         const onError = sandbox.stub();
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
         });
 
@@ -783,7 +783,7 @@ describe('@logos-ui/fetch', () => {
         const onError = sandbox.stub();
         const timeout = 100;
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             timeout
         });
@@ -821,7 +821,7 @@ describe('@logos-ui/fetch', () => {
         const repeat = 1000;
         const timeout = 10;
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             timeout
         });
@@ -840,7 +840,7 @@ describe('@logos-ui/fetch', () => {
 
     it('can make options', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             modifyOptions(opts) {
 
@@ -865,7 +865,7 @@ describe('@logos-ui/fetch', () => {
 
         const modifyOptions = sandbox.stub().returns({ headers: { 'was-set': 'true' } });
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             modifyMethodOptions: {
                 POST: modifyOptions,
@@ -918,7 +918,7 @@ describe('@logos-ui/fetch', () => {
             theValue: string;
         }
 
-        const api = new FetchFactory <{}, {}, TestState>({
+        const api = new FetchEngine <{}, {}, TestState>({
             baseUrl: testUrl,
             modifyOptions(opts, state) {
 
@@ -953,14 +953,14 @@ describe('@logos-ui/fetch', () => {
 
         const listener = sandbox.stub();
 
-        const headers: FetchFactory.Headers = {
+        const headers: FetchEngine.Headers = {
             'Content-Type': 'application/json',
             Authorization: 'weeee'
         }
 
         const state: Record<string, string | boolean> = {};
 
-        const api = new FetchFactory<any>({
+        const api = new FetchEngine<any>({
             baseUrl: testUrl,
             headers,
             formatHeaders: false
@@ -1139,7 +1139,7 @@ describe('@logos-ui/fetch', () => {
 
     it('handles empty responses', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
         });
 
@@ -1165,7 +1165,7 @@ describe('@logos-ui/fetch', () => {
             page: string;
         }
 
-        const api = new FetchFactory<TestHeaders, TestParams, TestState>({
+        const api = new FetchEngine<TestHeaders, TestParams, TestState>({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json',
@@ -1261,7 +1261,7 @@ describe('@logos-ui/fetch', () => {
 
     it('validates headers', () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json',
@@ -1305,7 +1305,7 @@ describe('@logos-ui/fetch', () => {
 
     it('validates headers per request', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json',
@@ -1367,7 +1367,7 @@ describe('@logos-ui/fetch', () => {
 
     it('validates params', () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             params: {
                 page: '1',
@@ -1412,7 +1412,7 @@ describe('@logos-ui/fetch', () => {
 
     it('validates params per request', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
             params: {
                 page: '1',
@@ -1480,7 +1480,7 @@ describe('@logos-ui/fetch', () => {
 
         const fn = sandbox.stub();
 
-        const api = new FetchFactory<{}, {}, TestState>({
+        const api = new FetchEngine<{}, {}, TestState>({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json',
@@ -1506,7 +1506,7 @@ describe('@logos-ui/fetch', () => {
 
     it('captures payload on error', async () => {
 
-        const api = new FetchFactory({
+        const api = new FetchEngine({
             baseUrl: testUrl,
         });
 

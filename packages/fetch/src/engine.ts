@@ -30,15 +30,15 @@ import {
  *
  * @example
  *
- * const api = new FetchFactory({
+ * const api = new FetchEngine({
  *      baseUrl: 'http://website.com'
  *      type: 'json',
  *      headers: { 'content-type': 'application/json' }
  * })
  */
-export class FetchFactory<
-    H = FetchFactory.InstanceHeaders,
-    P = FetchFactory.InstanceParams,
+export class FetchEngine<
+    H = FetchEngine.InstanceHeaders,
+    P = FetchEngine.InstanceParams,
     S = {},
 > extends EventTarget {
 
@@ -48,22 +48,22 @@ export class FetchFactory<
      * handle the response type yourself, you can set the
      * `determineType` option to a function that returns
      * the type of the response, or you can return the
-     * `FetchFactory.useDefault` to use the internal logic.
+     * `FetchEngine.useDefault` to use the internal logic.
      */
     static useDefault = Symbol('useDefault');
 
     #baseUrl: URL;
-    #options: Partial<FetchFactory.RequestOpts>;
-    #headers: FetchFactory.Headers<H>;
+    #options: Partial<FetchEngine.RequestOpts>;
+    #headers: FetchEngine.Headers<H>;
     #methodHeaders: MethodHeaders<H>;
-    #params: FetchFactory.Params<P>;
+    #params: FetchEngine.Params<P>;
     #methodParams: HttpMethodOpts<P>;
-    #type: FetchFactory.Type;
+    #type: FetchEngine.Type;
 
-    #modifyOptions?: FetchFactory.Options<H, P, S>['modifyOptions'];
-    #modifyMethodOptions?: HttpMethodOpts<FetchFactory.Options<H, P, S>['modifyOptions']>;
+    #modifyOptions?: FetchEngine.Options<H, P, S>['modifyOptions'];
+    #modifyMethodOptions?: HttpMethodOpts<FetchEngine.Options<H, P, S>['modifyOptions']>;
 
-    #validate?: FetchFactory.Options<H, P, S>['validate'];
+    #validate?: FetchEngine.Options<H, P, S>['validate'];
 
     /**
      * For saving values that may be needed to craft requests as the
@@ -73,16 +73,16 @@ export class FetchFactory<
     #state: S = {} as S;
 
     /**
-     * Removes a header from the `FetchFactory` instance
+     * Removes a header from the `FetchEngine` instance
      */
-    removeHeader: FetchFactory<H, P, S>['rmHeader'];
+    removeHeader: FetchEngine<H, P, S>['rmHeader'];
 
     /**
-     * Removes a param from the `FetchFactory` instance
+     * Removes a param from the `FetchEngine` instance
      */
-    removeParam: FetchFactory<H, P, S>['rmParams'];
+    removeParam: FetchEngine<H, P, S>['rmParams'];
 
-    #validateHeaders(headers: FetchFactory.Headers<H>, method?: HttpMethods) {
+    #validateHeaders(headers: FetchEngine.Headers<H>, method?: HttpMethods) {
 
         if (this.#validate?.headers) {
 
@@ -93,7 +93,7 @@ export class FetchFactory<
         }
     }
 
-    #validateParams(params: FetchFactory.Params<P>, method?: HttpMethods) {
+    #validateParams(params: FetchEngine.Params<P>, method?: HttpMethods) {
 
         if (this.#validate?.params) {
 
@@ -113,7 +113,7 @@ export class FetchFactory<
     }
 
     #determineType(response: Response): {
-        type: FetchFactory.Type,
+        type: FetchEngine.Type,
         isJson: boolean
     } {
 
@@ -121,9 +121,9 @@ export class FetchFactory<
 
             const type = this.#options.determineType(response);
 
-            if (FetchFactory.useDefault !== type) {
+            if (FetchEngine.useDefault !== type) {
 
-                if (!fetchTypes.includes(type as FetchFactory.Type)) {
+                if (!fetchTypes.includes(type as FetchEngine.Type)) {
 
                     console.warn(`Invalid type: '${type}'. Defaulting to '${this.#type}'`);
 
@@ -134,7 +134,7 @@ export class FetchFactory<
                 }
 
                 return {
-                    type: type as FetchFactory.Type,
+                    type: type as FetchEngine.Type,
                     isJson: type === 'json'
                 };
             }
@@ -178,22 +178,22 @@ export class FetchFactory<
         return { type: this.#type, isJson: this.#type === 'json' };
     }
 
-    #formatHeaders(headers: FetchFactory.Headers<H>) {
+    #formatHeaders(headers: FetchEngine.Headers<H>) {
 
         const opts = this.#options.formatHeaders ?? 'lowercase';
 
         if (opts === false) {
 
-            return headers as FetchFactory.Headers<H>;
+            return headers as FetchEngine.Headers<H>;
         }
 
         if (typeof opts === 'function') {
 
-            return opts(headers) as FetchFactory.Headers<H>;
+            return opts(headers) as FetchEngine.Headers<H>;
         }
 
         const formatWith = (
-            headers: FetchFactory.Headers<H>,
+            headers: FetchEngine.Headers<H>,
             callback: (key: string) => string
         ) => {
 
@@ -201,7 +201,7 @@ export class FetchFactory<
                 Object.keys(headers).map(
                     (key) => ([callback(key), headers[key]])
                 )
-            ) as FetchFactory.Headers<H>;
+            ) as FetchEngine.Headers<H>;
         }
 
         if (opts === 'lowercase') {
@@ -209,7 +209,7 @@ export class FetchFactory<
             return formatWith(
                 headers,
                 (key: string) => key.toLowerCase()
-            ) as FetchFactory.Headers<H>;
+            ) as FetchEngine.Headers<H>;
         }
 
         if (opts === 'uppercase') {
@@ -217,10 +217,10 @@ export class FetchFactory<
             return formatWith(
                 headers,
                 (key: string) => key.toUpperCase()
-            ) as FetchFactory.Headers<H>;
+            ) as FetchEngine.Headers<H>;
         }
     }
-    constructor(_opts: FetchFactory.Options<H, P, S>) {
+    constructor(_opts: FetchEngine.Options<H, P, S>) {
 
         super()
 
@@ -239,21 +239,21 @@ export class FetchFactory<
         } = opts;
 
         this.#options = rest;
-        this.#headers = opts.headers || {} as FetchFactory.Headers<H>;
+        this.#headers = opts.headers || {} as FetchEngine.Headers<H>;
         this.#methodHeaders = Object.fromEntries(
             Object.keys(opts.methodHeaders || {}).map(
                 (method) => ([method.toUpperCase(), opts.methodHeaders![method as never]])
             )
         );
-        this.#params = opts.params || {} as FetchFactory.Params<P>;
+        this.#params = opts.params || {} as FetchEngine.Params<P>;
         this.#methodParams = opts.methodParams || {} as HttpMethodOpts<P>;
 
         this.#modifyOptions = modifyOptions;
         this.#modifyMethodOptions = modifyMethodOptions!;
         this.#validate = validate;
 
-        this.removeHeader = this.rmHeader.bind(this) as FetchFactory<H, P, S>['rmHeader'];
-        this.removeParam = this.rmParams.bind(this) as FetchFactory<H, P, S>['rmParams'];
+        this.removeHeader = this.rmHeader.bind(this) as FetchEngine<H, P, S>['rmHeader'];
+        this.removeParam = this.rmParams.bind(this) as FetchEngine<H, P, S>['rmParams'];
 
         this.#validateHeaders(this.#headers);
     }
@@ -261,7 +261,7 @@ export class FetchFactory<
     /**
      * Makes headers
      */
-    private makeHeaders(override: FetchFactory.Headers<H> = {}, method?: HttpMethods) {
+    private makeHeaders(override: FetchEngine.Headers<H> = {}, method?: HttpMethods) {
 
         const methodHeaders = this.#methodHeaders;
 
@@ -277,7 +277,7 @@ export class FetchFactory<
     /**
      * Makes params
      */
-    private makeParams(override: FetchFactory.Params<P> = {}, method?: HttpMethods) {
+    private makeParams(override: FetchEngine.Params<P> = {}, method?: HttpMethods) {
 
         const methodParams = this.#methodParams;
 
@@ -321,7 +321,7 @@ export class FetchFactory<
         if (this.#validate?.perRequest?.params) {
 
             this.#validateParams(
-                Object.fromEntries(mergedParams.entries()) as FetchFactory.Params<P>,
+                Object.fromEntries(mergedParams.entries()) as FetchEngine.Params<P>,
                 method
             );
         }
@@ -337,7 +337,7 @@ export class FetchFactory<
         _method: HttpMethods,
         path: string,
         options: (
-            FetchFactory.CallOptions<H, P> &
+            FetchEngine.CallOptions<H, P> &
             {
                 payload?: unknown,
                 controller: AbortController,
@@ -367,7 +367,7 @@ export class FetchFactory<
         const method = _method.toUpperCase() as _InternalHttpMethods;
         const url = this.makeUrl(path, params as P, method);
 
-        let opts: FetchFactory.RequestOpts = {
+        let opts: FetchEngine.RequestOpts = {
             method,
             signal: rest.signal || controller.signal,
             controller,
@@ -409,7 +409,7 @@ export class FetchFactory<
                 (
                     opts.headers ||
                     {}
-                ) as FetchFactory.Headers<H>,
+                ) as FetchEngine.Headers<H>,
                 method
             );
         }
@@ -630,13 +630,13 @@ export class FetchFactory<
             },
             ...method
         } as {
-            readonly default: Readonly<FetchFactory.Headers<H>>,
-            readonly get?: Readonly<FetchFactory.Headers<H>>,
-            readonly post?: Readonly<FetchFactory.Headers<H>>,
-            readonly put?: Readonly<FetchFactory.Headers<H>>,
-            readonly delete?: Readonly<FetchFactory.Headers<H>>,
-            readonly options?: Readonly<FetchFactory.Headers<H>>,
-            readonly patch?: Readonly<FetchFactory.Headers<H>>,
+            readonly default: Readonly<FetchEngine.Headers<H>>,
+            readonly get?: Readonly<FetchEngine.Headers<H>>,
+            readonly post?: Readonly<FetchEngine.Headers<H>>,
+            readonly put?: Readonly<FetchEngine.Headers<H>>,
+            readonly delete?: Readonly<FetchEngine.Headers<H>>,
+            readonly options?: Readonly<FetchEngine.Headers<H>>,
+            readonly patch?: Readonly<FetchEngine.Headers<H>>,
         }
     }
 
@@ -670,13 +670,13 @@ export class FetchFactory<
             },
             ...method
         } as {
-            readonly default: Readonly<FetchFactory.Params<P>>,
-            readonly get?: Readonly<FetchFactory.Params<P>>,
-            readonly post?: Readonly<FetchFactory.Params<P>>,
-            readonly put?: Readonly<FetchFactory.Params<P>>,
-            readonly delete?: Readonly<FetchFactory.Params<P>>,
-            readonly options?: Readonly<FetchFactory.Params<P>>,
-            readonly patch?: Readonly<FetchFactory.Params<P>>,
+            readonly default: Readonly<FetchEngine.Params<P>>,
+            readonly get?: Readonly<FetchEngine.Params<P>>,
+            readonly post?: Readonly<FetchEngine.Params<P>>,
+            readonly put?: Readonly<FetchEngine.Params<P>>,
+            readonly delete?: Readonly<FetchEngine.Params<P>>,
+            readonly options?: Readonly<FetchEngine.Params<P>>,
+            readonly patch?: Readonly<FetchEngine.Params<P>>,
         }
     }
 
@@ -687,10 +687,10 @@ export class FetchFactory<
         method: HttpMethods,
         path: string,
         options: (
-            FetchFactory.CallOptions<H, P> &
+            FetchEngine.CallOptions<H, P> &
             ({ payload: Data | null } | {})
          ) = { payload: null }
-    ): FetchFactory.AbortablePromise<Res> {
+    ): FetchEngine.AbortablePromise<Res> {
 
 
         // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
@@ -720,7 +720,7 @@ export class FetchFactory<
 
             return res;
 
-        }) as FetchFactory.AbortablePromise<Res>;
+        }) as FetchEngine.AbortablePromise<Res>;
 
 
         call.isFinished = false;
@@ -743,7 +743,7 @@ export class FetchFactory<
     /**
      * Makes a options request
      */
-    options <Res = any>(path: string, options: FetchFactory.CallOptions<H, P> = {}) {
+    options <Res = any>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
 
         return this.request <Res, null>('options', path, options);
     }
@@ -751,7 +751,7 @@ export class FetchFactory<
     /**
      * Makes a get request
      */
-    get <Res = any>(path: string, options: FetchFactory.CallOptions<H, P> = {}) {
+    get <Res = any>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
 
         return this.request <Res, null>('get', path, options);
     }
@@ -759,7 +759,7 @@ export class FetchFactory<
     /**
      * Makes a delete request
      */
-    delete <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
+    delete <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('delete', path, { ...options, payload });
     }
@@ -767,7 +767,7 @@ export class FetchFactory<
     /**
      * Makes a post request
      */
-    post <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
+    post <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('post', path, { ...options, payload });
     }
@@ -775,7 +775,7 @@ export class FetchFactory<
     /**
      * Makes a put request
      */
-    put <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
+    put <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('put', path, { ...options, payload });
     }
@@ -783,7 +783,7 @@ export class FetchFactory<
     /**
      * Makes a patch request
      */
-    patch <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchFactory.CallOptions<H, P> = {}) {
+    patch <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
         return this.request <Res, Data>('patch', path, { ...options, payload });
     }
@@ -793,10 +793,10 @@ export class FetchFactory<
      */
     addHeader<K extends keyof H>(name: K, value: H[K], method?: _InternalHttpMethods): void
     addHeader(name: string, value: string, method?: _InternalHttpMethods): void
-    addHeader(headers: FetchFactory.Headers<H>, method?: _InternalHttpMethods): void
+    addHeader(headers: FetchEngine.Headers<H>, method?: _InternalHttpMethods): void
     addHeader(
         headers: (
-            FetchFactory.Headers<H> |
+            FetchEngine.Headers<H> |
             keyof H |
             string
         ),
@@ -832,14 +832,14 @@ export class FetchFactory<
 
         let updated = {
             ...this.#headers
-        } as FetchFactory.Headers<H>;
+        } as FetchEngine.Headers<H>;
 
         if (method) {
 
             if (this.#methodHeaders[method]) {
                 updated = {
                     ...this.#methodHeaders[method]
-                } as FetchFactory.Headers<H>;
+                } as FetchEngine.Headers<H>;
             }
             else {
                 this.#methodHeaders[method] = {};
@@ -849,7 +849,7 @@ export class FetchFactory<
         if (typeof headers === 'string') {
 
             updated[
-                headers as keyof FetchFactory.Headers<H>
+                headers as keyof FetchEngine.Headers<H>
             ] = value as never;
         }
         else {
@@ -859,7 +859,7 @@ export class FetchFactory<
                 .forEach(
                     (name) => {
 
-                        const key = name as keyof FetchFactory.Headers<H>;
+                        const key = name as keyof FetchEngine.Headers<H>;
 
                         updated[key] = headers[key as never]
                     }
@@ -910,7 +910,7 @@ export class FetchFactory<
             if (this.#methodHeaders[method]) {
                 updated = {
                     ...this.#methodHeaders[method]
-                } as FetchFactory.Headers<H>;
+                } as FetchEngine.Headers<H>;
             }
             else {
                 this.#methodHeaders[method] = {};
@@ -922,7 +922,7 @@ export class FetchFactory<
             delete updated[headers];
         }
 
-        let _names = headers as (keyof FetchFactory.Headers<H>)[];
+        let _names = headers as (keyof FetchEngine.Headers<H>)[];
 
         if (!Array.isArray(headers)) {
 
@@ -976,10 +976,10 @@ export class FetchFactory<
      */
     addParam<K extends keyof P>(name: K, value: P[K], method?: _InternalHttpMethods): void
     addParam(name: string, value: string, method?: _InternalHttpMethods): void
-    addParam(params: FetchFactory.Params<P>, method?: _InternalHttpMethods): void
+    addParam(params: FetchEngine.Params<P>, method?: _InternalHttpMethods): void
     addParam(
         params: (
-            FetchFactory.Params<P> |
+            FetchEngine.Params<P> |
             keyof P |
             string
         ),
@@ -1015,7 +1015,7 @@ export class FetchFactory<
 
         let updated = {
             ...this.#params
-        } as FetchFactory.Params<P>;
+        } as FetchEngine.Params<P>;
 
         if (method) {
 
@@ -1032,7 +1032,7 @@ export class FetchFactory<
         if (paramsIsString) {
 
             updated[
-                params as keyof FetchFactory.Params<P>
+                params as keyof FetchEngine.Params<P>
             ] = value as never;
         }
         else {
@@ -1042,7 +1042,7 @@ export class FetchFactory<
                 .forEach(
                     (name) => {
 
-                        const key = name as keyof FetchFactory.Params<P>;
+                        const key = name as keyof FetchEngine.Params<P>;
 
                         updated[key] = params[key as never]
                     }
@@ -1105,7 +1105,7 @@ export class FetchFactory<
             delete updated[params];
         }
 
-        let _names = params as (keyof FetchFactory.Params<P>)[];
+        let _names = params as (keyof FetchEngine.Params<P>)[];
 
         if (!Array.isArray(params)) {
 
@@ -1154,7 +1154,7 @@ export class FetchFactory<
 
 
     /**
-     * Merges a passed object into the `FetchFactory` instance state
+     * Merges a passed object into the `FetchEngine` instance state
      */
     setState<N extends keyof S>(name: N, value: S[N]): void
     setState(conf: Partial<S>): void
@@ -1205,7 +1205,7 @@ export class FetchFactory<
     }
 
     /**
-     * Resets the `FetchFactory` instance state.
+     * Resets the `FetchEngine` instance state.
      */
     resetState() {
 
@@ -1221,7 +1221,7 @@ export class FetchFactory<
     }
 
     /**
-     * Returns the `FetchFactory` instance state.
+     * Returns the `FetchEngine` instance state.
      */
     getState() {
 
@@ -1245,7 +1245,7 @@ export class FetchFactory<
     }
 
     /**
-     * Listen for events on this FetchFactory instance
+     * Listen for events on this FetchEngine instance
      */
     on(
         ev: FetchEventName | '*',
@@ -1270,7 +1270,7 @@ export class FetchFactory<
     }
 
     /**
-     * Remove events listeners from this FetchFactory instance
+     * Remove events listeners from this FetchEngine instance
      */
     off (ev: FetchEventName | '*', listener: EventListenerOrEventListenerObject) {
 

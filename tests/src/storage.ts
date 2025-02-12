@@ -2,7 +2,7 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { SinonSpy } from 'sinon';
 
 import { expect } from 'chai';
-import { StorageEvent, StorageFactory, StorageImplementation } from '@logos-ui/storage';
+import { StorageEvent, StorageAdapter, StorageImplementation } from '@logos-ui/storage';
 import { sandbox } from './_helpers';
 
 const clearStores = () => {
@@ -50,8 +50,8 @@ describe('@logos-ui/storage', () => {
 
     it('References localStorage or sessionStorage', () => {
 
-        const ls = new StorageFactory<StorageItems>(window.localStorage);
-        const ss = new StorageFactory<StorageItems>(window.sessionStorage);
+        const ls = new StorageAdapter<StorageItems>(window.localStorage);
+        const ss = new StorageAdapter<StorageItems>(window.sessionStorage);
 
         expect(ls.storage).to.equal(window.localStorage);
         expect(ss.storage).to.equal(window.sessionStorage);
@@ -67,10 +67,10 @@ describe('@logos-ui/storage', () => {
     testSuites.forEach(([name, storage]) => {
 
         const store: {
-            store: StorageFactory<StorageItems>;
-            prefixed?: StorageFactory<StorageItems>;
+            store: StorageAdapter<StorageItems>;
+            prefixed?: StorageAdapter<StorageItems>;
         } = {
-            store: new StorageFactory<StorageItems>(storage)
+            store: new StorageAdapter<StorageItems>(storage)
         };
 
         describe(name, () => {
@@ -152,8 +152,8 @@ describe('@logos-ui/storage', () => {
 
             it(`Sets keys using a prefix`, async () => {
 
-                store.prefixed = new StorageFactory<StorageItems>(storage, 'test');
-                const store2 = new StorageFactory<StorageItems>(storage, 'test2');
+                store.prefixed = new StorageAdapter<StorageItems>(storage, 'test');
+                const store2 = new StorageAdapter<StorageItems>(storage, 'test2');
 
                 store.prefixed!.set('test', true);
                 store2.set('test', false);
@@ -271,7 +271,7 @@ describe('@logos-ui/storage', () => {
         const onBeforeRemove = sandbox.fake <[StorageEvent<StorageItems>]>();
         const onAfterRemove = sandbox.fake <[StorageEvent<StorageItems>]>();
 
-        const storage = new StorageFactory<StorageItems>(window.localStorage, 'hooks');
+        const storage = new StorageAdapter<StorageItems>(window.localStorage, 'hooks');
 
         storage.on('storage-before-set', onBeforeSet);
         storage.on('storage-before-unset', onBeforeRemove);
@@ -397,7 +397,7 @@ describe('@logos-ui/storage', () => {
         const onBeforeRemove = sandbox.fake <[StorageEvent<StorageItems>]>();
         const onAfterRemove = sandbox.fake <[StorageEvent<StorageItems>]>();
 
-        const storage = new StorageFactory<StorageItems>(window.localStorage, 'wrap');
+        const storage = new StorageAdapter<StorageItems>(window.localStorage, 'wrap');
 
         storage.on('storage-before-set', onBeforeSet);
         storage.on('storage-before-unset', onBeforeRemove);

@@ -159,14 +159,14 @@ describe('@logos-ui/kit', () => {
         expect(app.apis).to.have.property('stripe');
         expect(app.apis).to.have.property('facebook');
 
-        expect(app.apis.stripe).to.be.an.instanceOf(Kit.FetchFactory);
-        expect(app.apis.facebook).to.be.an.instanceOf(Kit.FetchFactory);
-        expect(app.fetch).to.be.an.instanceOf(Kit.FetchFactory);
+        expect(app.apis.stripe).to.be.an.instanceOf(Kit.FetchEngine);
+        expect(app.apis.facebook).to.be.an.instanceOf(Kit.FetchEngine);
+        expect(app.fetch).to.be.an.instanceOf(Kit.FetchEngine);
 
-        expect(app.observer).to.be.an.instanceOf(Kit.ObserverFactory);
-        expect(app.locale).to.be.an.instanceOf(Kit.LocaleFactory);
+        expect(app.observer).to.be.an.instanceOf(Kit.ObserverEngine);
+        expect(app.locale).to.be.an.instanceOf(Kit.LocaleManager);
         expect(app.stateMachine).to.be.an.instanceOf(Kit.StateMachine);
-        expect(app.storage).to.be.an.instanceOf(Kit.StorageFactory);
+        expect(app.storage).to.be.an.instanceOf(Kit.StorageAdapter);
 
         app.observer!.on('mint', (data) => data === 'peppermint');
         app.observer!.emit('floss', true);

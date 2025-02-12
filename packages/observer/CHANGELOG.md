@@ -72,7 +72,7 @@
   - Regex listeners now emit a `{ event, data }` object instead of just the data
   - Added Emit validators to allow developers to validate the data being emitted
   - Added `$facts()`, `$internals()`, and `$has(event)` meta helpers for debugging
-  - Removed `Component` as type and as a first argument when constructing an `ObserverFactory`. Only `observe(component)` is now available.
+  - Removed `Component` as type and as a first argument when constructing an `ObserverEngine`. Only `observe(component)` is now available.
   - Removed alternative methods for `on`, `once` and etc. The API is now decisively `on`, `once`, `off`, and `emit`.
 
   ## `@logos-ui/fetch`

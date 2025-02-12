@@ -25,23 +25,23 @@ import {
     validateListener,
 } from './helpers.ts';
 
-export class ObserverFactory<
+export class ObserverEngine<
     Shape = Record<string, any>
 > {
 
     #listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
     #rgxListenerMap: Map<string, Set<Func>> = new Map();
     #internalListener = new EventTarget();
-    #emitValidator?: ObserverFactory.EmitValidator<Shape>;
-    #spy?: ObserverFactory.Spy<Shape>;
+    #emitValidator?: ObserverEngine.EmitValidator<Shape>;
+    #spy?: ObserverEngine.Spy<Shape>;
 
     // Hidden property for holding the spy function
     // when debugging is enabled. Used to restore the
     // original spy function when debugging is disabled.
-    #__spy?: ObserverFactory.Spy<Shape>;
+    #__spy?: ObserverEngine.Spy<Shape>;
 
 
-    constructor(options?: ObserverFactory.Options<Shape>) {
+    constructor(options?: ObserverEngine.Options<Shape>) {
 
         // Validate option if exists
         if (options) {
@@ -157,7 +157,7 @@ export class ObserverFactory<
         );
     }
 
-    #currentSpy(...args: Parameters<ObserverFactory.Spy<Shape>>) {
+    #currentSpy(...args: Parameters<ObserverEngine.Spy<Shape>>) {
 
         if (this.#spy) {
 
@@ -177,7 +177,7 @@ export class ObserverFactory<
 
         const original = this.#spy;
 
-        const spy: ObserverFactory.Spy<Shape> = (ev) => {
+        const spy: ObserverEngine.Spy<Shape> = (ev) => {
 
             const {
                 event,
@@ -214,7 +214,7 @@ export class ObserverFactory<
      *
      * @example
      *
-     * const obs = new ObserverFactory();
+     * const obs = new ObserverEngine();
      *
      * const modal = {};
      *
@@ -332,7 +332,7 @@ export class ObserverFactory<
             cleanup
         });
 
-        return component as ObserverFactory.Child<C, Shape>;
+        return component as ObserverEngine.Child<C, Shape>;
     }
 
     /**
@@ -402,7 +402,7 @@ export class ObserverFactory<
      *
      * @example
      *
-     * const obs = new ObserverFactory();
+     * const obs = new ObserverEngine();
      *
      * const onEvent = obs.on('*');
      * await onEvent.next(); // waits for next event
@@ -410,27 +410,27 @@ export class ObserverFactory<
      *
      * onEvent.cleanup(); // stops listening for events
      */
-    on (event: '*'): EventGenerator<ObserverFactory.RgxEmitData<Shape>, '*'>;
+    on (event: '*'): EventGenerator<ObserverEngine.RgxEmitData<Shape>, '*'>;
 
     /**
      * Listens for all events and executes the given callback
      *
      * @example
      *
-     * const obs = new ObserverFactory();
+     * const obs = new ObserverEngine();
      *
      * obs.on('*', (data) => {
      *     console.log(data);
      * });
      */
-    on (event: '*', listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
+    on (event: '*', listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
 
     /**
      * Returns an event generator that will listen for the specified event
      *
      * @example
      *
-     * const obs = new ObserverFactory();
+     * const obs = new ObserverEngine();
      *
      * const something = obs.on('something');
      * const data = await something.next(); // waits for next event
@@ -445,20 +445,20 @@ export class ObserverFactory<
      *
      * @example
      *
-     * const obs = new ObserverFactory();
+     * const obs = new ObserverEngine();
      *
      * obs.on('something', (data) => {
      *    console.log(data);
      * });
      */
-    on <E extends Events<Shape>>(event: E, listener: ObserverFactory.EventCallback<Shape[E]>): ObserverFactory.Cleanup;
+    on <E extends Events<Shape>>(event: E, listener: ObserverEngine.EventCallback<Shape[E]>): ObserverEngine.Cleanup;
 
     /**
      * Returns an event generator that will listen for all events matching the regex
      *
      * @example
      *
-     * const obs = new ObserverFactory();
+     * const obs = new ObserverEngine();
      *
      * const onEvent = obs.on(/some/);
      * const { event, data } = await onEvent.next(); // waits for next event
@@ -473,18 +473,18 @@ export class ObserverFactory<
      *
      * @example
      *
-     * const obs = new ObserverFactory();
+     * const obs = new ObserverEngine();
      *
      * obs.on(/some/, ({ event, data }) => {
      *     console.log(event, data);
      * });
      */
-    on (event: RegExp, listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
+    on (event: RegExp, listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
 
     /**
      * Used internally
      */
-    on (event: unknown, listener?: Func, opts?: object): ObserverFactory.Cleanup | EventGenerator<any>
+    on (event: unknown, listener?: Func, opts?: object): ObserverEngine.Cleanup | EventGenerator<any>
 
     /**
      * Listen for an event
@@ -494,8 +494,8 @@ export class ObserverFactory<
     on (
         event: RegExp | Events<Shape> | '*',
         listener?: (
-            ObserverFactory.EventCallback<Shape[Events<Shape>]> |
-            ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>
+            ObserverEngine.EventCallback<Shape[Events<Shape>]> |
+            ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>
         ),
         _opts?: { once: boolean }
     ) {
@@ -573,13 +573,13 @@ export class ObserverFactory<
      * Returns an event promise that resolves when
      * any event is emitted
      */
-    once (event: '*'): EventPromise<ObserverFactory.RgxEmitData<Shape>>;
+    once (event: '*'): EventPromise<ObserverEngine.RgxEmitData<Shape>>;
 
     /**
      * Executes a callback once when any event is
      * emitted
      */
-    once (event: '*', listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
+    once (event: '*', listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
 
     /**
      * Returns an event promise that resolves when
@@ -591,19 +591,19 @@ export class ObserverFactory<
      * Executes a callback once when the specified
      * event is emitted
      */
-    once <E extends Events<Shape>>(event: E, listener: ObserverFactory.EventCallback<Shape[E]>): ObserverFactory.Cleanup;
+    once <E extends Events<Shape>>(event: E, listener: ObserverEngine.EventCallback<Shape[E]>): ObserverEngine.Cleanup;
 
     /**
      * Returns an event promise that resolves when
      * any events matching the regex are emitted
      */
-    once (event: RegExp): EventPromise<ObserverFactory.RgxEmitData<Shape>>;
+    once (event: RegExp): EventPromise<ObserverEngine.RgxEmitData<Shape>>;
 
     /**
      * Executes a callback once when any events
      * matching the regex are emitted
      */
-    once (event: RegExp, listener: ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>): ObserverFactory.Cleanup;
+    once (event: RegExp, listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
 
     /**
      * Executes a callback once when the specified
@@ -613,8 +613,8 @@ export class ObserverFactory<
     once (
         event: RegExp | string,
         listener?: (
-            ObserverFactory.EventCallback<Shape[Events<Shape>]> |
-            ObserverFactory.EventCallback<ObserverFactory.RgxEmitData<Shape>>
+            ObserverEngine.EventCallback<Shape[Events<Shape>]> |
+            ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>
         )
     ) {
 
@@ -637,7 +637,7 @@ export class ObserverFactory<
 
         const self = this;
 
-        let cleanup: ObserverFactory.Cleanup;
+        let cleanup: ObserverEngine.Cleanup;
 
         const runOnce = function (...args: unknown[]) {
 
@@ -649,7 +649,7 @@ export class ObserverFactory<
             event as never,
             runOnce,
             { once: true }
-        ) as ObserverFactory.Cleanup;
+        ) as ObserverEngine.Cleanup;
 
         return cleanup;
     }

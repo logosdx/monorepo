@@ -26,7 +26,7 @@
 
 ### Major Changes
 
-- 57a4d89: LocaleFactory can clone itself. Types have been moved into namespace.
+- 57a4d89: LocaleManager can clone itself. Types have been moved into namespace.
 
 ## 2.0.8-next.1
 
@@ -119,7 +119,7 @@
 
 ### Minor Changes
 
-- 2d7ac0d: **LocaleFactory**
+- 2d7ac0d: **LocaleManager**
 
   - Fixed need to filter out values that cannot be converted into a string.
   - Added ability to search and replace from nested objects or arrays when passed into replace values.

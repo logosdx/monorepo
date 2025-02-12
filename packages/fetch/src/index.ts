@@ -5,5 +5,5 @@ export {
 } from './helpers.ts';
 
 export {
-    FetchFactory
-} from './factory.ts';
+    FetchEngine
+} from './engine.ts';

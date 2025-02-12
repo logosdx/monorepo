@@ -2,9 +2,9 @@
 permalink: '/packages/localize'
 aliases: ["Localize", "@logos-ui/localize"]
 ---
-The `LocaleFactory` class offers a type-safe solution for managing localization in applications. It utilizes locale configurations and language codes to facilitate easy switching between languages, ensuring a seamless user experience. Users can retrieve translated strings using keys and dynamic values, which simplifies the integration of localization into UI elements as well as its integration with backend elements.
+The `LocaleManager` class offers a type-safe solution for managing localization in applications. It utilizes locale configurations and language codes to facilitate easy switching between languages, ensuring a seamless user experience. Users can retrieve translated strings using keys and dynamic values, which simplifies the integration of localization into UI elements as well as its integration with backend elements.
 
-The class also allows for language changes at runtime, providing flexibility to adapt to user preferences. It also allows for updating language dictionaries dynamically. This design maintains clarity and type safety, reducing the likelihood of errors when accessing localized content. Overall, `LocaleFactory` streamlines the implementation of internationalization in TypeScript applications.
+The class also allows for language changes at runtime, providing flexibility to adapt to user preferences. It also allows for updating language dictionaries dynamically. This design maintains clarity and type safety, reducing the likelihood of errors when accessing localized content. Overall, `LocaleManager` streamlines the implementation of internationalization in TypeScript applications.
 
 ```sh
 npm install @logos-ui/localize
@@ -44,7 +44,7 @@ const locales = {
 
 type LangCodes = keyof typeof locales;
 
-const langMngr = new LocaleFactory<LangType, LangCodes>({
+const langMngr = new LocaleManager<LangType, LangCodes>({
     current: 'en',
     fallback: 'en',
     locales: {
@@ -56,7 +56,7 @@ const langMngr = new LocaleFactory<LangType, LangCodes>({
 
 ### `text(...)` or `t(...)`
 
-The `t` method of the `LocaleFactory` class is a shorthand alias for the `text` method. It allows you to retrieve a translated text string based on the specified language and key. The `t` method provides a convenient way to access localized strings without explicitly referencing the `text` method. Both do exactly the same thing.
+The `t` method of the `LocaleManager` class is a shorthand alias for the `text` method. It allows you to retrieve a translated text string based on the specified language and key. The `t` method provides a convenient way to access localized strings without explicitly referencing the `text` method. Both do exactly the same thing.
 
 **Example**
 
@@ -84,26 +84,26 @@ const greeting = langMngr.t('welcome', {
 **Interface**
 
 ```ts
-declare class LocaleFactory /* ... */ {
+declare class LocaleManager /* ... */ {
 
 	text <K extends PathsToValues<Locale>>(
 		key: K,
 		values?: LocaleFormatArgs
 	): string;
 
-	t: LocaleFactory<Locale, Code>['text'];
+	t: LocaleManager<Locale, Code>['text'];
 }
 ```
 
 ### `changeTo(...)`
 
-By calling the `changeTo(code)` method on the `LocaleFactory` instance, you can switch to a different language.
+By calling the `changeTo(code)` method on the `LocaleManager` instance, you can switch to a different language.
 
 **Example**
 
 ```ts
 
-const langMngr = new LocaleFactory({
+const langMngr = new LocaleManager({
     current: 'en',
     fallback: 'en',
     locales: {
@@ -127,7 +127,7 @@ langMngr.changeTo('en-ca');
 **Interface**
 
 ```ts
-declare class LocaleFactory<LocType, LocCode> /* ... */ {
+declare class LocaleManager<LocType, LocCode> /* ... */ {
 
 	changeTo(code: LocCode): void
 }
@@ -151,10 +151,10 @@ langMngr.updateLang(
 **Interface**
 
 ```ts
-declare class LocaleFactory<LocType, LocCode> extends EventTarget {
+declare class LocaleManager<LocType, LocCode> extends EventTarget {
 
     updateLang<C extends Code>(
-	    code: C, 
+	    code: C,
 	    locale: DeepOptional<Locale>
 	): void;
 
@@ -164,7 +164,7 @@ declare class LocaleFactory<LocType, LocCode> extends EventTarget {
 
 ## Events
 
-The `LocaleFactory` class is event-based, allowing you to subscribe to language change events and perform actions accordingly. By using the on method, you can register event listeners to be notified when the language is changed. Here's an example:
+The `LocaleManager` class is event-based, allowing you to subscribe to language change events and perform actions accordingly. By using the on method, you can register event listeners to be notified when the language is changed. Here's an example:
 
 
 ### `on(...)` and `off(...)`
@@ -194,7 +194,7 @@ type LocaleEventName = (
 
 type LocaleListener<LocCode> = (e: LocaleEvent<LocCode>) => void;
 
-declare class LocaleFactory<LocType, LocCode> extends EventTarget {
+declare class LocaleManager<LocType, LocCode> extends EventTarget {
 
     on(
         ev: LocaleEventName,
@@ -248,7 +248,7 @@ type LocaleEventName = (
 type LocaleListener<LocCode> = (e: LocaleEvent<LocCode>) => void;
 
 
-declare class LocaleFactory<
+declare class LocaleManager<
 	Locale extends LocaleType,
 	Code extends string = string
 > extends EventTarget {
@@ -278,7 +278,7 @@ declare class LocaleFactory<
 	}[];
 
     updateLang<C extends Code>(
-	    code: C, 
+	    code: C,
 	    locale: DeepOptional<Locale>
 	): void;
 
@@ -287,7 +287,7 @@ declare class LocaleFactory<
 		values?: LocaleFormatArgs
 	): string;
 
-	t: LocaleFactory<Locale, Code>['text'];
+	t: LocaleManager<Locale, Code>['text'];
 
 	changeTo(code: Code): void;
 }

@@ -56,12 +56,12 @@ import {
  *
  * langMng.off('language-change', onChange);
  */
-export class LocaleFactory<
-    Locale extends LocaleFactory.LocaleType,
+export class LocaleManager<
+    Locale extends LocaleManager.LocaleType,
     Code extends string = string
 > extends EventTarget {
 
-    private _locales: LocaleFactory.ManyLocales<Locale, Code>;
+    private _locales: LocaleManager.ManyLocales<Locale, Code>;
     fallback: Code;
     current: Code;
 
@@ -83,11 +83,11 @@ export class LocaleFactory<
      * t('my.nested.key2', { first: 'Ofcourse', second: 'Obviously' });
      * // > 'Ofcourse, I like steak. Obviously, I like rice.'
      */
-    t: LocaleFactory<Locale, Code>['text'];
+    t: LocaleManager<Locale, Code>['text'];
 
     private _loc!: Locale;
 
-    constructor(opts: LocaleFactory.LocaleOpts<Locale, Code>) {
+    constructor(opts: LocaleManager.LocaleOpts<Locale, Code>) {
 
         super();
 
@@ -107,15 +107,15 @@ export class LocaleFactory<
     }
 
     on(
-        ev: LocaleFactory.LocaleEventName,
-        listener: LocaleFactory.LocaleListener<Code>,
+        ev: LocaleManager.LocaleEventName,
+        listener: LocaleManager.LocaleListener<Code>,
         once = false
     ) {
 
         this.addEventListener(ev, listener as any, { once });
     }
 
-    off(ev: LocaleFactory.LocaleEventName, listener: EventListenerOrEventListenerObject) {
+    off(ev: LocaleManager.LocaleEventName, listener: EventListenerOrEventListenerObject) {
 
         this.removeEventListener(ev, listener);
     }
@@ -165,7 +165,7 @@ export class LocaleFactory<
 
     get locales() {
 
-        type LangConf = LocaleFactory.ManyLocales<Locale, Code>;
+        type LangConf = LocaleManager.ManyLocales<Locale, Code>;
 
         const values = Object.values(this._locales) as LangConf[Code][];
 
@@ -174,7 +174,7 @@ export class LocaleFactory<
         )
     }
 
-    text <K extends PathLeaves<Locale>>(key: K, values?: LocaleFactory.LocaleFormatArgs) {
+    text <K extends PathLeaves<Locale>>(key: K, values?: LocaleManager.LocaleFormatArgs) {
 
         return getMessage(this._loc, key, values);
     }
@@ -203,7 +203,7 @@ export class LocaleFactory<
 
     clone() {
 
-        return new LocaleFactory<Locale, Code>({
+        return new LocaleManager<Locale, Code>({
             current: this.current,
             fallback: this.fallback,
             locales: this._locales

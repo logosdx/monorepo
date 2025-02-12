@@ -3,7 +3,7 @@ permalink: '/packages/storage'
 aliases: ["Storage", "@logos-ui/storage"]
 ---
 
-The `StorageFactory` class provides a convenient way to interact with browser storage APIs, such as `localStorage` or `sessionStorage`. It allows you to store and retrieve data using key-value pairs and provides additional features like prefixing keys, event handling, and type checking.
+The `StorageAdapter` class provides a convenient way to interact with browser storage APIs, such as `localStorage` or `sessionStorage`. It allows you to store and retrieve data using key-value pairs and provides additional features like prefixing keys, event handling, and type checking.
 
 ```bash
 npm install @logos-ui/storage
@@ -14,7 +14,7 @@ pnpm add @logos-ui/storage
 ## Example
 
 ```ts
-import { StorageFactory } from '@logos-ui/storage'
+import { StorageAdapter } from '@logos-ui/storage'
 
 type StorageItems = {
 	favoriteItems?: Item[],
@@ -24,7 +24,7 @@ type StorageItems = {
 	user: UserType
 }
 
-const storage = new StorageFactory<StorageItems>(localStorage, 'my-app');
+const storage = new StorageAdapter<StorageItems>(localStorage, 'my-app');
 
 storage.set('favoriteItems', [{ name: 'apples' }]);
 storage.set('savedForLater', [{ sku: '751248' }]);
@@ -73,10 +73,10 @@ user.assign({ name: 'Peter', age: 56 });
 
 ## Basic Usage
 
-When you instantiate a StorageFactory, you can optionally setup types for the storage instance to help validate what you're putting in. You can also add a prefix, so to not mix other tools' usage of local storage with your app's.
+When you instantiate a StorageAdapter, you can optionally setup types for the storage instance to help validate what you're putting in. You can also add a prefix, so to not mix other tools' usage of local storage with your app's.
 
 ```ts
-import { StorageFactory } from '@logos-ui/storage'
+import { StorageAdapter } from '@logos-ui/storage'
 
 type StorageItems = {
 	favoriteItems?: Item[],
@@ -86,7 +86,7 @@ type StorageItems = {
 	user: UserType
 }
 
-const storage = new StorageFactory<StorageItems>(localStorage, 'my-app');
+const storage = new StorageAdapter<StorageItems>(localStorage, 'my-app');
 ```
 
 This will store keys as `my-app:nameOfKey`.
@@ -115,7 +115,7 @@ const someItems = storage.get(['key1', 'key2']);
 **Interface:**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	get<K extends keyof Values>(): Values;
 	get<K extends keyof Values>(key: K): Values[K];
@@ -151,7 +151,7 @@ storage.set('favoriteItems', [{ ... }]);
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	set(values: Partial<Values> & Record<string, any>): void;
 	set<K extends keyof Values>(
@@ -183,10 +183,10 @@ storage.rm(['jwtToken', 'resetToken']);
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	rm<K extends keyof Values>(keyOrKeys: K | K[]): void;
-	remove: StorageFactory<Values>['rm'];
+	remove: StorageAdapter<Values>['rm'];
 
 }
 ```
@@ -208,7 +208,7 @@ storage.has(['jwtToken', 'resetToken', 'user']);
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	has(keys: (keyof Values)[]): boolean[];
 	has(keys: string[]): boolean[];
@@ -230,10 +230,10 @@ Removes all values scoped to the configured prefix.
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	clear(): void;
-	reset: StorageFactory<Values>['clear'];
+	reset: StorageAdapter<Values>['clear'];
 
 }
 ```
@@ -252,7 +252,7 @@ storage.assign('user', { name: 'Peter', age: 56 });
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	assign<K extends keyof Values>(key: K, val: Partial<Values[K]>): void;
 
@@ -279,7 +279,7 @@ jwt.clear();
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	wrap<K extends keyof Values>(key: K): {
 		set: (val: Values[K]) => void;
@@ -301,7 +301,7 @@ Returns all keys scoped by prefix
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	keys(): (keyof Values)[];
 
@@ -315,7 +315,7 @@ class StorageFactory<Values> extends EventTarget {
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	entries(): [keyof Values, Values[keyof Values]][];
 
@@ -329,7 +329,7 @@ class StorageFactory<Values> extends EventTarget {
 **Interface**
 
 ```ts
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	values(): Values[keyof Values][];
 
@@ -338,7 +338,7 @@ class StorageFactory<Values> extends EventTarget {
 
 ### Events
 
-`StorageFactory` is built on top of `EventTarget` and emits events on certain actions. The list of events is as follows:
+`StorageAdapter` is built on top of `EventTarget` and emits events on certain actions. The list of events is as follows:
 
 - `storage-before-set`: Before saving a value to the storage implementation.
 - `storage-after-set`: After saving a value to the storage implementation.
@@ -379,7 +379,7 @@ declare enum StorageEventNames {
 
 type L10nListener<Values> = (e: StorageEvent<Values>) => void;
 
-class StorageFactory<Values> extends EventTarget {
+class StorageAdapter<Values> extends EventTarget {
 
 	on(
 		ev: keyof typeof StorageEventNames,
@@ -422,7 +422,7 @@ declare enum StorageEventNames {
 
 type L10nListener<Values> = (e: StorageEvent<Values>) => void;
 
-declare class StorageFactory<Values> extends EventTarget {
+declare class StorageAdapter<Values> extends EventTarget {
 
 	constructor(
 		storage: StorageImplementation,
@@ -456,7 +456,7 @@ declare class StorageFactory<Values> extends EventTarget {
 	assign<K extends keyof Values>(key: K, val: Partial<Values[K]>): void;
 
 	rm<K extends keyof Values>(keyOrKeys: K | K[]): void;
-	remove: StorageFactory<Values>['rm'];
+	remove: StorageAdapter<Values>['rm'];
 
 	has(keys: (keyof Values)[]): boolean[];
 	has(keys: string[]): boolean[];
@@ -464,7 +464,7 @@ declare class StorageFactory<Values> extends EventTarget {
 	has(key: string): boolean;
 
 	clear(): void;
-	reset: StorageFactory<Values>['clear'];
+	reset: StorageAdapter<Values>['clear'];
 
 	keys(): (keyof Values)[];
 	entries(): [string, unknown][];
