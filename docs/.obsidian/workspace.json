@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Welcome.md",
+                "file": "Packages/Fetch.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Welcome"
+              "title": "Fetch"
             }
           }
         ]
@@ -40,7 +40,8 @@
             "state": {
               "type": "file-explorer",
               "state": {
-                "sortOrder": "alphabetical"
+                "sortOrder": "alphabetical",
+                "autoReveal": false
               },
               "icon": "lucide-folder-closed",
               "title": "Files"
@@ -176,6 +177,7 @@
   },
   "active": "f493c6808345a362",
   "lastOpenFiles": [
+    "Welcome.md",
     "Packages/Observer.md",
     "images/observable/types-8.png",
     "images/observable/types-7.png",
@@ -194,7 +196,6 @@
     "Packages/DOM.md",
     "2024-11-28.md",
     "Packages/Fetch.md",
-    "Welcome.md",
     "Packages/Utils.md",
     "Packages/Storage.md",
     "Packages/State Machine.md",

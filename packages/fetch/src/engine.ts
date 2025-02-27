@@ -1,10 +1,20 @@
-import { Func, assert, assertOptional, deepClone, isFunction, txt } from '@logos-ui/utils';
+import {
+    Func,
+    assert,
+    assertOptional,
+    deepClone,
+    isFunction,
+    txt,
+    attempt,
+    attemptSync
+} from '@logos-ui/utils';
 
 import {
     _InternalHttpMethods,
     HttpMethodOpts,
     HttpMethods,
-    MethodHeaders
+    MethodHeaders,
+    RetryConfig
 } from './types.ts';
 
 import {
@@ -13,10 +23,9 @@ import {
     FetchEventName,
     FetchEventNames,
     fetchTypes,
-    mapErrCodeToStatus,
-    validateOptions
+    validateOptions,
+    DEFAULT_RETRY_CONFIG
 } from './helpers.ts';
-
 
 /**
  * Creates a wrapper around `window.fetch` that allows
@@ -71,6 +80,8 @@ export class FetchEngine<
      * token of some sort which is used to generate an hmac.
      */
     #state: S = {} as S;
+
+    #retryConfig: Required<RetryConfig>;
 
     /**
      * Removes a header from the `FetchEngine` instance
@@ -226,10 +237,14 @@ export class FetchEngine<
 
         validateOptions(_opts);
 
-        const { baseUrl, defaultType, ...opts } = _opts;
+        const { baseUrl, defaultType, retryConfig, ...opts } = _opts;
 
         this.#baseUrl = new URL(baseUrl);
         this.#type = defaultType || 'json';
+        this.#retryConfig = {
+            ...DEFAULT_RETRY_CONFIG,
+            ...retryConfig
+        };
 
         const {
             modifyOptions,
@@ -259,9 +274,33 @@ export class FetchEngine<
     }
 
     /**
+     * Calculate delay for retry attempt using exponential backoff
+     */
+    #calculateRetryDelay(attempt: number, retryConfig: Required<RetryConfig>, error?: FetchError): number {
+
+        const { baseDelay, maxDelay, useExponentialBackoff } = retryConfig;
+
+        // Get base delay value, handling both function and number cases
+        let baseDelayValue: number;
+        if (typeof baseDelay === 'function' && error) {
+            baseDelayValue = baseDelay(error, attempt);
+        } else if (typeof baseDelay === 'number') {
+            baseDelayValue = baseDelay;
+        } else {
+            baseDelayValue = 1000; // Default fallback
+        }
+
+        if (!useExponentialBackoff) return Math.min(baseDelayValue, maxDelay!);
+
+        const delay = baseDelayValue * Math.pow(2, attempt - 1);
+
+        return Math.min(delay, maxDelay!);
+    }
+
+    /**
      * Makes headers
      */
-    private makeHeaders(override: FetchEngine.Headers<H> = {}, method?: HttpMethods) {
+    #makeHeaders(override: FetchEngine.Headers<H> = {}, method?: HttpMethods) {
 
         const methodHeaders = this.#methodHeaders;
 
@@ -277,7 +316,7 @@ export class FetchEngine<
     /**
      * Makes params
      */
-    private makeParams(override: FetchEngine.Params<P> = {}, method?: HttpMethods) {
+    #makeParams(override: FetchEngine.Params<P> = {}, method?: HttpMethods) {
 
         const methodParams = this.#methodParams;
 
@@ -294,11 +333,11 @@ export class FetchEngine<
      * Makes url based on basePath
      * @param path
      */
-    private makeUrl(path: string, _params?: P, method?: HttpMethods) {
+    #makeUrl(path: string, _params?: P, method?: HttpMethods) {
 
         path = path?.replace(/^\/{1,}/, '');
         const url = this.#baseUrl.toString().replace(/\/$/, '');
-        const params = this.makeParams(_params!, method);
+        const params = this.#makeParams(_params!, method);
 
         const [basePath, ...rest] = path.split('?');
 
@@ -330,10 +369,129 @@ export class FetchEngine<
         return `${url}/${basePath}?${mergedParams.toString()}`;
     }
 
+    #handleError(opts: {
+        error: FetchError | Error,
+        step: 'fetch' | 'parse' | 'response',
+        attempt: number,
+        status?: number,
+        method?: HttpMethods,
+        path?: string,
+        aborted?: boolean,
+        url?: string,
+        headers?: FetchEngine.Headers<H>,
+        data?: unknown,
+        onError?: FetchEngine.Lifecycle['onError']
+    }) {
+
+        const {
+            error,
+            step,
+            attempt,
+            status,
+            method,
+            path,
+            aborted,
+            data,
+            url,
+            headers,
+            onError
+        } = opts;
+
+        let err = error as FetchError<{}, H>;
+
+        if (step === 'fetch') {
+
+            err = new FetchError(err.message);
+
+            err.status = 499;
+            err.message = err.message || 'Fetch error';
+        }
+
+        if (step === 'parse') {
+
+            err = new FetchError(err.message);
+
+            err.status = 999;
+            err.message = err.message || 'Parse error';
+        }
+
+        if (step === 'response') {
+
+            const asAgg = error as AggregateError;
+            let errors = asAgg.errors as Error[];
+            let errCode = '';
+
+            // Handle undici errors
+            if (
+                !errors ||
+                errors.length === 0 &&
+                error.cause instanceof AggregateError
+            ) {
+
+                errors = (error.cause as AggregateError)?.errors as Error[];
+            }
+
+            if ((error as any)?.code) {
+                errCode = (error as any).code;
+            }
+
+            if (errors && errors.length > 0) {
+
+                const msgs = errors.map((e) => e.message).join('; ');
+
+                err = new FetchError(`${errCode}: ${msgs}`);
+            }
+            else {
+
+                err = new FetchError(error.message);
+            }
+        }
+
+        err.attempt = attempt;
+        err.status = err.status || status!;
+        err.method = err.method || method!;
+        err.path = err.path || path!;
+        err.aborted = err.aborted || aborted!;
+        err.data = err.data || data as null;
+        err.step = err.step || step;
+        err.headers = (err.headers || headers) as H;
+
+        const eventData = {
+            error: err,
+            state: this.#state,
+            attempt,
+            step,
+            status,
+            method,
+            path,
+            aborted,
+            data,
+            url,
+            headers: headers as H
+        }
+
+        if (aborted) {
+
+            this.dispatchEvent(
+                new FetchEvent(FetchEventNames['fetch-abort'], eventData)
+            );
+        }
+        else {
+
+            this.dispatchEvent(
+                new FetchEvent(FetchEventNames['fetch-error'], eventData)
+            );
+        }
+
+        onError && onError(err);
+
+        throw err;
+    }
+
     /**
-     * Makes an API call using fetch
+     * Makes an API call using fetch with retry logic
      */
-    private async makeCall <Res>(
+    async #makeCall <Res>(
         _method: HttpMethods,
         path: string,
         options: (
@@ -341,7 +499,7 @@ export class FetchEngine<
             {
                 payload?: unknown,
                 controller: AbortController,
-                cancelTimeout?: NodeJS.Timeout
+                attempt?: number
             }
         )
     ) {
@@ -349,15 +507,14 @@ export class FetchEngine<
         const {
             payload,
             controller,
-            cancelTimeout,
             onAfterReq: onAfterRequest,
             onBeforeReq: onBeforeRequest,
             onError,
             timeout = this.#options.timeout,
             params,
+            attempt: _attempt,
             ...rest
         } = options;
-
 
         const type = this.#type;
         const defaultOptions = this.#options;
@@ -365,7 +522,7 @@ export class FetchEngine<
         const modifyOptions = this.#modifyOptions;
         const modifyMethodOptions = this.#modifyMethodOptions;
         const method = _method.toUpperCase() as _InternalHttpMethods;
-        const url = this.makeUrl(path, params as P, method);
+        const url = this.#makeUrl(path, params as P, method);
 
         let opts: FetchEngine.RequestOpts = {
             method,
@@ -375,22 +532,16 @@ export class FetchEngine<
             ...rest,
         };
 
-        opts.headers = this.makeHeaders(rest.headers, method);
+        opts.headers = this.#makeHeaders(rest.headers, method);
 
         if (/put|post|patch|delete/i.test(method)) {
-
             if (type === 'json') {
-
                 opts.body = JSON.stringify(payload);
             }
             else {
-
                 opts.body = payload as BodyInit;
             }
         }
-
-        let error!: FetchError | Error;
-        let response: Response;
 
         opts = modifyOptions
             ? modifyOptions(opts as never, state)
@@ -399,205 +550,209 @@ export class FetchEngine<
         const methodSpecificModify = modifyMethodOptions?.[method] as typeof modifyOptions;
 
         if (methodSpecificModify) {
-
             opts = methodSpecificModify(opts as never, state);
         }
 
         if (this.#validate?.perRequest?.headers) {
 
             this.#validateHeaders(
-                (
-                    opts.headers ||
-                    {}
-                ) as FetchEngine.Headers<H>,
+                (opts.headers || {}) as FetchEngine.Headers<H>,
                 method
             );
         }
 
-        try {
-
-            this.dispatchEvent(
-                new FetchEvent(
-                    FetchEventNames['fetch-before'],
-                    {
-                        ...opts,
-                        payload,
-                        url,
-                        state: this.#state
-                    }
-                )
-            );
-
-            onBeforeRequest && onBeforeRequest(opts);
-
-            response = await fetch(url, opts as never) as Response;
-
-            clearTimeout(cancelTimeout);
-
-            this.dispatchEvent(
-                new FetchEvent(FetchEventNames['fetch-after'], {
+        this.dispatchEvent(
+            new FetchEvent(
+                FetchEventNames['fetch-before'],
+                {
                     ...opts,
                     payload,
                     url,
                     state: this.#state,
-                    response: response.clone()
-                })
-            );
-
-            onAfterRequest && onAfterRequest(response.clone(), opts);
-
-            let data: unknown;
-            let { status, statusText, ok } = response;
-
-            try {
-
-                const { type, isJson } = this.#determineType(response);
-
-                if (isJson) {
-
-                    data = await response.text();
-
-                    if (data) {
-
-                        data = JSON.parse(data as string);
-                    }
-
-                    if (!data) {
-
-                        data = null;
-                    }
-
+                    attempt: _attempt
                 }
-                else {
+            )
+        );
 
-                    data = await response[type]();
-                }
-            }
-            catch (e) {
+        onBeforeRequest && onBeforeRequest(opts);
 
-                const err = e as Error;
+        const [response, resErr] = await attempt(async () => {
+            return await fetch(url, opts as never) as Response;
+        });
 
-                ok = false;
-                error = new FetchError(err.message);
-                error.stack = err.stack!;
+        // Fetch will only throw if the request is aborted,
+        // denied, timed out, reset, etc.
+        if (resErr) {
+            this.#handleError({
+                error: resErr,
+                step: 'fetch',
+                attempt: _attempt!,
+                method,
+                path,
+                aborted: options.controller.signal.aborted,
+                url,
+                headers: opts.headers as FetchEngine.Headers<H>,
+                onError
+            });
 
-                data = null;
-                status = 999;
-                statusText = err.message;
-            }
-
-            if (ok === true) {
-
-                this.dispatchEvent(
-
-                    new FetchEvent(
-
-                        FetchEventNames['fetch-response'],
-                        {
-                            ...opts,
-                            payload,
-                            url,
-                            state: this.#state,
-                            response,
-                            data
-                        }
-                    )
-                );
-
-                return data as Res;
-            }
-
-            if (error === undefined) {
-                error = new FetchError(statusText);
-            }
-
-            const fetchError = error as FetchError;
-
-            fetchError.data = data as null;
-            fetchError.status = status;
-            fetchError.method = method;
-            fetchError.path = path;
-            fetchError.aborted = options.controller.signal.aborted;
-
-            throw fetchError;
+            return;
         }
-        catch (e) {
 
-            const err = e as FetchError | Error;
+        this.dispatchEvent(
+            new FetchEvent(FetchEventNames['fetch-after'], {
+                ...opts,
+                payload,
+                url,
+                state: this.#state,
+                response: response.clone(),
+                attempt: _attempt
+            })
+        );
 
-            let errors: Error[] = [];
-            let errCode: string = '';
+        onAfterRequest && onAfterRequest(response.clone(), opts);
 
-            // Handle undici errors
-            if (err?.cause instanceof AggregateError) {
+        const [data, parseErr] = await attempt(async () => {
 
-                errors = err.cause.errors;
-            }
+            const { type, isJson } = this.#determineType(response);
 
-            if ((err as any)?.code) {
+            if (isJson) {
+                const text = await response.text();
 
-                errCode = (err as any).code;
-            }
+                if (text) {
+                    return JSON.parse(text) as Res;
+                }
 
-            if (err instanceof FetchError === false) {
-
-                error = new FetchError(err.message);
+                return null;
             }
             else {
 
-                error = err;
+                return await response[type]() as Res;
             }
+        });
 
-            const fetchError = error as FetchError;
+        if (parseErr) {
 
-            let statusCode = fetchError.status || mapErrCodeToStatus(errCode) || 999;
-            const name = err.name;
-            const message = (
-                options.controller.signal.reason ||
-                err.message ||
-                name
-            ) as string;
+            this.#handleError({
+                error: parseErr,
+                step: 'parse',
+                attempt: _attempt!,
+                status: response.status,
+                method,
+                path,
+                aborted: options.controller.signal.aborted,
+                url,
+                headers: opts.headers as FetchEngine.Headers<H>,
+                data,
+                onError
+            });
 
-            if (options.controller.signal.aborted) {
-
-                statusCode = 499;
-                error.message = message
-            }
-
-            fetchError.status = statusCode;
-            fetchError.data = fetchError.data || { message };
-            fetchError.method = method;
-            fetchError.path = path;
-            fetchError.aborted = options.controller.signal.aborted;
+            return;
         }
 
-        if (options.controller.signal.aborted) {
+        if (response.ok === false) {
 
-            this.dispatchEvent(
-                new FetchEvent(FetchEventNames['fetch-abort'], {
-                    ...opts,
-                    payload,
-                    url,
-                    state: this.#state
-                })
-            );
+            this.#handleError({
+                error: new FetchError(response.statusText),
+                step: 'response',
+                attempt: _attempt!,
+                status: response.status,
+                method,
+                path,
+                aborted: options.controller.signal.aborted,
+                url,
+                headers: opts.headers as FetchEngine.Headers<H>,
+                data,
+                onError
+            });
+
+            return;
         }
-        else {
 
-            this.dispatchEvent(
-                new FetchEvent(FetchEventNames['fetch-error'], {
+        this.dispatchEvent(
+            new FetchEvent(
+                FetchEventNames['fetch-response'],
+                {
                     ...opts,
                     payload,
                     url,
                     state: this.#state,
-                    error: error as FetchError
-                })
-            );
+                    response,
+                    data,
+                    attempt: _attempt
+                }
+            )
+        );
+
+        return data as Res
+    }
+
+    async #attemptCall<Res>(
+        _method: HttpMethods,
+        path: string,
+        options: (
+            FetchEngine.CallOptions<H, P> &
+            {
+                payload?: unknown,
+                controller: AbortController,
+                cancelTimeout?: NodeJS.Timeout,
+            }
+        )
+    ) {
+        const mergedRetryConfig = {
+            ...this.#retryConfig,
+            ...options.retryConfig
+        };
+
+        if (mergedRetryConfig.maxAttempts === 0) {
+            return this.#makeCall<Res>(_method, path, options);
         }
 
-        onError && onError(error as FetchError);
+        let _attempt = 1;
 
-        throw error;
+        while (_attempt <= mergedRetryConfig.maxAttempts!) {
+
+            const [result, err] = await attempt(
+                async () => (
+                    this.#makeCall<Res>(
+                        _method,
+                        path,
+                        {
+                            ...options,
+                            attempt: _attempt
+                        }
+                    )
+                )
+            );
+
+            if (err === null) {
+                return result;
+            }
+
+            const fetchError = err as FetchError;
+
+            // Check if we should retry
+            const shouldRetry = await mergedRetryConfig.shouldRetry(fetchError, _attempt);
+
+            if (shouldRetry && _attempt <= mergedRetryConfig.maxAttempts!) {
+                const delay = this.#calculateRetryDelay(_attempt, mergedRetryConfig, fetchError);
+
+                this.dispatchEvent(
+                    new FetchEvent(FetchEventNames['fetch-retry'], {
+                        state: this.#state,
+                        error: fetchError,
+                        attempt: _attempt,
+                        nextAttempt: _attempt + 1,
+                        delay
+                    })
+                );
+
+                await new Promise(resolve => setTimeout(resolve, delay));
+                _attempt++;
+                continue;
+            }
+
+            throw fetchError;
+        }
     }
 
     /**
@@ -692,28 +847,37 @@ export class FetchEngine<
          ) = { payload: null }
     ): FetchEngine.AbortablePromise<Res> {
 
-
         // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
-        const controller = new AbortController();
+        const controller = options.abortController ?? new AbortController();
 
-        let cancelTimeout!: NodeJS.Timeout;
-        const timeout = options.timeout || this.#options.timeout;
+        const timeoutMs = options.timeout || this.#options.timeout;
 
-        if (timeout) {
+        if (timeoutMs) {
 
-            assert(timeout > -1, 'timeout must be positive number');
-
-            cancelTimeout = setTimeout(() => (
-
-                controller.abort(`Timeout after ${timeout}ms`)
-            ), timeout);
+            assert(timeoutMs > -1, 'timeout must be positive number');
         }
 
+        const timeout = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
 
-        const call = this.makeCall <Res>(method, path, {
+        const onAfterReq = (...args: any[]) => {
+
+            clearTimeout(timeout);
+
+            options.onAfterReq?.apply(this, args as never);
+        }
+
+        const onError = (...args: any[]) => {
+
+            clearTimeout(timeout);
+
+            options.onError?.apply(this, args as never);
+        }
+
+        const call = this.#attemptCall <Res>(method, path, {
             ...options,
             controller,
-            cancelTimeout
+            onAfterReq,
+            onError
         }).then((res) => {
 
             call.isFinished = true;
@@ -722,17 +886,13 @@ export class FetchEngine<
 
         }) as FetchEngine.AbortablePromise<Res>;
 
+        Object.defineProperty(call, 'isAborted', {
+            get: () => controller.signal.aborted,
+        });
 
         call.isFinished = false;
-        call.isAborted = false;
+
         call.abort = (reason?: string) => {
-
-            call.isAborted = true;
-
-            if (cancelTimeout) {
-
-                clearTimeout(cancelTimeout);
-            }
 
             controller.abort(reason);
         };

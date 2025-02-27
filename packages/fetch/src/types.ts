@@ -9,6 +9,28 @@ export type RawRequestOptions = Omit<RequestInit, 'headers'>
 export type DictOrT<T> = Record<string, string> & Partial<T>;
 export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
 
+// Add RetryConfig type
+export type RetryConfig = {
+
+    /** Maximum number of retry attempts */
+    maxAttempts?: number | undefined;
+
+    /** Base delay between retries in ms. Can be a number or a function that takes the error and attempt number and returns a delay in ms */
+    baseDelay?: number | ((error: FetchError, attempt: number) => number) | undefined;
+
+    /** Maximum delay between retries in ms */
+    maxDelay?: number | undefined;
+
+    /** Whether to use exponential backoff */
+    useExponentialBackoff?: boolean | undefined ;
+
+    /** Status codes that should trigger a retry */
+    retryableStatusCodes?: number[] | undefined;
+
+    /** Custom function to determine if a request should be retried */
+    shouldRetry?: (error: FetchError, attempt: number) => boolean | Promise<boolean> | undefined;
+};
+
 declare module './engine.ts' {
     export namespace FetchEngine {
 
@@ -89,18 +111,18 @@ declare module './engine.ts' {
             /**
              * Called when the fetch request errors
              */
-            onError?: (err: FetchError) => void | Promise<void> | undefined
+            onError?: (err: FetchError<any, any>) => void | Promise<void> | undefined
 
             /**
              * Called before the fetch request is made
              */
-            onBeforeReq?: (opts: FetchEngine.RequestOpts) => void | Promise<void> | undefined
+            onBeforeReq?: (opts: FetchEngine.RequestOpts<any, any>) => void | Promise<void> | undefined
 
             /**
              * Called after the fetch request is made. The response
              * object is cloned before it is passed to this function.
              */
-            onAfterReq?: (response: Response, opts: FetchEngine.RequestOpts) => void | Promise<void> | undefined
+            onAfterReq?: (response: Response, opts: FetchEngine.RequestOpts<any, any>) => void | Promise<void> | undefined
         };
 
 
@@ -127,6 +149,11 @@ declare module './engine.ts' {
              * The format to be used to format headers before they are sent
              */
             formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn | undefined
+
+            /**
+             * The retry configuration for the fetch request
+             */
+            retryConfig?: RetryConfig | undefined
         };
 
         export type Options<
@@ -210,11 +237,6 @@ declare module './engine.ts' {
                 modifyMethodOptions?: HttpMethodOpts<Options<H, P, S>['modifyOptions']> | undefined,
 
                 /**
-                 * The timeout for all requests in milliseconds
-                 */
-                timeout?: number | undefined,
-
-                /**
                  * Validators for when setting headers and state
                  */
                 validate?: {
@@ -234,16 +256,6 @@ declare module './engine.ts' {
                         params?: boolean | undefined,
                     } | undefined
                 },
-
-                /**
-                 * The type of response expected from the server
-                 */
-                determineType?: DetermineTypeFn | undefined,
-
-                /**
-                 * The format to be used to format headers before they are sent
-                 */
-                formatHeaders?: false | 'lowercase' | 'uppercase' | FormatHeadersFn | undefined
             }
         );
 
@@ -263,6 +275,7 @@ declare module './engine.ts' {
             {
                 headers?: DictOrT<H> | undefined,
                 params?: DictOrT<P> | undefined,
+                abortController?: AbortController | undefined,
             }
         );
     }

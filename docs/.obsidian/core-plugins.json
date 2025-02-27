@@ -27,5 +27,6 @@
   "publish": true,
   "sync": true,
   "bookmarks": true,
-  "properties": false
+  "properties": false,
+  "webviewer": false
 }

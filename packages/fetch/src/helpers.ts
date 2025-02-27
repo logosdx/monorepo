@@ -7,14 +7,18 @@ import {
     forInIsEqual
 } from '@logos-ui/utils';
 import type { FetchEngine } from './engine.ts';
-import { HttpMethods } from './types.ts';
+import { HttpMethods, RetryConfig } from './types.ts';
 
-export interface FetchError<T = {}> extends Error {
+export interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     data: T | null;
     status: number;
     method: HttpMethods;
     path: string;
     aborted?: boolean | undefined;
+    attempt?: number | undefined;
+    step?: 'fetch' | 'parse' | 'response' | undefined;
+    url?: string | undefined;
+    headers?: H | undefined;
 }
 
 export class FetchError<T = {}> extends Error {}
@@ -34,7 +38,14 @@ export class  FetchEvent<
     data?: unknown | undefined
     payload?: unknown | undefined
     response?: Response | undefined
-    error?: FetchError | undefined
+    error?: FetchError<any, InstanceHeaders> | undefined
+    attempt?: number | undefined
+    nextAttempt?: number | undefined
+    delay?: number | undefined
+    step?: 'fetch' | 'parse' | 'response' | undefined
+    status?: number | undefined
+    path?: string | undefined
+    aborted?: boolean | undefined
 
     constructor(
         event: FetchEventName,
@@ -42,12 +53,19 @@ export class  FetchEvent<
             state: State,
             url?: string | undefined,
             method?: HttpMethods | undefined,
-            headers?: FetchEngine.Headers | undefined,
-            params?: FetchEngine.Params | undefined,
-            error?: FetchError | undefined,
+            headers?: InstanceHeaders | undefined,
+            params?: Params | undefined,
+            error?: FetchError<any, InstanceHeaders> | undefined,
             response?: Response | undefined,
             data?: unknown | undefined,
             payload?: unknown | undefined,
+            attempt?: number | undefined,
+            nextAttempt?: number | undefined,
+            delay?: number | undefined,
+            step?: 'fetch' | 'parse' | 'response' | undefined,
+            status?: number | undefined,
+            path?: string | undefined,
+            aborted?: boolean | undefined,
         },
         initDict?: EventInit | undefined
     ) {
@@ -72,6 +90,7 @@ export enum FetchEventNames {
     'fetch-state-set' = 'fetch-state-set',
     'fetch-state-reset' = 'fetch-state-reset',
     'fetch-url-change' = 'fetch-url-change',
+    'fetch-retry' = 'fetch-retry',
 };
 
 export type FetchEventName = keyof typeof FetchEventNames;
@@ -248,8 +267,21 @@ export const validateOptions = <H, P, S>(
     }
 }
 
-export const mapErrCodeToStatus = (code: string) => ({
-    ECONNREFUSED: 503,
-    ECONNRESET: 503,
-    ECONNABORTED: 503,
-})[code]
+
+// Add default retry configuration
+export const DEFAULT_RETRY_CONFIG: Required<RetryConfig> = {
+    maxAttempts: 3,
+    baseDelay: 1000,
+    maxDelay: 10000,
+    useExponentialBackoff: true,
+    retryableStatusCodes: [408, 429, 499, 500, 502, 503, 504],
+    shouldRetry(error) {
+
+        if (error.aborted) return false; // Aborted requests should not be retried
+        if (!error.status) return false; // No status means it failed in a way that was not handled by the engine
+        if (error.status === 499) return true; // We set 499 for requests that were reset, dropped, etc.
+
+        // Retry on configured status codes
+        return this.retryableStatusCodes?.includes(error.status) ?? false;
+    }
+};

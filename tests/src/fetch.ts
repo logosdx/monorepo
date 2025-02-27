@@ -2,7 +2,14 @@
  * @jest-environment jsdom
  * @jest-environment-options {'url': 'http://localhost'}
  */
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import {
+    describe,
+    it,
+    before,
+    beforeEach,
+    after,
+    afterEach
+} from 'node:test'
 import { expect } from 'chai';
 
 import Hapi, { Lifecycle } from '@hapi/hapi';
@@ -16,7 +23,8 @@ import {
     FetchEngine
 } from '@logos-ui/fetch';
 
-import { sandbox } from './_helpers';
+import { sandbox, log } from './_helpers';
+import { attempt } from '@logos-ui/utils';
 
 const mkHapiRoute = (
     path: string,
@@ -31,24 +39,9 @@ describe('@logos-ui/fetch', () => {
     const testUrl = 'http://localhost:3456';
     const server = Hapi.server({ port: 3456 });
 
-    let throwBadContentType = false;
-
-    server.ext('onRequest', (_, h) => {
-
-        if (throwBadContentType) {
-            return h.response(
-                null as any
-            ).header(
-                'content-type',
-                'habibti/allah'
-            ).takeover()
-        }
-
-        return h.continue;
-    });
-
     server.route(
         [
+            mkHapiRoute('/bad-content-type', (_, h) => h.response().header('content-type', 'habibti/allah')),
             mkHapiRoute('/json{n?}', (req) => { callStub(req); return { ok: true }; }),
             mkHapiRoute('/fail', () => { return Boom.badRequest('message', { the: 'data' }); }),
             mkHapiRoute('/wait', () => wait(1000, 'ok')),
@@ -654,7 +647,10 @@ describe('@logos-ui/fetch', () => {
         const didAfter = sandbox.stub();
 
         const api = new FetchEngine({
-            baseUrl: testUrl
+            baseUrl: testUrl,
+            retryConfig: {
+                maxAttempts: 0
+            }
         });
 
         const errRes = {
@@ -701,22 +697,17 @@ describe('@logos-ui/fetch', () => {
     it('status code 999 for unhandled errors', async () => {
 
         const onError = sandbox.stub();
-        throwBadContentType = true;
-
         const api = new FetchEngine({
             baseUrl: testUrl,
             headers: {
                 'content-type': 'application/json'
-            }
+            },
         });
 
-        try { await api.get('/json', { onError }); }
-        catch(e) {}
+        await attempt(() => api.get('/bad-content-type', { onError }));
 
         const [[dropReq]] = onError.args as [[FetchError]];
         expect(dropReq.status).to.equal(999);
-
-        throwBadContentType = false;
     });
 
     it('can abort requests', async () => {
@@ -1334,6 +1325,9 @@ describe('@logos-ui/fetch', () => {
                 perRequest: {
                     headers: true
                 }
+            },
+            retryConfig: {
+                maxAttempts: 0,
             }
         });
 
@@ -1526,6 +1520,267 @@ describe('@logos-ui/fetch', () => {
                 message: `"name" is not allowed to be empty`,
             });
         }
+    });
+
+    it('retries a configured number of requests', async () => {
+
+        const onError = sandbox.stub();
+
+        const api = new FetchEngine({
+            baseUrl: testUrl + 1,
+            retryConfig: {
+                maxAttempts: 2,
+                baseDelay: 10
+            },
+        });
+
+        await attempt(() => api.get('/', { onError }))
+
+        expect(onError.called).to.be.true;
+        expect(onError.callCount).to.eq(2);
+
+        const [[c1], [c2]] = onError.args as [[FetchError], [FetchError], [FetchError]];
+
+        expect(c1.status).to.eq(499);
+        expect(c2.status).to.eq(499);
+
+        expect(c1.attempt).to.eq(1);
+        expect(c2.attempt).to.eq(2);
+    });
+
+    const calculateDelay = (
+        baseDelay: number,
+        attempts: number,
+    ) => {
+
+        return Array.from(
+            { length: attempts },
+            (_, i) => baseDelay * Math.pow(2, i)
+        )
+        .reduce((a, b) => a + b, 0);
+    }
+
+    it('retries requests with exponential backoff', async () => {
+
+        const baseDelay = 10;
+
+        const api = new FetchEngine({
+            baseUrl: testUrl + 1,
+            retryConfig: {
+                maxAttempts: 3,
+                baseDelay,
+                useExponentialBackoff: true,
+            },
+        });
+
+        const start = Date.now();
+
+        await attempt(() => api.get('/'))
+
+        const end = Date.now();
+
+        const calc = calculateDelay(baseDelay, 3);
+
+        expect(end - start).to.be.greaterThan(calc);
+    });
+
+    it('retries requests with exponential backoff and max delay', async () => {
+
+        const baseDelay = 10;
+
+        const api = new FetchEngine({
+            baseUrl: testUrl + 1,
+            retryConfig: {
+                maxAttempts: 5,
+                baseDelay,
+                useExponentialBackoff: true,
+                maxDelay: 30,
+            },
+        });
+
+        const start = Date.now();
+
+        await attempt(() => api.get('/'))
+
+        const end = Date.now();
+
+        const calc = calculateDelay(baseDelay, 5);
+
+        expect(end - start).to.be.lessThan(calc);
+    });
+
+    it('retries without exponential backoff', async () => {
+
+        const baseDelay = 10;
+
+        const api = new FetchEngine({
+            baseUrl: testUrl + 1,
+            retryConfig: {
+                maxAttempts: 3,
+                baseDelay,
+                useExponentialBackoff: false,
+            },
+        });
+
+        const start = Date.now();
+
+        await attempt(() => api.get('/'))
+
+        const end = Date.now();
+
+        const calc = (baseDelay * 3) + 10; // Give some buffer
+
+        expect(end - start).to.be.lessThan(calc);
+    });
+
+    it('retries on specific status codes', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retryConfig: {
+                maxAttempts: 3,
+                baseDelay: 10,
+                useExponentialBackoff: false,
+                retryableStatusCodes: [400],
+            },
+        });
+
+        const onError = sandbox.stub();
+
+        api.on('fetch-error', onError);
+
+        await attempt(() => api.get('/validate?name=&age=17'))
+
+        expect(onError.called).to.be.true;
+        expect(onError.callCount).to.eq(3);
+    })
+
+    it('retries with custom shouldRetry', async () => {
+
+        const onError = sandbox.stub();
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retryConfig: {
+                maxAttempts: 3,
+                baseDelay: 10,
+                useExponentialBackoff: false,
+                shouldRetry: (error) => error.status === 400,
+            },
+        });
+
+        api.on('fetch-error', onError);
+
+        await attempt(() => api.get('/validate?name=&age=17'))
+
+        expect(onError.called).to.be.true;
+        expect(onError.callCount).to.eq(3);
+
+        await attempt(() => api.get('/not-found'))
+
+        expect(onError.callCount).to.eq(4);
+    });
+
+    it('retries with custom baseDelay', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retryConfig: {
+                maxAttempts: 3,
+                useExponentialBackoff: false,
+                retryableStatusCodes: [400],
+                baseDelay: (_, attempt) => {
+                    if (attempt === 1) {
+                        return 100;
+                    }
+                    return 10;
+                },
+            },
+        });
+
+        const onError = sandbox.stub();
+
+        api.on('fetch-retry', onError);
+
+        await attempt(() => api.get('/validate?name=&age=17'))
+
+        expect(onError.called).to.be.true;
+        expect(onError.callCount).to.eq(3);
+
+        const [[c1], [c2], [c3]] = onError.args as [[FetchEvent], [FetchEvent], [FetchEvent]];
+
+        expect(c1.delay).to.eq(100);
+        expect(c2.delay).to.eq(10);
+        expect(c3.delay).to.eq(10);
+    });
+
+    it('can configure a retry per request', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retryConfig: {
+                maxAttempts: 5,
+                baseDelay: 20,
+                useExponentialBackoff: true,
+            },
+        });
+
+        const onError = sandbox.stub();
+
+        const reqConfig: FetchEngine.CallOptions = {
+            retryConfig: {
+                maxAttempts: 2,
+                baseDelay: 10,
+                useExponentialBackoff: false,
+                retryableStatusCodes: [400],
+            },
+            onError,
+        }
+
+        const start = Date.now();
+
+        await attempt(() => api.get('/validate?name=&age=17', reqConfig))
+
+        const end = Date.now();
+
+        const calc = (10 * 2) + 20; // Give some buffer
+
+        expect(end - start).to.be.lessThan(calc);
+
+        expect(onError.called).to.be.true;
+        expect(onError.callCount).to.eq(2);
+
+        await attempt(() => api.get('/validate?name=&age=17', { onError }))
+
+        expect(onError.callCount).to.eq(3);
+    });
+
+    it('can use a custom abort controller', async () => {
+
+        const controller = new AbortController();
+
+        const api1 = new FetchEngine({ baseUrl: testUrl });
+        const api2 = new FetchEngine({ baseUrl: testUrl });
+
+        const req1 = api1.get('/', { abortController: controller });
+        const req2 = api2.get('/', { abortController: controller });
+
+        expect(req1.isAborted).to.be.false;
+        expect(req2.isAborted).to.be.false;
+
+        controller.abort();
+
+        const [,req1Err] = await attempt(() => req1);
+        const [,req2Err] = await attempt(() => req2);
+
+        expect(req1Err).to.exist;
+        expect(req2Err).to.exist;
+
+        expect(req1.isAborted).to.be.true;
+        expect(req2.isAborted).to.be.true;
+
+        expect(req1.isFinished).to.be.false;
+        expect(req2.isFinished).to.be.false;
+
     });
 
 });
