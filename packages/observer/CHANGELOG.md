@@ -1,5 +1,12 @@
 # @logos-ui/observer
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [637f320]
+  - @logos-ui/utils@3.0.0
+
 ## 4.0.1
 
 ### Patch Changes

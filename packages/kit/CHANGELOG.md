@@ -1,5 +1,32 @@
 # @logos-ui/kit
 
+## 4.0.0
+
+### Major Changes
+
+- 637f320: **@logos-ui/dom:**
+
+  - Detect and only run in browser
+
+  **@logos-ui/utils (BREAKING):**
+
+  - Browser detection
+  - Only run browser specific code in browser
+
+  **@logos-ui/kit (BREAKING):**
+
+  - No longer comes with @logos-ui/dom
+
+### Patch Changes
+
+- Updated dependencies [637f320]
+  - @logos-ui/utils@3.0.0
+  - @logos-ui/fetch@4.1.1
+  - @logos-ui/localize@3.0.2
+  - @logos-ui/observer@4.0.2
+  - @logos-ui/state-machine@3.0.2
+  - @logos-ui/storage@3.0.2
+
 ## 3.0.1
 
 ### Patch Changes
