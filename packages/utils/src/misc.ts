@@ -1,5 +1,11 @@
 import { Func, PathLeaves, PathNames, PathValue, Truthy } from './types';
 
+
+export const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
+export const isReactNative =  typeof navigator !== "undefined" && navigator?.product === "ReactNative";
+export const isCloudflare = typeof globalThis !== "undefined" && globalThis?.navigator?.userAgent === "Cloudflare-Workers";
+export const isBrowserLike = isBrowser || isReactNative || isCloudflare;
+
 /**
  * Defines visible, non-configurable properties on an object
  * @param target
@@ -382,34 +388,45 @@ export const forOfIsEqual = <
 /** Next tick but in the browser */
 const nextTickQueue: Func[] = [];
 
-window?.addEventListener('message', function (ev: MessageEvent<string>) {
+(() => {
 
-    const source = ev.source;
-    const evName = ev.data;
-
-    if (
-        (
-            source === window ||
-            source === null
-        ) &&
-        evName === 'process-tick'
-    ) {
-
-        ev.stopPropagation();
-
-        if (nextTickQueue.length > 0) {
-
-            const fn = nextTickQueue.shift();
-            fn?.call && fn();
-        }
+    if (!isBrowserLike) {
+        return;
     }
-}, true);
+
+    window?.addEventListener('message', function (ev: MessageEvent<string>) {
+
+        const source = ev.source;
+        const evName = ev.data;
+
+        if (
+            (
+                source === window ||
+                source === null
+            ) &&
+            evName === 'process-tick'
+        ) {
+
+            ev.stopPropagation();
+
+            if (nextTickQueue.length > 0) {
+
+                const fn = nextTickQueue.shift();
+                fn?.call && fn();
+            }
+        }
+    }, true);
+})
 
 /**
  * Browser implementation of `process.nextTick`
  * @param {function} fn
  */
 export const _nextTick = (fn: Func) => {
+
+    if (!isBrowserLike) {
+        return;
+    }
 
     nextTickQueue.push(fn);
     window?.postMessage('process-tick', '*');
@@ -507,7 +524,6 @@ export const txt = {
         return args.map((arg) => arg.toString()).join('\n');
     }
 }
-
 
 
 type ResultTuple<T> = [T, null] | [null, Error];

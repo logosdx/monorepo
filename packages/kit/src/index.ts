@@ -6,7 +6,6 @@ import { StorageAdapter } from '@logos-ui/storage';
 import { FetchEngine } from '@logos-ui/fetch';
 import { assert, isObject, NotUndefined } from '@logos-ui/utils';
 
-export * from '@logos-ui/dom';
 export * from '@logos-ui/fetch';
 export * from '@logos-ui/localize';
 export * from '@logos-ui/observer';

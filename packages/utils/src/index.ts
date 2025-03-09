@@ -1,5 +1,3 @@
-import './_stub.ts';
-
 export {
     deepClone,
     deepEqual,

@@ -40,7 +40,6 @@
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {
-    "@logos-ui/dom": "workspace:^",
     "@logos-ui/fetch": "workspace:^",
     "@logos-ui/localize": "workspace:^",
     "@logos-ui/observer": "workspace:^",

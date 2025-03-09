@@ -22,7 +22,7 @@ pnpm add @logos-ui/fetch
 Get up and running quickly with FetchEngine:
 
 ```typescript
-// 1. Create a basic instance
+// 1. Create a simple instance
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com'
 });
@@ -163,7 +163,18 @@ const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
 	// RequestInit options
 	cache: 'no-cache',
 	credentials: 'include',
-	mode: 'cors'
+	mode: 'cors',
+
+    retryConfig: {
+        maxAttempts: 3,
+        retryableStatusCodes: [500, 502, 503],
+        baseDelay: 1000,
+        maxDelay: 10000,
+        useExponentialBackoff: true,
+        shouldRetry: (error, attempt) => {
+            return !error.status || error.status === 503;
+        }
+    }
 });
 
 const res = await api.get <SomeType>('/some-endpoint');

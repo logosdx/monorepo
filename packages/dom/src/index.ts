@@ -22,6 +22,13 @@ export type {
     EvListener
 } from './events';
 
+import { isBrowserLike } from '@logos-ui/utils';
+
+if (!isBrowserLike) {
+
+    throw new Error('Dom is not supported in this environment');
+}
+
 const document = window?.document;
 
 const css = {
