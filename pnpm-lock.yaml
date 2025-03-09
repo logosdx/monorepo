@@ -54,9 +54,6 @@ importers:
 
   packages/kit:
     dependencies:
-      '@logos-ui/dom':
-        specifier: workspace:^
-        version: link:../dom
       '@logos-ui/fetch':
         specifier: workspace:^
         version: link:../fetch

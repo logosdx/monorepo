@@ -5,7 +5,7 @@ aliases: ["Fetch", "@logos-ui/fetch"]
 
 If you have ever thought to yourself:
 
-> It's 2023 and we're still using Axios when there's an entire `Fetch` API available to us on everything single browser
+> It's 2025 and we're still using Axios when there's an entire `Fetch` API available to us on everything single browser
 
 Then say hello to `FetchEngine`. It simplifies the process of making HTTP requests using the `Fetch` API while giving you access to all of its features. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL and additional headers for your FetchEngine instance.
 
