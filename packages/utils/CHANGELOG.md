@@ -1,5 +1,22 @@
 # @logos-ui/utils
 
+## 3.0.0
+
+### Major Changes
+
+- 637f320: **@logos-ui/dom:**
+
+  - Detect and only run in browser
+
+  **@logos-ui/utils (BREAKING):**
+
+  - Browser detection
+  - Only run browser specific code in browser
+
+  **@logos-ui/kit (BREAKING):**
+
+  - No longer comes with @logos-ui/dom
+
 ## 2.3.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @logos-ui/fetch
 
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [637f320]
+  - @logos-ui/utils@3.0.0
+
 ## 4.1.0
 
 ### Minor Changes

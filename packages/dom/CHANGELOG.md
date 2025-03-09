@@ -1,5 +1,25 @@
 # @logos-ui/dom
 
+## 3.0.2
+
+### Patch Changes
+
+- 637f320: **@logos-ui/dom:**
+
+  - Detect and only run in browser
+
+  **@logos-ui/utils (BREAKING):**
+
+  - Browser detection
+  - Only run browser specific code in browser
+
+  **@logos-ui/kit (BREAKING):**
+
+  - No longer comes with @logos-ui/dom
+
+- Updated dependencies [637f320]
+  - @logos-ui/utils@3.0.0
+
 ## 3.0.1
 
 ### Patch Changes
