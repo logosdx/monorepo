@@ -19,9 +19,13 @@ Even though below is a somewhat complete example of how this library can be used
 
 ## Motivations
 
-At its core, observer pattern promotes loose coupling and modular design. It establishes a clear separation between event producers (observables) and event consumers (listeners). This decoupling allows different parts of a system to interact without direct dependencies, enhancing flexibility and maintainability. In fact, observer patterns are the building block of Nodejs and the DOM. The developer experience for it, however, is somewhat broken. This library aims to fix that.
+At its core, observer pattern promotes loose coupling and modular design. It establishes a clear separation between event producers (observables) and event consumers (listeners). This decoupling allows different parts of a system to interact without direct dependencies, enhancing flexibility and maintainability. Observer patterns are the building block of Nodejs and the DOM. The developer experience for it, however, is somewhat broken. This library aims to fix that.
 
-Recent improvements to the builtin `EventEmitter` class in Node.js have made it easier to work with events in JavaScript. Unfortunately, `EventEmitter` only works inside of Node.js and there is no equivalent browser API.
+Recent improvements to the builtin `EventEmitter` class in Node.js have made it easier to work with events in JavaScript. Unfortunately, `EventEmitter` only works inside of Node.js and there is no equivalent browser API. The native `EventEmitter` also doesn't provide a way to introspect into your events for debugging.
+
+***More than just a simple event emitter***
+
+Beyond event emission, this library also presents new patterns of usage which can facilitate interesting paradigms for programming, such as [[#Event Promises]] and [[#Event Generators]]. It provides a way to perform [[#Event Cleanup]], [[#Validation]], and [[#Debugging Tools]]. 
 
 ## Installation
 
