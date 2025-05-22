@@ -577,3 +577,17 @@ export const attemptSync = <T extends () => any>(fn: T): ResultTuple<ReturnType<
         return [null, e as Error];
     }
 }
+
+/**
+ * Error monad, but go-style
+ */
+export const goTry = async <T extends () => Promise<any>>(fn: T) => {
+
+    const [result, error] = await attempt(fn);
+
+    if (error) {
+        return [null, error];
+    }
+
+    return [result, null];
+}
