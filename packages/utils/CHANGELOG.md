@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 3.1.0
+
+### Minor Changes
+
+- 0110f9e: Go-style error monad
+
 ## 3.0.0
 
 ### Major Changes
