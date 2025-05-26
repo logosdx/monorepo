@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 3.3.0
+
+### Minor Changes
+
+- 66eff61: Retry
+
 ## 3.2.0
 
 ### Minor Changes
