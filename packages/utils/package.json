@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/utils",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "description": "A small, common set of JS and TS utilities for LogosUI",
   "exports": {
     ".": {
