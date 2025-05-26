@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/storage",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
   "exports": {
     ".": {
