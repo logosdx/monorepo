@@ -1,6 +1,6 @@
 {
   "name": "@logos-ui/state-machine",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "A powerful, stream-based, strongly-typed state management library",
   "exports": {
     ".": {

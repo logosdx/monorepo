@@ -1,5 +1,12 @@
 # @logos-ui/storage
 
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [b85f688]
+  - @logos-ui/utils@3.1.1
+
 ## 3.0.3
 
 ### Patch Changes

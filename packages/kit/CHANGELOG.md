@@ -1,5 +1,17 @@
 # @logos-ui/kit
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [b85f688]
+  - @logos-ui/utils@3.1.1
+  - @logos-ui/fetch@4.1.3
+  - @logos-ui/localize@3.0.4
+  - @logos-ui/observer@4.0.4
+  - @logos-ui/state-machine@3.0.4
+  - @logos-ui/storage@3.0.4
+
 ## 4.0.1
 
 ### Patch Changes

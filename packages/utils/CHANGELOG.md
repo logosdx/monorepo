@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 3.1.1
+
+### Patch Changes
+
+- b85f688: goTry return type fix
+
 ## 3.1.0
 
 ### Minor Changes
