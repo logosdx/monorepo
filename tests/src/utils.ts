@@ -1,5 +1,11 @@
 import { log } from 'console';
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import {
+    describe,
+    it,
+    before,
+    after,
+    mock
+} from 'node:test'
 
 import { expect } from 'chai';
 
@@ -11,9 +17,15 @@ import {
     deepMerge,
     addHandlerFor,
     assertObject,
-    reach
+    reach,
+    attempt,
+    attemptSync,
+    debounce,
+    throttle,
 } from '@logos-ui/utils';
+
 import { stubWarn } from './_helpers';
+import { wait } from '@hapi/hoek';
 
 const stub = {
     obj: {
@@ -813,6 +825,99 @@ describe('@logos-ui/utils', () => {
             expect(reach(sample, 'b')).to.equal('two');
             expect(reach(sample, 'c')).to.deep.equal([1,2,3]);
             expect(reach(sample, 'd.G.h')).to.equal('h');
+        });
+
+        it ('should attempt', async () => {
+
+            const [result, error] = await attempt(async () => {
+
+                throw new Error('poop');
+            });
+
+            expect(result).to.be.null;
+            expect(error).to.be.an.instanceof(Error);
+            expect(error!.message).to.equal('poop');
+
+            const [result2, error2] = await attempt(async () => {
+
+                return 'ok';
+            });
+
+            expect(result2).to.equal('ok');
+            expect(error2).to.be.null;
+        });
+
+        it ('should attemptSync', () => {
+
+            const [result, error] = attemptSync(() => {
+
+                throw new Error('poop');
+            });
+
+            expect(result).to.be.null;
+            expect(error).to.be.an.instanceof(Error);
+            expect(error!.message).to.equal('poop');
+
+            const [result2, error2] = attemptSync(() => {
+
+                return 'ok';
+            });
+
+            expect(result2).to.equal('ok');
+            expect(error2).to.be.null;
+        });
+
+        it ('should debounce', async () => {
+
+            const mocked = mock.fn();
+
+            const fn = debounce(mocked, 100);
+
+            fn();
+            fn();
+            fn();
+
+            expect(mocked.mock.callCount()).to.equal(0);
+
+            await wait(80);
+
+            fn();
+
+            expect(mocked.mock.callCount()).to.equal(0);
+
+            await wait(100);
+
+            expect(mocked.mock.callCount()).to.equal(1);
+        });
+
+        it ('should throttle', async () => {
+
+            const mocked = mock.fn();
+
+            const fn = throttle(mocked, 100);
+
+            fn();
+
+            expect(mocked.mock.callCount()).to.equal(1);
+
+            await wait(80);
+
+            fn();
+
+            expect(mocked.mock.callCount()).to.equal(1);
+
+            await wait(20);
+
+            fn();
+
+            expect(mocked.mock.callCount()).to.equal(2);
+
+            await wait(20);
+
+            fn();
+
+            expect(mocked.mock.callCount()).to.equal(2);
+
         });
     });
 });

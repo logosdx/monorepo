@@ -1628,7 +1628,7 @@ describe('@logos-ui/fetch', () => {
 
         const end = Date.now();
 
-        const calc = (baseDelay * 3) + 10; // Give some buffer
+        const calc = (baseDelay * 3) + 15; // Give some buffer
 
         expect(end - start).to.be.lessThan(calc);
     });

@@ -529,7 +529,8 @@ export const txt = {
 type ResultTuple<T> = [T, null] | [null, Error];
 
 /**
- * Attempts to run an async function and return a tuple of the result and an error
+ * Error monad, go-style.
+ *
  * @param fn async function to run
  *
  * @example
@@ -547,15 +548,14 @@ type ResultTuple<T> = [T, null] | [null, Error];
 export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<ResultTuple<Awaited<ReturnType<T>>>> => {
 
     try {
-        return [await fn(), null];
+        return [await fn(), null]
     } catch (e) {
-        return [null, e as Error];
+        return [null, e as Error]
     }
 }
 
 /**
- * Attempts to run a synchronous function and return a tuple of the result and an error
- * @param fn synchronous function to run
+ * Synchronous error monad, go-style.
  *
  * @example
  *
@@ -572,22 +572,59 @@ export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<Resu
 export const attemptSync = <T extends () => any>(fn: T): ResultTuple<ReturnType<T>> => {
 
     try {
-        return [fn(), null];
+        return [fn(), null]
     } catch (e) {
-        return [null, e as Error];
+        return [null, e as Error]
     }
 }
 
 /**
- * Error monad, but go-style
+ * Delays the last call of a function for `delay`
+ * milliseconds and ignores all subsequent calls
+ * until the delay has passed.
+ *
+ * @param fn function to debounce
+ * @param delay delay in milliseconds
+ * @returns debounced function
  */
-export const goTry = async <T extends () => Promise<any>>(fn: T) => {
+export const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
 
-    const [result, error] = await attempt(fn);
+    let timeout: ReturnType<typeof setTimeout>;
+    let lastCalled: number | undefined;
 
-    if (error) {
-        return [null, error] as const;
+    return (...args: Parameters<T>) => {
+
+        clearTimeout(timeout);
+
+        timeout = setTimeout(() => fn(...args), delay);
     }
+}
 
-    return [result, null] as const;
+/**
+ * Throttle a function, calling it at most once
+ * every `delay` milliseconds.
+ *
+ * @param fn function to throttle
+ * @param delay delay in milliseconds
+ * @returns throttled function
+ */
+export const throttle = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
+
+    let lastCalled: number | undefined;
+
+    return (...args: Parameters<T>) => {
+
+        const now = Date.now();
+
+        if (
+            lastCalled &&
+            (now - lastCalled < delay)
+        ) {
+            return;
+        }
+
+        lastCalled = now;
+
+        fn(...args);
+    }
 }
