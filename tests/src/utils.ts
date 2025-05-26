@@ -7,6 +7,7 @@ import {
     mock
 } from 'node:test'
 
+// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import * as fc from 'fast-check';
@@ -22,6 +23,7 @@ import {
     attemptSync,
     debounce,
     throttle,
+    retry,
 } from '@logos-ui/utils';
 
 import { stubWarn } from './_helpers';
@@ -919,5 +921,43 @@ describe('@logos-ui/utils', () => {
             expect(mocked.mock.callCount()).to.equal(2);
 
         });
+    });
+
+    it ('should retry', async () => {
+
+        const fn = mock.fn(() => 'ok');
+        let succeedAfter = 2;
+
+        fn.mock.mockImplementation(() => {
+
+            if (succeedAfter > 0) {
+                succeedAfter--;
+                throw new Error('poop');
+            }
+
+            return 'ok';
+        });
+
+        const result = await retry(fn, { retries: 3, delay: 100 });
+
+        expect(fn.mock.callCount()).to.equal(3);
+        expect(result).to.equal('ok');
+
+        succeedAfter = 0;
+
+        const result2 = await retry(fn, { retries: 3, delay: 100 });
+
+        expect(fn.mock.callCount()).to.equal(4);
+        expect(result2).to.equal('ok');
+
+        succeedAfter = 4;
+
+        const [result3, error3] = await attempt(
+            () => retry(fn, { retries: 3, delay: 100 })
+        );
+
+        expect(result3).to.be.null;
+        expect(error3).to.be.an.instanceof(Error);
+        expect(error3!.message).to.equal('Max retries reached');
     });
 });
