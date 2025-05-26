@@ -1,7 +1,7 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
+// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
-import sinon from 'sinon';
 
 import * as Kit from '@logos-ui/kit';
 
@@ -33,7 +33,7 @@ describe('@logos-ui/kit', () => {
     type AppLocaleType = typeof locale;
     type LocaleCodes = 'en' | 'es';
 
-    const locales: Kit.ManyLocales<AppLocaleType, LocaleCodes> = {
+    const locales: Kit.LocaleManager.ManyLocales<AppLocaleType, LocaleCodes> = {
         en: { code: 'en', text: 'English', labels: locale },
         es: { code: 'es', text: 'Spanish', labels: { bear: 'oso {type}' } },
     }

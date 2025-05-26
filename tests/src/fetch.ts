@@ -10,6 +10,8 @@ import {
     after,
     afterEach
 } from 'node:test'
+
+// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import Hapi, { Lifecycle } from '@hapi/hapi';
@@ -30,7 +32,12 @@ const mkHapiRoute = (
     path: string,
     handler: Lifecycle.Method,
     options: Hapi.RouteOptions = {}
-) => ({ method: '*', path, handler, options })
+) => ({
+    method: '*' as const,
+    path,
+    handler,
+    options
+});
 const wait = (n: number, r: any = 'ok') => new Promise(res => setTimeout(() => res(r), n));
 
 describe('@logos-ui/fetch', () => {

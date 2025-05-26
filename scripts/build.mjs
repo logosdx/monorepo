@@ -191,6 +191,12 @@ rmTsFiles(PATHS.ESM);
 shell(`pnpm swc src/* -d ${PATHS.CJS} -C module.type=commonjs`);
 shell(`pnpm swc src/* -d ${PATHS.ESM} -C module.type=es6`);
 
+shell(`cp -R ${PATHS.CJS}/src/* ${PATHS.CJS}`);
+shell(`cp -R ${PATHS.ESM}/src/* ${PATHS.ESM}`);
+
+rmRf(`${PATHS.CJS}/src`);
+rmRf(`${PATHS.ESM}/src`);
+
 // Rename all .js files to .cjs and .mjs
 await renameFilesExt(PATHS.CJS, 'js', 'cjs');
 await renameFilesExt(PATHS.ESM, 'js', 'mjs');

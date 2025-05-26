@@ -1,9 +1,9 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
+// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { ObserverEngine } from '@logos-ui/observer';
-import { SinonStub } from 'sinon';
 import { sandbox, log as console } from './_helpers';
 
 interface AppEvents {

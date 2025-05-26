@@ -1,7 +1,9 @@
 import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { SinonSpy } from 'sinon';
 
+// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
+
 import { StorageEvent, StorageAdapter, StorageImplementation } from '@logos-ui/storage';
 import { sandbox } from './_helpers';
 
