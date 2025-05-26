@@ -586,8 +586,8 @@ export const goTry = async <T extends () => Promise<any>>(fn: T) => {
     const [result, error] = await attempt(fn);
 
     if (error) {
-        return [null, error];
+        return [null, error] as const;
     }
 
-    return [result, null];
+    return [result, null] as const;
 }
