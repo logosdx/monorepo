@@ -1,5 +1,11 @@
 # @logos-ui/utils
 
+## 3.2.0
+
+### Minor Changes
+
+- 08cffe5: debounce, throttle
+
 ## 3.1.1
 
 ### Patch Changes
