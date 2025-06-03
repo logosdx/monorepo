@@ -28,37 +28,37 @@ browsername=$2
 while [ -z "$pkgname" ]; do
 
 
-    read -p "$(ylw 'Enter package name: (@logos-ui/??) ')" pkgname;
+    read -p "$(ylw 'Enter package name: (@logosdx/??) ')" pkgname;
     clearPrevLine;
     [ ! -z "$pkgname" ] && {
 
         printf "Package Name: ";
-        grn "@logos-ui/$pkgname\n";
+        grn "@logosdx/$pkgname\n";
     }
 done
 
 if [[ ! "$pkgname" =~ ^[A-Za-z0-9-]+[a-zA-Z]$ ]]; then
 
-    ylw "@logos-ui/$pkgname"
+    ylw "@logosdx/$pkgname"
     red " - impossible package name\n";
     exit 1;
 fi
 
 if [[ -d packages/$pkgname ]]; then
 
-    ylw "@logos-ui/$pkgname"
+    ylw "@logosdx/$pkgname"
     red " - already exists\n";
     exit 1;
 fi
 
 
 while [ -z "$browsername" ]; do
-    read -p "$(ylw 'Enter name of the package as it will be in the browser: (LogosUI[??]) ')" browsername;
+    read -p "$(ylw 'Enter name of the package as it will be in the browser: (LogosDX[??]) ')" browsername;
     clearPrevLine;
     [ ! -z "$browsername" ] && {
 
         printf "Browser Name: ";
-        grn "LogosUI.$browsername\n"
+        grn "LogosDX.$browsername\n"
     };
 done
 
@@ -102,4 +102,4 @@ clearLine
 echo ''
 clearPrevLine
 
-grn "@logos-ui/$pkgname created!\n";
+grn "@logosdx/$pkgname created!\n";

@@ -1,6 +1,6 @@
 ---
 permalink: '/packages/fetch'
-aliases: ["Fetch", "@logos-ui/fetch"]
+aliases: ["Fetch", "@logosdx/fetch"]
 ---
 
 If you have ever thought to yourself:
@@ -12,9 +12,9 @@ Then say hello to `FetchEngine`. It simplifies the process of making HTTP reques
 A great feature of `FetchEngine` is its ability to customize request options based on the current state. Through the `modifyOptions` callback function, you can dynamically modify the request options before each request is sent. This enables tasks like adding authentication headers or applying specific logic based on the instance's state. `FetchEngine` also provides a convenient way to handle response data, allowing developers to access and process the results of their API requests.
 
 ```sh
-npm install @logos-ui/fetch
-yarn add @logos-ui/fetch
-pnpm add @logos-ui/fetch
+npm install @logosdx/fetch
+yarn add @logosdx/fetch
+pnpm add @logosdx/fetch
 ```
 
 ## Quick Start
@@ -55,7 +55,7 @@ request.abort(); // Cancel when needed
 
 ## Example
 
-Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logos-ui.github.io/modules/_logos_ui_fetch.LogosUiFetch.html).
+Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logosdx.github.io/modules/_logos_ui_fetch.LogosUiFetch.html).
 
 ```ts
 

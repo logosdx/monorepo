@@ -50,7 +50,7 @@ fi
 
 step 'Initializing git'
 git init
-git remote add origin git@github.com:logos-ui/logos-ui.github.io.git
+git remote add origin git@github.com:logosdx/logosdx.github.io.git
 git checkout -b master
 
 # step 'Adding files'

@@ -22,7 +22,7 @@ export type {
     EvListener
 } from './events';
 
-import { isBrowserLike } from '@logos-ui/utils';
+import { isBrowserLike } from '@logosdx/utils';
 
 if (!isBrowserLike) {
 

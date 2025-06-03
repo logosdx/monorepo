@@ -3,7 +3,7 @@ import {
     assert,
     definePrivateProps,
     deepClone
-} from '@logos-ui/utils';
+} from '@logosdx/utils';
 
 import {
     Events,

@@ -23,10 +23,11 @@ import {
     FetchError,
     FetchEvent,
     FetchEngine
-} from '@logos-ui/fetch';
+} from '../../packages/fetch/src/index.ts';
+
+import { attempt } from '../../packages/utils/src/index.ts';
 
 import { sandbox, log } from './_helpers';
-import { attempt } from '@logos-ui/utils';
 
 const mkHapiRoute = (
     path: string,
@@ -40,7 +41,7 @@ const mkHapiRoute = (
 });
 const wait = (n: number, r: any = 'ok') => new Promise(res => setTimeout(() => res(r), n));
 
-describe('@logos-ui/fetch', () => {
+describe('@logosdx/fetch', () => {
 
     const callStub = sandbox.stub<[Hapi.Request]>();
     const testUrl = 'http://localhost:3456';

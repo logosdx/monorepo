@@ -4,7 +4,12 @@ import { SinonSpy } from 'sinon';
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { StorageEvent, StorageAdapter, StorageImplementation } from '@logos-ui/storage';
+import {
+    StorageEvent,
+    StorageAdapter,
+    StorageImplementation
+} from '../../packages/storage/src/index.ts';
+
 import { sandbox } from './_helpers';
 
 const clearStores = () => {
@@ -45,7 +50,7 @@ type StorageItems = {
 // .get('cur')).to.not.include(assign);
 // .get('cur')).to.not.include(assign);
 
-describe('@logos-ui/storage', () => {
+describe('@logosdx/storage', () => {
 
     before(clearStores)
     after(clearStores)

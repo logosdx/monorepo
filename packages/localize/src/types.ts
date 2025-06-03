@@ -3,7 +3,7 @@ import {
     PathLeaves,
     GetFieldType,
     DeepOptional
-} from '@logos-ui/utils';
+} from '@logosdx/utils';
 
 import type { LocaleEvent } from './helpers.ts';
 

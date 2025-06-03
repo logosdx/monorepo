@@ -7,7 +7,11 @@ import proc from 'child_process';
 const BUILD_FOLDER = 'dist';
 const CWD = process.cwd();
 const ROOT = path.join(import.meta.dirname, '..');
+const VITE_CONFIG = path.join(ROOT, 'scripts', 'vite.config.ts');
 const RELEASE_FLAG = process.argv.includes('--release');
+const RootPkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+const LibPkg = JSON.parse(fs.readFileSync(path.join(CWD, 'package.json'), 'utf-8'));
+
 
 if (!CWD.includes(ROOT)) {
     console.error('Where are you running this script from?');
@@ -148,7 +152,7 @@ const renameFilesExt = async (dir, from, to) => {
 /**
  * Run a shell command
  */
-const shell = (cmd) => {
+const shell = (cmd, env = {}) => {
 
     const [cmdName, ...args] = cmd.split(' ');
 
@@ -156,8 +160,11 @@ const shell = (cmd) => {
         cwd: CWD,
         stdio: 'inherit',
         shell: true,
-        env: process.env
-    })
+        env: {
+            ...process.env,
+            ...env
+        }
+    });
 }
 
 
@@ -201,6 +208,12 @@ rmRf(`${PATHS.ESM}/src`);
 await renameFilesExt(PATHS.CJS, 'js', 'cjs');
 await renameFilesExt(PATHS.ESM, 'js', 'mjs');
 
+shell(`pnpm vite build --config ${VITE_CONFIG}`, {
+    BUNDLE_NAME: LibPkg.browserNamespace,
+    BUNDLE_PATH: PATHS.BUILD,
+    PACKAGE_PATH: CWD
+});
+
 if (RELEASE_FLAG === false) {
 
     process.exit(0);
@@ -220,8 +233,6 @@ if (RELEASE_FLAG === false) {
  * source files, but when published to npm, the `main`
  * field is omitted and the `exports` field is used instead.
  */
-const RootPkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
-const LibPkg = JSON.parse(fs.readFileSync(path.join(CWD, 'package.json'), 'utf-8'));
 
 const Pkg = {
 
@@ -243,6 +254,7 @@ const Pkg = {
             require: './dist/cjs/index.js',
             import: './dist/esm/index.mjs',
             types: './src/index.ts',
+            browser: './dist/browser/bundle.js',
         }
     }
 }

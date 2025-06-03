@@ -2,7 +2,7 @@
     "$schema": "https://typedoc.org/schema.json",
     "entryPoints": ["packages/*"],
     "out": "./typedoc",
-    "name": "Logos UI",
+    "name": "Logos DX",
     "entryPointStrategy": "packages",
     "includeVersion": false
 }

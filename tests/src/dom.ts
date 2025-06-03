@@ -4,8 +4,8 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 import { expect } from 'chai';
 import Sinon from 'sinon';
 
-import * as Lib from '@logos-ui/dom';
-import { CssPropNames, CssProps } from '@logos-ui/dom';
+import * as Lib from '../../packages/dom/src/index.ts';
+import { CssPropNames, CssProps } from '../../packages/dom/src/index.ts';
 
 import { sandbox } from './_helpers';
 
@@ -17,7 +17,7 @@ const stub: {
     sampleCss?: CssProps
 } = {};
 
-describe('@logos-ui/dom', () => {
+describe('@logosdx/dom', () => {
 
     describe('Viewport', function () {
 

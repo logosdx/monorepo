@@ -5,9 +5,9 @@ import { expect } from 'chai';
 
 import {
     LocaleManager
-} from '@logos-ui/localize';
+} from '../../packages/localize/src/index.ts';
 
-import { DeepOptional } from '@logos-ui/utils';
+import { DeepOptional } from '../../packages/utils/src/index.ts';
 import { sandbox, stubWarn } from './_helpers';
 
 const english = {
@@ -67,7 +67,7 @@ const locales: LocaleManager.LocaleOpts<Lang, Codes>['locales'] = {
     pt: { code: 'pt', text: 'Português', labels: portugues }
 };
 
-describe('@logos-ui/localize', function () {
+describe('@logosdx/localize', function () {
 
     let l10bMngr: LocaleManager<Lang, Codes>;
 

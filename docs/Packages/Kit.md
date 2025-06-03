@@ -1,22 +1,22 @@
 ---
 permalink: '/packages/kit'
-aliases: ["App Kit", "@logos-ui/kit"]
+aliases: ["App Kit", "@logosdx/kit"]
 ---
 
-This library combines all the packages provided by LogosUI into one (1) library. By bringing together all tools into a single library, `appKit` streamlines the instantiation process and enhances the overall development experience. With its strong typing capabilities, developers can enjoy the benefits of TypeScript, ensuring code correctness, improved maintainability, and enhanced productivity. Whether you're building a small application or a large-scale project, `appKit` equips you with a comprehensive set of tools to create robust and efficient solutions.
+This library combines all the packages provided by LogosDX into one (1) library. By bringing together all tools into a single library, `appKit` streamlines the instantiation process and enhances the overall development experience. With its strong typing capabilities, developers can enjoy the benefits of TypeScript, ensuring code correctness, improved maintainability, and enhanced productivity. Whether you're building a small application or a large-scale project, `appKit` equips you with a comprehensive set of tools to create robust and efficient solutions.
 
-> **NOTE!**: `appKit` already includes every library in LogosUI as a dependency, except for riot-related packages. You do not have to `npm install` the other packages.
+> **NOTE!**: `appKit` already includes every library in LogosDX as a dependency, except for riot-related packages. You do not have to `npm install` the other packages.
 
 ```bash
-npm install @logos-ui/kit
-pnpm add @logos-ui/kit
-pnpm add @logos-ui/kit
+npm install @logosdx/kit
+pnpm add @logosdx/kit
+pnpm add @logosdx/kit
 ```
 
 ## Example
 
 ```ts
-import { appKit, AppKitOpts, MakeKitType, assertOptional } from '@logos-ui/kit';
+import { appKit, AppKitOpts, MakeKitType, assertOptional } from '@logosdx/kit';
 
 import { AllEvents } from './types/events';
 import { StorageTypes } from './types/storage';
@@ -50,9 +50,9 @@ type MyAppKit = MakeKitType<{
 		headers: FetchHeaders
 	},
 	apis: {
-		stripe: { 
-			state: {}, 
-			headers: { Authorization: string } 
+		stripe: {
+			state: {},
+			headers: { Authorization: string }
 		},
 		facebook: {
 			state: {},

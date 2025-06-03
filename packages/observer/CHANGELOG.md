@@ -1,39 +1,39 @@
-# @logos-ui/observer
+# @logosdx/observer
 
 ## 4.0.5
 
 ### Patch Changes
 
 - Updated dependencies [08cffe5]
-  - @logos-ui/utils@3.2.0
+  - @logosdx/utils@3.2.0
 
 ## 4.0.4
 
 ### Patch Changes
 
 - Updated dependencies [b85f688]
-  - @logos-ui/utils@3.1.1
+  - @logosdx/utils@3.1.1
 
 ## 4.0.3
 
 ### Patch Changes
 
 - Updated dependencies [0110f9e]
-  - @logos-ui/utils@3.1.0
+  - @logosdx/utils@3.1.0
 
 ## 4.0.2
 
 ### Patch Changes
 
 - Updated dependencies [637f320]
-  - @logos-ui/utils@3.0.0
+  - @logosdx/utils@3.0.0
 
 ## 4.0.1
 
 ### Patch Changes
 
 - Updated dependencies [e333da3]
-  - @logos-ui/utils@2.3.0
+  - @logosdx/utils@2.3.0
 
 ## 4.0.0
 
@@ -56,7 +56,7 @@
   - Improved documentation
   - Improved test coverage
 
-  ## `@logos-ui/observer`
+  ## `@logosdx/observer`
 
   - Added `EventPromise` when calling `once` without a callback
   - Added `EventGenerator` when calling `on` without a callback
@@ -67,7 +67,7 @@
   - Removed `Component` as type and as a first argument when constructing an `ObserverEngine`. Only `observe(component)` is now available.
   - Removed alternative methods for `on`, `once` and etc. The API is now decisively `on`, `once`, `off`, and `emit`.
 
-  ## `@logos-ui/fetch`
+  ## `@logosdx/fetch`
 
   - Added `params` to instance options and request options. You can now pass query parameters to the fetch request.
   - `headers`, `params`, and `modifyOptions` now have an equivalent configuration option for each HTTP method.
@@ -84,12 +84,12 @@
   - Can modify params like headers using the `addParams(params)`, `removeParams(params)`, and `hasParams(params)` methods.
   - Headers and params can be modified per http method by passing the last argument: `addParams(params, method)` and `addHeaders(headers, method)`.
 
-  ## `@logos-ui/dom`
+  ## `@logosdx/dom`
 
-  - For consistency, events now match the same API as `@logos-ui/observer`.
+  - For consistency, events now match the same API as `@logosdx/observer`.
     - `on`, `once`, `off`, `emit`
 
-  ## `@logos-ui/kit`
+  ## `@logosdx/kit`
 
   - Upgrading to breaking package versions
   - Can now configure multiple API clients by passing the `apis` config, where each key is the API name and the value is the API configuration.
@@ -105,7 +105,7 @@
 - Updated dependencies [e4e671a]
 - Updated dependencies [bd7c0e0]
 - Updated dependencies [89d795c]
-  - @logos-ui/utils@2.2.0
+  - @logosdx/utils@2.2.0
 
 ## 4.0.0-next.8
 
@@ -118,7 +118,7 @@
 ### Patch Changes
 
 - Updated dependencies [bd7c0e0]
-  - @logos-ui/utils@2.2.0-next.4
+  - @logosdx/utils@2.2.0-next.4
 
 ## 4.0.0-next.6
 
@@ -126,21 +126,21 @@
 
 - e4e671a: Fix build script
 - Updated dependencies [e4e671a]
-  - @logos-ui/utils@2.2.0-next.3
+  - @logosdx/utils@2.2.0-next.3
 
 ## 4.0.0-next.5
 
 ### Patch Changes
 
 - Updated dependencies [89d795c]
-  - @logos-ui/utils@2.2.0-next.2
+  - @logosdx/utils@2.2.0-next.2
 
 ## 4.0.0-next.4
 
 ### Patch Changes
 
 - Updated dependencies [8859bc6]
-  - @logos-ui/utils@2.2.0-next.1
+  - @logosdx/utils@2.2.0-next.1
 
 ## 4.0.0-next.3
 
@@ -159,7 +159,7 @@
 ### Patch Changes
 
 - Updated dependencies [90b498a]
-  - @logos-ui/utils@2.2.0-next.0
+  - @logosdx/utils@2.2.0-next.0
 
 ## 4.0.0-next.0
 
@@ -171,7 +171,7 @@
   - Improved documentation
   - Improved test coverage
 
-  ## `@logos-ui/observer`
+  ## `@logosdx/observer`
 
   - Added `EventPromise` when calling `once` without a callback
   - Added `EventGenerator` when calling `on` without a callback
@@ -182,7 +182,7 @@
   - Removed `Component` as type and as a first argument when constructing an `ObserverEngine`. Only `observe(component)` is now available.
   - Removed alternative methods for `on`, `once` and etc. The API is now decisively `on`, `once`, `off`, and `emit`.
 
-  ## `@logos-ui/fetch`
+  ## `@logosdx/fetch`
 
   - Added `params` to instance options and request options. You can now pass query parameters to the fetch request.
   - `headers`, `params`, and `modifyOptions` now have an equivalent configuration option for each HTTP method.
@@ -199,12 +199,12 @@
   - Can modify params like headers using the `addParams(params)`, `removeParams(params)`, and `hasParams(params)` methods.
   - Headers and params can be modified per http method by passing the last argument: `addParams(params, method)` and `addHeaders(headers, method)`.
 
-  ## `@logos-ui/dom`
+  ## `@logosdx/dom`
 
-  - For consistency, events now match the same API as `@logos-ui/observer`.
+  - For consistency, events now match the same API as `@logosdx/observer`.
     - `on`, `once`, `off`, `emit`
 
-  ## `@logos-ui/kit`
+  ## `@logosdx/kit`
 
   - Upgrading to breaking package versions
   - Can now configure multiple API clients by passing the `apis` config, where each key is the API name and the value is the API configuration.
@@ -213,7 +213,7 @@
 
 ### Major Changes
 
-- dd1794f: ## @logos-ui/observer
+- dd1794f: ## @logosdx/observer
 
   ### Breaking Changes
 
@@ -233,7 +233,7 @@
 
   - Observer functions are now validated to ensure runtime safety.
 
-  ## @logos-ui/fetch
+  ## @logosdx/fetch
 
   ### New Features
 
@@ -256,7 +256,7 @@
   - Headers typings allow configuration of headers as partials.
   - `FetchError` correctly passes the HTTP body to the error message on `FetchError.data`, if available.
 
-  ## @logos-ui/utils
+  ## @logosdx/utils
 
   ### New Features
 
@@ -265,7 +265,7 @@
 ### Patch Changes
 
 - Updated dependencies [dd1794f]
-  - @logos-ui/utils@2.1.0
+  - @logosdx/utils@2.1.0
 
 ## 2.0.6
 
@@ -273,7 +273,7 @@
 
 - ca76a50: Bump again
 - Updated dependencies [ca76a50]
-  - @logos-ui/utils@2.0.5
+  - @logosdx/utils@2.0.5
 
 ## 2.0.5
 
@@ -281,21 +281,21 @@
 
 - 0566a67: Bump all dependencies for cjs / esm build
 - Updated dependencies [0566a67]
-  - @logos-ui/utils@2.0.4
+  - @logosdx/utils@2.0.4
 
 ## 2.0.4
 
 ### Patch Changes
 
 - Updated dependencies [176ed64]
-  - @logos-ui/utils@2.0.3
+  - @logosdx/utils@2.0.3
 
 ## 2.0.3
 
 ### Patch Changes
 
 - Updated dependencies [c167f6b]
-  - @logos-ui/utils@2.0.2
+  - @logosdx/utils@2.0.2
 
 ## 2.0.2
 
@@ -303,7 +303,7 @@
 
 - c7051bb: Make modules CJS/ESM agnostic
 - Updated dependencies [c7051bb]
-  - @logos-ui/utils@2.0.1
+  - @logosdx/utils@2.0.1
 
 ## 2.0.1
 
@@ -320,7 +320,7 @@
 ### Patch Changes
 
 - Updated dependencies [847eb42]
-  - @logos-ui/utils@2.0.0
+  - @logosdx/utils@2.0.0
 
 ## 1.1.1 - 1.1.4
 
@@ -328,27 +328,27 @@
 
 - 5ef68a9: Once again...
 - Updated dependencies [5ef68a9]
-  - @logos-ui/utils@1.1.4
+  - @logosdx/utils@1.1.4
 - 432396d: Check against global to detect NodeJS because of build time issues when `process` when not reading as `global.process`
 - Updated dependencies [432396d]
-  - @logos-ui/utils@1.1.3
+  - @logosdx/utils@1.1.3
 - ba8b52d: Properly detect NodeJS so as to work with electron when stubbing window.
 - Updated dependencies [ba8b52d]
-  - @logos-ui/utils@1.1.2
+  - @logosdx/utils@1.1.2
 - e6e4d56: Added a window stub so packages can be used in NodeJS. Now, Observer, Localize, StateMachine, Storage, and whatever non-DOM related utility functions are usefule.
 - Updated dependencies [e6e4d56]
-  - @logos-ui/utils@1.1.1
+  - @logosdx/utils@1.1.1
 
 ## 1.1.0
 
 ### Minor Changes
 
-- e5d039d: Documentation for all packages is completed and can be found at [https://logosui.com](https://logosui.com). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logos-ui/discuss](https://github.com/logos-ui/discuss).
+- e5d039d: Documentation for all packages is completed and can be found at [https://logosdx.dev](https://logosdx.dev). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logosdx/discuss](https://github.com/logosdx/discuss).
 
 ### Patch Changes
 
 - Updated dependencies [e5d039d]
-  - @logos-ui/utils@1.1.0
+  - @logosdx/utils@1.1.0
 
 ## 1.0.0
 
@@ -358,9 +358,9 @@
 
   These packages were made to simplify the development of web applications, and reduce the decisions we make when building apps. You don't always need all the things, but you always need some things. When you apps are simple, they should remain so. When they grow in complexity, they should do so with ease.
 
-  [Discussions can be had here](https://github.com/logos-ui/discuss). This will also include a link to the documentation (which is a WIP at the current moment). Domain not included here because it will in the future change. Enjoy using this neat piece of software utility, and do not be afraid to provide feedback; it is welcome!
+  [Discussions can be had here](https://github.com/logosdx/discuss). This will also include a link to the documentation (which is a WIP at the current moment). Domain not included here because it will in the future change. Enjoy using this neat piece of software utility, and do not be afraid to provide feedback; it is welcome!
 
 ### Patch Changes
 
 - Updated dependencies [58c0208]
-  - @logos-ui/utils@1.0.0
+  - @logosdx/utils@1.0.0

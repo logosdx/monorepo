@@ -1,4 +1,4 @@
-import { ObserverEngine } from '@logos-ui/observer';
+import { ObserverEngine } from '../../packages/observer/src/index.ts';
 
 type EventType = {
 

@@ -1,10 +1,10 @@
 ---
 permalink: '/'
 ---
-LogosUI is an collection of utilities brought together for the purpose of simplifying the building of frontend UI's. It is perfect for building websites, small utilities, frontend components, or even full-fledged web-apps. It was designed for the purpose of giving developers a simple-to-use set of tools that they can "just use" in their applications.
+LogosDX is an collection of utilities brought together for the purpose of simplifying the building of frontend UI's. It is perfect for building websites, small utilities, frontend components, or even full-fledged web-apps. It was designed for the purpose of giving developers a simple-to-use set of tools that they can "just use" in their applications.
 
-- [Visit our github](https://github.com/logos-ui/monorepo)
-- [See the typedocs](https://logos-ui.github.io/modules.html)
+- [Visit our github](https://github.com/logosdx/monorepo)
+- [See the typedocs](https://typedoc.logosdx.dev/)
 
 ## Objectives
 
@@ -38,7 +38,7 @@ This set of utilities is for developers who are exhausted by modern frameworks, 
 
 ## List of Utilities
 
-LogosUI provides a powerful collection of standalone utilities that work seamlessly together:
+LogosDX provides a powerful collection of standalone utilities that work seamlessly together:
 
 - **[[Packages/Observer|Observer]]** - A supercharged event system that goes beyond EventEmitter
   - Type-safe events with regex pattern matching
@@ -77,10 +77,10 @@ LogosUI provides a powerful collection of standalone utilities that work seamles
 
 - **[[Packages/Utils|Utils]]** - Essential JavaScript utilities
   - Common operations and helper functions
-  - Used throughout the LogosUI ecosystem
+  - Used throughout the LogosDX ecosystem
   - Fully typed and tested
 
-- **[[Packages/Kit|App Kit]]** - The complete LogosUI experience
+- **[[Packages/Kit|App Kit]]** - The complete LogosDX experience
   - Integrates all utilities in a single configuration
   - Perfect for full applications
   - Type-safe from end to end

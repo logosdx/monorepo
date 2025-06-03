@@ -1,4 +1,4 @@
-# @logos-ui/utils
+# @logosdx/utils
 
 ## 3.2.0
 
@@ -22,18 +22,18 @@
 
 ### Major Changes
 
-- 637f320: **@logos-ui/dom:**
+- 637f320: **@logosdx/dom:**
 
   - Detect and only run in browser
 
-  **@logos-ui/utils (BREAKING):**
+  **@logosdx/utils (BREAKING):**
 
   - Browser detection
   - Only run browser specific code in browser
 
-  **@logos-ui/kit (BREAKING):**
+  **@logosdx/kit (BREAKING):**
 
-  - No longer comes with @logos-ui/dom
+  - No longer comes with @logosdx/dom
 
 ## 2.3.0
 
@@ -129,7 +129,7 @@
 
 ### Minor Changes
 
-- dd1794f: ## @logos-ui/observer
+- dd1794f: ## @logosdx/observer
 
   ### Breaking Changes
 
@@ -149,7 +149,7 @@
 
   - Observer functions are now validated to ensure runtime safety.
 
-  ## @logos-ui/fetch
+  ## @logosdx/fetch
 
   ### New Features
 
@@ -172,7 +172,7 @@
   - Headers typings allow configuration of headers as partials.
   - `FetchError` correctly passes the HTTP body to the error message on `FetchError.data`, if available.
 
-  ## @logos-ui/utils
+  ## @logosdx/utils
 
   ### New Features
 
@@ -242,7 +242,7 @@
 
 ### Minor Changes
 
-- e5d039d: Documentation for all packages is completed and can be found at [https://logosui.com](https://logosui.com). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logos-ui/discuss](https://github.com/logos-ui/discuss).
+- e5d039d: Documentation for all packages is completed and can be found at [https://logosdx.dev](https://logosdx.dev). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logosdx/discuss](https://github.com/logosdx/discuss).
 
 ## 1.0.0
 
@@ -252,4 +252,4 @@
 
   These packages were made to simplify the development of web applications, and reduce the decisions we make when building apps. You don't always need all the things, but you always need some things. When you apps are simple, they should remain so. When they grow in complexity, they should do so with ease.
 
-  [Discussions can be had here](https://github.com/logos-ui/discuss). This will also include a link to the documentation (which is a WIP at the current moment). Domain not included here because it will in the future change. Enjoy using this neat piece of software utility, and do not be afraid to provide feedback; it is welcome!
+  [Discussions can be had here](https://github.com/logosdx/discuss). This will also include a link to the documentation (which is a WIP at the current moment). Domain not included here because it will in the future change. Enjoy using this neat piece of software utility, and do not be afraid to provide feedback; it is welcome!

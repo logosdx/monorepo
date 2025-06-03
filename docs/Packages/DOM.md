@@ -1,6 +1,6 @@
 ---
 permalink: '/packages/dom'
-aliases: ["DOM", "@logos-ui/dom"]
+aliases: ["DOM", "@logosdx/dom"]
 ---
 The DOM should be an extension of your programming abilities, and not the thing that is abstracted or hidden by framework X. The idea behind library is to give you a set of utilities for DOM manipulation that saves you time and iteration:
 - Instead of `document.querySelectorAll(...)` you can simply call `$(...)`.
@@ -8,16 +8,16 @@ The DOM should be an extension of your programming abilities, and not the thing 
 - and so on...
 
 ```bash
-npm install @logos-ui/dom
-yarn add @logos-ui/dom
-pnpm add @logos-ui/dom
+npm install @logosdx/dom
+yarn add @logosdx/dom
+pnpm add @logosdx/dom
 ```
 
 ## Example
 
 ```typescript
 
-import { $, html, appendIn, createElWith } from '@logos-ui/dom';
+import { $, html, appendIn, createElWith } from '@logosdx/dom';
 
 const navs = $('nav');
 
@@ -51,7 +51,7 @@ html.events.on(navs, 'close', (e) => {
 HTML attributes can be powerful tools. You can do things with them that extend beyond the defaults of the browser. For example, turn any div into a copyable code snippet, or have it open a nav bar, or modal.
 
 ```typescript
-import { $, html, onceReady, copyToClipboard } from '@logos-ui/dom';
+import { $, html, onceReady, copyToClipboard } from '@logosdx/dom';
 
 const makeCopyable = () => {
 
@@ -178,7 +178,7 @@ html.attrs.has([input, textarea], ['required', 'name']);
 CSS manipulation is sometimes necessary via programmatic means. For example, if you're making some sort of animation, you might want to manipualte the CSS on a series of items. For any case where you might want to do this, this tool is appropriate.
 
 ```ts
-import { $, html, onceReady } from '@logos-ui/dom';
+import { $, html, onceReady } from '@logosdx/dom';
 
 onceReady(() => {
 
@@ -279,7 +279,7 @@ css.remove([div, span], ['color', 'fontSize']);
 The most useful thing on the DOM is the ability to dispatch and hook into events. This is what truly makes your app feel dynamic and reponsive; things' observability are what give websites the ability to become web apps.
 
 ```ts
-import { $, html, onceReady } from '@logos-ui/dom';
+import { $, html, onceReady } from '@logosdx/dom';
 import { observer } from './app';
 
 html.events.on(document.body, 'keyup', (e) => {
@@ -408,7 +408,7 @@ Add HTML elements inside of a parent element
 **Example:**
 
 ```ts
-import { $, html, appendIn, createElWith } from '@logos-ui/dom';
+import { $, html, appendIn, createElWith } from '@logosdx/dom';
 
 const [nav] = $('nav#main');
 
@@ -453,7 +453,7 @@ Add HTML elements before a particular element
 **Example:**
 
 ```ts
-import { $, html, appendAfter } from '@logos-ui/dom';
+import { $, html, appendAfter } from '@logosdx/dom';
 import { observer } from './app'
 
 // ...
@@ -484,7 +484,7 @@ Add HTML elements before a particular element
 **Example:**
 
 ```ts
-import { $, html, appendBefore } from '@logos-ui/dom';
+import { $, html, appendBefore } from '@logosdx/dom';
 import { observer } from './app'
 
 // ...
@@ -537,7 +537,7 @@ type CreateElReturn<N extends ElName | string> = (
 **Example:**
 
 ```ts
-import { createElWith } from '@logos-ui/dom';
+import { createElWith } from '@logosdx/dom';
 
 const myForm = createElWith('form', {
 	text: 'inner text',
@@ -580,7 +580,7 @@ type ChangeCallback<F> = (form: F) => MaybePromise<void>;
 **Example:**
 
 ```ts
-import { $, html, appendIn, createElWith, cloneAndSubmitForm } from '@logos-ui/dom';
+import { $, html, appendIn, createElWith, cloneAndSubmitForm } from '@logosdx/dom';
 import { observer } from './app'
 
 // ...

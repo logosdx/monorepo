@@ -3,8 +3,8 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { ObserverEngine } from '@logos-ui/observer';
-import { sandbox, log as console } from './_helpers';
+import { ObserverEngine } from '../../packages/observer/src/index.ts';
+import { sandbox } from './_helpers';
 
 interface AppEvents {
     test: string | number
@@ -46,7 +46,7 @@ const setupForHelpers = () => {
 }
 
 
-describe('@logos-ui/observer', function () {
+describe('@logosdx/observer', function () {
 
     describe('new ObserverEngine(...)', function () {
 

@@ -6,7 +6,7 @@ import {
     isNonIterable,
     Func,
     deepEqual
-} from '@logos-ui/utils'
+} from '@logosdx/utils'
 
 const assertFunction = (fn: Func, msg: string) => {
 

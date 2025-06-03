@@ -1,14 +1,15 @@
 {
-  "name": "@logos-ui/kit",
+  "name": "@logosdx/kit",
   "version": "4.0.3",
-  "description": "A collection of strongly-typed LogosUI libraries to kick-start your app",
+  "description": "A collection of strongly-typed LogosDX libraries to kick-start your app",
   "exports": {
     ".": {
+      "types": "./src/index.ts",
       "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.mjs",
-      "types": "./src/index.ts"
+      "import": "./dist/esm/index.mjs"
     }
   },
+  "browserNamespace": "LogosDx.Kit",
   "scripts": {
     "build": "node ../../scripts/build.mjs",
     "lint": "pnpm tsc --noEmit"
@@ -32,19 +33,19 @@
     "node-fetch",
     "ajax"
   ],
-  "homepage": "https://logosui.com/",
+  "homepage": "https://logosdx.dev/",
   "bugs": {
-    "url": "https://github.com/logos-ui/discuss/issues",
+    "url": "https://github.com/logosdx/discuss/issues",
     "email": "danilo@alonso.network"
   },
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {
-    "@logos-ui/fetch": "workspace:^",
-    "@logos-ui/localize": "workspace:^",
-    "@logos-ui/observer": "workspace:^",
-    "@logos-ui/state-machine": "workspace:^",
-    "@logos-ui/storage": "workspace:^",
-    "@logos-ui/utils": "workspace:^"
+    "@logosdx/fetch": "workspace:^",
+    "@logosdx/localize": "workspace:^",
+    "@logosdx/observer": "workspace:^",
+    "@logosdx/state-machine": "workspace:^",
+    "@logosdx/storage": "workspace:^",
+    "@logosdx/utils": "workspace:^"
   }
 }

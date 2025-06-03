@@ -4,8 +4,8 @@ import {
     assertOptional,
     isObject,
     isFunction,
-    forInIsEqual
-} from '@logos-ui/utils';
+    forInEvery
+} from '@logosdx/utils';
 import type { FetchEngine } from './engine.ts';
 import { HttpMethods, RetryConfig } from './types.ts';
 
@@ -151,7 +151,7 @@ export const validateOptions = <H, P, S>(
 
     assertOptional(
         methodHeaders,
-        () => forInIsEqual(methodHeaders!, (val) => isObject(val)),
+        () => forInEvery(methodHeaders!, (val) => isObject(val)),
         'methodHeaders items must be objects'
     );
 
@@ -169,7 +169,7 @@ export const validateOptions = <H, P, S>(
 
     assertOptional(
         methodParams,
-        () => forInIsEqual(methodParams!, (val) => isObject(val)),
+        () => forInEvery(methodParams!, (val) => isObject(val)),
         'methodParams items must be objects'
     );
 
@@ -187,7 +187,7 @@ export const validateOptions = <H, P, S>(
 
     assertOptional(
         modifyMethodOptions,
-        () => forInIsEqual(modifyMethodOptions!, (val) => isFunction(val)),
+        () => forInEvery(modifyMethodOptions!, (val) => isFunction(val)),
         'modifyMethodOptions items must be functions'
     );
 

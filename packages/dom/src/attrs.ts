@@ -1,11 +1,7 @@
 import {
-    OneOrManyElements,
-    BoolProps,
     StringProps,
-    itemsToArray,
-    oneOrMany,
     OneOrMany
-} from '@logos-ui/utils';
+} from '@logosdx/utils';
 
 type HasAttrObj<T extends string> = Record<T, boolean>;
 type GetAttrObj<T extends string> = Record<T, string>;

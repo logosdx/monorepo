@@ -1,5 +1,5 @@
 ---
-"@logos-ui/utils": minor
+"@logosdx/utils": minor
 ---
 
 Retry

@@ -1,6 +1,6 @@
-# Logos UI
+# Logos DX
 
-[Official website](https://logosui.com/)
+[Official website](https://logosdx.dev/)
 
 A set of utilities brought together for the purpose of simplifying the building of User Interfaces. Built with a strong preference on web standards, simplicity and performance. We believe that the best way to achieve that is by using simpler tools that are more focused on the task at hand.
 

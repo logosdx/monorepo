@@ -1,4 +1,4 @@
-import { Func, NullableObject, definePrivateProps, definePublicProps } from "@logos-ui/utils";
+import { Func, NullableObject, definePrivateProps, definePublicProps } from "@logosdx/utils";
 
 
 class StorageError extends Error {};

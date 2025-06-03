@@ -1,15 +1,15 @@
 ---
 permalink: '/packages/localize'
-aliases: ["Localize", "@logos-ui/localize"]
+aliases: ["Localize", "@logosdx/localize"]
 ---
 The `LocaleManager` class offers a type-safe solution for managing localization in applications. It utilizes locale configurations and language codes to facilitate easy switching between languages, ensuring a seamless user experience. Users can retrieve translated strings using keys and dynamic values, which simplifies the integration of localization into UI elements as well as its integration with backend elements.
 
 The class also allows for language changes at runtime, providing flexibility to adapt to user preferences. It also allows for updating language dictionaries dynamically. This design maintains clarity and type safety, reducing the likelihood of errors when accessing localized content. Overall, `LocaleManager` streamlines the implementation of internationalization in TypeScript applications.
 
 ```sh
-npm install @logos-ui/localize
-yarn add @logos-ui/localize
-pnpm add @logos-ui/localize
+npm install @logosdx/localize
+yarn add @logosdx/localize
+pnpm add @logosdx/localize
 ```
 
 ## Example

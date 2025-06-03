@@ -2,6 +2,9 @@
 /** Generic Function */
 export type Func<A extends unknown[] = unknown[], R = unknown> = (...args: A) => R;
 
+/** Generic Async Function */
+export type AsyncFunc<A extends unknown[] = unknown[], R = unknown> = (...args: A) => Promise<R>;
+
 /** Generic Class */
 export type Klass = { new: Func }
 

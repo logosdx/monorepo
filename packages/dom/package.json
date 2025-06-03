@@ -1,14 +1,15 @@
 {
-  "name": "@logos-ui/dom",
+  "name": "@logosdx/dom",
   "version": "3.0.5",
   "description": "A small set of utilities for DOM manipulation",
   "exports": {
     ".": {
+      "types": "./src/index.ts",
       "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.mjs",
-      "types": "./src/index.ts"
+      "import": "./dist/esm/index.mjs"
     }
   },
+  "browserNamespace": "LogosDx.Dom",
   "scripts": {
     "build": "node ../../scripts/build.mjs",
     "lint": "pnpm tsc --noEmit"
@@ -20,14 +21,14 @@
     "html attributes",
     "dom utilities"
   ],
-  "homepage": "https://logosui.com/",
+  "homepage": "https://logosdx.dev/",
   "bugs": {
-    "url": "https://github.com/logos-ui/discuss/issues",
+    "url": "https://github.com/logosdx/discuss/issues",
     "email": "danilo@alonso.network"
   },
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {
-    "@logos-ui/utils": "workspace:^"
+    "@logosdx/utils": "workspace:^"
   }
 }

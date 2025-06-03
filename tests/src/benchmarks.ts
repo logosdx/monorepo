@@ -3,9 +3,11 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
+
 import Sinon from 'sinon';
 import { Bench } from '@hapi/hoek';
-import { ObserverEngine } from '@logos-ui/observer';
+
+import { ObserverEngine } from '../../packages/observer/src/index.ts';
 
 const skip = process.env.CI;
 

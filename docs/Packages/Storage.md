@@ -1,20 +1,20 @@
 ---
 permalink: '/packages/storage'
-aliases: ["Storage", "@logos-ui/storage"]
+aliases: ["Storage", "@logosdx/storage"]
 ---
 
 The `StorageAdapter` class provides a convenient way to interact with browser storage APIs, such as `localStorage` or `sessionStorage`. It allows you to store and retrieve data using key-value pairs and provides additional features like prefixing keys, event handling, and type checking.
 
 ```bash
-npm install @logos-ui/storage
-yarn add @logos-ui/storage
-pnpm add @logos-ui/storage
+npm install @logosdx/storage
+yarn add @logosdx/storage
+pnpm add @logosdx/storage
 ```
 
 ## Example
 
 ```ts
-import { StorageAdapter } from '@logos-ui/storage'
+import { StorageAdapter } from '@logosdx/storage'
 
 type StorageItems = {
 	favoriteItems?: Item[],
@@ -76,7 +76,7 @@ user.assign({ name: 'Peter', age: 56 });
 When you instantiate a StorageAdapter, you can optionally setup types for the storage instance to help validate what you're putting in. You can also add a prefix, so to not mix other tools' usage of local storage with your app's.
 
 ```ts
-import { StorageAdapter } from '@logos-ui/storage'
+import { StorageAdapter } from '@logosdx/storage'
 
 type StorageItems = {
 	favoriteItems?: Item[],

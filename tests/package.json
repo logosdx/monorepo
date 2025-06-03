@@ -1,5 +1,5 @@
 {
-    "name": "@logos-ui/tests",
+    "name": "@logosdx/tests",
     "version": "0.0.1",
     "private": true,
     "scripts": {
@@ -12,9 +12,9 @@
         "test:ci": "pnpm run __ci src/index.ts"
     },
     "keywords": [],
-    "homepage": "https://logosui.com/",
+    "homepage": "https://logosdx.dev/",
     "bugs": {
-        "url": "https://github.com/logos-ui/discuss/issues",
+        "url": "https://github.com/logosdx/discuss/issues",
         "email": "danilo@alonso.network"
     },
     "author": "Danilo Alonso <danilo@alonso.network>",
@@ -23,14 +23,6 @@
         "@hapi/boom": "^10.0.1",
         "@hapi/hapi": "^21.4.0",
         "@hapi/hoek": "^11.0.7",
-        "@logos-ui/dom": "workspace:^",
-        "@logos-ui/fetch": "workspace:^",
-        "@logos-ui/kit": "workspace:^",
-        "@logos-ui/localize": "workspace:^",
-        "@logos-ui/observer": "workspace:^",
-        "@logos-ui/state-machine": "workspace:^",
-        "@logos-ui/storage": "workspace:^",
-        "@logos-ui/utils": "workspace:^",
         "@types/chai": "^5.2.2",
         "@types/sinon": "^17",
         "chai": "^5.2.0",

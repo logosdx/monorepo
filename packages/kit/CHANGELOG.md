@@ -1,80 +1,80 @@
-# @logos-ui/kit
+# @logosdx/kit
 
 ## 4.0.3
 
 ### Patch Changes
 
 - Updated dependencies [08cffe5]
-  - @logos-ui/utils@3.2.0
-  - @logos-ui/fetch@4.1.4
-  - @logos-ui/localize@3.0.5
-  - @logos-ui/observer@4.0.5
-  - @logos-ui/state-machine@3.0.5
-  - @logos-ui/storage@3.0.5
+  - @logosdx/utils@3.2.0
+  - @logosdx/fetch@4.1.4
+  - @logosdx/localize@3.0.5
+  - @logosdx/observer@4.0.5
+  - @logosdx/state-machine@3.0.5
+  - @logosdx/storage@3.0.5
 
 ## 4.0.2
 
 ### Patch Changes
 
 - Updated dependencies [b85f688]
-  - @logos-ui/utils@3.1.1
-  - @logos-ui/fetch@4.1.3
-  - @logos-ui/localize@3.0.4
-  - @logos-ui/observer@4.0.4
-  - @logos-ui/state-machine@3.0.4
-  - @logos-ui/storage@3.0.4
+  - @logosdx/utils@3.1.1
+  - @logosdx/fetch@4.1.3
+  - @logosdx/localize@3.0.4
+  - @logosdx/observer@4.0.4
+  - @logosdx/state-machine@3.0.4
+  - @logosdx/storage@3.0.4
 
 ## 4.0.1
 
 ### Patch Changes
 
 - Updated dependencies [0110f9e]
-  - @logos-ui/utils@3.1.0
-  - @logos-ui/fetch@4.1.2
-  - @logos-ui/localize@3.0.3
-  - @logos-ui/observer@4.0.3
-  - @logos-ui/state-machine@3.0.3
-  - @logos-ui/storage@3.0.3
+  - @logosdx/utils@3.1.0
+  - @logosdx/fetch@4.1.2
+  - @logosdx/localize@3.0.3
+  - @logosdx/observer@4.0.3
+  - @logosdx/state-machine@3.0.3
+  - @logosdx/storage@3.0.3
 
 ## 4.0.0
 
 ### Major Changes
 
-- 637f320: **@logos-ui/dom:**
+- 637f320: **@logosdx/dom:**
 
   - Detect and only run in browser
 
-  **@logos-ui/utils (BREAKING):**
+  **@logosdx/utils (BREAKING):**
 
   - Browser detection
   - Only run browser specific code in browser
 
-  **@logos-ui/kit (BREAKING):**
+  **@logosdx/kit (BREAKING):**
 
-  - No longer comes with @logos-ui/dom
+  - No longer comes with @logosdx/dom
 
 ### Patch Changes
 
 - Updated dependencies [637f320]
-  - @logos-ui/utils@3.0.0
-  - @logos-ui/fetch@4.1.1
-  - @logos-ui/localize@3.0.2
-  - @logos-ui/observer@4.0.2
-  - @logos-ui/state-machine@3.0.2
-  - @logos-ui/storage@3.0.2
+  - @logosdx/utils@3.0.0
+  - @logosdx/fetch@4.1.1
+  - @logosdx/localize@3.0.2
+  - @logosdx/observer@4.0.2
+  - @logosdx/state-machine@3.0.2
+  - @logosdx/storage@3.0.2
 
 ## 3.0.1
 
 ### Patch Changes
 
 - Updated dependencies [e333da3]
-  - @logos-ui/fetch@4.1.0
-  - @logos-ui/utils@2.3.0
-  - @logos-ui/dom@3.0.1
-  - @logos-ui/localize@3.0.1
-  - @logos-ui/observer@4.0.1
-  - @logos-ui/state-machine@3.0.1
-  - @logos-ui/storage@3.0.1
+  - @logosdx/fetch@4.1.0
+  - @logosdx/utils@2.3.0
+  - @logosdx/dom@3.0.1
+  - @logosdx/localize@3.0.1
+  - @logosdx/observer@4.0.1
+  - @logosdx/state-machine@3.0.1
+  - @logosdx/storage@3.0.1
 
 ## 3.0.0
 
@@ -97,7 +97,7 @@
   - Improved documentation
   - Improved test coverage
 
-  ## `@logos-ui/observer`
+  ## `@logosdx/observer`
 
   - Added `EventPromise` when calling `once` without a callback
   - Added `EventGenerator` when calling `on` without a callback
@@ -108,7 +108,7 @@
   - Removed `Component` as type and as a first argument when constructing an `ObserverEngine`. Only `observe(component)` is now available.
   - Removed alternative methods for `on`, `once` and etc. The API is now decisively `on`, `once`, `off`, and `emit`.
 
-  ## `@logos-ui/fetch`
+  ## `@logosdx/fetch`
 
   - Added `params` to instance options and request options. You can now pass query parameters to the fetch request.
   - `headers`, `params`, and `modifyOptions` now have an equivalent configuration option for each HTTP method.
@@ -125,12 +125,12 @@
   - Can modify params like headers using the `addParams(params)`, `removeParams(params)`, and `hasParams(params)` methods.
   - Headers and params can be modified per http method by passing the last argument: `addParams(params, method)` and `addHeaders(headers, method)`.
 
-  ## `@logos-ui/dom`
+  ## `@logosdx/dom`
 
-  - For consistency, events now match the same API as `@logos-ui/observer`.
+  - For consistency, events now match the same API as `@logosdx/observer`.
     - `on`, `once`, `off`, `emit`
 
-  ## `@logos-ui/kit`
+  ## `@logosdx/kit`
 
   - Upgrading to breaking package versions
   - Can now configure multiple API clients by passing the `apis` config, where each key is the API name and the value is the API configuration.
@@ -149,36 +149,36 @@
 - Updated dependencies [d670c56]
 - Updated dependencies [bd7c0e0]
 - Updated dependencies [89d795c]
-  - @logos-ui/state-machine@3.0.0
-  - @logos-ui/localize@3.0.0
-  - @logos-ui/observer@4.0.0
-  - @logos-ui/storage@3.0.0
-  - @logos-ui/fetch@4.0.0
-  - @logos-ui/dom@3.0.0
-  - @logos-ui/utils@2.2.0
+  - @logosdx/state-machine@3.0.0
+  - @logosdx/localize@3.0.0
+  - @logosdx/observer@4.0.0
+  - @logosdx/storage@3.0.0
+  - @logosdx/fetch@4.0.0
+  - @logosdx/dom@3.0.0
+  - @logosdx/utils@2.2.0
 
 ## 3.0.0-next.9
 
 ### Patch Changes
 
 - Updated dependencies [a05786d]
-  - @logos-ui/state-machine@3.0.0-next.6
-  - @logos-ui/observer@4.0.0-next.8
-  - @logos-ui/storage@2.0.8-next.5
-  - @logos-ui/fetch@4.0.0-next.6
+  - @logosdx/state-machine@3.0.0-next.6
+  - @logosdx/observer@4.0.0-next.8
+  - @logosdx/storage@2.0.8-next.5
+  - @logosdx/fetch@4.0.0-next.6
 
 ## 3.0.0-next.8
 
 ### Patch Changes
 
 - Updated dependencies [bd7c0e0]
-  - @logos-ui/utils@2.2.0-next.4
-  - @logos-ui/dom@3.0.0-next.5
-  - @logos-ui/fetch@4.0.0-next.5
-  - @logos-ui/localize@3.0.0-next.5
-  - @logos-ui/observer@4.0.0-next.7
-  - @logos-ui/state-machine@3.0.0-next.5
-  - @logos-ui/storage@2.0.8-next.4
+  - @logosdx/utils@2.2.0-next.4
+  - @logosdx/dom@3.0.0-next.5
+  - @logosdx/fetch@4.0.0-next.5
+  - @logosdx/localize@3.0.0-next.5
+  - @logosdx/observer@4.0.0-next.7
+  - @logosdx/state-machine@3.0.0-next.5
+  - @logosdx/storage@2.0.8-next.4
 
 ## 3.0.0-next.7
 
@@ -186,73 +186,73 @@
 
 - e4e671a: Fix build script
 - Updated dependencies [e4e671a]
-  - @logos-ui/dom@3.0.0-next.4
-  - @logos-ui/fetch@4.0.0-next.4
-  - @logos-ui/localize@3.0.0-next.4
-  - @logos-ui/observer@4.0.0-next.6
-  - @logos-ui/state-machine@3.0.0-next.4
-  - @logos-ui/storage@2.0.8-next.3
-  - @logos-ui/utils@2.2.0-next.3
+  - @logosdx/dom@3.0.0-next.4
+  - @logosdx/fetch@4.0.0-next.4
+  - @logosdx/localize@3.0.0-next.4
+  - @logosdx/observer@4.0.0-next.6
+  - @logosdx/state-machine@3.0.0-next.4
+  - @logosdx/storage@2.0.8-next.3
+  - @logosdx/utils@2.2.0-next.3
 
 ## 3.0.0-next.6
 
 ### Patch Changes
 
 - Updated dependencies [89d795c]
-  - @logos-ui/utils@2.2.0-next.2
-  - @logos-ui/dom@3.0.0-next.3
-  - @logos-ui/fetch@4.0.0-next.3
-  - @logos-ui/localize@3.0.0-next.3
-  - @logos-ui/observer@4.0.0-next.5
-  - @logos-ui/state-machine@3.0.0-next.3
-  - @logos-ui/storage@2.0.8-next.2
+  - @logosdx/utils@2.2.0-next.2
+  - @logosdx/dom@3.0.0-next.3
+  - @logosdx/fetch@4.0.0-next.3
+  - @logosdx/localize@3.0.0-next.3
+  - @logosdx/observer@4.0.0-next.5
+  - @logosdx/state-machine@3.0.0-next.3
+  - @logosdx/storage@2.0.8-next.2
 
 ## 3.0.0-next.5
 
 ### Patch Changes
 
 - Updated dependencies [57a4d89]
-  - @logos-ui/localize@3.0.0-next.2
+  - @logosdx/localize@3.0.0-next.2
 
 ## 3.0.0-next.4
 
 ### Patch Changes
 
 - Updated dependencies [8859bc6]
-  - @logos-ui/utils@2.2.0-next.1
-  - @logos-ui/dom@3.0.0-next.2
-  - @logos-ui/fetch@4.0.0-next.2
-  - @logos-ui/localize@2.0.8-next.1
-  - @logos-ui/observer@4.0.0-next.4
-  - @logos-ui/state-machine@3.0.0-next.2
-  - @logos-ui/storage@2.0.8-next.1
+  - @logosdx/utils@2.2.0-next.1
+  - @logosdx/dom@3.0.0-next.2
+  - @logosdx/fetch@4.0.0-next.2
+  - @logosdx/localize@2.0.8-next.1
+  - @logosdx/observer@4.0.0-next.4
+  - @logosdx/state-machine@3.0.0-next.2
+  - @logosdx/storage@2.0.8-next.1
 
 ## 3.0.0-next.3
 
 ### Patch Changes
 
 - Updated dependencies [d670c56]
-  - @logos-ui/observer@4.0.0-next.3
+  - @logosdx/observer@4.0.0-next.3
 
 ## 3.0.0-next.2
 
 ### Patch Changes
 
 - Updated dependencies [82b7d41]
-  - @logos-ui/observer@4.0.0-next.2
+  - @logosdx/observer@4.0.0-next.2
 
 ## 3.0.0-next.1
 
 ### Patch Changes
 
 - Updated dependencies [90b498a]
-  - @logos-ui/utils@2.2.0-next.0
-  - @logos-ui/dom@3.0.0-next.1
-  - @logos-ui/fetch@4.0.0-next.1
-  - @logos-ui/localize@2.0.8-next.0
-  - @logos-ui/observer@4.0.0-next.1
-  - @logos-ui/state-machine@3.0.0-next.1
-  - @logos-ui/storage@2.0.8-next.0
+  - @logosdx/utils@2.2.0-next.0
+  - @logosdx/dom@3.0.0-next.1
+  - @logosdx/fetch@4.0.0-next.1
+  - @logosdx/localize@2.0.8-next.0
+  - @logosdx/observer@4.0.0-next.1
+  - @logosdx/state-machine@3.0.0-next.1
+  - @logosdx/storage@2.0.8-next.0
 
 ## 3.0.0-next.0
 
@@ -264,7 +264,7 @@
   - Improved documentation
   - Improved test coverage
 
-  ## `@logos-ui/observer`
+  ## `@logosdx/observer`
 
   - Added `EventPromise` when calling `once` without a callback
   - Added `EventGenerator` when calling `on` without a callback
@@ -275,7 +275,7 @@
   - Removed `Component` as type and as a first argument when constructing an `ObserverEngine`. Only `observe(component)` is now available.
   - Removed alternative methods for `on`, `once` and etc. The API is now decisively `on`, `once`, `off`, and `emit`.
 
-  ## `@logos-ui/fetch`
+  ## `@logosdx/fetch`
 
   - Added `params` to instance options and request options. You can now pass query parameters to the fetch request.
   - `headers`, `params`, and `modifyOptions` now have an equivalent configuration option for each HTTP method.
@@ -292,12 +292,12 @@
   - Can modify params like headers using the `addParams(params)`, `removeParams(params)`, and `hasParams(params)` methods.
   - Headers and params can be modified per http method by passing the last argument: `addParams(params, method)` and `addHeaders(headers, method)`.
 
-  ## `@logos-ui/dom`
+  ## `@logosdx/dom`
 
-  - For consistency, events now match the same API as `@logos-ui/observer`.
+  - For consistency, events now match the same API as `@logosdx/observer`.
     - `on`, `once`, `off`, `emit`
 
-  ## `@logos-ui/kit`
+  ## `@logosdx/kit`
 
   - Upgrading to breaking package versions
   - Can now configure multiple API clients by passing the `apis` config, where each key is the API name and the value is the API configuration.
@@ -305,37 +305,37 @@
 ### Patch Changes
 
 - Updated dependencies [9bae275]
-  - @logos-ui/state-machine@3.0.0-next.0
-  - @logos-ui/observer@4.0.0-next.0
-  - @logos-ui/fetch@4.0.0-next.0
-  - @logos-ui/dom@3.0.0-next.0
+  - @logosdx/state-machine@3.0.0-next.0
+  - @logosdx/observer@4.0.0-next.0
+  - @logosdx/fetch@4.0.0-next.0
+  - @logosdx/dom@3.0.0-next.0
 
 ## 2.0.10
 
 ### Patch Changes
 
 - Updated dependencies [dd1794f]
-  - @logos-ui/observer@3.0.0
-  - @logos-ui/utils@2.1.0
-  - @logos-ui/fetch@3.2.0
-  - @logos-ui/dom@2.0.7
-  - @logos-ui/localize@2.0.7
-  - @logos-ui/state-machine@2.0.7
-  - @logos-ui/storage@2.0.7
+  - @logosdx/observer@3.0.0
+  - @logosdx/utils@2.1.0
+  - @logosdx/fetch@3.2.0
+  - @logosdx/dom@2.0.7
+  - @logosdx/localize@2.0.7
+  - @logosdx/state-machine@2.0.7
+  - @logosdx/storage@2.0.7
 
 ## 2.0.9
 
 ### Patch Changes
 
 - Updated dependencies [5ee6904]
-  - @logos-ui/fetch@3.1.0
+  - @logosdx/fetch@3.1.0
 
 ## 2.0.8
 
 ### Patch Changes
 
 - Updated dependencies [2b64cfa]
-  - @logos-ui/fetch@3.0.0
+  - @logosdx/fetch@3.0.0
 
 ## 2.0.7
 
@@ -343,13 +343,13 @@
 
 - ca76a50: Bump again
 - Updated dependencies [ca76a50]
-  - @logos-ui/dom@2.0.6
-  - @logos-ui/fetch@2.0.6
-  - @logos-ui/localize@2.0.6
-  - @logos-ui/observer@2.0.6
-  - @logos-ui/state-machine@2.0.6
-  - @logos-ui/storage@2.0.6
-  - @logos-ui/utils@2.0.5
+  - @logosdx/dom@2.0.6
+  - @logosdx/fetch@2.0.6
+  - @logosdx/localize@2.0.6
+  - @logosdx/observer@2.0.6
+  - @logosdx/state-machine@2.0.6
+  - @logosdx/storage@2.0.6
+  - @logosdx/utils@2.0.5
 
 ## 2.0.6
 
@@ -357,13 +357,13 @@
 
 - 0566a67: Bump all dependencies for cjs / esm build
 - Updated dependencies [0566a67]
-  - @logos-ui/dom@2.0.5
-  - @logos-ui/fetch@2.0.5
-  - @logos-ui/localize@2.0.5
-  - @logos-ui/observer@2.0.5
-  - @logos-ui/state-machine@2.0.5
-  - @logos-ui/storage@2.0.5
-  - @logos-ui/utils@2.0.4
+  - @logosdx/dom@2.0.5
+  - @logosdx/fetch@2.0.5
+  - @logosdx/localize@2.0.5
+  - @logosdx/observer@2.0.5
+  - @logosdx/state-machine@2.0.5
+  - @logosdx/storage@2.0.5
+  - @logosdx/utils@2.0.4
 
 ## 2.0.5
 
@@ -377,26 +377,26 @@
 
 - 176ed64: Export better utility typings for Kit
 - Updated dependencies [176ed64]
-  - @logos-ui/utils@2.0.3
-  - @logos-ui/dom@2.0.4
-  - @logos-ui/fetch@2.0.4
-  - @logos-ui/localize@2.0.4
-  - @logos-ui/observer@2.0.4
-  - @logos-ui/state-machine@2.0.4
-  - @logos-ui/storage@2.0.4
+  - @logosdx/utils@2.0.3
+  - @logosdx/dom@2.0.4
+  - @logosdx/fetch@2.0.4
+  - @logosdx/localize@2.0.4
+  - @logosdx/observer@2.0.4
+  - @logosdx/state-machine@2.0.4
+  - @logosdx/storage@2.0.4
 
 ## 2.0.3
 
 ### Patch Changes
 
 - Updated dependencies [c167f6b]
-  - @logos-ui/localize@2.0.3
-  - @logos-ui/utils@2.0.2
-  - @logos-ui/dom@2.0.3
-  - @logos-ui/fetch@2.0.3
-  - @logos-ui/observer@2.0.3
-  - @logos-ui/state-machine@2.0.3
-  - @logos-ui/storage@2.0.3
+  - @logosdx/localize@2.0.3
+  - @logosdx/utils@2.0.2
+  - @logosdx/dom@2.0.3
+  - @logosdx/fetch@2.0.3
+  - @logosdx/observer@2.0.3
+  - @logosdx/state-machine@2.0.3
+  - @logosdx/storage@2.0.3
 
 ## 2.0.2
 
@@ -404,13 +404,13 @@
 
 - c7051bb: Make modules CJS/ESM agnostic
 - Updated dependencies [c7051bb]
-  - @logos-ui/state-machine@2.0.2
-  - @logos-ui/localize@2.0.2
-  - @logos-ui/observer@2.0.2
-  - @logos-ui/storage@2.0.2
-  - @logos-ui/fetch@2.0.2
-  - @logos-ui/utils@2.0.1
-  - @logos-ui/dom@2.0.2
+  - @logosdx/state-machine@2.0.2
+  - @logosdx/localize@2.0.2
+  - @logosdx/observer@2.0.2
+  - @logosdx/storage@2.0.2
+  - @logosdx/fetch@2.0.2
+  - @logosdx/utils@2.0.1
+  - @logosdx/dom@2.0.2
 
 ## 2.0.1
 
@@ -418,12 +418,12 @@
 
 - 9de5826: Export correctly for esm / cjs
 - Updated dependencies [9de5826]
-  - @logos-ui/state-machine@2.0.1
-  - @logos-ui/localize@2.0.1
-  - @logos-ui/observer@2.0.1
-  - @logos-ui/storage@2.0.1
-  - @logos-ui/fetch@2.0.1
-  - @logos-ui/dom@2.0.1
+  - @logosdx/state-machine@2.0.1
+  - @logosdx/localize@2.0.1
+  - @logosdx/observer@2.0.1
+  - @logosdx/storage@2.0.1
+  - @logosdx/fetch@2.0.1
+  - @logosdx/dom@2.0.1
 
 ## 2.0.0
 
@@ -434,13 +434,13 @@
 ### Patch Changes
 
 - Updated dependencies [847eb42]
-  - @logos-ui/state-machine@2.0.0
-  - @logos-ui/localize@2.0.0
-  - @logos-ui/observer@2.0.0
-  - @logos-ui/storage@2.0.0
-  - @logos-ui/fetch@2.0.0
-  - @logos-ui/utils@2.0.0
-  - @logos-ui/dom@2.0.0
+  - @logosdx/state-machine@2.0.0
+  - @logosdx/localize@2.0.0
+  - @logosdx/observer@2.0.0
+  - @logosdx/storage@2.0.0
+  - @logosdx/fetch@2.0.0
+  - @logosdx/utils@2.0.0
+  - @logosdx/dom@2.0.0
 
 ## 1.2.0
 
@@ -455,7 +455,7 @@
 ### Patch Changes
 
 - Updated dependencies [14e5699]
-  - @logos-ui/localize@1.3.0
+  - @logosdx/localize@1.3.0
 
 ## 1.1.7
 
@@ -467,21 +467,21 @@
   - Added ability to search and replace from nested objects or arrays when passed into replace values.
 
 - Updated dependencies [2d7ac0d]
-  - @logos-ui/localize@1.2.0
+  - @logosdx/localize@1.2.0
 
 ## 1.1.6
 
 ### Patch Changes
 
 - Updated dependencies [6f60306]
-  - @logos-ui/dom@1.3.0
+  - @logosdx/dom@1.3.0
 
 ## 1.1.5
 
 ### Patch Changes
 
 - Updated dependencies [07dcb99]
-  - @logos-ui/dom@1.2.0
+  - @logosdx/dom@1.2.0
 
 ## 1.1.4
 
@@ -489,13 +489,13 @@
 
 - 5ef68a9: Once again...
 - Updated dependencies [5ef68a9]
-  - @logos-ui/utils@1.1.4
-  - @logos-ui/dom@1.1.4
-  - @logos-ui/fetch@1.1.4
-  - @logos-ui/localize@1.1.4
-  - @logos-ui/observer@1.1.4
-  - @logos-ui/state-machine@1.1.4
-  - @logos-ui/storage@1.1.4
+  - @logosdx/utils@1.1.4
+  - @logosdx/dom@1.1.4
+  - @logosdx/fetch@1.1.4
+  - @logosdx/localize@1.1.4
+  - @logosdx/observer@1.1.4
+  - @logosdx/state-machine@1.1.4
+  - @logosdx/storage@1.1.4
 
 ## 1.1.3
 
@@ -503,13 +503,13 @@
 
 - 432396d: Check against global to detect NodeJS because of build time issues when `process` when not reading as `global.process`
 - Updated dependencies [432396d]
-  - @logos-ui/utils@1.1.3
-  - @logos-ui/dom@1.1.3
-  - @logos-ui/fetch@1.1.3
-  - @logos-ui/localize@1.1.3
-  - @logos-ui/observer@1.1.3
-  - @logos-ui/state-machine@1.1.3
-  - @logos-ui/storage@1.1.3
+  - @logosdx/utils@1.1.3
+  - @logosdx/dom@1.1.3
+  - @logosdx/fetch@1.1.3
+  - @logosdx/localize@1.1.3
+  - @logosdx/observer@1.1.3
+  - @logosdx/state-machine@1.1.3
+  - @logosdx/storage@1.1.3
 
 ## 1.1.2
 
@@ -517,13 +517,13 @@
 
 - ba8b52d: Properly detect NodeJS so as to work with electron when stubbing window.
 - Updated dependencies [ba8b52d]
-  - @logos-ui/utils@1.1.2
-  - @logos-ui/dom@1.1.2
-  - @logos-ui/fetch@1.1.2
-  - @logos-ui/localize@1.1.2
-  - @logos-ui/observer@1.1.2
-  - @logos-ui/state-machine@1.1.2
-  - @logos-ui/storage@1.1.2
+  - @logosdx/utils@1.1.2
+  - @logosdx/dom@1.1.2
+  - @logosdx/fetch@1.1.2
+  - @logosdx/localize@1.1.2
+  - @logosdx/observer@1.1.2
+  - @logosdx/state-machine@1.1.2
+  - @logosdx/storage@1.1.2
 
 ## 1.1.1
 
@@ -531,30 +531,30 @@
 
 - e6e4d56: Added a window stub so packages can be used in NodeJS. Now, Observer, Localize, StateMachine, Storage, and whatever non-DOM related utility functions are usefule.
 - Updated dependencies [e6e4d56]
-  - @logos-ui/state-machine@1.1.1
-  - @logos-ui/localize@1.1.1
-  - @logos-ui/observer@1.1.1
-  - @logos-ui/storage@1.1.1
-  - @logos-ui/fetch@1.1.1
-  - @logos-ui/utils@1.1.1
-  - @logos-ui/dom@1.1.1
+  - @logosdx/state-machine@1.1.1
+  - @logosdx/localize@1.1.1
+  - @logosdx/observer@1.1.1
+  - @logosdx/storage@1.1.1
+  - @logosdx/fetch@1.1.1
+  - @logosdx/utils@1.1.1
+  - @logosdx/dom@1.1.1
 
 ## 1.1.0
 
 ### Minor Changes
 
-- e5d039d: Documentation for all packages is completed and can be found at [https://logosui.com](https://logosui.com). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logos-ui/discuss](https://github.com/logos-ui/discuss).
+- e5d039d: Documentation for all packages is completed and can be found at [https://logosdx.dev](https://logosdx.dev). All packages are tested and ready for use. For bug reports, questions, and suggestions, please use [https://github.com/logosdx/discuss](https://github.com/logosdx/discuss).
 
 ### Patch Changes
 
 - Updated dependencies [e5d039d]
-  - @logos-ui/state-machine@1.1.0
-  - @logos-ui/localize@1.1.0
-  - @logos-ui/observer@1.1.0
-  - @logos-ui/storage@1.1.0
-  - @logos-ui/fetch@1.1.0
-  - @logos-ui/utils@1.1.0
-  - @logos-ui/dom@1.1.0
+  - @logosdx/state-machine@1.1.0
+  - @logosdx/localize@1.1.0
+  - @logosdx/observer@1.1.0
+  - @logosdx/storage@1.1.0
+  - @logosdx/fetch@1.1.0
+  - @logosdx/utils@1.1.0
+  - @logosdx/dom@1.1.0
 
 ## 1.0.0
 
@@ -564,15 +564,15 @@
 
   These packages were made to simplify the development of web applications, and reduce the decisions we make when building apps. You don't always need all the things, but you always need some things. When you apps are simple, they should remain so. When they grow in complexity, they should do so with ease.
 
-  [Discussions can be had here](https://github.com/logos-ui/discuss). This will also include a link to the documentation (which is a WIP at the current moment). Domain not included here because it will in the future change. Enjoy using this neat piece of software utility, and do not be afraid to provide feedback; it is welcome!
+  [Discussions can be had here](https://github.com/logosdx/discuss). This will also include a link to the documentation (which is a WIP at the current moment). Domain not included here because it will in the future change. Enjoy using this neat piece of software utility, and do not be afraid to provide feedback; it is welcome!
 
 ### Patch Changes
 
 - Updated dependencies [58c0208]
-  - @logos-ui/state-machine@1.0.0
-  - @logos-ui/localize@1.0.0
-  - @logos-ui/observer@1.0.0
-  - @logos-ui/storage@1.0.0
-  - @logos-ui/fetch@1.0.0
-  - @logos-ui/utils@1.0.0
-  - @logos-ui/dom@1.0.0
+  - @logosdx/state-machine@1.0.0
+  - @logosdx/localize@1.0.0
+  - @logosdx/observer@1.0.0
+  - @logosdx/storage@1.0.0
+  - @logosdx/fetch@1.0.0
+  - @logosdx/utils@1.0.0
+  - @logosdx/dom@1.0.0

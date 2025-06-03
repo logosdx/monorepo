@@ -4,7 +4,8 @@ export {
     deepMerge,
     addHandlerFor,
     mergeDefaults
-} from './manipulateAndCompare/index.ts';
+} from './data-structures/index.ts';
 
 export * from './misc.ts';
 export * from './types.ts';
+export * from './flow-control/index.ts';

@@ -3,11 +3,11 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { StateMachine } from '@logos-ui/state-machine';
+import { StateMachine } from '../../packages/state-machine/src/index.ts';
 
 const stub: any = {};
 
-describe('@logos-ui/state-machine', function () {
+describe('@logosdx/state-machine', function () {
 
     it('has functions to manage state, modifiers and listeners', () => {
 

@@ -7,7 +7,7 @@ import {
     txt,
     attempt,
     attemptSync
-} from '@logos-ui/utils';
+} from '@logosdx/utils';
 
 import {
     _InternalHttpMethods,

@@ -1,10 +1,7 @@
 import {
     OneOrMany,
-    OneOrManyElements,
-    itemsToArray,
-    oneOrMany,
     NonFunctionProps
-} from '@logos-ui/utils';
+} from '@logosdx/utils';
 
 
 export type CssPropNames = Extract<NonFunctionProps<CSSStyleDeclaration>, string>;
@@ -37,7 +34,7 @@ const extractCssProps = (props: CssProps, names: CssPropNames[]) => {
     for (const i in names) {
 
         const key = names[i]!;
-        list[key] = props[key] as any;
+        list[key] = props[key]! as never;
     }
 
     return list;

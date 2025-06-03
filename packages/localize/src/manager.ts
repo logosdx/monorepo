@@ -3,7 +3,7 @@ import {
     DeepOptional,
     PathLeaves,
     assert
-} from '@logos-ui/utils';
+} from '@logosdx/utils';
 
 import {
     getMessage,

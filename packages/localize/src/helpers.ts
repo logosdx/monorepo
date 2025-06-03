@@ -2,7 +2,7 @@ import {
     StrOrNum,
     PathLeaves,
     GetFieldType
-} from '@logos-ui/utils';
+} from '@logosdx/utils';
 
 import type { LocaleManager } from './manager.ts';
 

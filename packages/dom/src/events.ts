@@ -1,4 +1,8 @@
-import { Func, OneOrMany, OneOrManyElements, itemsToArray } from '@logos-ui/utils';
+import {
+    Func,
+    OneOrMany,
+    itemsToArray
+} from '@logosdx/utils';
 
 export type GlobalEvents = keyof DocumentEventMap;
 

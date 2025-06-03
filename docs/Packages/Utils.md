@@ -1,6 +1,6 @@
 ---
 permalink: '/packages/utils'
-aliases: ["@logos-ui/utils", "Utils", "utilities"]
+aliases: ["@logosdx/utils", "Utils", "utilities"]
 ---
 ## Value manipulation and comparisons
 
@@ -9,9 +9,9 @@ Modern javascript has new data types. The existing set of utilities that exist o
 A good reason for this is, there are many times when an API returns an array of objects with some sort of IDs associated with them. With an array, one can easily add, but removing can be quite tricky, and slow, because we have to iterate each time through the entire array and filter the value we want to update, or remove. A good alternative to this is mapping IDs to an object; but then we lose some of the convenient functionality we have with Arrays (length, contains, etc). Maps and Sets solve a lot of problems for how we program. Why wouldn't we use them to manage state?
 
 ```bash
-npm install @logos-ui/utils
-yarn add @logos-ui/utils
-pnpm add @logos-ui/utils
+npm install @logosdx/utils
+yarn add @logosdx/utils
+pnpm add @logosdx/utils
 ```
 
 
@@ -22,7 +22,7 @@ Recursively clones a given value. Accepts all data types, including `Map` and `S
 **Example**
 
 ```ts
-const { deepClone } from '@logos-ui/utils';
+const { deepClone } from '@logosdx/utils';
 
 const a = new Set([1, 2]);
 const b = deepClone(b);
@@ -56,7 +56,7 @@ Recursively checks two values to check if they are equal.
 **Example**
 [[
 ]]```ts
-const { deepEqual } from '@logos-ui/utils';
+const { deepEqual } from '@logosdx/utils';
 
 const stateListener = (newState, oldState) => {
 
@@ -82,7 +82,7 @@ Recursively merges a source value to a target. Accepts all data types, including
 **Example**
 
 ```ts
-const { deepMerge } from '@logos-ui/utils';
+const { deepMerge } from '@logosdx/utils';
 
 const target = {
 	a: new Set([1, 2]),
@@ -513,7 +513,7 @@ if (isFunction(console.log)) {
 const isFunction: (a: any) => boolean;
 ```
 
-### `forInIsEqual(...)`
+### `forInEvery(...)`
 
 Performs a `for-in` loop on an object or array and breaks when the instance `check` function returns `false`. It can be used to check if a value is present in another object or array. It returns `true` if the check passed for all items in the object or array, and `false` otherwise.
 
@@ -529,20 +529,20 @@ const check = (item, key) => {
 	return original[key] === item;
 };
 
-forInIsEqual([1, 2, 3], check); // true
-forInIsEqual(modified, check); // false
+forInEvery([1, 2, 3], check); // true
+forInEvery(modified, check); // false
 ```
 
 **Interface**
 
 ```ts
-const forInIsEqual: (
+const forInEvery: (
 	item: any,
 	check: (v: any, i: number | string) => boolean
 ) => boolean;
 ```
 
-### `forOfIsEqual(...)`
+### `forOfEvery(...)`
 
 Performs a `for-of` loop on an array, set, or map and breaks when the instance `check` function returns `false`. It can be used to check if a value is present in another array, set, or map. It returns `true` if the check passed for all items in the array, set, or map, and `false` otherwise.
 
@@ -557,33 +557,17 @@ const check = (item, key) => {
 	return original[key] === item;
 };
 
-forOfIsEqual(original.entries(), ([key, val]) => original.get(key) === val); // true
-forOfIsEqual(modified.entries(), ([key, val]) => original.get(key) === val); // false
+forOfEvery(original.entries(), ([key, val]) => original.get(key) === val); // true
+forOfEvery(modified.entries(), ([key, val]) => original.get(key) === val); // false
 ```
 
 **Interface**
 
 ```ts
-const forOfIsEqual: (
+const forOfEvery: (
 	item: any,
 	check: (v: any) => boolean
 ) => boolean;
-```
-
-### `_nextTick(...)`
-
-Is a browser implementation of `process.nextTick`. It schedules the execution of the provided function in the next tick of the event loop.
-
-**Example**
-
-```ts
-_nextTick(() => alert('this happened after everything else rendered!'));
-```
-
-**Interface**
-
-```ts
-const _nextTick: (fn: Func) => void;
 ```
 
 ### `isFunctionOrObject(...)`
@@ -698,17 +682,15 @@ declare const isSameLength: (a: any, b: any) => boolean;
 
 declare const isFunction: (a: any) => boolean;
 
-declare const forInIsEqual: (
+declare const forInEvery: (
 	item: any,
 	check: (v: any, i: number | string) => boolean
 ) => boolean;
 
-declare const forOfIsEqual: (
+declare const forOfEvery: (
 	item: any,
 	check: (v: any) => boolean
 ) => boolean;
-
-declare const _nextTick: (fn: Func) => void;
 
 declare const isFunctionOrObject: <T extends Object | Function>(
 	val: T

@@ -3,11 +3,11 @@ import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import * as Kit from '@logos-ui/kit';
+import * as Kit from '../../packages/kit/src/index.ts';
 
 import { log as console } from './_helpers'
 
-describe('@logos-ui/kit', () => {
+describe('@logosdx/kit', () => {
 
     const {
         appKit

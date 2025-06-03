@@ -1,9 +1,9 @@
 import { Func, PathLeaves, PathNames, PathValue, Truthy } from './types';
 
 
-export const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
-export const isReactNative =  typeof navigator !== "undefined" && navigator?.product === "ReactNative";
-export const isCloudflare = typeof globalThis !== "undefined" && globalThis?.navigator?.userAgent === "Cloudflare-Workers";
+export const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+export const isReactNative =  typeof navigator !== 'undefined' && navigator?.product === 'ReactNative';
+export const isCloudflare = typeof globalThis !== 'undefined' && globalThis?.navigator?.userAgent === 'Cloudflare-Workers';
 export const isBrowserLike = isBrowser || isReactNative || isCloudflare;
 
 /**
@@ -64,14 +64,12 @@ export const definePrivateGetters = <T, U extends Record<string, Func>>(target: 
             prop,
             {
                 get: getter,
-                writable: false,
                 enumerable: false,
                 configurable
             }
         );
     });
 };
-
 
 class AssertationError extends Error {}
 
@@ -335,7 +333,7 @@ export const isObject = (a: unknown) => a instanceof Object;
  * @param {Function} check function to perform the check
  * @returns {boolean}
  */
-export const forInIsEqual = <T extends object>(
+export const forInEvery = <T extends object>(
     item: T,
     check: {
         (v: T[keyof T], i: number | string): boolean
@@ -363,7 +361,7 @@ export const forInIsEqual = <T extends object>(
  * @param {Function} check function to perform the check
  * @returns {boolean}
  */
-export const forOfIsEqual = <
+export const forOfEvery = <
     I extends Iterable<unknown>
 >(
     item: I,
@@ -384,62 +382,14 @@ export const forOfIsEqual = <
     return isEqual!;
 };
 
-
-/** Next tick but in the browser */
-const nextTickQueue: Func[] = [];
-
-(() => {
-
-    if (!isBrowserLike) {
-        return;
-    }
-
-    window?.addEventListener('message', function (ev: MessageEvent<string>) {
-
-        const source = ev.source;
-        const evName = ev.data;
-
-        if (
-            (
-                source === window ||
-                source === null
-            ) &&
-            evName === 'process-tick'
-        ) {
-
-            ev.stopPropagation();
-
-            if (nextTickQueue.length > 0) {
-
-                const fn = nextTickQueue.shift();
-                fn?.call && fn();
-            }
-        }
-    }, true);
-})
-
-/**
- * Browser implementation of `process.nextTick`
- * @param {function} fn
- */
-export const _nextTick = (fn: Func) => {
-
-    if (!isBrowserLike) {
-        return;
-    }
-
-    nextTickQueue.push(fn);
-    window?.postMessage('process-tick', '*');
-};
-
 /**
  * Checks if value is a function or an object
  * @param val
  * @returns {boolean}
  */
 export const isFunctionOrObject = <T extends Function | Object>(val: T): boolean => (
-    val.constructor === Function ||
-    val.constructor === Object
+    val instanceof Function ||
+    val instanceof Object
 );
 
 /**
@@ -525,110 +475,6 @@ export const txt = {
     }
 }
 
-
-type ResultTuple<T> = [T, null] | [null, Error];
-
-/**
- * Error monad, go-style.
- *
- * @param fn async function to run
- *
- * @example
- *
- * const [result, error] = await attempt(async () => {
- *     return 'hello';
- * });
- *
- * if (error) {
- *     console.error(error);
- * }
- *
- * console.log(result);
- */
-export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<ResultTuple<Awaited<ReturnType<T>>>> => {
-
-    try {
-        return [await fn(), null]
-    } catch (e) {
-        return [null, e as Error]
-    }
-}
-
-/**
- * Synchronous error monad, go-style.
- *
- * @example
- *
- * const [result, error] = attemptSync(() => {
- *     return 'hello';
- * });
- *
- * if (error) {
- *     console.error(error);
- * }
- *
- * console.log(result);
- */
-export const attemptSync = <T extends () => any>(fn: T): ResultTuple<ReturnType<T>> => {
-
-    try {
-        return [fn(), null]
-    } catch (e) {
-        return [null, e as Error]
-    }
-}
-
-/**
- * Delays the last call of a function for `delay`
- * milliseconds and ignores all subsequent calls
- * until the delay has passed.
- *
- * @param fn function to debounce
- * @param delay delay in milliseconds
- * @returns debounced function
- */
-export const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
-
-    let timeout: ReturnType<typeof setTimeout>;
-    let lastCalled: number | undefined;
-
-    return (...args: Parameters<T>) => {
-
-        clearTimeout(timeout);
-
-        timeout = setTimeout(() => fn(...args), delay);
-    }
-}
-
-/**
- * Throttle a function, calling it at most once
- * every `delay` milliseconds.
- *
- * @param fn function to throttle
- * @param delay delay in milliseconds
- * @returns throttled function
- */
-export const throttle = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
-
-    let lastCalled: number | undefined;
-
-    return (...args: Parameters<T>) => {
-
-        const now = Date.now();
-
-        if (
-            lastCalled &&
-            (now - lastCalled < delay)
-        ) {
-            return;
-        }
-
-        lastCalled = now;
-
-        fn(...args);
-    }
-}
-
 /**
  * Waits for `ms` milliseconds
  * @param ms milliseconds to wait
@@ -637,73 +483,23 @@ export const throttle = <T extends (...args: any[]) => any>(fn: T, delay: number
 export const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Retries a function until it succeeds or the number of retries is reached.
- * @param fn function to retry
- * @param opts options
+ * Chunk an array into smaller arrays
+ * @param array
+ * @param chunkSize
  * @returns
  */
-export const retry = async <T extends (...args: any[]) => any>(
-    fn: T,
-    opts: {
+export const chunk = <T>(array: T[], chunkSize: number) => {
 
-        /**
-         * Number of retries
-         *
-         * @default 3
-         */
-        retries: number,
+    return array.reduce((result, item, index) => {
 
-        /**
-         * Delay between retries
-         *
-         * @default 0
-         */
-        delay?: number,
+        const chunkIndex = Math.floor(index / chunkSize);
 
-        /**
-         * Multiplier for the delay between retries
-         *
-         * @default 1
-         */
-        backoff?: number,
-
-        /**
-         * Function to determine if the function should be retried
-         *
-         * @param error error to check
-         * @returns true if the function should be retried
-         */
-        shouldRetry?: (error: Error) => boolean
-    }
-) => {
-
-    const {
-        delay = 0,
-        retries = 3,
-        backoff = 1,
-        shouldRetry = () => true
-    } = opts;
-
-    let attempts = 0;
-
-    while (attempts < retries) {
-
-        const [result, error] = await attempt(fn);
-
-        if (result) {
-            return result;
+        if (!result[chunkIndex]) {
+            result[chunkIndex] = [];
         }
 
-        if (error && shouldRetry(error)) {
+        result[chunkIndex].push(item);
 
-            await wait(delay * backoff);
-            attempts++;
-
-            continue;
-        }
-
-        throw error;
-    }
-
-    throw new Error('Max retries reached');
-}
+        return result;
+    }, [] as T[][]);
+};

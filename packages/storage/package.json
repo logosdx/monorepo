@@ -1,14 +1,15 @@
 {
-  "name": "@logos-ui/storage",
+  "name": "@logosdx/storage",
   "version": "3.0.5",
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
   "exports": {
     ".": {
+      "types": "./src/index.ts",
       "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.mjs",
-      "types": "./src/index.ts"
+      "import": "./dist/esm/index.mjs"
     }
   },
+  "browserNamespace": "LogosDx.Storage",
   "scripts": {
     "build": "node ../../scripts/build.mjs",
     "lint": "pnpm tsc --noEmit"
@@ -19,14 +20,14 @@
     "app storage",
     "sessionStorage"
   ],
-  "homepage": "https://logosui.com/",
+  "homepage": "https://logosdx.dev/",
   "bugs": {
-    "url": "https://github.com/logos-ui/discuss/issues",
+    "url": "https://github.com/logosdx/discuss/issues",
     "email": "danilo@alonso.network"
   },
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {
-    "@logos-ui/utils": "workspace:^"
+    "@logosdx/utils": "workspace:^"
   }
 }

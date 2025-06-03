@@ -1,6 +1,6 @@
 ---
 permalink: '/packages/observer'
-aliases: ["Observer", "@logos-ui/observer"]
+aliases: ["Observer", "@logosdx/observer"]
 ---
 ObserverEngine aims to provide a consistent, familiar API that goes beyond just working with events in both Node.js and the browser. Our goal is to enable developers to leverage the observer pattern and create scalable, event-driven architectures that can be extended and adapted with the maturity of a full-feature development tool.
 
@@ -15,7 +15,7 @@ ObserverEngine aims to provide a consistent, familiar API that goes beyond just 
 - [[#Validation]]
 - [[#Debugging Tools]]
 
-Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logos-ui.github.io/modules/_logos_ui_observer.Observable.html)
+Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logosdx.github.io/modules/_logos_ui_observer.Observable.html)
 
 ## Motivations
 
@@ -25,14 +25,14 @@ Recent improvements to the builtin `EventEmitter` class in Node.js have made it 
 
 ***More than just a simple event emitter***
 
-Beyond event emission, this library also presents new patterns of usage which can facilitate interesting paradigms for programming, such as [[#Event Promises]] and [[#Event Generators]]. It provides a way to perform [[#Event Cleanup]], [[#Validation]], and [[#Debugging Tools]]. 
+Beyond event emission, this library also presents new patterns of usage which can facilitate interesting paradigms for programming, such as [[#Event Promises]] and [[#Event Generators]]. It provides a way to perform [[#Event Cleanup]], [[#Validation]], and [[#Debugging Tools]].
 
 ## Installation
 
 ```sh
-npm install @logos-ui/observer
-yarn add @logos-ui/observer
-pnpm add @logos-ui/observer
+npm install @logosdx/observer
+yarn add @logosdx/observer
+pnpm add @logosdx/observer
 ```
 
 ## Usage
@@ -42,7 +42,7 @@ Simply put, `ObserverEngine` allows you listen for events and emit events. In th
 Let start with the basic usage of `ObserverEngine`.
 
 ```ts
-import { ObserverEngine } from '@logos-ui/observer';
+import { ObserverEngine } from '@logosdx/observer';
 
 type EventType = {
 	someEvent: string;
@@ -71,7 +71,7 @@ You might notice `EventType` is passed as a generic to `ObserverEngine`. This is
 In the example above, we defined a type `EventType` that has a single event `someEvent`. This allows us to listen for `someEvent` and pass data to the callback function. To further illustrate this, let's add more events to `EventType`.
 
 ```ts
-import { ObserverEngine } from '@logos-ui/observer';
+import { ObserverEngine } from '@logosdx/observer';
 
 type EventType = {
 
@@ -403,7 +403,7 @@ With proper use, this enhancement will help you avoid memory leaks in your appli
 For example, instead of `EventEmitter`, you can use `ObserverEngine` to create a class that can listen for events and emit events.
 
 ```ts
-import { ObserverEngine } from '@logos-ui/observer';
+import { ObserverEngine } from '@logosdx/observer';
 
 type Events = {
 	openModal: null,
@@ -459,7 +459,7 @@ myComponent.on('open', () => { /* ... */ });
 
 ```ts
 import Joi from 'joi';
-import { ObserverEngine } from '@logos-ui/observer';
+import { ObserverEngine } from '@logosdx/observer';
 
 type Shape = {
 	connect: null,
@@ -540,7 +540,7 @@ Another "gotcha" about working with event emitters is losing track of where even
 `ObserverEngine` accepts a `spy` function in the options to facilitate telemetry and debugging. This function will be called whenever an event is listened to, emitted, or triggered. This is specifically for logging, tracking, or debugging your event emitter.
 
 ```ts
-import { ObserverEngine } from '@logos-ui/observer';
+import { ObserverEngine } from '@logosdx/observer';
 
 const debugFn: ObserverEngine.Spy<Shape> = (action) => {
 

@@ -1,4 +1,4 @@
-import { Func, MaybePromise, assert } from '@logos-ui/utils';
+import { Func, MaybePromise, assert } from '@logosdx/utils';
 import { html } from './index.ts';
 import { EvListener } from './events.ts';
 

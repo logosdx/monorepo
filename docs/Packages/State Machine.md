@@ -1,6 +1,6 @@
 ---
 permalink: '/packages/state-machine'
-aliases: ["StateMachine", "@logos-ui/state-machine"]
+aliases: ["StateMachine", "@logosdx/state-machine"]
 ---
 
 Any frontend app that grows in complexity eventually needs a to share data across components. This endeavor should be simple, and should allow you to use all the things modern-day javascript has to offer. In comes the State Machine:
@@ -12,16 +12,16 @@ Any frontend app that grows in complexity eventually needs a to share data acros
 - And make child instance clones of your state manager
 
 ```sh
-npm install @logos-ui/state-machine
-yarn add @logos-ui/state-machine
-pnpm add @logos-ui/state-machine
+npm install @logosdx/state-machine
+yarn add @logosdx/state-machine
+pnpm add @logosdx/state-machine
 ```
 
 ## Example
 
 ```typescript
-import { StateMachine } from '@logos-ui/state-machine';
-import { clone, merge } from '@logos-ui/utils';
+import { StateMachine } from '@logosdx/state-machine';
+import { clone, merge } from '@logosdx/utils';
 
 type Pet = {
 	type: 'dog' | 'cat' | 'sheep' | 'cattle',
@@ -227,7 +227,7 @@ stateMachine.addReducer((newState, oldState, ignore) => {
 Alternatively, you can do a simpler single reducer that merges the entire state.
 
 ```ts
-import { merge } from '@logos-ui/utils';
+import { merge } from '@logosdx/utils';
 
 stateMachine.addReducer((newState, oldState, ignore) => {
 
