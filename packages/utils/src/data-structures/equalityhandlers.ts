@@ -113,4 +113,104 @@ export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
 
     });
 
+    // Add support for TypedArrays
+    const TYPED_ARRAYS = [
+        Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array,
+        Int32Array, Uint32Array, Float32Array, Float64Array,
+        BigInt64Array, BigUint64Array
+    ];
+
+    TYPED_ARRAYS.forEach(TypedArrayConstructor => {
+
+        equalityHandlers.set(TypedArrayConstructor, (_a, _b) => {
+
+            const a = _a as any;
+            const b = _b as any;
+
+            if (a.length !== b.length) return false;
+
+            for (let i = 0; i < a.length; i++) {
+
+                if (a[i] !== b[i]) return false;
+            }
+
+            return true;
+        });
+    });
+
+    equalityHandlers.set(ArrayBuffer, (_a, _b) => {
+
+        const a = _a as ArrayBuffer;
+        const b = _b as ArrayBuffer;
+
+        if (a.byteLength !== b.byteLength) return false;
+
+        const aView = new Uint8Array(a);
+        const bView = new Uint8Array(b);
+
+        for (let i = 0; i < aView.length; i++) {
+
+            if (aView[i] !== bView[i]) return false;
+        }
+
+        return true;
+    });
+
+    equalityHandlers.set(DataView, (_a, _b) => {
+
+        const a = _a as DataView;
+        const b = _b as DataView;
+
+        if (
+            a.byteLength !== b.byteLength ||
+            a.byteOffset !== b.byteOffset
+        ) {
+            return false;
+        }
+
+        return equalityHandlers.get(ArrayBuffer)!(a.buffer, b.buffer);
+    });
+
+    // Add support for Error objects
+    const ERROR_TYPES = [
+        Error, TypeError, ReferenceError, SyntaxError,
+        RangeError, EvalError, URIError
+    ];
+
+    ERROR_TYPES.forEach(ErrorConstructor => {
+
+        equalityHandlers.set(ErrorConstructor, (_a, _b) => {
+
+            const a = _a as Error;
+            const b = _b as Error;
+
+            if (
+                a.name !== b.name ||
+                a.message !== b.message ||
+                a.stack !== b.stack
+            ) {
+                return false;
+            }
+
+            // Compare any additional enumerable properties
+            const aKeys = Object.keys(a);
+            const bKeys = Object.keys(b);
+
+            if (aKeys.length !== bKeys.length) {
+                return false;
+            }
+
+            for (const key of aKeys) {
+
+                if (key !== 'name' && key !== 'message' && key !== 'stack') {
+
+                    if (!deepEqual((a as any)[key], (b as any)[key])) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        });
+    });
 }

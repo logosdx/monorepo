@@ -20,7 +20,7 @@ type CircuitBreakerStore = {
     testInProgress: boolean,
 }
 
-type CircuitBreakerOptions<T extends AnyFunc> = {
+export type CircuitBreakerOptions<T extends AnyFunc> = {
     maxFailures?: number,
     halfOpenMaxAttempts?: number,
     resetAfter?: number,
@@ -40,22 +40,22 @@ export class CircuitBreakerError extends Error {
 const validateOpts = <T extends AnyFunc>(opts: CircuitBreakerOptions<T>) => {
 
     if (
-        typeof opts.maxFailures !== 'number' ||
-        opts.maxFailures <= 0
+        opts.maxFailures !== undefined &&
+        (typeof opts.maxFailures !== 'number' || opts.maxFailures <= 0)
     ) {
         throw new Error('maxFailures must be a positive number');
     }
 
     if (
-        typeof opts.halfOpenMaxAttempts !== 'number' ||
-        opts.halfOpenMaxAttempts <= 0
+        opts.halfOpenMaxAttempts !== undefined &&
+        (typeof opts.halfOpenMaxAttempts !== 'number' || opts.halfOpenMaxAttempts <= 0)
     ) {
         throw new Error('halfOpenMaxAttempts must be a positive number');
     }
 
     if (
-        typeof opts.resetAfter !== 'number' ||
-        opts.resetAfter <= 0
+        opts.resetAfter !== undefined &&
+        (typeof opts.resetAfter !== 'number' || opts.resetAfter <= 0)
     ) {
         throw new Error('resetAfter must be a positive number');
     }

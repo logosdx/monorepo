@@ -19,6 +19,7 @@ import {
 import {
     mergeHandlers,
     prepareMergeHandlers,
+    addBinaryDataMergeHandlers,
     MergeOptions
 } from './mergeHandlers.ts';
 
@@ -32,11 +33,16 @@ export type AnyConstructor = (
 
 
 /**
- * Deep clones Objects, Arrays, Maps and Sets
- * @param original
+ * Deep clones Objects, Arrays, Maps and Sets with circular reference protection
+ * @param original - The value to clone
+ * @param seen - WeakMap to track circular references (internal use)
  * @returns {any} Cloned value
+ * @example
+ * const obj = { a: 1, b: { c: 2 } };
+ * obj.circular = obj; // Create circular reference
+ * const cloned = deepClone(obj); // Works without stack overflow
  */
-export const deepClone = <T>(original: T): T => {
+export const deepClone = <T>(original: T, seen = new WeakMap()): T => {
 
     // Primatives do not have issues with hoisting
     if (
@@ -48,13 +54,28 @@ export const deepClone = <T>(original: T): T => {
         return original;
     }
 
+    // Check for circular references
+    if (seen.has(original as any)) {
+
+        return seen.get(original as any);
+    }
+
     const cloneType = cloneHandlers.get(original!.constructor as AnyConstructor);
 
     if (!cloneType) {
         return original;
     }
 
-    return cloneType(original);
+    // Create placeholder to handle circular references
+    const placeholder = {} as T;
+    seen.set(original as any, placeholder);
+
+    const cloned = cloneType(original, seen);
+
+    // Update the placeholder with the actual cloned value
+    seen.set(original as any, cloned);
+
+    return cloned;
 };
 
 
@@ -148,6 +169,7 @@ export const deepMerge = <
 prepareCloneHandlers(deepClone);
 prepareDeepEqualHandlers(deepEqual);
 prepareMergeHandlers(deepMerge);
+addBinaryDataMergeHandlers();
 
 
 type AddHandleForClone<T extends AnyConstructor> = (target: InstanceType<T>) => InstanceType<T>;

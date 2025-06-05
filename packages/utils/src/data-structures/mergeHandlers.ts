@@ -153,3 +153,70 @@ export const prepareMergeHandlers = (merge: typeof DeepMergeFn) => {
         return target;
     });
 }
+
+// Add support for TypedArrays, ArrayBuffer, and DataView after prepareMergeHandlers
+export const addBinaryDataMergeHandlers = () => {
+
+    const TYPED_ARRAYS = [
+        Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array,
+        Int32Array, Uint32Array, Float32Array, Float64Array,
+        BigInt64Array, BigUint64Array
+    ];
+
+    TYPED_ARRAYS.forEach(TypedArrayConstructor => {
+
+        mergeHandlers.set(TypedArrayConstructor, (target, source) => {
+
+            // For binary data, merge typically means replace
+            return new TypedArrayConstructor(source as any);
+        });
+    });
+
+    mergeHandlers.set(ArrayBuffer, (target, source) => {
+
+        // Replace with source buffer
+        return (source as ArrayBuffer).slice(0);
+    });
+
+    mergeHandlers.set(DataView, (target, source) => {
+
+        const sourceView = source as DataView;
+        const clonedBuffer = sourceView.buffer.slice(0);
+        return new DataView(clonedBuffer, sourceView.byteOffset, sourceView.byteLength);
+    });
+
+    // Add support for Error objects
+    const ERROR_TYPES = [
+        Error, TypeError, ReferenceError, SyntaxError,
+        RangeError, EvalError, URIError
+    ];
+
+    ERROR_TYPES.forEach(ErrorConstructor => {
+
+        mergeHandlers.set(ErrorConstructor, (target, source) => {
+
+            // For Error objects, merge typically means replace with source
+            const sourceError = source as Error;
+            const cloned = new (sourceError.constructor as ErrorConstructor)(sourceError.message);
+
+            if (sourceError.name) {
+                cloned.name = sourceError.name;
+            }
+
+            if (sourceError.stack) {
+                cloned.stack = sourceError.stack;
+            }
+
+            // Copy any additional enumerable properties
+            for (const key in sourceError) {
+
+                if (key !== 'name' && key !== 'message' && key !== 'stack') {
+
+                    (cloned as any)[key] = (sourceError as any)[key];
+                }
+            }
+
+            return cloned;
+        });
+    });
+};

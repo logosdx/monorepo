@@ -321,5 +321,92 @@ describe('@logosdx/utils', () => {
             calledExactly(fn, 3, 'should allow the test call in half-open');
             calledExactly(onReset, 1, 'should reset after successful half-open test');
         });
+
+        it('should validate circuitBreaker parameters', () => {
+
+            const fn = mock.fn(() => 'ok');
+
+            // fn must be a function
+            expect(() => circuitBreaker('not a function' as any, {})).to.throw('fn must be a function');
+
+            // maxFailures validation
+            expect(() => circuitBreaker(fn, { maxFailures: 0 })).to.throw('maxFailures must be a positive number');
+            expect(() => circuitBreaker(fn, { maxFailures: -1 })).to.throw('maxFailures must be a positive number');
+            expect(() => circuitBreaker(fn, { maxFailures: 'not a number' as any })).to.throw('maxFailures must be a positive number');
+
+            // halfOpenMaxAttempts validation
+            expect(() => circuitBreaker(fn, { halfOpenMaxAttempts: 0 })).to.throw('halfOpenMaxAttempts must be a positive number');
+            expect(() => circuitBreaker(fn, { halfOpenMaxAttempts: -1 })).to.throw('halfOpenMaxAttempts must be a positive number');
+
+            // resetAfter validation
+            expect(() => circuitBreaker(fn, { resetAfter: 0 })).to.throw('resetAfter must be a positive number');
+            expect(() => circuitBreaker(fn, { resetAfter: -1000 })).to.throw('resetAfter must be a positive number');
+
+            // Callback function validation
+            expect(() => circuitBreaker(fn, { onTripped: 'not a function' as any })).to.throw('onTripped must be a function');
+            expect(() => circuitBreaker(fn, { onError: 'not a function' as any })).to.throw('onError must be a function');
+            expect(() => circuitBreaker(fn, { onReset: 'not a function' as any })).to.throw('onReset must be a function');
+            expect(() => circuitBreaker(fn, { onHalfOpen: 'not a function' as any })).to.throw('onHalfOpen must be a function');
+            expect(() => circuitBreaker(fn, { shouldTripOnError: 'not a function' as any })).to.throw('shouldTripOnError must be a function');
+        });
+
+        it('should validate circuitBreakerSync parameters', () => {
+
+            const fn = mock.fn(() => 'ok');
+
+            // fn must be a function
+            expect(() => circuitBreakerSync('not a function' as any, {})).to.throw('fn must be a function');
+
+            // maxFailures validation
+            expect(() => circuitBreakerSync(fn, { maxFailures: 0 })).to.throw('maxFailures must be a positive number');
+            expect(() => circuitBreakerSync(fn, { maxFailures: -1 })).to.throw('maxFailures must be a positive number');
+
+            // Callback function validation
+            expect(() => circuitBreakerSync(fn, { onTripped: 'not a function' as any })).to.throw('onTripped must be a function');
+        });
+
+        it('should work with default values', async () => {
+
+            const fn = mock.fn(() => {
+                throw new Error('test failure');
+            });
+
+            // Should work with minimal options (using defaults)
+            const wrappedFn = circuitBreaker(fn, {});
+
+            // Should use default maxFailures of 3
+            await attempt(wrappedFn);
+            await attempt(wrappedFn);
+
+            // Third failure should trip using default maxFailures
+            const [, error] = await attempt(wrappedFn);
+            expect(error).to.be.an.instanceof(Error);
+            expect((error as Error).message).to.equal('test failure');
+
+            const [, circuitError] = await attempt(wrappedFn);
+            expect(circuitError).to.be.an.instanceof(Error);
+            expect((circuitError as Error).message).to.equal('Circuit breaker tripped');
+
+            calledExactly(fn, 3, 'should use default maxFailures of 3');
+        });
+
+        it('should test CircuitBreakerError class', async () => {
+
+            const fn = mock.fn(() => {
+                throw new Error('service failure');
+            });
+
+            const wrappedFn = circuitBreaker(fn, { maxFailures: 1 });
+
+            // Trip the circuit
+            await attempt(wrappedFn);
+
+            // Should throw CircuitBreakerError
+            const [, circuitError] = await attempt(wrappedFn);
+
+            expect(circuitError).to.be.an.instanceof(Error);
+            expect((circuitError as Error).constructor.name).to.equal('CircuitBreakerError');
+            expect((circuitError as Error).message).to.equal('Circuit breaker tripped');
+        });
     })
 });
