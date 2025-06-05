@@ -47,6 +47,22 @@ export const throttle = <T extends AnyFunc>(
     let lastCalled: number | null = null;
     let lastResult: ReturnType<T> | null = null;
 
+    if (typeof fn !== 'function') {
+        throw new Error('fn must be a function');
+    }
+
+    if (typeof delay !== 'number' || delay <= 0) {
+        throw new Error('delay must be a positive number');
+    }
+
+    if (onThrottle && typeof onThrottle !== 'function') {
+        throw new Error('onThrottle must be a function');
+    }
+
+    if (throws && typeof throws !== 'boolean') {
+        throw new Error('throws must be a boolean');
+    }
+
     const callback = function (...args: Parameters<T>): ReturnType<T> {
 
         const now = Date.now();

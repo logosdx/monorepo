@@ -10,6 +10,8 @@ import {
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
+import { mockHelpers } from '../../_helpers';
+
 import {
     attempt,
     attemptSync,
@@ -20,277 +22,15 @@ import {
     circuitBreaker,
     circuitBreakerSync,
     wait,
-} from '../../../packages/utils/src/index.ts';
+    memoizeSync,
+    memoize,
+} from '../../../../packages/utils/src/index.ts';
 
 describe('@logosdx/utils', () => {
 
-    describe('flow-control', () => {
+    const { calledExactly } = mockHelpers(expect);
 
-        const calledExactly = (mock: Mock<any>, n: number, desc?: string) => {
-
-            expect(mock.mock.callCount(), desc).to.equal(n);
-        }
-
-        const calledMoreThan = (mock: Mock<any>, n: number, desc?: string) => {
-
-            expect(mock.mock.callCount(), desc).to.be.greaterThan(n);
-        }
-
-        const calledAtLeast = (mock: Mock<any>, n: number, desc?: string) => {
-
-            expect(mock.mock.callCount(), desc).to.be.at.least(n);
-        }
-
-        it('should attempt', async () => {
-
-            const [result, error] = await attempt(async () => {
-
-                throw new Error('poop');
-            });
-
-            expect(result).to.be.null;
-            expect(error).to.be.an.instanceof(Error);
-            expect(error!.message).to.equal('poop');
-
-            const [result2, error2] = await attempt(async () => {
-
-                return 'ok';
-            });
-
-            expect(result2).to.equal('ok');
-            expect(error2).to.be.null;
-        });
-
-        it('should attemptSync', () => {
-
-            const [result, error] = attemptSync(() => {
-
-                throw new Error('poop');
-            });
-
-            expect(result).to.be.null;
-            expect(error).to.be.an.instanceof(Error);
-            expect(error!.message).to.equal('poop');
-
-            const [result2, error2] = attemptSync(() => {
-
-                return 'ok';
-            });
-
-            expect(result2).to.equal('ok');
-            expect(error2).to.be.null;
-        });
-
-        it('should debounce', async () => {
-
-            const mocked = mock.fn();
-
-            const fn = debounce(mocked, 10);
-
-            fn();
-            fn();
-            fn();
-
-            calledExactly(mocked, 0, 'debounce 1');
-
-            await wait(8);
-
-            fn();
-
-            calledExactly(mocked, 0, 'debounce 2');
-
-            await wait(10);
-
-            calledExactly(mocked, 1, 'debounce 3');
-        });
-
-        it('should throttle', async () => {
-
-            const mocked = mock.fn();
-            const onThrottle = mock.fn();
-
-            const fn = throttle(mocked, {
-                delay: 10,
-                onThrottle
-            });
-
-            fn();
-
-            calledExactly(mocked, 1, 'throttle 1');
-
-            await wait(8);
-
-            fn();
-
-            calledExactly(mocked, 1, 'throttle 2');
-            calledExactly(onThrottle, 1, 'throttle onThrottle 2');
-
-            await wait(2);
-
-            fn();
-
-            calledExactly(mocked, 2, 'throttle 3');
-
-            await wait(2);
-
-            fn();
-
-            calledExactly(mocked, 2, 'throttle 4');
-        });
-
-        it('should throttle with throws', async () => {
-
-            const mocked = mock.fn();
-            const onThrottle = mock.fn();
-
-            const fn = throttle(mocked, {
-                delay: 10,
-                onThrottle,
-                throws: true
-            });
-
-            fn();
-
-            expect(() => fn()).to.throw('Throttled');
-            calledExactly(mocked, 1, 'throttle with throws 1');
-            calledExactly(onThrottle, 1, 'throttle with throws onThrottle 1');
-
-            await wait(11);
-
-            fn();
-
-            calledExactly(mocked, 2, 'throttle with throws 2');
-            calledExactly(onThrottle, 1, 'throttle with throws onThrottle 2');
-        })
-
-        it('should retry', async () => {
-
-            const fn = mock.fn(() => 'ok');
-            let succeedAfter = 2;
-
-            fn.mock.mockImplementation(() => {
-
-                if (succeedAfter > 0) {
-                    succeedAfter--;
-                    throw new Error('poop');
-                }
-
-                return 'ok';
-            });
-
-            const result = await retry(fn, { retries: 3, delay: 10 });
-
-            calledExactly(fn, 3, 'retry 1');
-            expect(result).to.equal('ok');
-
-            succeedAfter = 0;
-
-            const result2 = await retry(fn, { retries: 3, delay: 10 });
-
-            calledExactly(fn, 4, 'retry 2');
-            expect(result2).to.equal('ok');
-
-            succeedAfter = 4;
-
-            const [result3, error3] = await attempt(
-                () => retry(fn, { retries: 3, delay: 10 })
-            );
-
-            expect(result3).to.be.null;
-            expect(error3).to.be.an.instanceof(Error);
-            expect(error3!.message).to.equal('Max retries reached');
-        });
-
-        it('should batch', async () => {
-
-            const func = async (n: number) => {
-
-                await wait(10);
-
-                return n;
-            }
-
-            const fn = mock.fn(func);
-            const onStart = mock.fn();
-            const onEnd = mock.fn();
-            const onChunkStart = mock.fn();
-            const onChunkEnd = mock.fn();
-
-            const items = Array.from(
-                { length: 100 },
-                (_, i) => [i] as [number]
-            );
-
-            const promise1 = batch(fn, {
-
-                items,
-                chunkSize: 40,
-                onStart,
-                onEnd,
-                onChunkStart,
-                onChunkEnd,
-            });
-
-            await wait(1);
-
-            calledExactly(onStart, 1, 'batch onStart 1');
-            calledExactly(onChunkStart, 1, 'batch onChunkStart 1');
-            calledExactly(fn, 40, 'batch fn 1');
-
-            await wait(10);
-
-            calledExactly(onChunkStart, 2, 'batch onChunkStart 2');
-            calledExactly(onChunkEnd, 1, 'batch onChunkEnd 2');
-            calledExactly(fn, 80, 'batch fn 2');
-
-            await wait(10);
-
-            calledExactly(onChunkStart, 3, 'batch onChunkStart 3');
-            calledExactly(onChunkEnd, 2, 'batch onChunkEnd 3');
-            calledExactly(fn, 100, 'batch fn 3');
-            calledExactly(onEnd, 0, 'batch onEnd 3');
-
-            const result = await promise1;
-
-            calledExactly(onEnd, 1, 'batch onEnd 4');
-
-            expect(result.map(r => r.result)).to.deep.equal(items.map(([i]) => i));
-        });
-
-        it('should batch in failureModes continue', async () => {
-
-            const items = Array.from(
-                { length: 100 },
-                (_, i) => [i] as [number]
-            );
-
-            const fn = mock.fn((n: number) => {
-
-                if (n % 2 === 0) {
-                    throw new Error('poop');
-                }
-
-                return 'ok';
-            });
-
-            const onError = mock.fn();
-
-            const result = await batch(fn, {
-
-                items,
-                chunkSize: 10,
-                failureMode: 'continue',
-                onError,
-            });
-
-            calledExactly(onError, 50, 'batch onError 1');
-
-            const errors = result.filter(r => r.error);
-            const results = result.filter(r => !r.error);
-
-            expect(errors.length).to.equal(50);
-            expect(results.length).to.equal(50);
-        });
+    describe('flow-control: circuit breaker', () => {
 
         it('should implement a circuit breaker', async () => {
 
@@ -582,5 +322,4 @@ describe('@logosdx/utils', () => {
             calledExactly(onReset, 1, 'should reset after successful half-open test');
         });
     })
-
 });

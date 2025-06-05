@@ -1,3 +1,4 @@
+import { assert } from '../misc.ts';
 import { attempt, attemptSync } from './attempt.ts';
 import { AnyFunc } from './_helpers.ts';
 
@@ -36,6 +37,67 @@ export class CircuitBreakerError extends Error {
     }
 }
 
+const validateOpts = <T extends AnyFunc>(opts: CircuitBreakerOptions<T>) => {
+
+    if (
+        typeof opts.maxFailures !== 'number' ||
+        opts.maxFailures <= 0
+    ) {
+        throw new Error('maxFailures must be a positive number');
+    }
+
+    if (
+        typeof opts.halfOpenMaxAttempts !== 'number' ||
+        opts.halfOpenMaxAttempts <= 0
+    ) {
+        throw new Error('halfOpenMaxAttempts must be a positive number');
+    }
+
+    if (
+        typeof opts.resetAfter !== 'number' ||
+        opts.resetAfter <= 0
+    ) {
+        throw new Error('resetAfter must be a positive number');
+    }
+
+    if (
+        opts.onTripped &&
+        typeof opts.onTripped !== 'function'
+    ) {
+        throw new Error('onTripped must be a function');
+    }
+
+    if (
+        opts.onError &&
+        typeof opts.onError !== 'function'
+    ) {
+        throw new Error('onError must be a function');
+    }
+
+    if (
+        opts.onReset &&
+        typeof opts.onReset !== 'function'
+    ) {
+        throw new Error('onReset must be a function');
+    }
+
+    if (
+        opts.onHalfOpen &&
+        typeof opts.onHalfOpen !== 'function'
+    ) {
+        throw new Error('onHalfOpen must be a function');
+    }
+
+    if (
+        opts.shouldTripOnError &&
+        typeof opts.shouldTripOnError !== 'function'
+    ) {
+        throw new Error('shouldTripOnError must be a function');
+    }
+
+}
+
+
 const resetStore = (
     store: CircuitBreakerStore,
     onReset?: () => void
@@ -61,7 +123,6 @@ const preAttempt = <T extends AnyFunc>(
     const {
         store,
         opts: {
-            maxFailures,
             resetAfter,
             halfOpenMaxAttempts = DEFAULT_HALF_OPEN_MAX_ATTEMPTS,
             onTripped,
@@ -246,6 +307,11 @@ export const circuitBreakerSync = <T extends AnyFunc>(
         state: CircuitBreakerState.Closed
     }
 
+    if (typeof fn !== 'function') {
+        throw new Error('fn must be a function');
+    }
+
+    validateOpts(opts);
 
     return function (...args: Parameters<T>) {
 
@@ -341,6 +407,12 @@ export const circuitBreaker = <T extends AnyFunc>(
         testInProgress: false,
         state: CircuitBreakerState.Closed
     }
+
+    if (typeof fn !== 'function') {
+        throw new Error('fn must be a function');
+    }
+
+    validateOpts(opts);
 
     return async function (...args: Parameters<T>) {
 

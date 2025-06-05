@@ -1,6 +1,7 @@
 import { readdirSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import Sinon from 'sinon';
+import { Mock } from 'node:test';
 
 const globalConsole = globalThis.console;
 const globalLog = console.log;
@@ -66,6 +67,16 @@ export const importTestFiles = async (
     const files = dirResults.filter((f) => statSync(join(from, f)).isFile());
     const folders = dirResults.filter((f) => statSync(join(from, f)).isDirectory());
 
+    const inArgs = (file: string) => (
+        args.length === 0 ||
+        args.includes(
+            basename(file, '.ts')
+        ) ||
+        args.some(
+            (arg) => join(from, file).includes(arg)
+        )
+    )
+
     const importable = files.filter(
         (file) => (
             statSync(join(from, file)).isFile() &&
@@ -73,12 +84,7 @@ export const importTestFiles = async (
             !file.endsWith('.d.ts') &&
             !file.startsWith('index') &&
             !file.startsWith('_') &&
-            (
-                args.length === 0 ||
-                args.includes(
-                    basename(file, '.ts')
-                )
-            )
+            inArgs(file)
         )
     );
 
@@ -95,5 +101,29 @@ export const importTestFiles = async (
         await import(
             join(from, file)
         );
+    }
+}
+
+export const mockHelpers = (expect: Chai.ExpectStatic) => {
+
+    const calledExactly = (mock: Mock<any>, n: number, desc?: string) => {
+
+        expect(mock.mock.callCount(), desc).to.equal(n);
+    }
+
+    const calledMoreThan = (mock: Mock<any>, n: number, desc?: string) => {
+
+        expect(mock.mock.callCount(), desc).to.be.greaterThan(n);
+    }
+
+    const calledAtLeast = (mock: Mock<any>, n: number, desc?: string) => {
+
+        expect(mock.mock.callCount(), desc).to.be.at.least(n);
+    }
+
+    return {
+        calledExactly,
+        calledMoreThan,
+        calledAtLeast
     }
 }

@@ -1,0 +1,13 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+This repo is a PNPM monorepo. It publishes multiple packages.
+
+Source code is found in `packages/`
+Documentation is found in `docs/`
+Tests are in `tests/`
+    - Tests should include modules via a relative path, not the package: `../../packages/utils/src/index.ts` vs `@logos-dx/utils`
+
+Testing scripts can be found in [package.json](mdc:package.json)

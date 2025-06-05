@@ -485,14 +485,14 @@ export const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, m
 /**
  * Chunk an array into smaller arrays
  * @param array
- * @param chunkSize
+ * @param size
  * @returns
  */
-export const chunk = <T>(array: T[], chunkSize: number) => {
+export const chunk = <T>(array: T[], size: number) => {
 
     return array.reduce((result, item, index) => {
 
-        const chunkIndex = Math.floor(index / chunkSize);
+        const chunkIndex = Math.floor(index / size);
 
         if (!result[chunkIndex]) {
             result[chunkIndex] = [];

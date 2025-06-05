@@ -6,12 +6,15 @@ import { MaybePromise } from '../types.ts';
 type OnChunkParam<T extends AnyFunc> = {
     index: number,
     total: number,
-    items: Parameters<T>[]
+    items: Parameters<T>[],
+    processedCount: number,
+    remainingCount: number,
+    completionPercent: number
 }
 
 type BatchOptions<T extends AnyFunc> = {
     items: Parameters<T>[],
-    chunkSize?: number,
+    concurrency?: number,
     failureMode?: 'abort' | 'continue',
     onError?: (error: Error, args: Parameters<T>) => MaybePromise<void>
     onStart?: (total: number) => MaybePromise<void>
@@ -62,8 +65,8 @@ export const batch = async <T extends AnyFunc>(
     const results: BatchResult<T>[] = [];
 
     const {
-        chunkSize = 10,
-        items = [],
+        items,
+        concurrency = 10,
         failureMode = 'abort',
         onError,
         onStart,
@@ -72,7 +75,43 @@ export const batch = async <T extends AnyFunc>(
         onEnd
     } = options;
 
-    const chunks = chunk(items, chunkSize);
+    if (typeof fn !== 'function') {
+        throw new Error('fn must be a function');
+    }
+
+    if (concurrency < 1) {
+        throw new Error('concurrency must be greater than 0');
+    }
+
+    if (!Array.isArray(items)) {
+        throw new Error('items must be an array');
+    }
+
+    if (failureMode !== 'abort' && failureMode !== 'continue') {
+        throw new Error('failureMode must be either "abort" or "continue"');
+    }
+
+    if (onError && typeof onError !== 'function') {
+        throw new Error('onError must be a function');
+    }
+
+    if (onStart && typeof onStart !== 'function') {
+        throw new Error('onStart must be a function');
+    }
+
+    if (onChunkStart && typeof onChunkStart !== 'function') {
+        throw new Error('onChunkStart must be a function');
+    }
+
+    if (onChunkEnd && typeof onChunkEnd !== 'function') {
+        throw new Error('onChunkEnd must be a function');
+    }
+
+    if (onEnd && typeof onEnd !== 'function') {
+        throw new Error('onEnd must be a function');
+    }
+
+    const chunks = chunk(items, concurrency);
     const totalChunks = chunks.length;
 
     const processOne = async (args: Parameters<T>) => {
@@ -104,14 +143,16 @@ export const batch = async <T extends AnyFunc>(
 
     await onStart?.(totalChunks);
 
-    while (chunks.length > 0) {
-
-        const chunk = chunks.shift();
+    for (let index = 0; index < chunks.length; index++) {
+        const chunk = chunks[index];
 
         await onChunkStart?.({
             index,
             total: totalChunks,
-            items: chunk ?? []
+            items: chunk ?? [],
+            processedCount: index * concurrency,
+            remainingCount: (totalChunks - index - 1) * concurrency,
+            completionPercent: ((index + 1) / totalChunks) * 100
         });
 
         await batchExec(chunk ?? []);
@@ -119,10 +160,11 @@ export const batch = async <T extends AnyFunc>(
         await onChunkEnd?.({
             index,
             total: totalChunks,
-            items: chunk ?? []
+            items: chunk ?? [],
+            processedCount: index * concurrency,
+            remainingCount: (totalChunks - index - 1) * concurrency,
+            completionPercent: ((index + 1) / totalChunks) * 100
         });
-
-        index++;
     }
 
     await onEnd?.(results);
