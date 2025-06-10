@@ -916,10 +916,10 @@ const someType = await api.request <SomeType>(
 		determineType: () => 'json',
 		formatHeaders(headers: Headers) { return snakeCase(headers) },
 		onError(err: FetchError) { ... },
-		onBeforeReq(opts: LogosUiFetch.RequestOpts) { ... }
+		onBeforeReq(opts: FetchEngine.RequestOpts) { ... }
 		onAfterReq(
 			clonedResponse: Response,
-			opts: LogosUiFetch.RequestOpts
+			opts: FetchEngine.RequestOpts
 		) { ... },
 	}
 );
