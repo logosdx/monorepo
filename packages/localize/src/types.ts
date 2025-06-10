@@ -1,7 +1,6 @@
 import {
     StrOrNum,
     PathLeaves,
-    GetFieldType,
     DeepOptional
 } from '@logosdx/utils';
 

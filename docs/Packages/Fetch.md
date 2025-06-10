@@ -3,19 +3,36 @@ permalink: '/packages/fetch'
 aliases: ["Fetch", "@logosdx/fetch"]
 ---
 
-If you have ever thought to yourself:
+# @logosdx/fetch
 
-> It's 2025 and we're still using Axios when there's an entire `Fetch` API available to us on everything single browser
+**Modern HTTP client built on the Fetch API for the real world**
 
-Then say hello to `FetchEngine`. It simplifies the process of making HTTP requests using the `Fetch` API while giving you access to all of its features. It provides an intuitive interface and flexible configuration options to streamlines the development of API integrations. Very simply, you define the base URL and additional headers for your FetchEngine instance.
+Building applications today means dealing with unreliable networks, complex authentication flows, and demanding performance requirements. The `@logosdx/fetch` package provides a powerful, type-safe HTTP client that solves the real problems you encounter when building production applications.
 
-A great feature of `FetchEngine` is its ability to customize request options based on the current state. Through the `modifyOptions` callback function, you can dynamically modify the request options before each request is sent. This enables tasks like adding authentication headers or applying specific logic based on the instance's state. `FetchEngine` also provides a convenient way to handle response data, allowing developers to access and process the results of their API requests.
+This package is designed to work on all platforms that support the Fetch API, including browsers, React Native, and Cloudflare Workers.
 
-```sh
+> 📚 **Detailed API Reference**: For complete function signatures, parameters, and technical details, visit [typedoc.logosdx.dev](https://typedoc.logosdx.dev)
+
+```bash
 npm install @logosdx/fetch
 yarn add @logosdx/fetch
 pnpm add @logosdx/fetch
 ```
+
+## Why This Package Exists
+
+It's 2025, and we're still using heavyweight HTTP libraries when there's a perfectly capable Fetch API available in every browser and Node.js environment. Most existing solutions either:
+
+- **Add unnecessary bloat** - Axios is 13KB minified, but you only need 2KB of actual functionality
+- **Lack of features** - No built-in retry logic, circuit breakers, or request cancellation
+- **Poor TypeScript support** - Generic types that don't actually help you catch errors
+- **Inflexible configuration** - Can't adapt headers or behavior based on application state
+
+Consider this common scenario: You're building a SaaS dashboard that needs to authenticate users, handle API rate limits, retry failed requests, and gracefully handle network issues. Or maybe you're ingesting thousands of transactions from a third-party API, and a single failure corrupts the state of your company's accounting system.
+
+With traditional HTTP clients, you end up writing the same boilerplate code over and over, or worse, ignoring these concerns until they cause production issues.
+
+`FetchEngine` solves these problems by providing a thin, powerful wrapper around the native Fetch API that gives you production-ready features without the bloat.
 
 ## Quick Start
 
@@ -53,9 +70,276 @@ const request = api.get('/users');
 request.abort(); // Cancel when needed
 ```
 
+## Core Philosophy
+
+### 1. **Built on Web Standards**
+
+Instead of reinventing HTTP, we embrace the Fetch API and enhance it:
+
+```typescript
+// ❌ Heavy dependencies with custom APIs
+import axios from 'axios'; // 13KB + lacks features
+
+const response = await axios.get('/api/users', {
+    headers: { 'Authorization': `Bearer ${token}` }
+});
+
+// ✅ Native Fetch API with intelligent enhancements
+import { FetchEngine } from '@logosdx/fetch'; // 2KB, familiar API
+
+const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
+const users = await api.get('/users'); // Automatic retry, type-safe, cancellable
+```
+
+### 2. **Production-Ready Resilience**
+
+Real applications need to handle failures gracefully. `FetchEngine` includes battle-tested patterns and is designed to be flexible and type-safe:
+
+```typescript
+// ❌ Fragile code that breaks in production
+async function fetchUserData(id: string) {
+    const response = await fetch(`/api/users/${id}`); // What if this times out?
+    return response.json(); // What if the server returns HTML error page?
+}
+
+// ❌ Manual retry logic that's hard to get right
+let attempts = 0;
+while (attempts < 3) {
+    try {
+        return await fetchUserData(id);
+    } catch (error) {
+        attempts++;
+        if (attempts >= 3) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+    }
+}
+```
+
+With `FetchEngine`, resilience is built-in:
+
+```typescript
+// ✅ Comprehensive protection with minimal code
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retryConfig: {
+        maxAttempts: 3,
+        baseDelay: 1000,
+        useExponentialBackoff: true,
+        retryableStatusCodes: [408, 429, 500, 502, 503, 504, 429],
+        shouldRetry: (error, attempt) => {
+            // Don't retry if request was cancelled
+            if (error.aborted) return false;
+
+            // Custom logic for specific errors
+            if (error.status === 429) {
+                // Check if server provided retry-after header
+                const retryAfter = error.headers?.['retry-after'];
+                return retryAfter ? parseInt(retryAfter) < 60 : true;
+            }
+
+            return attempt < 5;
+        }
+    }
+});
+
+// Automatically retries on failure, handles timeouts, parses responses safely
+const userData = await api.get(`/users/${id}`);
+```
+
+### 3. **Intelligent State Management**
+
+Modern applications need to adapt requests based on current state - authentication tokens, user preferences, feature flags:
+
+```typescript
+// ❌ Manually managing headers everywhere
+const token = getAuthToken();
+const response = await fetch('/api/data', {
+    headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-ID': getCurrentUserId(),
+        'X-Feature-Flags': getFeatureFlags().join(',')
+    }
+});
+
+// ❌ Forgetting to add headers to some requests
+const anotherResponse = await fetch('/api/other-data'); // Oops, no auth!
+```
+
+`FetchEngine` manages this complexity for you:
+
+```typescript
+// ✅ Centralized, automatic header management
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    modifyOptions: (opts, state) => {
+        if (state.token) {
+            opts.headers.authorization = `Bearer ${state.token}`;
+            opts.headers['x-user-id'] = state.userId;
+            opts.headers['x-feature-flags'] = state.featureFlags.join(',');
+        }
+        return opts;
+    }
+});
+
+// Set state once, applies to all requests
+api.setState({
+    token: 'abc123',
+    userId: 'user-456',
+    featureFlags: ['new-ui', 'beta-features']
+});
+
+// All requests automatically include proper headers
+const data = await api.get('/data');
+const otherData = await api.get('/other-data');
+```
+
+### 4. **Observability and Monitoring**
+
+Production applications need visibility into HTTP requests for debugging, monitoring, and analytics.
+
+```typescript
+// Monitor all requests
+api.on('fetch-before', (event) => {
+    console.log(`Starting ${event.method} ${event.url}`);
+    performance.mark(`request-start-${event.url}`);
+});
+
+api.on('fetch-after', (event) => {
+    performance.mark(`request-end-${event.url}`);
+    performance.measure(
+        `request-duration-${event.url}`,
+        `request-start-${event.url}`,
+        `request-end-${event.url}`
+    );
+});
+
+// Track errors for monitoring
+api.on('fetch-error', (event) => {
+    errorReporting.captureException(event.error, {
+        tags: {
+            url: event.url,
+            method: event.method,
+            status: event.status,
+            attempt: event.attempt
+        }
+    });
+});
+
+// Monitor retry patterns
+api.on('fetch-retry', (event) => {
+    metrics.increment('api.retry', {
+        url: event.url,
+        attempt: event.attempt
+    });
+});
+```
+
+### 5. **Type-Safe and Flexible**
+
+FetchEngine is designed to be flexible and type-safe. You can define your own headers, params, and state types to match your API. It provides a robust set of options to facilitate your requests and business logic.
+
+```typescript
+
+type SomeHeaders = {
+    'Authorization'?: string,
+    'X-API-Key'?: string
+}
+
+type SomeParams = {
+    'auth_token'?: string,
+    'scope'?: string,
+    'page'?: string,
+    'limit'?: string,
+}
+
+type SomeState = {
+    'isAuthenticated'?: boolean,
+    'authToken'?: string,
+    'refreshToken'?: string
+}
+
+// ✅ Type-safe and flexible
+const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
+    baseUrl: 'https://api.example.com',
+    headers: {
+        'Authorization': `Bearer ${authToken}`
+    }
+});
+
+type SomeResponse = {
+    authToken: string,
+    refreshToken: string
+}
+
+const { authToken, refreshToken } = await api.get<SomeResponse>('/auth/refresh', {
+    // ✅ Type-safe params
+    params: {
+        auth_token: '1234567890'
+    },
+
+    // ✅ Type-safe headers
+    headers: {
+        'Authorization': `Bearer ${authToken}`
+    },
+
+    // ✅ Request lifecycle hooks
+    onBeforeReq: async (opts) => {
+
+        if (someCondition) {
+
+            opts.controller.abort();
+        }
+    },
+
+    onAfterReq: (response, opts) => {
+
+        if (response.status === 200) {
+
+            api.setState({ isAuthenticated: true });
+        }
+    },
+
+    onError: (error) => {
+
+        if (error.status === 401) {
+
+            api.setState({ isAuthenticated: false });
+        }
+    },
+
+    // ✅ Native Fetch API options
+    cache: 'no-cache',
+    credentials: 'include',
+    mode: 'cors',
+    redirect: 'follow',
+    referrerPolicy: 'no-referrer',
+    integrity: 'sha256-...',
+});
+
+type OtherResponse = {
+    users: {
+        id: string,
+        name: string
+    }[]
+}
+
+const res = await api.post<OtherResponse>(
+    '/users/search',
+    {
+        // Payload
+        filter: {
+            name: 'John'
+        }
+    },
+    {
+        // ... request options
+    }
+});
+```
+
 ## Example
 
-Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logosdx.github.io/modules/_logos_ui_fetch.LogosUiFetch.html).
+Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://typedoc.logosdx.dev).
 
 ```ts
 
@@ -160,11 +444,6 @@ const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
 	// use this option to modify them. Set to `false` to never format.
 	formatHeaders: 'lowercase',
 
-	// RequestInit options
-	cache: 'no-cache',
-	credentials: 'include',
-	mode: 'cors',
-
     retryConfig: {
         maxAttempts: 3,
         retryableStatusCodes: [500, 502, 503],
@@ -174,7 +453,14 @@ const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
         shouldRetry: (error, attempt) => {
             return !error.status || error.status === 503;
         }
-    }
+    },
+
+
+	// RequestInit options
+	cache: 'no-cache',
+	credentials: 'include',
+	mode: 'cors',
+
 });
 
 const res = await api.get <SomeType>('/some-endpoint');

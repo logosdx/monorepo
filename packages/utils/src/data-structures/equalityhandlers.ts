@@ -11,14 +11,14 @@ import type {
 } from './index.ts';
 
 export interface HandleEquatingOf {
-    (a: unknown, b: unknown): boolean;
+    (a: unknown, b: unknown, seen?: WeakMap<WeakKey, WeakKey>): boolean;
 }
 
 export const equalityHandlers: Map<AnyConstructor, HandleEquatingOf> = new Map();
 
 export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
 
-    equalityHandlers.set(Array, (_a, _b) => {
+    equalityHandlers.set(Array, (_a, _b, seen) => {
 
         const a = _a as unknown[];
         const b = _b as unknown[];
@@ -26,10 +26,10 @@ export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
         // If length changed, they do not match
         if (!isSameLength(a, b)) return false;
 
-        return forInEvery(a, (val, i) => deepEqual(val, b[i as any]))
+        return forInEvery(a, (val, i) => deepEqual(val, b[i as any], seen))
     });
 
-    equalityHandlers.set(Object, (_a, _b) => {
+    equalityHandlers.set(Object, (_a, _b, seen) => {
 
         const a = _a as Record<string, unknown>;
         const b = _b as Record<string, unknown>;
@@ -47,10 +47,10 @@ export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
 
         if (!aHasBKeys || !bHasAKeys) return false;
 
-        return forInEvery(a, (val, i) => deepEqual(val, b[i]));
+        return forInEvery(a, (val, i) => deepEqual(val, b[i], seen));
     });
 
-    equalityHandlers.set(Map, (_a, _b) => {
+    equalityHandlers.set(Map, (_a, _b, seen) => {
 
         const a = _a as Map<unknown, unknown>;
         const b = _b as Map<unknown, unknown>;
@@ -70,7 +70,8 @@ export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
             a.keys(),
             (key) => deepEqual(
                 a.get(key),
-                b.get(key)
+                b.get(key),
+                seen
             )
         );
     });
@@ -156,7 +157,7 @@ export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
         return true;
     });
 
-    equalityHandlers.set(DataView, (_a, _b) => {
+    equalityHandlers.set(DataView, (_a, _b, seen) => {
 
         const a = _a as DataView;
         const b = _b as DataView;
@@ -168,7 +169,7 @@ export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
             return false;
         }
 
-        return equalityHandlers.get(ArrayBuffer)!(a.buffer, b.buffer);
+        return equalityHandlers.get(ArrayBuffer)!(a.buffer, b.buffer, seen);
     });
 
     // Add support for Error objects
@@ -179,34 +180,49 @@ export const prepareDeepEqualHandlers = (deepEqual: typeof DeepEqualFn) => {
 
     ERROR_TYPES.forEach(ErrorConstructor => {
 
-        equalityHandlers.set(ErrorConstructor, (_a, _b) => {
+        equalityHandlers.set(ErrorConstructor, (_a, _b, seen) => {
 
             const a = _a as Error;
             const b = _b as Error;
 
-            if (
-                a.name !== b.name ||
-                a.message !== b.message ||
-                a.stack !== b.stack
-            ) {
+            // Compare basic error properties
+            if (a.name !== b.name || a.message !== b.message) {
                 return false;
             }
 
-            // Compare any additional enumerable properties
-            const aKeys = Object.keys(a);
-            const bKeys = Object.keys(b);
+            // Don't compare stack traces as they include line numbers and are usually different
+            // Get all enumerable properties including those that might not show up in Object.keys for Error objects
+            const aKeys = new Set([...Object.keys(a), ...Object.getOwnPropertyNames(a)].filter(key => {
+                const descriptor = Object.getOwnPropertyDescriptor(a, key);
+                return descriptor && descriptor.enumerable;
+            }));
 
-            if (aKeys.length !== bKeys.length) {
+            const bKeys = new Set([...Object.keys(b), ...Object.getOwnPropertyNames(b)].filter(key => {
+                const descriptor = Object.getOwnPropertyDescriptor(b, key);
+                return descriptor && descriptor.enumerable;
+            }));
+
+            // Remove built-in Error properties from comparison
+            const builtInProps = new Set(['name', 'message', 'stack']);
+            const aCustomKeys = [...aKeys].filter(key => !builtInProps.has(key));
+            const bCustomKeys = [...bKeys].filter(key => !builtInProps.has(key));
+
+            if (aCustomKeys.length !== bCustomKeys.length) {
                 return false;
             }
 
-            for (const key of aKeys) {
+            // Check that all custom properties exist in both objects
+            for (const key of aCustomKeys) {
+                if (!bKeys.has(key)) {
+                    return false;
+                }
+            }
 
-                if (key !== 'name' && key !== 'message' && key !== 'stack') {
+            // Deep compare all custom properties
+            for (const key of aCustomKeys) {
 
-                    if (!deepEqual((a as any)[key], (b as any)[key])) {
-                        return false;
-                    }
+                if (!deepEqual((a as any)[key], (b as any)[key], seen)) {
+                    return false;
                 }
             }
 

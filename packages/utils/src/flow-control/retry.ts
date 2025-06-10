@@ -8,6 +8,24 @@ import { AnyFunc } from './_helpers.ts';
  * @param fn function to retry
  * @param opts options
  * @returns
+ *
+ * @example
+ *
+ * const fetchData = retry(
+ *     async () => {
+ *         const response = await fetch('https://api.example.com/data');
+ *         return response.json();
+ *     },
+ *     {
+ *         retries: 3,
+ *         delay: 1000,
+ *         backoff: 2,
+ *         shouldRetry: (error) => error.message.includes('500')
+ *     }
+ * );
+ *
+ * const data = await fetchData();
+ *
  */
 export const retry = async <T extends AnyFunc>(
     fn: T,

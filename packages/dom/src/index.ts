@@ -24,7 +24,7 @@ export type {
 
 import { isBrowserLike } from '@logosdx/utils';
 
-if (!isBrowserLike) {
+if (!isBrowserLike()) {
 
     throw new Error('Dom is not supported in this environment');
 }

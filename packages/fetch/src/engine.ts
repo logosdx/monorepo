@@ -3,10 +3,8 @@ import {
     assert,
     assertOptional,
     deepClone,
-    isFunction,
     txt,
     attempt,
-    attemptSync
 } from '@logosdx/utils';
 
 import {
@@ -230,6 +228,9 @@ export class FetchEngine<
                 (key: string) => key.toUpperCase()
             ) as FetchEngine.Headers<H>;
         }
+
+        // Fallback return for any other case
+        return headers as FetchEngine.Headers<H>;
     }
     constructor(_opts: FetchEngine.Options<H, P, S>) {
 
@@ -276,14 +277,14 @@ export class FetchEngine<
     /**
      * Calculate delay for retry attempt using exponential backoff
      */
-    #calculateRetryDelay(attempt: number, retryConfig: Required<RetryConfig>, error?: FetchError): number {
+    #calculateRetryDelay(attemptNo: number, retryConfig: Required<RetryConfig>, error?: FetchError): number {
 
         const { baseDelay, maxDelay, useExponentialBackoff } = retryConfig;
 
         // Get base delay value, handling both function and number cases
         let baseDelayValue: number;
         if (typeof baseDelay === 'function' && error) {
-            baseDelayValue = baseDelay(error, attempt);
+            baseDelayValue = baseDelay(error, attemptNo);
         } else if (typeof baseDelay === 'number') {
             baseDelayValue = baseDelay;
         } else {
@@ -292,7 +293,7 @@ export class FetchEngine<
 
         if (!useExponentialBackoff) return Math.min(baseDelayValue, maxDelay!);
 
-        const delay = baseDelayValue * Math.pow(2, attempt - 1);
+        const delay = baseDelayValue * Math.pow(2, attemptNo - 1);
 
         return Math.min(delay, maxDelay!);
     }
@@ -386,7 +387,7 @@ export class FetchEngine<
         const {
             error,
             step,
-            attempt,
+            attempt: attemptNo,
             status,
             method,
             path,
@@ -447,7 +448,7 @@ export class FetchEngine<
             }
         }
 
-        err.attempt = attempt;
+        err.attempt = attemptNo;
         err.status = err.status || status!;
         err.method = err.method || method!;
         err.path = err.path || path!;
@@ -459,7 +460,7 @@ export class FetchEngine<
         const eventData = {
             error: err,
             state: this.#state,
-            attempt,
+            attempt: attemptNo,
             step,
             status,
             method,
@@ -512,7 +513,7 @@ export class FetchEngine<
             onError,
             timeout = this.#options.timeout,
             params,
-            attempt: _attempt,
+            attempt: attempNo,
             ...rest
         } = options;
 
@@ -569,7 +570,7 @@ export class FetchEngine<
                     payload,
                     url,
                     state: this.#state,
-                    attempt: _attempt
+                    attempt: attempNo
                 }
             )
         );
@@ -586,7 +587,7 @@ export class FetchEngine<
             this.#handleError({
                 error: resErr,
                 step: 'fetch',
-                attempt: _attempt!,
+                attempt: attempNo!,
                 method,
                 path,
                 aborted: options.controller.signal.aborted,
@@ -605,7 +606,7 @@ export class FetchEngine<
                 url,
                 state: this.#state,
                 response: response.clone(),
-                attempt: _attempt
+                attempt: attempNo
             })
         );
 
@@ -635,7 +636,7 @@ export class FetchEngine<
             this.#handleError({
                 error: parseErr,
                 step: 'parse',
-                attempt: _attempt!,
+                attempt: attempNo!,
                 status: response.status,
                 method,
                 path,
@@ -654,7 +655,7 @@ export class FetchEngine<
             this.#handleError({
                 error: new FetchError(response.statusText),
                 step: 'response',
-                attempt: _attempt!,
+                attempt: attempNo!,
                 status: response.status,
                 method,
                 path,
@@ -678,7 +679,7 @@ export class FetchEngine<
                     state: this.#state,
                     response,
                     data,
-                    attempt: _attempt
+                    attempt: attempNo
                 }
             )
         );
@@ -753,6 +754,8 @@ export class FetchEngine<
 
             throw fetchError;
         }
+
+        return null;
     }
 
     /**
@@ -882,7 +885,7 @@ export class FetchEngine<
 
             call.isFinished = true;
 
-            return res;
+            return res!;
 
         }) as FetchEngine.AbortablePromise<Res>;
 

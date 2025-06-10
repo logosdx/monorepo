@@ -35,8 +35,12 @@ type BatchResult<T extends AnyFunc> = {
  *
  * const items = [[1], [2], [3], [4], [5]]; // Array of argument arrays
  *
- * await batch(fn, {
- *     chunkSize: 10,
+ * const handleOneItem = async (item: number) => {
+ *     console.log(item);
+ * };
+ *
+ * await batch(handleOneItem, {
+ *     concurrency: 10,
  *     items,
  *     failureMode: 'continue',
  *     onError: (error, args) => {
@@ -138,8 +142,6 @@ export const batch = async <T extends AnyFunc>(
 
         results.push(...all);
     }
-
-    let index = 0;
 
     await onStart?.(totalChunks);
 

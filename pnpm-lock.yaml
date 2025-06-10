@@ -28,17 +28,17 @@ importers:
         version: 4.19.4
       typedoc:
         specifier: ^0.28.4
-        version: 0.28.4(typescript@5.0.4)
+        version: 0.28.4(typescript@5.8.3)
       typescript:
-        specifier: '5'
-        version: 5.0.4
+        specifier: ^5.8.2
+        version: 5.8.3
     devDependencies:
       nodemon:
         specifier: ^3.1.10
         version: 3.1.10
       type-coverage:
         specifier: ^2.29.7
-        version: 2.29.7(typescript@5.0.4)
+        version: 2.29.7(typescript@5.8.3)
       vite:
         specifier: ^6.3.5
         version: 6.3.5(@types/node@22.15.21)(tsx@4.19.4)(yaml@2.8.0)
@@ -113,30 +113,6 @@ importers:
       '@hapi/hoek':
         specifier: ^11.0.7
         version: 11.0.7
-      '@logosdx/dom':
-        specifier: workspace:^
-        version: link:../packages/dom
-      '@logosdx/fetch':
-        specifier: workspace:^
-        version: link:../packages/fetch
-      '@logosdx/kit':
-        specifier: workspace:^
-        version: link:../packages/kit
-      '@logosdx/localize':
-        specifier: workspace:^
-        version: link:../packages/localize
-      '@logosdx/observer':
-        specifier: workspace:^
-        version: link:../packages/observer
-      '@logosdx/state-machine':
-        specifier: workspace:^
-        version: link:../packages/state-machine
-      '@logosdx/storage':
-        specifier: workspace:^
-        version: link:../packages/storage
-      '@logosdx/utils':
-        specifier: workspace:^
-        version: link:../packages/utils
       '@types/chai':
         specifier: ^5.2.2
         version: 5.2.2
@@ -1908,6 +1884,11 @@ packages:
   typescript@5.0.4:
     resolution: {integrity: sha512-cW9T5W9xY37cc+jfEnaUvX91foxtHkza3Nw3wkoF4sSlKn0MONdkdEndig/qPBWXNkmplh3NzayQzCiHM4/hqw==}
     engines: {node: '>=12.20'}
+    hasBin: true
+
+  typescript@5.8.3:
+    resolution: {integrity: sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==}
+    engines: {node: '>=14.17'}
     hasBin: true
 
   uc.micro@2.1.0:
@@ -3767,10 +3748,10 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsutils@3.21.0(typescript@5.0.4):
+  tsutils@3.21.0(typescript@5.8.3):
     dependencies:
       tslib: 1.14.1
-      typescript: 5.0.4
+      typescript: 5.8.3
 
   tsx@4.19.4:
     dependencies:
@@ -3781,20 +3762,20 @@ snapshots:
 
   tunnel@0.0.6: {}
 
-  type-coverage-core@2.29.7(typescript@5.0.4):
+  type-coverage-core@2.29.7(typescript@5.8.3):
     dependencies:
       fast-glob: 3.2.12
       minimatch: 10.0.1
       normalize-path: 3.0.0
       tslib: 2.8.1
-      tsutils: 3.21.0(typescript@5.0.4)
-      typescript: 5.0.4
+      tsutils: 3.21.0(typescript@5.8.3)
+      typescript: 5.8.3
 
-  type-coverage@2.29.7(typescript@5.0.4):
+  type-coverage@2.29.7(typescript@5.8.3):
     dependencies:
       chalk: 4.1.2
       minimist: 1.2.8
-      type-coverage-core: 2.29.7(typescript@5.0.4)
+      type-coverage-core: 2.29.7(typescript@5.8.3)
     transitivePeerDependencies:
       - typescript
 
@@ -3802,16 +3783,18 @@ snapshots:
 
   type-detect@4.1.0: {}
 
-  typedoc@0.28.4(typescript@5.0.4):
+  typedoc@0.28.4(typescript@5.8.3):
     dependencies:
       '@gerrit0/mini-shiki': 3.4.2
       lunr: 2.3.9
       markdown-it: 14.1.0
       minimatch: 9.0.5
-      typescript: 5.0.4
+      typescript: 5.8.3
       yaml: 2.8.0
 
   typescript@5.0.4: {}
+
+  typescript@5.8.3: {}
 
   uc.micro@2.1.0: {}
 

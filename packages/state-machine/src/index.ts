@@ -72,6 +72,7 @@ export class StateMachine<State = any, ReducerValue = any> {
 
     _options!: StateMachineOptions;
 
+    // @ts-ignore
     private _id!: number;
     private _sid = 0;
 

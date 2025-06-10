@@ -165,20 +165,20 @@ export const addBinaryDataMergeHandlers = () => {
 
     TYPED_ARRAYS.forEach(TypedArrayConstructor => {
 
-        mergeHandlers.set(TypedArrayConstructor, (target, source) => {
+        mergeHandlers.set(TypedArrayConstructor, (_target, source) => {
 
             // For binary data, merge typically means replace
             return new TypedArrayConstructor(source as any);
         });
     });
 
-    mergeHandlers.set(ArrayBuffer, (target, source) => {
+    mergeHandlers.set(ArrayBuffer, (_target, source) => {
 
         // Replace with source buffer
         return (source as ArrayBuffer).slice(0);
     });
 
-    mergeHandlers.set(DataView, (target, source) => {
+    mergeHandlers.set(DataView, (_target, source) => {
 
         const sourceView = source as DataView;
         const clonedBuffer = sourceView.buffer.slice(0);
@@ -193,7 +193,7 @@ export const addBinaryDataMergeHandlers = () => {
 
     ERROR_TYPES.forEach(ErrorConstructor => {
 
-        mergeHandlers.set(ErrorConstructor, (target, source) => {
+        mergeHandlers.set(ErrorConstructor, (_target, source) => {
 
             // For Error objects, merge typically means replace with source
             const sourceError = source as Error;

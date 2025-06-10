@@ -1,10 +1,7 @@
 import {
     describe,
     it,
-    before,
-    after,
     mock,
-    Mock
 } from 'node:test'
 
 // @ts-expect-error - chai is not a module
@@ -15,15 +12,9 @@ import { mockHelpers } from '../../_helpers';
 import {
     attempt,
     attemptSync,
-    debounce,
-    throttle,
-    retry,
-    batch,
     circuitBreaker,
     circuitBreakerSync,
     wait,
-    memoizeSync,
-    memoize,
 } from '../../../../packages/utils/src/index.ts';
 
 describe('@logosdx/utils', () => {

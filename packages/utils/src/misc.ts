@@ -1,10 +1,12 @@
-import { Func, PathLeaves, PathNames, PathValue, Truthy } from './types';
+import { Func, PathNames, PathValue, Truthy } from './types';
 
 
-export const isBrowser = typeof window !== 'undefined' && typeof window.document !== 'undefined';
-export const isReactNative =  typeof navigator !== 'undefined' && navigator?.product === 'ReactNative';
-export const isCloudflare = typeof globalThis !== 'undefined' && globalThis?.navigator?.userAgent === 'Cloudflare-Workers';
-export const isBrowserLike = isBrowser || isReactNative || isCloudflare;
+export const isBrowser = () => typeof window !== 'undefined' && typeof window.document !== 'undefined';
+export const isReactNative = () => typeof navigator !== 'undefined' && navigator?.product === 'ReactNative';
+export const isCloudflare = () => typeof globalThis !== 'undefined' && globalThis?.navigator?.userAgent === 'Cloudflare-Workers';
+export const isBrowserLike = () => isBrowser() || isReactNative() || isCloudflare();
+export const isNode = () => typeof process !== 'undefined' && process.versions?.node;
+
 
 /**
  * Defines visible, non-configurable properties on an object
@@ -498,7 +500,7 @@ export const chunk = <T>(array: T[], size: number) => {
             result[chunkIndex] = [];
         }
 
-        result[chunkIndex].push(item);
+        result[chunkIndex]!.push(item);
 
         return result;
     }, [] as T[][]);

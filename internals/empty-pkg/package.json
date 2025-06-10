@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "node ../../scripts/build.mjs",
-    "lint": "pnpm tsc --noEmit"
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
   },
   "files": [
       "dist/",
@@ -22,7 +22,7 @@
   "keywords": [],
   "homepage": "https://logosdx.dev/",
   "bugs": {
-    "url": "https://github.com/logosdx/discuss/issues",
+    "url": "https://github.com/logosdx/monorepo/issues",
     "email": "danilo@alonso.network"
   },
   "author": "Danilo Alonso <danilo@alonso.network>",

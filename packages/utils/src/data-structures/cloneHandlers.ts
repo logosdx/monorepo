@@ -67,18 +67,18 @@ export const prepareCloneHandlers = (clone: typeof DeepCloneFn) => {
 
     TYPED_ARRAYS.forEach(TypedArrayConstructor => {
 
-        cloneHandlers.set(TypedArrayConstructor, (arr: any, seen: WeakMap<any, any>) => {
+        cloneHandlers.set(TypedArrayConstructor, (arr: any) => {
 
             return new TypedArrayConstructor(arr);
         });
     });
 
-    cloneHandlers.set(ArrayBuffer, (buffer: ArrayBuffer, seen: WeakMap<any, any>) => {
+    cloneHandlers.set(ArrayBuffer, (buffer: ArrayBuffer) => {
 
         return buffer.slice(0);
     });
 
-    cloneHandlers.set(DataView, (view: DataView, seen: WeakMap<any, any>) => {
+    cloneHandlers.set(DataView, (view: DataView) => {
 
         const clonedBuffer = view.buffer.slice(0);
         return new DataView(clonedBuffer, view.byteOffset, view.byteLength);

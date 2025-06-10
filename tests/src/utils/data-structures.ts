@@ -17,7 +17,7 @@ import {
     deepEqual,
     deepMerge,
     addHandlerFor,
-} from '@logosdx/utils';
+} from '../../../packages/utils/src/data-structures/index.ts';
 
 import { stubWarn } from '../_helpers.ts';
 
@@ -159,7 +159,7 @@ describe('@logosdx/utils', () => {
         });
     });
 
-    describe('deepEquals(...)', () => {
+    describe('deepEqual(...)', () => {
 
         describe('Args', function () {
 
@@ -390,7 +390,6 @@ describe('@logosdx/utils', () => {
 
         });
 
-
         describe('Maps and Sets', function () {
 
             it('should not equal mismatching maps', () => {
@@ -434,7 +433,6 @@ describe('@logosdx/utils', () => {
 
         });
 
-
         describe('Miscellaneous Types', function () {
 
             it('should not equal mismatching regex', () => {
@@ -475,7 +473,6 @@ describe('@logosdx/utils', () => {
                 expect(deepEqual(d1, d2)).to.be.true;
             });
         });
-
     });
 
     describe('deepMerge(...)', () => {
@@ -772,4 +769,481 @@ describe('@logosdx/utils', () => {
         });
 
     });
+
+    describe('Circular Reference Protection', () => {
+
+        it('should clone objects with circular references', () => {
+
+            const obj = { a: 1, b: { c: 2 } } as any;
+            obj.circular = obj;
+            obj.b.parent = obj;
+
+            const cloned = deepClone(obj);
+
+            expect(cloned).not.to.equal(obj);
+            expect(cloned.circular).to.equal(cloned);
+            expect(cloned.b.parent).to.equal(cloned);
+            expect(cloned.a).to.equal(1);
+            expect(cloned.b.c).to.equal(2);
+        });
+
+        it('should handle complex circular references in arrays', () => {
+
+            const arr = [1, 2, { nested: null }] as any;
+            (arr[2] as any).nested = arr;
+            arr.push(arr);
+
+            const cloned = deepClone(arr);
+
+            expect(cloned).not.to.equal(arr);
+            expect((cloned[2] as any).nested).to.equal(cloned);
+            expect(cloned[3]).to.equal(cloned);
+            expect(cloned[0]).to.equal(1);
+            expect(cloned[1]).to.equal(2);
+        });
+
+        it('should handle circular references in Maps', () => {
+
+            const map = new Map();
+            const obj = { map: map };
+            map.set('self', map);
+            map.set('obj', obj);
+
+            const cloned = deepClone(map);
+
+            expect(cloned).not.to.equal(map);
+            expect(cloned.get('self')).to.equal(cloned);
+            expect(cloned.get('obj').map).to.equal(cloned);
+        });
+
+        it('should handle circular references in Sets', () => {
+
+            const set = new Set();
+            const obj = { set: set };
+            set.add(set);
+            set.add(obj);
+
+            const cloned = deepClone(set);
+
+            expect(cloned).not.to.equal(set);
+            expect(cloned.has(cloned)).to.be.true;
+
+            // Find the object in the cloned set
+            const clonedObj = [...cloned].find(item =>
+                typeof item === 'object' && item !== cloned
+            ) as any;
+            expect(clonedObj.set).to.equal(cloned);
+        });
+
+        it('should equal objects with same circular structure', () => {
+
+            const obj1 = { a: 1 } as any;
+            obj1.self = obj1;
+
+            const obj2 = { a: 1 } as any;
+            obj2.self = obj2;
+
+            expect(deepEqual(obj1, obj2)).to.be.true;
+        });
+
+        it('should not equal objects with different circular structure', () => {
+
+            const obj1 = { a: 1 } as any;
+            obj1.self = obj1;
+
+            const obj2 = { a: 2 } as any;
+            obj2.self = obj2;
+
+            expect(deepEqual(obj1, obj2)).to.be.false;
+        });
+    });
+
+    describe('TypedArray Support', () => {
+
+        const TYPED_ARRAYS = [
+            { name: 'Int8Array', constructor: Int8Array, values: [1, -1, 127, -128] },
+            { name: 'Uint8Array', constructor: Uint8Array, values: [0, 1, 255, 128] },
+            { name: 'Uint8ClampedArray', constructor: Uint8ClampedArray, values: [0, 1, 255, 128] },
+            { name: 'Int16Array', constructor: Int16Array, values: [1, -1, 32767, -32768] },
+            { name: 'Uint16Array', constructor: Uint16Array, values: [0, 1, 65535, 32768] },
+            { name: 'Int32Array', constructor: Int32Array, values: [1, -1, 2147483647, -2147483648] },
+            { name: 'Uint32Array', constructor: Uint32Array, values: [0, 1, 4294967295, 2147483648] },
+            { name: 'Float32Array', constructor: Float32Array, values: [1.1, -1.1, 3.14159, -3.14159] },
+            { name: 'Float64Array', constructor: Float64Array, values: [1.1, -1.1, Math.PI, -Math.PI] },
+            { name: 'BigInt64Array', constructor: BigInt64Array, values: [1n, -1n, 9223372036854775807n, -9223372036854775808n] },
+            { name: 'BigUint64Array', constructor: BigUint64Array, values: [0n, 1n, 18446744073709551615n, 9223372036854775808n] }
+        ];
+
+        TYPED_ARRAYS.forEach(({ name, constructor: TypedArrayConstructor, values }) => {
+
+            describe(name, () => {
+
+                it('should clone correctly', () => {
+
+                    const original = new (TypedArrayConstructor as any)(values);
+                    const cloned = deepClone(original);
+
+                    expect(cloned).not.to.equal(original);
+                    expect(cloned.constructor).to.equal(TypedArrayConstructor);
+                    expect(cloned.length).to.equal(original.length);
+
+                    for (let i = 0; i < original.length; i++) {
+
+                        expect(cloned[i]).to.equal(original[i]);
+                    }
+                });
+
+                it('should check equality correctly', () => {
+
+                    const arr1 = new (TypedArrayConstructor as any)(values);
+                    const arr2 = new (TypedArrayConstructor as any)(values);
+                    const arr3 = new (TypedArrayConstructor as any)(values.slice(0, -1));
+
+                    expect(deepEqual(arr1, arr2)).to.be.true;
+                    expect(deepEqual(arr1, arr3)).to.be.false;
+                });
+
+                it('should merge correctly (replace)', () => {
+
+                    const target = new (TypedArrayConstructor as any)(values);
+                    const source = new (TypedArrayConstructor as any)(values.slice().reverse());
+                    const merged = deepMerge(target, source) as any;
+
+                    expect(merged.constructor).to.equal(TypedArrayConstructor);
+
+                    for (let i = 0; i < source.length; i++) {
+
+                        expect(merged[i]).to.equal(source[i]);
+                    }
+                });
+            });
+        });
+
+        it('should handle TypedArrays in complex structures', () => {
+
+            const complex = {
+                arrays: {
+                    int8: new Int8Array([1, 2, 3]),
+                    float32: new Float32Array([1.1, 2.2, 3.3])
+                },
+                map: new Map([
+                    ['key1', new Uint8Array([255, 128, 64])],
+                    ['key2', new BigInt64Array([1n, 2n, 3n])]
+                ] as any),
+                set: new Set([
+                    new Int16Array([100, 200]),
+                    new Float64Array([Math.PI, Math.E])
+                ])
+            };
+
+            const cloned = deepClone(complex);
+
+            expect(cloned.arrays.int8).not.to.equal(complex.arrays.int8);
+            expect(cloned.arrays.int8.constructor).to.equal(Int8Array);
+            expect(deepEqual(cloned.arrays.int8, complex.arrays.int8)).to.be.true;
+
+            expect(cloned.map.get('key1')).not.to.equal(complex.map.get('key1'));
+            expect(cloned.map.get('key1')!.constructor).to.equal(Uint8Array);
+            expect(deepEqual(cloned.map.get('key1'), complex.map.get('key1'))).to.be.true;
+        });
+    });
+
+    describe('ArrayBuffer and DataView Support', () => {
+
+        it('should clone ArrayBuffer correctly', () => {
+
+            const buffer = new ArrayBuffer(16);
+            const view = new Uint8Array(buffer);
+            view[0] = 42;
+            view[15] = 255;
+
+            const cloned = deepClone(buffer);
+
+            expect(cloned).not.to.equal(buffer);
+            expect(cloned.byteLength).to.equal(buffer.byteLength);
+            expect(deepEqual(cloned, buffer)).to.be.true;
+
+            const clonedView = new Uint8Array(cloned);
+            expect(clonedView[0]).to.equal(42);
+            expect(clonedView[15]).to.equal(255);
+        });
+
+        it('should clone DataView correctly', () => {
+
+            const buffer = new ArrayBuffer(16);
+            const view = new DataView(buffer);
+            view.setInt32(0, 42);
+            view.setFloat64(8, Math.PI);
+
+            const cloned = deepClone(view);
+
+            expect(cloned).not.to.equal(view);
+            expect(cloned.byteLength).to.equal(view.byteLength);
+            expect(cloned.byteOffset).to.equal(view.byteOffset);
+            expect(cloned.getInt32(0)).to.equal(42);
+            expect(cloned.getFloat64(8)).to.equal(Math.PI);
+            expect(deepEqual(cloned, view)).to.be.true;
+        });
+
+        it('should check ArrayBuffer equality correctly', () => {
+
+            const buffer1 = new ArrayBuffer(8);
+            const buffer2 = new ArrayBuffer(8);
+            const buffer3 = new ArrayBuffer(16);
+
+            const view1 = new Uint8Array(buffer1);
+            const view2 = new Uint8Array(buffer2);
+
+            view1[0] = 42;
+            view2[0] = 42;
+
+            expect(deepEqual(buffer1, buffer2)).to.be.true;
+            expect(deepEqual(buffer1, buffer3)).to.be.false;
+
+            view2[0] = 43;
+            expect(deepEqual(buffer1, buffer2)).to.be.false;
+        });
+
+        it('should check DataView equality correctly', () => {
+
+            const buffer1 = new ArrayBuffer(16);
+            const buffer2 = new ArrayBuffer(16);
+
+            const view1 = new DataView(buffer1, 4, 8);
+            const view2 = new DataView(buffer2, 4, 8);
+            const view3 = new DataView(buffer2, 0, 8);
+
+            view1.setInt32(0, 42);
+            view2.setInt32(0, 42);
+
+            expect(deepEqual(view1, view2)).to.be.true;
+            expect(deepEqual(view1, view3)).to.be.false; // Different offset
+
+            view2.setInt32(0, 43);
+            expect(deepEqual(view1, view2)).to.be.false;
+        });
+
+        it('should merge ArrayBuffer and DataView correctly', () => {
+
+            const buffer1 = new ArrayBuffer(8);
+            const buffer2 = new ArrayBuffer(8);
+
+            const view2 = new Uint8Array(buffer2);
+            view2[0] = 42;
+
+            const merged = deepMerge(buffer1, buffer2) as ArrayBuffer;
+            const mergedView = new Uint8Array(merged);
+
+            expect(merged).not.to.equal(buffer1);
+            expect(merged).not.to.equal(buffer2);
+            expect(mergedView[0]).to.equal(42);
+        });
+    });
+
+    describe('Error Object Support', () => {
+
+        const ERROR_TYPES = [
+            { name: 'Error', constructor: Error },
+            { name: 'TypeError', constructor: TypeError },
+            { name: 'ReferenceError', constructor: ReferenceError },
+            { name: 'SyntaxError', constructor: SyntaxError },
+            { name: 'RangeError', constructor: RangeError },
+            { name: 'EvalError', constructor: EvalError },
+            { name: 'URIError', constructor: URIError }
+        ];
+
+        ERROR_TYPES.forEach(({ name, constructor: ErrorConstructor }) => {
+
+            describe(name, () => {
+
+                it('should clone correctly', () => {
+
+                    const original = new ErrorConstructor('Test message') as any;
+                    original.customProperty = 'custom value';
+
+                    const cloned = deepClone(original);
+
+                    expect(cloned).not.to.equal(original);
+                    expect(cloned.constructor).to.equal(ErrorConstructor);
+                    expect(cloned.message).to.equal(original.message);
+                    expect(cloned.name).to.equal(original.name);
+                    expect((cloned as any).customProperty).to.equal('custom value');
+                });
+
+                it('should check equality correctly', () => {
+
+                    const error1 = new ErrorConstructor('Test message') as any;
+                    const error2 = new ErrorConstructor('Test message') as any;
+                    const error3 = new ErrorConstructor('Different message') as any;
+
+                    error1.customProperty = 'same';
+                    error2.customProperty = 'same';
+                    error3.customProperty = 'same';
+
+                    expect(deepEqual(error1, error2)).to.be.true;
+                    expect(deepEqual(error1, error3)).to.be.false;
+
+                    error2.customProperty = 'different';
+                    expect(deepEqual(error1, error2)).to.be.false;
+                });
+
+                it('should merge correctly (replace)', () => {
+
+                    const target = new ErrorConstructor('Target message');
+                    const source = new ErrorConstructor('Source message') as any;
+                    source.customProperty = 'source value';
+
+                    const merged = deepMerge(target, source) as any;
+
+                    expect(merged.constructor).to.equal(ErrorConstructor);
+                    expect(merged.message).to.equal('Source message');
+                    expect(merged.customProperty).to.equal('source value');
+                });
+            });
+        });
+
+        it('should handle Error objects with nested properties', () => {
+
+            const error = new TypeError('Complex error') as any;
+            error.details = {
+                code: 500,
+                nested: {
+                    array: [1, 2, 3],
+                    map: new Map([['key', 'value']])
+                }
+            };
+
+            const cloned = deepClone(error);
+
+            expect(cloned).not.to.equal(error);
+            expect((cloned as any).details).not.to.equal(error.details);
+            expect((cloned as any).details.nested).not.to.equal(error.details.nested);
+            expect((cloned as any).details.nested.array).not.to.equal(error.details.nested.array);
+            expect((cloned as any).details.nested.map).not.to.equal(error.details.nested.map);
+
+            expect(deepEqual(cloned, error)).to.be.true;
+        });
+
+        it('should handle Error objects in complex structures', () => {
+
+            const complex = {
+                errors: [
+                    new TypeError('Type error'),
+                    new ReferenceError('Reference error')
+                ],
+                errorMap: new Map([
+                    ['type', new TypeError('Map type error')],
+                    ['ref', new ReferenceError('Map ref error')]
+                ]),
+                nested: {
+                    error: new SyntaxError('Nested syntax error')
+                }
+            };
+
+            (complex.errors[0] as any).context = complex;
+            (complex.nested.error as any).parent = complex;
+
+            const cloned = deepClone(complex);
+
+            expect(cloned.errors[0]).not.to.equal(complex.errors[0]);
+            expect((cloned.errors[0] as any).context).to.equal(cloned);
+            expect((cloned.nested.error as any).parent).to.equal(cloned);
+            expect(cloned.errorMap.get('type')).not.to.equal(complex.errorMap.get('type'));
+            expect((cloned.errorMap.get('type') as any).constructor).to.equal(TypeError);
+        });
+    });
+
+    describe('Mixed Complex Scenarios', () => {
+
+        it('should handle all new types together with circular references', () => {
+
+            const complex = {
+                typedArrays: {
+                    int8: new Int8Array([1, 2, 3]),
+                    float32: new Float32Array([1.1, 2.2])
+                },
+                binaryData: {
+                    buffer: new ArrayBuffer(16),
+                    view: new DataView(new ArrayBuffer(8))
+                },
+                errors: {
+                    type: new TypeError('Type error'),
+                    range: new RangeError('Range error')
+                },
+                collections: new Map<string, Set<Uint8Array> | SyntaxError[]>([
+                    ['arrays', new Set([new Uint8Array([255, 128])])],
+                    ['errors', [new SyntaxError('Syntax error')]]
+                ])
+            };
+
+            // Add circular references
+            (complex as any).self = complex;
+            (complex.errors.type as any).context = complex;
+            complex.binaryData.view.setInt32(0, 42);
+
+            const cloned = deepClone(complex);
+
+            // Test circular references
+            expect((cloned as any).self).to.equal(cloned);
+            expect((cloned.errors.type as any).context).to.equal(cloned);
+
+            // Test TypedArrays
+            expect(cloned.typedArrays.int8).not.to.equal(complex.typedArrays.int8);
+            expect(deepEqual(cloned.typedArrays.int8, complex.typedArrays.int8)).to.be.true;
+
+            // Test binary data
+            expect(cloned.binaryData.buffer).not.to.equal(complex.binaryData.buffer);
+            expect(cloned.binaryData.view.getInt32(0)).to.equal(42);
+
+            // Test errors
+            expect(cloned.errors.type).not.to.equal(complex.errors.type);
+            expect(cloned.errors.type.constructor).to.equal(TypeError);
+
+            // Test collections with new types
+            const clonedArraysSet = cloned.collections.get('arrays');
+            const originalArray = [...complex.collections.get('arrays')!][0];
+            const clonedArray = [...clonedArraysSet!][0];
+
+            expect(clonedArray).not.to.equal(originalArray);
+            expect(clonedArray!.constructor).to.equal(Uint8Array);
+            expect(deepEqual(clonedArray, originalArray)).to.be.true;
+        });
+
+        it('should handle performance with large structures', () => {
+
+            const largeArray = new Float32Array(10000);
+            for (let i = 0; i < largeArray.length; i++) {
+
+                largeArray[i] = Math.random();
+            }
+
+            const largeBuffer = new ArrayBuffer(40000);
+            const largeView = new DataView(largeBuffer);
+
+            const complex = {
+                largeTypedArray: largeArray,
+                largeBuffer: largeBuffer,
+                largeView: largeView,
+                manyErrors: Array.from({ length: 100 }, (_, i) =>
+                    new Error(`Error ${i}`)
+                )
+            };
+
+            (complex as any).self = complex;
+
+            const start = performance.now();
+            const cloned = deepClone(complex);
+            const end = performance.now();
+
+            expect(cloned).not.to.equal(complex);
+            expect((cloned as any).self).to.equal(cloned);
+            expect(cloned.largeTypedArray.length).to.equal(10000);
+            expect(cloned.largeBuffer.byteLength).to.equal(40000);
+            expect(cloned.manyErrors.length).to.equal(100);
+
+            // Performance should be reasonable (adjust threshold as needed)
+            expect(end - start).to.be.lessThan(1000); // Less than 1 second
+        });
+    });
+
 });

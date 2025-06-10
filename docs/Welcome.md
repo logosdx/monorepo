@@ -40,47 +40,53 @@ This set of utilities is for developers who are exhausted by modern frameworks, 
 
 LogosDX provides a powerful collection of standalone utilities that work seamlessly together:
 
-- **[[Packages/Observer|Observer]]** - A supercharged event system that goes beyond EventEmitter
+- **[/docs/packages/Observer.md](Observer)** - A supercharged event system that goes beyond EventEmitter
   - Type-safe events with regex pattern matching
   - Promise-based event handling and generators
   - Built-in debugging and validation tools
   - Perfect for building event-driven architectures
 
-- **[[Packages/Fetch|Fetch]]** - A modern wrapper around the Fetch API
+- **[/docs/packages/Fetch.md](Fetch)** - A modern wrapper around the Fetch API
   - Type-safe request/response handling
   - Built-in state management and validation
   - Flexible middleware system for request/response transformation
   - Intelligent response type handling
 
-- **[[Packages/State Machine|State Machine]]** - A robust state management solution
+- **[/docs/packages/StateMachine.md](State Machine)** - A robust state management solution
   - Full support for modern data types (Maps, Sets)
   - Type-safe state updates and subscriptions
   - Perfect for complex application state
 
-- **[[Packages/Localize|Localize]]** - Type-safe internationalization made simple
+- **[/docs/packages/Localize.md](Localize)** - Type-safe internationalization made simple
   - Dynamic string interpolation
   - Runtime language switching
   - Nested translation support
   - Built for TypeScript
 
-- **[[Packages/Storage|Storage]]** - A powerful storage abstraction
+- **[/docs/packages/Storage.md](Storage)** - A powerful storage abstraction
   - Type-safe storage operations
-  - Works with any key-value storage system
+  - Works with any key-value storage system that fits a localstorage-like interface
+  - Out of the box support for localStorage, sessionStorage, and AsyncStorage (React Native)
   - Event-based storage updates
   - Built-in JSON handling
 
-- **[[DOM]]** - DOM manipulation utilities that feel natural
-  - jQuery-like selector syntax
+- **[/docs/packages/DOM.md](DOM)** - DOM manipulation utilities that feel natural
+  - Shorthands for common DOM operations
   - Simplified event handling
   - Attribute and CSS manipulation helpers
   - Type-safe DOM operations
 
-- **[[Packages/Utils|Utils]]** - Essential JavaScript utilities
+- **[/docs/packages/Utils.md](Utils)** - Essential JavaScript utilities
+  - Platform-agnostic utilities
+  - Works in browsers, React Native, and Cloudflare Workers
   - Common operations and helper functions
+  - Flow control utilities
+  - Data structure utilities
+  - Validation utilities
   - Used throughout the LogosDX ecosystem
   - Fully typed and tested
 
-- **[[Packages/Kit|App Kit]]** - The complete LogosDX experience
+- **[/docs/packages/Kit.md](Kit)** - The complete LogosDX experience
   - Integrates all utilities in a single configuration
   - Perfect for full applications
   - Type-safe from end to end

@@ -1,4 +1,3 @@
-import { assert } from '../misc.ts';
 import { attempt, attemptSync } from './attempt.ts';
 import { AnyFunc } from './_helpers.ts';
 
@@ -127,8 +126,8 @@ const preAttempt = <T extends AnyFunc>(
             halfOpenMaxAttempts = DEFAULT_HALF_OPEN_MAX_ATTEMPTS,
             onTripped,
             onHalfOpen,
-            onReset,
-            shouldTripOnError
+            onReset: _onReset,
+            shouldTripOnError: _shouldTripOnError
         }
     } = opts;
 

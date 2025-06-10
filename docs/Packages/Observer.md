@@ -6,14 +6,25 @@ ObserverEngine aims to provide a consistent, familiar API that goes beyond just 
 
 ## Features
 
-- [[#Type-safe Events]]
-- [[#Regex Events]]
-- [[#Event Promises]]
-- [[#Event Generators]]
-- [[#Event Cleanup]]
-- [[#Inheritance and delegation]]
-- [[#Validation]]
-- [[#Debugging Tools]]
+- [Features](#features)
+- [Motivations](#motivations)
+- [Installation](#installation)
+- [Usage](#usage)
+	- [Type-safe Events](#type-safe-events)
+	- [Regex Events](#regex-events)
+	- [Event Promises](#event-promises)
+	- [Event Generators](#event-generators)
+	- [Event Cleanup](#event-cleanup)
+	- [Inheritance and delegation](#inheritance-and-delegation)
+	- [Validation](#validation)
+	- [Instance Options](#instance-options)
+	- [Debugging Tools](#debugging-tools)
+		- [`options.spy`](#optionsspy)
+		- [`instance.debug()`](#instancedebug)
+		- [`instance.$facts()`](#instancefacts)
+		- [`instance.$has(event | RegExp)`](#instancehasevent--regexp)
+		- [`instance.$internals()`](#instanceinternals)
+- [Conclusion](#conclusion)
 
 Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://logosdx.github.io/modules/_logos_ui_observer.Observable.html)
 
@@ -25,7 +36,7 @@ Recent improvements to the builtin `EventEmitter` class in Node.js have made it 
 
 ***More than just a simple event emitter***
 
-Beyond event emission, this library also presents new patterns of usage which can facilitate interesting paradigms for programming, such as [[#Event Promises]] and [[#Event Generators]]. It provides a way to perform [[#Event Cleanup]], [[#Validation]], and [[#Debugging Tools]].
+Beyond event emission, this library also presents new patterns of usage which can facilitate interesting paradigms for programming, such as [Event Promises](#event-promises) and [Event Generators](#event-generators). It provides a way to perform [Event Cleanup](#event-cleanup), [Validation](#validation), and [Debugging Tools](#debugging-tools).
 
 ## Installation
 
@@ -85,7 +96,7 @@ const observer = new ObserverEngine<EventType>();
 
 Now, we can listen for `something`, `awesome`, and `worrisome` events and pass data to the callback function. Your IDE will also provide you with autocompletion for the event names and data types.
 
-![](types-1.png)
+![](/docs/images/observable/types-1.png)
 
 ![](types-2.png)
 
@@ -99,7 +110,7 @@ observer.emit('awesome', { id: 1, age: 240 });
 observer.emit('worrisome', { id: 1, job: 'Shepherd' });
 ```
 
-![](types-5.png)
+![](/docs/images/observable/types-5.png)
 
 ![](types-6.png)
 
@@ -128,8 +139,8 @@ observer.on(/some/, ({ event, data }) => {
 
 As you might have noticed, the data type for the callback function changed. This is because there is no way to know what the event name will be when using regex. The `event` property will contain the name of the event that was emitted.
 
-![[types-3.png]]
-![[types-4.png]]
+![](/docs/images/observable/types-3.png)
+![](/docs/images/observable/types-4.png)
 
 The same thing can happen when emitting events. Say you want to notify all listeners of events that match a certain pattern of some kind. You can do that with regex events as well.
 
@@ -188,7 +199,7 @@ Perhaps you need the data from the event that was emitted. You can do that as we
 const data = await observer.once('something');
 ```
 
-![[types-8.png]]
+![](/docs/images/observable/types-8.png)
 
 And if you want to listen to regex events, you can do that as well.
 
@@ -196,7 +207,7 @@ And if you want to listen to regex events, you can do that as well.
 const { event, data } = await observer.once(/some/);
 ```
 
-![[types-7.png]]
+![](/docs/images/observable/types-7.png)
 
 The same rules that apply when using a callback function applies here as well. You can almost guess that the `Promise` will behave the same way as the callback function.
 

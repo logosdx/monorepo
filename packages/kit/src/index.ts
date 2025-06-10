@@ -73,8 +73,6 @@ export type AppKitOpts<KitType extends AppKitType> = {
     }
 }
 
-type UndefinedOrEmpty<T, U> = T extends undefined ? {} : U
-
 /**
  * Automatically instantiates UI components when passed opts.
  *

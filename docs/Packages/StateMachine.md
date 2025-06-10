@@ -5,7 +5,7 @@ aliases: ["StateMachine", "@logosdx/state-machine"]
 
 Any frontend app that grows in complexity eventually needs a to share data across components. This endeavor should be simple, and should allow you to use all the things modern-day javascript has to offer. In comes the State Machine:
 
-- A stream-based mechanism to update application state
+- A stream-based mechaniwsm to update application state
 - With the ability to move forward and backwards in states
 - And manipulate the state as you need it using reducers
 - Able to listen for changes
