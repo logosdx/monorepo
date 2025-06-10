@@ -48,6 +48,8 @@ if [[ ! $(pwd) =~ "typedoc" ]]; then
     exit 1
 fi
 
+echo "typedoc.logosdx.dev" > CNAME
+
 step 'Initializing git'
 git init
 git remote add origin git@github.com:logosdx/typedoc.logosdx.dev.git
