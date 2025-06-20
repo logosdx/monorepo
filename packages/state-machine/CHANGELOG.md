@@ -1,5 +1,13 @@
 # @logosdx/state-machine
 
+## 1.0.3
+
+### Patch Changes
+
+- a84138b: Force release due to bad build
+- Updated dependencies [a84138b]
+  - @logosdx/utils@1.0.3
+
 ## 1.0.2
 
 ### Patch Changes

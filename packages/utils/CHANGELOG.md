@@ -1,5 +1,11 @@
 # @logosdx/utils
 
+## 1.0.3
+
+### Patch Changes
+
+- a84138b: Force release due to bad build
+
 ## 1.0.2
 
 ### Patch Changes
