@@ -4,7 +4,7 @@
   "description": "A collection of strongly-typed LogosDX libraries to kick-start your app",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./dist/types/index.d.ts",
       "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.mjs"
     }

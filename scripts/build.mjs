@@ -214,6 +214,9 @@ shell(`pnpm vite build --config ${VITE_CONFIG}`, {
     PACKAGE_PATH: CWD
 });
 
+// Write dts files to the `types` folder
+shell(`pnpm tsc --emitDeclarationOnly --project tsconfig.json`);
+
 if (RELEASE_FLAG === false) {
 
     process.exit(0);

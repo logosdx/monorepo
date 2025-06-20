@@ -1,5 +1,4 @@
 import type { ObserverEngine } from './engine.ts';
-
 import type { Events } from './types.ts';
 
 

@@ -1,5 +1,6 @@
 {
     "compilerOptions": {
+        "emitDeclarationOnly": true,
         "allowImportingTsExtensions": true,
         "noEmit": true,
         "outDir": "out",

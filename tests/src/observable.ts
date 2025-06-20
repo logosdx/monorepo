@@ -752,6 +752,32 @@ describe('@logosdx/observer', function () {
         });
     });
 
+    describe('extends ObserverEngine', async () => {
+
+        interface MyThingEvents {
+            test: string
+        }
+
+        class MyThing extends ObserverEngine<MyThingEvents> {
+            myProp: string;
+
+            constructor(myProp: string) {
+                super();
+                this.myProp = myProp;
+            }
+        }
+
+        it('should extend the observer engine', async () => {
+
+            const observer = new MyThing('test');
+
+            expect(observer.myProp).to.eq('test');
+
+            observer.on('test', () => { });
+
+            observer.emit('test', 'a');
+        });
+    });
 });
 
 
