@@ -1,5 +1,13 @@
 # @logosdx/dom
 
+## 1.0.2
+
+### Patch Changes
+
+- 0704421: publish .d.ts files
+- Updated dependencies [0704421]
+  - @logosdx/utils@1.0.2
+
 ## 1.0.0
 
 ### Major Changes

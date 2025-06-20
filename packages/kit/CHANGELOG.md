@@ -1,5 +1,18 @@
 # @logosdx/kit
 
+## 1.0.2
+
+### Patch Changes
+
+- 0704421: publish .d.ts files
+- Updated dependencies [0704421]
+  - @logosdx/state-machine@1.0.2
+  - @logosdx/localize@1.0.2
+  - @logosdx/observer@1.0.2
+  - @logosdx/storage@1.0.2
+  - @logosdx/fetch@1.0.2
+  - @logosdx/utils@1.0.2
+
 ## 1.0.0
 
 ### Major Changes
