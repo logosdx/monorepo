@@ -256,7 +256,7 @@ const Pkg = {
         '.': {
             require: './dist/cjs/index.js',
             import: './dist/esm/index.mjs',
-            types: './src/index.ts',
+            types: './dist/types/index.d.ts',
             browser: './dist/browser/bundle.js',
         }
     }
