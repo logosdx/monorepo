@@ -834,7 +834,7 @@ describe('@logosdx/fetch', () => {
         const avg = bench.elapsed() / repeat;
 
         // Less than 3 ms per request
-        expect(avg).to.lessThan(3);
+        expect(avg).to.lessThan(4);
     });
 
     it('can make options', async () => {

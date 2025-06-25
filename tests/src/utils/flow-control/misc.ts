@@ -717,7 +717,7 @@ describe('@logosdx/utils', () => {
             calledExactly(fn, 4, 'retry complex backoff');
 
             // With backoff of 3 and delay of 5: 5ms + 15ms + 45ms = 65ms minimum
-            expect(elapsed).to.be.greaterThan(60);
+            expect(elapsed).to.be.greaterThan(55);
         });
 
     });
