@@ -32,7 +32,7 @@ function sanitize(name: CssPropNames) {
  * @param el HTML element to get styles from
  * @returns computed CSS properties object
  */
-const cssPropsFor = (el: HTMLElement) => global.window?.getComputedStyle(el) as CssProps;
+const cssPropsFor = (el: HTMLElement) => window?.getComputedStyle(el) as CssProps;
 
 /**
  * Extract specific CSS properties from a computed styles object

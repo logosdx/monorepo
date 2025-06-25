@@ -161,8 +161,8 @@ export function scrollTop(): number {
     }
 
     return max(
-        global.window?.scrollY || 0,
-        global.window?.pageYOffset || 0,
+        window?.scrollY || 0,
+        window?.pageYOffset || 0,
         document.documentElement?.scrollTop || 0
     );
 }
@@ -192,8 +192,8 @@ export function scrollLeft(): number {
     }
 
     return max(
-        global.window?.scrollX || 0,
-        global.window?.pageXOffset || 0,
+        window?.scrollX || 0,
+        window?.pageXOffset || 0,
         document.documentElement?.scrollLeft || 0
     );
 }
@@ -283,8 +283,6 @@ export function elementOffsetLeft(el: HTMLElement): number {
  */
 export function viewportWidth(): number {
 
-    const window = global.window;
-
     if (!window) {
 
         return 0;
@@ -313,8 +311,6 @@ export function viewportWidth(): number {
  * // Use for responsive layout calculations
  */
 export function viewportHeight(): number {
-
-    const window = global.window;
 
     if (!window) {
 
@@ -345,7 +341,7 @@ export function viewportHeight(): number {
  */
 export function devicePixelRatio(): number {
 
-    return global.window?.devicePixelRatio || 1;
+    return window?.devicePixelRatio || 1;
 }
 
 /**

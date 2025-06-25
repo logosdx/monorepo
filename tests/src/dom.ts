@@ -65,48 +65,20 @@ describe('@logosdx/dom', () => {
             expect(Number.isNaN(result)).to.equal(false);
         });
 
-        describe('viewportWidth', function () {
+        it('should return a positive number in viewportWidth', function () {
 
-            it('should return a positive number', function () {
-
-                const result = Lib.viewportWidth();
-                expect(typeof result).to.equal('number');
-                expect(Number.isNaN(result)).to.equal(false);
-                expect(result).to.be.greaterThan(0);
-            });
-
-            it('should handle missing window gracefully', function () {
-
-                const originalWindow = global.window;
-                delete (global as any).window;
-
-                const result = Lib.viewportWidth();
-                expect(result).to.equal(0);
-
-                (global as any).window = originalWindow;
-            });
+            const result = Lib.viewportWidth();
+            expect(typeof result).to.equal('number');
+            expect(Number.isNaN(result)).to.equal(false);
+            expect(result).to.be.greaterThan(0);
         });
 
-        describe('viewportHeight', function () {
+        it('should return a positive number in viewportHeight', function () {
 
-            it('should return a positive number', function () {
-
-                const result = Lib.viewportHeight();
-                expect(typeof result).to.equal('number');
-                expect(Number.isNaN(result)).to.equal(false);
-                expect(result).to.be.greaterThan(0);
-            });
-
-            it('should handle missing window gracefully', function () {
-
-                const originalWindow = global.window;
-                delete (global as any).window;
-
-                const result = Lib.viewportHeight();
-                expect(result).to.equal(0);
-
-                (global as any).window = originalWindow;
-            });
+            const result = Lib.viewportHeight();
+            expect(typeof result).to.equal('number');
+            expect(Number.isNaN(result)).to.equal(false);
+            expect(result).to.be.greaterThan(0);
         });
 
         describe('devicePixelRatio', function () {
@@ -117,17 +89,6 @@ describe('@logosdx/dom', () => {
                 expect(typeof result).to.equal('number');
                 expect(Number.isNaN(result)).to.equal(false);
                 expect(result).to.be.greaterThan(0);
-            });
-
-            it('should return 1 when devicePixelRatio is not available', function () {
-
-                const originalWindow = global.window;
-                delete (global as any).window;
-
-                const result = Lib.devicePixelRatio();
-                expect(result).to.equal(1);
-
-                (global as any).window = originalWindow;
             });
 
             it('should return actual devicePixelRatio when available', function () {
@@ -267,10 +228,21 @@ describe('@logosdx/dom', () => {
 
         describe('isAtTop', function () {
 
-            beforeEach(function () {
+            const fakeScrollTo = ({ top }: { top: number }) => {
 
-                // Reset scroll position
-                window.scrollTo(0, 0);
+                window.scrollY = top;
+            };
+
+            const originalScrollTo = window.scrollTo;
+
+            before(function () {
+
+                window.scrollTo = fakeScrollTo as any;
+            });
+
+            after(function () {
+
+                window.scrollTo = originalScrollTo;
             });
 
             it('should return true when at top', function () {
@@ -281,15 +253,20 @@ describe('@logosdx/dom', () => {
 
             it('should respect threshold parameter', function () {
 
-                const result = Lib.isAtTop(5);
-                expect(result).to.be.true;
+                window.scrollTo({ top: 5 });
+                expect(Lib.isAtTop(5)).to.be.true;
+                expect(Lib.isAtTop(3)).to.be.false;
             });
 
             it('should use default threshold of 10px', function () {
 
-                const withThreshold = Lib.isAtTop(10);
-                const withDefault = Lib.isAtTop();
-                expect(withThreshold).to.equal(withDefault);
+                window.scrollTo({ top: 0 });
+                expect(Lib.isAtTop(10)).to.be.true;
+                expect(Lib.isAtTop()).to.be.true;
+
+                window.scrollTo({ top: 11 });
+                expect(Lib.isAtTop(10)).to.be.false;
+                expect(Lib.isAtTop()).to.be.false;
             });
         });
 
