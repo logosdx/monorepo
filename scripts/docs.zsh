@@ -39,6 +39,9 @@ function step() {
 
 set -e
 
+pnpm install
+pnpm build
+
 step 'Making typedocs'
 pnpm typedoc
 cd typedoc
