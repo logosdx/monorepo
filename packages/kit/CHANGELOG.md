@@ -1,5 +1,17 @@
 # @logosdx/kit
 
+## 1.0.4
+
+### Patch Changes
+
+- 062ceab: Missed update
+- Updated dependencies [062ceab]
+  - @logosdx/fetch@1.0.4
+  - @logosdx/localize@1.0.4
+  - @logosdx/observer@1.0.4
+  - @logosdx/state-machine@1.0.4
+  - @logosdx/storage@1.0.4
+
 ## 1.0.3
 
 ### Patch Changes

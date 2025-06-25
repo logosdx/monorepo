@@ -1,5 +1,11 @@
 # @logosdx/localize
 
+## 1.0.4
+
+### Patch Changes
+
+- 062ceab: Missed update
+
 ## 1.0.3
 
 ### Patch Changes
