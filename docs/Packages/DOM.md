@@ -156,10 +156,6 @@ html.attrs.set(input, { name: 'full_name' });
 html.attrs.set([div, div, div], { 'data-show': 'false' });
 ```
 
-**Alternatives:**
-
-- `html.attrs.add(...)`
-
 
 
 ### `html.attrs.remove(...)`
@@ -178,10 +174,6 @@ html.attrs.remove([select, input], 'name');
 html.attrs.remove(form, ['method', 'action']);
 html.attrs.remove([select, input], ['name', 'value']);
 ```
-
-**Alternatives:**
-
-- `html.attrs.rm(...)`
 
 
 ### `html.attrs.has(...)`
@@ -371,10 +363,6 @@ const cleanup = html.events.once(div, 'click', () => {});
 setTimeout(cleanup, 1000); // Remove listener after 1 second
 ```
 
-**Alternatives:**
-
-- `html.events.one(...)`
-
 
 ### `html.events.off(...)`
 
@@ -393,12 +381,6 @@ html.events.off(div, ['focus', 'blur'], callback);
 
 html.events.off([div, input], ['focus', 'blur'], callback);
 ```
-
-**Alternatives:**
-
-- `html.events.rm(...)`
-- `html.events.remove(...)`
-- `html.events.unlisten(...)`
 
 
 ### `html.events.emit(...)`
@@ -419,11 +401,6 @@ html.events.emit([div, span], 'click', { key: 'Esc' })
 // With existing Event object
 html.events.emit(div, existingEvent);
 ```
-
-**Alternatives:**
-
-- `html.events.trigger(...)`
-- `html.events.send(...)`
 
 ## Behaviors
 
@@ -894,6 +871,24 @@ const leftOffset = elementOffsetLeft(myElement);
 
 // Scroll horizontally to element
 window.scrollTo(elementOffsetLeft(myElement), 0);
+```
+
+### `viewportWidth(...)`
+
+Gets the current viewport width (window inner width). This addresses viewport calculation inconsistencies across browsers and mobile devices. Mobile browsers dynamically hide/show UI elements (address bars, toolbars), causing viewport dimensions to change during scrolling. Different browsers also report viewport dimensions differently. This function provides reliable viewport width calculations essential for responsive breakpoints and layout calculations.
+
+```ts
+(): number
+```
+
+**Examples:**
+
+```ts
+const vw = viewportWidth();
+// Use for responsive breakpoint calculations
+
+// Calculate available width accounting for scrollbars
+const availableWidth = viewportWidth() - scrollbarWidth();
 ```
 
 ### `viewportHeight(...)`
@@ -1493,4 +1488,3 @@ const cleanup = html.events.on(element, 'click', handleClick);
 // Behavior management
 html.behaviors.bindBehavior(element, 'MyFeature', handler);
 ```
-

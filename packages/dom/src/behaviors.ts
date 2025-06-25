@@ -1,4 +1,4 @@
-import { attemptSync, debounce } from '@logosdx/utils';
+import { attemptSync, debounce, assert } from '@logosdx/utils';
 import { HtmlEvents } from './events.ts';
 
 /**
@@ -42,6 +42,18 @@ const observedFeatures = new Map<string, ObservedFeature>();
  * Registry of MutationObservers per root element
  */
 const rootObservers = new Map<Element, MutationObserver>();
+
+/**
+ * Error thrown when MutationObserver is not available in the environment
+ */
+export class MutationObserverUnavailableError extends Error {
+
+    constructor() {
+
+        super('MutationObserver not available in this environment. observePrepare will not work.');
+        this.name = 'MutationObserverUnavailableError';
+    }
+}
 
 export class HtmlBehaviors {
 
@@ -96,6 +108,9 @@ export class HtmlBehaviors {
      * cleanup();
      */
     static registerPrepare(feature: string, init: BehaviorInit): () => void {
+
+        assert(typeof feature === 'string' && feature.length > 0, 'Feature name must be a non-empty string');
+        assert(typeof init === 'function', 'Init must be a function');
 
         return HtmlEvents.on(window, `prepare:${feature}`, init);
     }
@@ -215,7 +230,13 @@ export class HtmlBehaviors {
 
     /**
      * Queries for elements while ignoring hidden, template, or inert elements.
-     * Filters out elements that are hidden, have data-template attribute, or aria-hidden="true".
+     *
+     * This solves the challenge of differentiating between elements that are
+     * present in the DOM for structural purposes (templates, hidden components)
+     * versus elements that are actively rendered and should receive behaviors.
+     * Many JavaScript libraries struggle with binding behaviors to template
+     * elements or hidden components, causing memory leaks and unexpected behavior.
+     *
      * @param selector CSS selector string to match elements
      * @param root Root element to search within (defaults to document)
      * @returns Array of live elements matching the selector
@@ -224,7 +245,7 @@ export class HtmlBehaviors {
      * const liveButtons = html.behaviors.queryLive('[data-action]');
      * const liveButtonsInContainer = html.behaviors.queryLive('[data-action]', container);
      */
-        static queryLive(selector: string, root: Document | Element = document): Element[] {
+    static queryLive(selector: string, root: Document | Element = document): Element[] {
 
         const elements = root.querySelectorAll(selector);
 
@@ -240,9 +261,139 @@ export class HtmlBehaviors {
     }
 
     /**
+     * Creates a debounced event dispatcher for a feature
+     * @param feature The feature name to dispatch events for
+     * @param debounceMs Debounce delay in milliseconds
+     * @returns Event dispatcher function
+     * @private
+     */
+    static #createEventDispatcher(feature: string, debounceMs: number): () => void {
+
+        const dispatchEvent = () => {
+
+            HtmlEvents.emit(window, `prepare:${feature}`);
+        };
+
+        return debounceMs > 0 ? debounce(dispatchEvent, debounceMs) : dispatchEvent;
+    }
+
+    /**
+     * Creates and configures a MutationObserver for a root element
+     * @param root The root element to observe
+     * @returns The configured MutationObserver
+     * @private
+     */
+    static #createMutationObserver(root: Element): MutationObserver {
+
+        const observer = new MutationObserver(mutations => {
+
+            this.#handleMutations(mutations, root);
+        });
+
+        observer.observe(root, {
+            childList: true,
+            subtree: true
+        });
+
+        return observer;
+    }
+
+    /**
+     * Handles mutation events by checking for matching selectors and dispatching events
+     * @param mutations Array of MutationRecord objects
+     * @param root The root element being observed
+     * @private
+     */
+    static #handleMutations(mutations: MutationRecord[], root: Element): void {
+
+        // Collect all features that need to be checked for this root
+        const rootFeatures = Array.from(observedFeatures.values())
+            .filter(obs => obs.root === root);
+
+        for (const mutation of mutations) {
+
+            for (let i = 0; i < mutation.addedNodes.length; i++) {
+
+                const node = mutation.addedNodes[i];
+
+                if (!node || node.nodeType !== 1) { // Node.ELEMENT_NODE = 1
+
+                    continue;
+                }
+
+                this.#checkNodeForFeatures(node as Element, rootFeatures);
+            }
+        }
+    }
+
+    /**
+     * Checks if a node matches any observed selectors and dispatches events
+     * @param node The DOM node to check
+     * @param rootFeatures Array of observed features for the current root
+     * @private
+     */
+    static #checkNodeForFeatures(node: Element, rootFeatures: ObservedFeature[]): void {
+
+        const matchedFeatures = new Set<string>();
+
+        for (const observedFeature of rootFeatures) {
+
+            if (matchedFeatures.has(observedFeature.feature)) {
+
+                continue; // Already dispatched for this feature
+            }
+
+            if (node.matches(observedFeature.selector) ||
+                node.querySelector(observedFeature.selector)) {
+
+                observedFeature.eventDispatcher();
+                matchedFeatures.add(observedFeature.feature);
+            }
+        }
+    }
+
+    /**
+     * Ensures MutationObserver is available in the current environment
+     * @throws {MutationObserverUnavailableError} When MutationObserver is not available
+     * @private
+     */
+    static #ensureMutationObserverAvailable(): void {
+
+        if (typeof MutationObserver === 'undefined') {
+
+            throw new MutationObserverUnavailableError();
+        }
+    }
+
+    /**
+     * Gets or creates a MutationObserver for the specified root element
+     * @param root The root element to get an observer for
+     * @returns The MutationObserver for the root
+     * @private
+     */
+    static #getOrCreateObserver(root: Element): MutationObserver {
+
+        if (!rootObservers.has(root)) {
+
+            const observer = this.#createMutationObserver(root);
+            rootObservers.set(root, observer);
+        }
+
+        return rootObservers.get(root)!;
+    }
+
+    /**
      * Automatically observes DOM changes and dispatches prepare events when matching elements are added.
+     *
+     * This addresses the fundamental challenge of dynamic content in modern web applications.
+     * As SPAs and component frameworks dynamically insert content, traditional static initialization
+     * fails to bind behaviors to new elements. Manual re-initialization is error-prone and leads
+     * to memory leaks. This system provides automatic, efficient behavior binding that scales
+     * with complex dynamic applications while preventing duplicate bindings and resource leaks.
+     *
      * Uses a shared MutationObserver per root for optimal performance with many features.
      * Requires MutationObserver support (not available in Node.js environments).
+     *
      * @param feature The feature name to dispatch prepare events for
      * @param selector CSS selector to watch for new elements
      * @param options Configuration options for the observer
@@ -275,20 +426,15 @@ export class HtmlBehaviors {
 
         const observerKey = `${root.tagName}:${feature}:${selector}`;
 
+        this.#ensureMutationObserverAvailable();
+
         // Prevent duplicate feature/selector combinations
         if (observedFeatures.has(observerKey)) {
 
             return;
         }
 
-        const dispatchEvent = () => {
-
-            HtmlEvents.emit(window, `prepare:${feature}`);
-        };
-
-        const eventDispatcher = debounceMs > 0 ?
-            debounce(dispatchEvent, debounceMs) :
-            dispatchEvent;
+        const eventDispatcher = this.#createEventDispatcher(feature, debounceMs);
 
         // Store the observed feature
         observedFeatures.set(observerKey, {
@@ -298,61 +444,7 @@ export class HtmlBehaviors {
             root
         });
 
-        // Create or reuse shared observer for this root
-        if (!rootObservers.has(root)) {
-
-            // Check if MutationObserver is available (not in all environments like Node.js)
-            if (typeof MutationObserver === 'undefined') {
-
-                console.warn('MutationObserver not available in this environment. observePrepare will not work.');
-                return;
-            }
-
-            const observer = new MutationObserver(mutations => {
-
-                // Collect all features that need to be checked for this root
-                const rootFeatures = Array.from(observedFeatures.values())
-                    .filter(obs => obs.root === root);
-
-                for (const mutation of mutations) {
-
-                    for (let i = 0; i < mutation.addedNodes.length; i++) {
-
-                        const node = mutation.addedNodes[i];
-
-                        if (!(node instanceof Element)) {
-
-                            continue;
-                        }
-
-                        // Check all selectors for this root in a single pass
-                        const matchedFeatures = new Set<string>();
-
-                        for (const observedFeature of rootFeatures) {
-
-                            if (matchedFeatures.has(observedFeature.feature)) {
-
-                                continue; // Already dispatched for this feature
-                            }
-
-                            if (node.matches(observedFeature.selector) ||
-                                node.querySelector(observedFeature.selector)) {
-
-                                observedFeature.eventDispatcher();
-                                matchedFeatures.add(observedFeature.feature);
-                            }
-                        }
-                    }
-                }
-            });
-
-            observer.observe(root, {
-                childList: true,
-                subtree: true
-            });
-
-            rootObservers.set(root, observer);
-        }
+        this.#getOrCreateObserver(root);
     }
 
     /**
