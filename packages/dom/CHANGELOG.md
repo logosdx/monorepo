@@ -1,5 +1,11 @@
 # @logosdx/dom
 
+## 1.1.1
+
+### Patch Changes
+
+- f3b9c47: Remove global since it doesn't compile in newer vite versions
+
 ## 1.1.0
 
 ### Minor Changes
