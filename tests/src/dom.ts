@@ -64,34 +64,680 @@ describe('@logosdx/dom', () => {
             expect(typeof result).to.equal('number');
             expect(Number.isNaN(result)).to.equal(false);
         });
+
+        describe('viewportWidth', function () {
+
+            it('should return a positive number', function () {
+
+                const result = Lib.viewportWidth();
+                expect(typeof result).to.equal('number');
+                expect(Number.isNaN(result)).to.equal(false);
+                expect(result).to.be.greaterThan(0);
+            });
+
+            it('should handle missing window gracefully', function () {
+
+                const originalWindow = global.window;
+                delete (global as any).window;
+
+                const result = Lib.viewportWidth();
+                expect(result).to.equal(0);
+
+                (global as any).window = originalWindow;
+            });
+        });
+
+        describe('viewportHeight', function () {
+
+            it('should return a positive number', function () {
+
+                const result = Lib.viewportHeight();
+                expect(typeof result).to.equal('number');
+                expect(Number.isNaN(result)).to.equal(false);
+                expect(result).to.be.greaterThan(0);
+            });
+
+            it('should handle missing window gracefully', function () {
+
+                const originalWindow = global.window;
+                delete (global as any).window;
+
+                const result = Lib.viewportHeight();
+                expect(result).to.equal(0);
+
+                (global as any).window = originalWindow;
+            });
+        });
+
+        describe('devicePixelRatio', function () {
+
+            it('should return a positive number', function () {
+
+                const result = Lib.devicePixelRatio();
+                expect(typeof result).to.equal('number');
+                expect(Number.isNaN(result)).to.equal(false);
+                expect(result).to.be.greaterThan(0);
+            });
+
+            it('should return 1 when devicePixelRatio is not available', function () {
+
+                const originalWindow = global.window;
+                delete (global as any).window;
+
+                const result = Lib.devicePixelRatio();
+                expect(result).to.equal(1);
+
+                (global as any).window = originalWindow;
+            });
+
+            it('should return actual devicePixelRatio when available', function () {
+
+                const mockRatio = 2.5;
+                const originalRatio = global.window?.devicePixelRatio;
+
+                if (global.window) {
+
+                    (global.window as any).devicePixelRatio = mockRatio;
+                }
+
+                const result = Lib.devicePixelRatio();
+                expect(result).to.equal(mockRatio);
+
+                if (global.window && originalRatio !== undefined) {
+
+                    (global.window as any).devicePixelRatio = originalRatio;
+                }
+            });
+        });
+
+        describe('scrollProgress', function () {
+
+            it('should return a percentage between 0 and 100', function () {
+
+                const result = Lib.scrollProgress();
+                expect(result).to.be.greaterThanOrEqual(0);
+                expect(result).to.be.lessThanOrEqual(100);
+            });
+
+            it('should handle element scroll progress', function () {
+
+                const div = document.createElement('div');
+
+                // Mock scrollable properties for JSDOM
+                Object.defineProperties(div, {
+                    scrollTop: { value: 0, writable: true },
+                    scrollHeight: { value: 300, writable: true },
+                    clientHeight: { value: 100, writable: true }
+                });
+
+                // Should be 0 at top
+                div.scrollTop = 0;
+                expect(Lib.scrollProgress(div)).to.equal(0);
+
+                // Should be 50 at middle
+                div.scrollTop = 100;
+                const midProgress = Lib.scrollProgress(div);
+                expect(midProgress).to.be.approximately(50, 1);
+            });
+
+            it('should return 0 for non-scrollable element', function () {
+
+                const div = document.createElement('div');
+
+                // Mock non-scrollable properties
+                Object.defineProperties(div, {
+                    scrollTop: { value: 0, writable: true },
+                    scrollHeight: { value: 100, writable: true },
+                    clientHeight: { value: 100, writable: true }
+                });
+
+                const result = Lib.scrollProgress(div);
+                expect(result).to.equal(0);
+            });
+        });
+
+        describe('horizontalScrollProgress', function () {
+
+            it('should return a percentage between 0 and 100', function () {
+
+                const result = Lib.horizontalScrollProgress();
+                expect(result).to.be.greaterThanOrEqual(0);
+                expect(result).to.be.lessThanOrEqual(100);
+            });
+
+            it('should handle element horizontal scroll progress', function () {
+
+                const div = document.createElement('div');
+
+                // Mock scrollable properties for JSDOM
+                Object.defineProperties(div, {
+                    scrollLeft: { value: 0, writable: true },
+                    scrollWidth: { value: 300, writable: true },
+                    clientWidth: { value: 100, writable: true }
+                });
+
+                // Should be 0 at left
+                div.scrollLeft = 0;
+                expect(Lib.horizontalScrollProgress(div)).to.equal(0);
+
+                // Should be 50 at middle
+                div.scrollLeft = 100;
+                const midProgress = Lib.horizontalScrollProgress(div);
+                expect(midProgress).to.be.approximately(50, 1);
+            });
+
+            it('should return 0 for non-scrollable element horizontally', function () {
+
+                const div = document.createElement('div');
+
+                // Mock non-scrollable properties
+                Object.defineProperties(div, {
+                    scrollLeft: { value: 0, writable: true },
+                    scrollWidth: { value: 100, writable: true },
+                    clientWidth: { value: 100, writable: true }
+                });
+
+                const result = Lib.horizontalScrollProgress(div);
+                expect(result).to.equal(0);
+            });
+        });
+
+        describe('isAtBottom', function () {
+
+            it('should return boolean value', function () {
+
+                const result = Lib.isAtBottom();
+                expect(typeof result).to.equal('boolean');
+            });
+
+            it('should respect threshold parameter', function () {
+
+                const result = Lib.isAtBottom(50);
+                expect(typeof result).to.equal('boolean');
+            });
+
+            it('should use default threshold of 10px', function () {
+
+                // Test with explicit threshold vs default
+                const withThreshold = Lib.isAtBottom(10);
+                const withDefault = Lib.isAtBottom();
+                expect(withThreshold).to.equal(withDefault);
+            });
+        });
+
+        describe('isAtTop', function () {
+
+            beforeEach(function () {
+
+                // Reset scroll position
+                window.scrollTo(0, 0);
+            });
+
+            it('should return true when at top', function () {
+
+                const result = Lib.isAtTop();
+                expect(result).to.be.true;
+            });
+
+            it('should respect threshold parameter', function () {
+
+                const result = Lib.isAtTop(5);
+                expect(result).to.be.true;
+            });
+
+            it('should use default threshold of 10px', function () {
+
+                const withThreshold = Lib.isAtTop(10);
+                const withDefault = Lib.isAtTop();
+                expect(withThreshold).to.equal(withDefault);
+            });
+        });
+
+        describe('elementVisibility', function () {
+
+            it('should return 0 for null element', function () {
+
+                const result = Lib.elementVisibility(null as any);
+                expect(result).to.equal(0);
+            });
+
+            it('should return percentage for visible element', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate visible element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: 0,
+                    left: 0,
+                    bottom: 100,
+                    right: 100,
+                    width: 100,
+                    height: 100,
+                    x: 0,
+                    y: 0,
+                    toJSON: () => ({})
+                }) as any;
+
+                const result = Lib.elementVisibility(testElement);
+                expect(result).to.be.greaterThan(0);
+                expect(result).to.be.lessThanOrEqual(100);
+            });
+
+            it('should return 0 for element with zero area', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate zero-size element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    right: 0,
+                    width: 0,
+                    height: 0,
+                    x: 0,
+                    y: 0,
+                    toJSON: () => ({})
+                }) as any;
+
+                const result = Lib.elementVisibility(testElement);
+                expect(result).to.equal(0);
+            });
+
+            it('should return 0 for completely off-screen element', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate off-screen element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: -200,
+                    left: -200,
+                    bottom: -100,
+                    right: -100,
+                    width: 100,
+                    height: 100,
+                    x: -200,
+                    y: -200,
+                    toJSON: () => ({})
+                }) as any;
+
+                const result = Lib.elementVisibility(testElement);
+                expect(result).to.equal(0);
+            });
+        });
+
+        describe('isPartiallyVisible', function () {
+
+            it('should return true for fully visible element', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate visible element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: 0,
+                    left: 0,
+                    bottom: 100,
+                    right: 100,
+                    width: 100,
+                    height: 100,
+                    x: 0,
+                    y: 0,
+                    toJSON: () => ({})
+                }) as any;
+
+                const result = Lib.isPartiallyVisible(testElement);
+                expect(result).to.be.true;
+            });
+
+            it('should return false for completely hidden element', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate off-screen element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: -200,
+                    left: -200,
+                    bottom: -100,
+                    right: -100,
+                    width: 100,
+                    height: 100,
+                    x: -200,
+                    y: -200,
+                    toJSON: () => ({})
+                }) as any;
+
+                const result = Lib.isPartiallyVisible(testElement);
+                expect(result).to.be.false;
+            });
+
+            it('should respect threshold parameter', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate visible element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: 0,
+                    left: 0,
+                    bottom: 100,
+                    right: 100,
+                    width: 100,
+                    height: 100,
+                    x: 0,
+                    y: 0,
+                    toJSON: () => ({})
+                }) as any;
+
+                // Test with custom threshold
+                const result = Lib.isPartiallyVisible(testElement, 0.5);
+                expect(typeof result).to.equal('boolean');
+            });
+
+            it('should use default threshold of 0.1 (10%)', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate visible element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: 0,
+                    left: 0,
+                    bottom: 100,
+                    right: 100,
+                    width: 100,
+                    height: 100,
+                    x: 0,
+                    y: 0,
+                    toJSON: () => ({})
+                }) as any;
+
+                const withThreshold = Lib.isPartiallyVisible(testElement, 0.1);
+                const withDefault = Lib.isPartiallyVisible(testElement);
+                expect(withThreshold).to.equal(withDefault);
+            });
+        });
+
+        describe('elementViewportDistances', function () {
+
+            it('should return zero distances for null element', function () {
+
+                const result = Lib.elementViewportDistances(null as any);
+                expect(result).to.deep.equal({ top: 0, bottom: 0, left: 0, right: 0 });
+            });
+
+            it('should return distance object with correct properties', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate positioned element
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: 50,
+                    left: 50,
+                    bottom: 150,
+                    right: 150,
+                    width: 100,
+                    height: 100,
+                    x: 50,
+                    y: 50,
+                    toJSON: () => ({})
+                }) as any;
+
+                const result = Lib.elementViewportDistances(testElement);
+
+                expect(result).to.have.property('top');
+                expect(result).to.have.property('bottom');
+                expect(result).to.have.property('left');
+                expect(result).to.have.property('right');
+
+                expect(typeof result.top).to.equal('number');
+                expect(typeof result.bottom).to.equal('number');
+                expect(typeof result.left).to.equal('number');
+                expect(typeof result.right).to.equal('number');
+            });
+
+            it('should calculate correct distances for positioned element', function () {
+
+                const testElement = document.createElement('div');
+
+                // Mock getBoundingClientRect to simulate element at 50px from top/left
+                testElement.getBoundingClientRect = sandbox.fake.returns({
+                    top: 50,
+                    left: 50,
+                    bottom: 150,
+                    right: 150,
+                    width: 100,
+                    height: 100,
+                    x: 50,
+                    y: 50,
+                    toJSON: () => ({})
+                }) as any;
+
+                const result = Lib.elementViewportDistances(testElement);
+
+                // Element at 50px from top/left, so distances should reflect that
+                expect(result.top).to.equal(50);
+                expect(result.left).to.equal(50);
+                expect(result.bottom).to.be.greaterThan(0);
+                expect(result.right).to.be.greaterThan(0);
+            });
+        });
+
+        describe('scrollToElement', function () {
+
+            let testElement: HTMLElement;
+            let originalScrollTo: typeof window.scrollTo;
+
+            beforeEach(function () {
+
+                testElement = document.createElement('div');
+                testElement.style.height = '100px';
+                testElement.style.marginTop = '500px';
+                document.body.appendChild(testElement);
+
+                // Mock window.scrollTo
+                originalScrollTo = window.scrollTo;
+                window.scrollTo = sandbox.fake() as any;
+            });
+
+            afterEach(function () {
+
+                if (testElement && testElement.parentNode) {
+
+                    testElement.parentNode.removeChild(testElement);
+                }
+
+                window.scrollTo = originalScrollTo;
+            });
+
+            it('should handle null element gracefully', function () {
+
+                expect(() => {
+
+                    Lib.scrollToElement(null as any);
+                }).to.not.throw();
+            });
+
+            it('should call window.scrollTo with correct parameters', function () {
+
+                Lib.scrollToElement(testElement);
+
+                const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
+                expect(scrollToSpy.calledOnce).to.be.true;
+
+                const call = scrollToSpy.getCall(0);
+                expect(call.args[0]).to.have.property('top');
+                expect(call.args[0]).to.have.property('behavior', 'smooth');
+            });
+
+            it('should apply offset correctly', function () {
+
+                const offset = 50;
+                Lib.scrollToElement(testElement, offset);
+
+                const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
+                const call = scrollToSpy.getCall(0);
+                const expectedTop = Lib.elementOffsetTop(testElement) - offset;
+
+                expect(call.args[0].top).to.equal(expectedTop);
+            });
+
+            it('should use custom scroll behavior', function () {
+
+                Lib.scrollToElement(testElement, 0, 'auto');
+
+                const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
+                const call = scrollToSpy.getCall(0);
+                expect(call.args[0].behavior).to.equal('auto');
+            });
+        });
+
+        describe('scrollToPosition', function () {
+
+            let originalScrollTo: typeof window.scrollTo;
+
+            beforeEach(function () {
+
+                originalScrollTo = window.scrollTo;
+                window.scrollTo = sandbox.fake() as any;
+            });
+
+            afterEach(function () {
+
+                window.scrollTo = originalScrollTo;
+            });
+
+            it('should call window.scrollTo with correct parameters', function () {
+
+                const x = 100;
+                const y = 200;
+
+                Lib.scrollToPosition(x, y);
+
+                const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
+                expect(scrollToSpy.calledOnce).to.be.true;
+
+                const call = scrollToSpy.getCall(0);
+                expect(call.args[0]).to.deep.include({
+                    left: x,
+                    top: y,
+                    behavior: 'smooth'
+                });
+            });
+
+            it('should use custom scroll behavior', function () {
+
+                Lib.scrollToPosition(0, 0, 'auto');
+
+                const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
+                const call = scrollToSpy.getCall(0);
+                expect(call.args[0].behavior).to.equal('auto');
+            });
+
+            it('should handle zero coordinates', function () {
+
+                Lib.scrollToPosition(0, 0);
+
+                const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
+                expect(scrollToSpy.calledOnce).to.be.true;
+
+                const call = scrollToSpy.getCall(0);
+                expect(call.args[0].left).to.equal(0);
+                expect(call.args[0].top).to.equal(0);
+            });
+
+            it('should handle negative coordinates', function () {
+
+                Lib.scrollToPosition(-50, -100);
+
+                const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
+                const call = scrollToSpy.getCall(0);
+                expect(call.args[0].left).to.equal(-50);
+                expect(call.args[0].top).to.equal(-100);
+            });
+        });
+
+        describe('error handling and edge cases', function () {
+
+            it('should handle missing document gracefully', function () {
+
+                // Mock the window object temporarily
+                const originalWindow = global.window;
+                (global as any).window = null;
+
+                expect(Lib.documentHeight()).to.equal(0);
+                expect(Lib.documentWidth()).to.equal(0);
+                expect(Lib.scrollTop()).to.equal(0);
+                expect(Lib.scrollLeft()).to.equal(0);
+
+                // Restore original window
+                (global as any).window = originalWindow;
+            });
+
+            it('should handle scrollbarWidth measurement failure gracefully', function () {
+
+                // Mock console.warn to verify error handling
+                const originalWarn = console.warn;
+                console.warn = sandbox.fake();
+
+                // Mock document.createElement to throw error
+                const originalCreateElement = document.createElement;
+                document.createElement = sandbox.fake.throws(new Error('Test error'));
+
+                const result = Lib.scrollbarWidth();
+                expect(result).to.equal(0);
+                expect((console.warn as Sinon.SinonSpy).calledOnce).to.be.true;
+
+                // Restore mocks
+                document.createElement = originalCreateElement;
+                console.warn = originalWarn;
+            });
+
+            it('should handle elements with getBoundingClientRect errors gracefully', function () {
+
+                const mockElement = {
+                    getBoundingClientRect: sandbox.fake.throws(new Error('getBoundingClientRect error'))
+                } as any;
+
+                // The function should handle the error and return 0
+                const result = Lib.elementOffsetTop(mockElement);
+                expect(typeof result).to.equal('number');
+            });
+        });
     });
 
     describe('$(...)', function () {
 
-        before(function () {
-            const div = document.createElement('div')
+        let testContainer: HTMLDivElement;
 
-            div.innerHTML = `
+        before(function () {
+            testContainer = document.createElement('div');
+            testContainer.className = 'test-container';
+
+            testContainer.innerHTML = `
                 <ul>
                     <li class='item'></li>
                     <li class='item'></li>
                 </ul>
-            `
-            document.body.appendChild(div)
+            `;
+            document.body.appendChild(testContainer);
+        });
+
+        after(function () {
+            if (testContainer && testContainer.parentNode) {
+                testContainer.parentNode.removeChild(testContainer);
+            }
         });
 
         it('It can query the DOM properly', function () {
-            const div = $('div');
-            expect(Array.isArray(div)).to.equal(true);
-            expect(div.length).to.equal(1);
-            expect($('.item', div[0]).length).to.equal(2);
+            const container = $('.test-container');
+            expect(Array.isArray(container)).to.equal(true);
+            expect(container.length).to.equal(1);
+            expect($('.item', container[0]).length).to.equal(2);
         });
 
         it('No matched queries return empty arrays', function () {
-            const els = $('.foo')
-            expect(Array.isArray(els)).to.equal(true)
-            expect(typeof els).to.equal('object')
-            expect(els.length).to.equal(0)
+            const els = $('.foo');
+            expect(Array.isArray(els)).to.equal(true);
+            expect(typeof els).to.equal('object');
+            expect(els.length).to.equal(0);
         });
     });
 
@@ -779,68 +1425,326 @@ describe('@logosdx/dom', () => {
 
         describe('observePrepare', () => {
 
-            it('should handle missing MutationObserver gracefully', () => {
+            let mockMutationObserver: Sinon.SinonStub;
+            let mockObserverInstance: {
+                observe: Sinon.SinonStub;
+                disconnect: Sinon.SinonStub;
+                callback?: Function;
+                trigger: (mutations: any[]) => void;
+            };
+            let originalMutationObserver: any;
 
-                const consoleWarn = sandbox.stub(console, 'warn');
+            beforeEach(() => {
 
-                // This should warn and not throw in environments without MutationObserver
-                html.behaviors.observePrepare('testFeature', '[data-test]');
+                // Save original MutationObserver
+                originalMutationObserver = (global as any).MutationObserver;
 
-                expect(consoleWarn.calledOnce).to.be.true;
-                expect(consoleWarn.firstCall?.args[0]).to.include('MutationObserver not available');
+                // Create mock observer instance
+                mockObserverInstance = {
+                    observe: sandbox.stub(),
+                    disconnect: sandbox.stub(),
+                    trigger: function(mutations: any[]) {
+                        // Manually trigger the callback
+                        if (this.callback) {
+                            this.callback(mutations);
+                        }
+                    }
+                };
+
+                // Create mock MutationObserver constructor
+                mockMutationObserver = sandbox.stub().callsFake((callback: Function) => {
+                    (mockObserverInstance as any).callback = callback;
+                    return mockObserverInstance;
+                });
+
+                // Replace global MutationObserver
+                (global as any).MutationObserver = mockMutationObserver;
             });
 
-            it('should configure observer options correctly', () => {
+            afterEach(() => {
 
-                // Test that options are parsed correctly (even if observer isn't created)
+                // Restore original MutationObserver
+                (global as any).MutationObserver = originalMutationObserver;
+            });
+
+            it('should handle missing MutationObserver gracefully', () => {
+
+                // Remove MutationObserver temporarily
+                delete (global as any).MutationObserver;
+
                 expect(() => {
+                    html.behaviors.observePrepare('testFeature', '[data-test]');
+                }).to.throw('MutationObserver not available in this environment');
 
-                    html.behaviors.observePrepare('configTest', '[data-config]', {
-                        root: testDiv,
-                        debounceMs: 100
-                    });
-                }).to.not.throw();
+                // Restore for cleanup
+                (global as any).MutationObserver = originalMutationObserver;
+            });
+
+            it('should create MutationObserver with correct configuration', () => {
+
+                html.behaviors.observePrepare('testFeature', '[data-test]', {
+                    root: testDiv
+                });
+
+                expect(mockMutationObserver.calledOnce).to.be.true;
+                expect(mockObserverInstance.observe.calledOnce).to.be.true;
+                expect(mockObserverInstance.observe.calledWith(testDiv, {
+                    childList: true,
+                    subtree: true
+                })).to.be.true;
+            });
+
+            it('should trigger prepare events when matching elements are added', () => {
+
+                const prepareHandler = sandbox.fake();
+                html.behaviors.registerPrepare('autoFeature', prepareHandler);
+
+                html.behaviors.observePrepare('autoFeature', '[data-auto]', {
+                    root: testDiv
+                });
+
+                // Simulate adding a matching element
+                const newElement = document.createElement('button');
+                newElement.setAttribute('data-auto', 'true');
+
+                const mockMutation = {
+                    addedNodes: [newElement]
+                };
+
+                mockObserverInstance.trigger([mockMutation]);
+
+                expect(prepareHandler.calledOnce).to.be.true;
+            });
+
+                        it('should handle debounced event dispatching', async () => {
+
+                const prepareHandler = sandbox.fake();
+                html.behaviors.registerPrepare('debouncedFeature', prepareHandler);
+
+                html.behaviors.observePrepare('debouncedFeature', '[data-debounced]', {
+                    root: testDiv,
+                    debounceMs: 50
+                });
+
+                // Simulate rapid mutations
+                const element1 = document.createElement('div');
+                element1.setAttribute('data-debounced', 'true');
+
+                const element2 = document.createElement('div');
+                element2.setAttribute('data-debounced', 'true');
+
+                const mutations = [
+                    { addedNodes: [element1] },
+                    { addedNodes: [element2] }
+                ];
+
+                mockObserverInstance.trigger(mutations);
+                mockObserverInstance.trigger(mutations);
+                mockObserverInstance.trigger(mutations);
+
+                // Should be debounced - only call once after delay
+                expect(prepareHandler.called).to.be.false;
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+                expect(prepareHandler.calledOnce).to.be.true;
+            });
+
+            it('should reuse observers for same root element', () => {
+
+                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observePrepare('feature2', '[data-f2]', { root: testDiv });
+
+                // Should only create one observer for the same root
+                expect(mockMutationObserver.calledOnce).to.be.true;
+                expect(mockObserverInstance.observe.calledOnce).to.be.true;
+            });
+
+            it('should create separate observers for different roots', () => {
+
+                const root2 = document.createElement('div');
+                document.body.appendChild(root2);
+
+                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observePrepare('feature2', '[data-f2]', { root: root2 });
+
+                expect(mockMutationObserver.calledTwice).to.be.true;
+                expect(mockObserverInstance.observe.calledTwice).to.be.true;
+
+                root2.remove();
+            });
+
+            it('should handle child element matching', () => {
+
+                const prepareHandler = sandbox.fake();
+                html.behaviors.registerPrepare('childFeature', prepareHandler);
+
+                html.behaviors.observePrepare('childFeature', '[data-child]', {
+                    root: testDiv
+                });
+
+                // Add a parent element that contains a matching child
+                const parentEl = document.createElement('div');
+                const childEl = document.createElement('span');
+                childEl.setAttribute('data-child', 'true');
+                parentEl.appendChild(childEl);
+
+                const mockMutation = {
+                    addedNodes: [parentEl]
+                };
+
+                mockObserverInstance.trigger([mockMutation]);
+
+                expect(prepareHandler.calledOnce).to.be.true;
+            });
+
+            it('should ignore non-element nodes', () => {
+
+                const prepareHandler = sandbox.fake();
+                html.behaviors.registerPrepare('textFeature', prepareHandler);
+
+                html.behaviors.observePrepare('textFeature', '[data-text]', {
+                    root: testDiv
+                });
+
+                // Add text node (should be ignored)
+                const textNode = document.createTextNode('some text');
+
+                const mockMutation = {
+                    addedNodes: [textNode]
+                };
+
+                mockObserverInstance.trigger([mockMutation]);
+
+                expect(prepareHandler.called).to.be.false;
             });
 
             it('should handle duplicate registration attempts', () => {
 
-                // Multiple calls with same parameters should not cause issues
                 html.behaviors.observePrepare('duplicate', '[data-dup]');
                 html.behaviors.observePrepare('duplicate', '[data-dup]');
                 html.behaviors.observePrepare('duplicate', '[data-dup]');
 
-                // Test passes if no errors thrown
-                expect(true).to.be.true;
+                // Should only create one observer
+                expect(mockMutationObserver.calledOnce).to.be.true;
+            });
+
+            it('should validate parameters correctly', () => {
+
+                expect(() => {
+                    html.behaviors.registerPrepare('', () => {});
+                }).to.throw('Feature name must be a non-empty string');
+
+                expect(() => {
+                    html.behaviors.registerPrepare('test', null as any);
+                }).to.throw('Init must be a function');
             });
         });
 
         describe('stopObserving/stopAllObserving', () => {
 
-            it('should handle stopObserving without errors', () => {
+            let mockMutationObserver: Sinon.SinonStub;
+            let mockObserverInstance: {
+                observe: Sinon.SinonStub;
+                disconnect: Sinon.SinonStub;
+            };
+            let originalMutationObserver: any;
 
-                // Setup observers first
+            beforeEach(() => {
+
+                originalMutationObserver = (global as any).MutationObserver;
+
+                mockObserverInstance = {
+                    observe: sandbox.stub(),
+                    disconnect: sandbox.stub()
+                };
+
+                mockMutationObserver = sandbox.stub().returns(mockObserverInstance);
+                (global as any).MutationObserver = mockMutationObserver;
+            });
+
+            afterEach(() => {
+
+                (global as any).MutationObserver = originalMutationObserver;
+            });
+
+            it('should disconnect observer when no features remain for root', () => {
+
+                // Setup single feature
                 html.behaviors.observePrepare('stopTest', '[data-stop]', {
                     root: testDiv
                 });
 
-                // Stopping should not throw errors
-                expect(() => {
+                expect(mockObserverInstance.disconnect.called).to.be.false;
 
-                    html.behaviors.stopObserving('stopTest', '[data-stop]', testDiv);
-                }).to.not.throw();
+                // Stop the only feature - should disconnect observer
+                html.behaviors.stopObserving('stopTest', '[data-stop]', testDiv);
+
+                expect(mockObserverInstance.disconnect.calledOnce).to.be.true;
             });
 
-            it('should handle stopAllObserving without errors', () => {
+            it('should not disconnect when other features remain for root', () => {
 
-                // Setup multiple observers
-                html.behaviors.observePrepare('stopAll1', '[data-stop1]');
-                html.behaviors.observePrepare('stopAll2', '[data-stop2]');
+                // Setup multiple features for same root
+                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observePrepare('feature2', '[data-f2]', { root: testDiv });
 
-                // Stop all should not throw errors
-                expect(() => {
+                // Stop one feature
+                html.behaviors.stopObserving('feature1', '[data-f1]', testDiv);
 
-                    html.behaviors.stopAllObserving();
-                }).to.not.throw();
+                // Should not disconnect because feature2 still exists
+                expect(mockObserverInstance.disconnect.called).to.be.false;
+
+                // Stop remaining feature
+                html.behaviors.stopObserving('feature2', '[data-f2]', testDiv);
+
+                // Now should disconnect
+                expect(mockObserverInstance.disconnect.calledOnce).to.be.true;
+            });
+
+            it('should handle multiple roots independently', () => {
+
+                const root2 = document.createElement('div');
+                document.body.appendChild(root2);
+
+                // Create multiple observers for different roots
+                const observer1Instance = { observe: sandbox.stub(), disconnect: sandbox.stub() };
+                const observer2Instance = { observe: sandbox.stub(), disconnect: sandbox.stub() };
+
+                mockMutationObserver.onFirstCall().returns(observer1Instance);
+                mockMutationObserver.onSecondCall().returns(observer2Instance);
+
+                html.behaviors.observePrepare('root1Feature', '[data-r1]', { root: testDiv });
+                html.behaviors.observePrepare('root2Feature', '[data-r2]', { root: root2 });
+
+                // Stop feature on first root
+                html.behaviors.stopObserving('root1Feature', '[data-r1]', testDiv);
+
+                expect(observer1Instance.disconnect.calledOnce).to.be.true;
+                expect(observer2Instance.disconnect.called).to.be.false;
+
+                root2.remove();
+            });
+
+            it('should disconnect all observers when stopping all', () => {
+
+                const root2 = document.createElement('div');
+                document.body.appendChild(root2);
+
+                const observer1Instance = { observe: sandbox.stub(), disconnect: sandbox.stub() };
+                const observer2Instance = { observe: sandbox.stub(), disconnect: sandbox.stub() };
+
+                mockMutationObserver.onFirstCall().returns(observer1Instance);
+                mockMutationObserver.onSecondCall().returns(observer2Instance);
+
+                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observePrepare('feature2', '[data-f2]', { root: root2 });
+
+                html.behaviors.stopAllObserving();
+
+                expect(observer1Instance.disconnect.calledOnce).to.be.true;
+                expect(observer2Instance.disconnect.calledOnce).to.be.true;
+
+                root2.remove();
             });
 
             it('should handle stopping non-existent observers gracefully', () => {
@@ -848,6 +1752,19 @@ describe('@logosdx/dom', () => {
                 expect(() => {
 
                     html.behaviors.stopObserving('nonExistent', '[data-fake]');
+                }).to.not.throw();
+            });
+
+            it('should clear all registries when stopping all observing', () => {
+
+                html.behaviors.observePrepare('feature1', '[data-f1]');
+                html.behaviors.observePrepare('feature2', '[data-f2]');
+
+                html.behaviors.stopAllObserving();
+
+                // Subsequent operations should work as if starting fresh
+                expect(() => {
+                    html.behaviors.observePrepare('newFeature', '[data-new]');
                 }).to.not.throw();
             });
         });
@@ -940,6 +1857,67 @@ describe('@logosdx/dom', () => {
 
                 expect(copyHandler.calledOnce).to.be.true;
                 expect(modalHandler.calledOnce).to.be.true;
+            });
+
+            it('should handle complete automatic behavior lifecycle with DOM mutations', () => {
+
+                // Mock MutationObserver for this test
+                const originalMutationObserver = (global as any).MutationObserver;
+                let mockCallback: Function | undefined;
+                const mockObserver = {
+                    observe: sandbox.stub(),
+                    disconnect: sandbox.stub()
+                };
+
+                (global as any).MutationObserver = sandbox.stub().callsFake((callback: Function) => {
+                    mockCallback = callback;
+                    return mockObserver;
+                });
+
+                try {
+                    const initHandler = sandbox.fake();
+                    const behaviorHandler = sandbox.fake();
+
+                    // Register automatic behavior
+                    html.behaviors.registerPrepare('autoTest', () => {
+                        initHandler();
+
+                        html.behaviors.queryLive('[data-auto-test]', testDiv).forEach(el => {
+                            html.behaviors.bindBehavior(el, 'AutoTest', behaviorHandler);
+                        });
+                    });
+
+                    // Set up automatic observation
+                    html.behaviors.observePrepare('autoTest', '[data-auto-test]', {
+                        root: testDiv
+                    });
+
+                    // Verify observer was set up
+                    expect(mockObserver.observe.calledOnce).to.be.true;
+
+                    // Simulate DOM mutation - add new element
+                    const newElement = document.createElement('button');
+                    newElement.setAttribute('data-auto-test', 'true');
+
+                    // Actually add the element to the DOM so queryLive can find it
+                    testDiv.appendChild(newElement);
+
+                    // Trigger mutation observer with new element
+                    if (mockCallback) {
+                        mockCallback([{
+                            addedNodes: [newElement]
+                        }]);
+                    }
+
+                    // Verify automatic behavior binding occurred
+                    expect(initHandler.calledOnce).to.be.true;
+                    expect(behaviorHandler.calledOnce).to.be.true;
+                    expect(html.behaviors.isBound(newElement, 'AutoTest')).to.be.true;
+
+                } finally {
+                    // Restore original MutationObserver
+                    (global as any).MutationObserver = originalMutationObserver;
+                }
             });
         });
     });
