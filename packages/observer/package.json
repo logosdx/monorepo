@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/observer",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A small, strongly-typed, powerful observer utility for the DOM or NodeJS",
   "exports": {
     ".": {
