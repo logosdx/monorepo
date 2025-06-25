@@ -1,18 +1,41 @@
-name: Claude
+name: Claude Code Review
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
 
 jobs:
-  review-by-author:
+  claude-review:
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude Automated Code Review
+        uses: anthropics/claude-code-action@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           direct_prompt: |
-            Please provide a thorough review of this pull request.
-            Pay extra attention to coding standards, security practices, and test coverage.
-            Check for any missing, altered, or incorrect documentation in the docs/* directory.
+            Please review this pull request according to our @logosdx project standards.
+
+            Focus on:
+            - TypeScript development standards (naming, error handling, function structure)
+            - PNPM monorepo structure and package organization
+            - Required dogfooding of utility usage (attempt, batch, circuitBreaker, etc.)
+            - Code style conventions (newlines, comments, JSDoc)
+            - Critical violations that require immediate attention
+            - Security and performance considerations
+            - Provide specific line references and actionable suggestions
+            - Ensure proper import patterns (cross-package vs test imports)
+          allowed_tools: |
+            mcp__github__create_pending_pull_request_review,
+            mcp__github__add_pull_request_review_comment_to_pending_review,
+            mcp__github__submit_pending_pull_request_review,
+            mcp__github__get_pull_request_diff

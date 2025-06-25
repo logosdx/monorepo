@@ -289,43 +289,35 @@ const sendMailFail = observer.on('send-mail-fail');
 const runForever = (evGen, callback) => {
 
 	while (evGen.done === false) {
-		await callback()
+		const message = await evGen.next();
+		callback(message);
 	}
 }
 
 // Continuously send emails
 runForever(
 	sendMail,
-	async () => {
+	async (message) => {
 
-		try {
+		const [sendResult, sendError] = await attempt(() => transporter.send(message));
 
-			// Use a mail transporter to send the email
-			await transporter.send(
-
-				// Wait for the next email message to resolve
-				await sendMail.next()
-			);
-
-			// Emit the success event
-			sendMailSuccess.emit()
+		if (sendError) {
+			sendMailFail.emit(sendError);
+			return;
 		}
-		catch (e) {
 
-			// If the email fails to send, emit the error
-			sendMailFail.emit(e);
-		}
+		sendMailSuccess.emit();
 	}
 );
 
 runForever(
 	sendMailFail,
-	async () => sendToKibana(await sendMailFail.next())
+	async (message) => sendToKibana(message)
 );
 
 runForever(
 	sendMailSuccess,
-	async () => chargeCustomer(await sendMailSuccess.next())
+	async (message) => chargeCustomer(message)
 );
 
 // Receive messages from a queue somewhere else

@@ -1,10 +1,14 @@
 import { AnyFunc } from './_helpers.ts';
 
+/**
+ * Error thrown when rate limit is exceeded.
+ */
 export class RateLimitError extends Error {
 
     maxCalls: number;
 
     constructor(message: string, maxCalls: number) {
+
         super(message);
         this.name = 'RateLimitError';
         this.maxCalls = maxCalls;
@@ -12,20 +16,40 @@ export class RateLimitError extends Error {
 }
 
 /**
- * Rate limiter that limits the number of calls to a function
- * to a specified number of calls per time window
+ * Configuration options for rate limiting behavior.
  *
- * @param fn function to rate limit
- * @param opts options
- * @returns rate limited function
+ * @template T - The function type being rate limited
+ */
+export type RateLimitOptions<T extends AnyFunc> = {
+    /** Maximum number of calls allowed within the time window */
+    maxCalls: number,
+    /** Time window in milliseconds for rate limiting (default: 1000) */
+    windowMs?: number,
+    /** Whether to throw an error when limit is exceeded (default: true) */
+    throws?: boolean,
+    /** Callback invoked when rate limit is exceeded */
+    onLimitReached?: (error: RateLimitError, args: Parameters<T>) => void
+}
+
+/**
+ * Rate limiter that restricts function calls to a specified number per time window.
+ *
+ * Implements a sliding window rate limiting algorithm that tracks call timestamps
+ * and enforces limits by either throwing errors or returning undefined when exceeded.
+ *
+ * @template T - The function type being rate limited
+ * @param fn - Function to apply rate limiting to
+ * @param opts - Rate limiting configuration options
+ * @returns Rate-limited version of the original function
  *
  * @example
+ * // Throwing rate limiter
  * const rateLimitedFn = rateLimit(fn, {
  *     maxCalls: 10,
  *     windowMs: 1000,
  *     throws: true,
  *     onLimitReached: (error) => {
- *         console.error(error);
+ *         console.error('Rate limit exceeded:', error.message);
  *     }
  * });
  *
@@ -57,47 +81,29 @@ export class RateLimitError extends Error {
  */
 export function rateLimit<T extends AnyFunc>(
     fn: T,
-    opts: {
-        maxCalls: number,
-        windowMs: number,
-        throws: false,
-        onLimitReached?: (error: RateLimitError) => void
-    }
+    opts: RateLimitOptions<T> & { throws: false }
 ): (...args: Parameters<T>) => ReturnType<T> | undefined;
 
 export function rateLimit<T extends AnyFunc>(
     fn: T,
-    opts: {
-        maxCalls: number,
-        windowMs: number,
-        throws?: true,
-        onLimitReached?: (error: RateLimitError) => void
-    }
+    opts: RateLimitOptions<T> & { throws?: true }
 ): (...args: Parameters<T>) => ReturnType<T>;
 
 export function rateLimit<T extends AnyFunc>(
     fn: T,
-    opts: {
-        maxCalls: number,
-        windowMs?: number,
-        throws?: boolean,
-        onLimitReached?: (error: RateLimitError, args: Parameters<T>) => void
-    }
+    opts: RateLimitOptions<T>
 ): (...args: Parameters<T>) => ReturnType<T> | undefined {
 
-    // Declaration block
+    // === Declaration block ===
     const callTimestamps: number[] = [];
-    const shouldThrow = opts.throws ?? true;
-
-    // pull out the options and set defaults
     const {
         maxCalls,
         windowMs = 1000,
-        onLimitReached,
-        throws = true
-    } = opts
+        throws = true,
+        onLimitReached
+    } = opts;
 
-    // Validation block
+    // === Validation block ===
     if (typeof fn !== 'function') {
 
         throw new Error('fn must be a function');
@@ -125,17 +131,18 @@ export function rateLimit<T extends AnyFunc>(
 
     return function rateLimitedFunction(...args: Parameters<T>): ReturnType<T> | undefined {
 
-        // Declaration block
+        // === Declaration block ===
         const now = Date.now();
         const windowStart = now - windowMs;
 
-        // BL block - remove timestamps outside current window
+        // === Business logic block ===
+        // Remove timestamps outside current window
         while (callTimestamps.length > 0 && callTimestamps[0]! <= windowStart) {
 
             callTimestamps.shift();
         }
 
-        // BL block - check if we've exceeded the rate limit
+        // Check if rate limit exceeded
         if (callTimestamps.length >= maxCalls) {
 
             const rateLimitError = new RateLimitError(
@@ -143,12 +150,9 @@ export function rateLimit<T extends AnyFunc>(
                 maxCalls
             );
 
-            if (onLimitReached) {
+            onLimitReached?.(rateLimitError, args);
 
-                onLimitReached(rateLimitError, args); // pass arguments to hook
-            }
-
-            if (shouldThrow) {
+            if (throws) {
 
                 throw rateLimitError;
             }
@@ -156,7 +160,7 @@ export function rateLimit<T extends AnyFunc>(
             return undefined;
         }
 
-        // Commit block - record this call and execute function
+        // === Commit block ===
         callTimestamps.push(now);
 
         return fn(...args);

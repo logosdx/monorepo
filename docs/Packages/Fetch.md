@@ -49,12 +49,10 @@ const data = await api.get('/users');
 await api.post('/users', { name: 'John' });
 
 // 3. Handle errors
-try {
-    const response = await api.get('/users');
-} catch (error) {
-    if (error instanceof FetchError) {
-        console.error(`${error.status}: ${error.message}`);
-    }
+const [response, error] = await attempt(() => api.get('/users'));
+
+if (error && error instanceof FetchError) {
+    console.error(`${error.status}: ${error.message}`);
 }
 
 // 4. Add retry capabilities
@@ -599,12 +597,10 @@ When a request is aborted, either through the built-in `abort()` method or an ex
 
 ```ts
 // Using try-catch
-try {
-    const response = await api.get('/endpoint');
-} catch (error) {
-    if (error instanceof FetchError && error.aborted) {
-        console.log('Request was aborted:', error.message);
-    }
+const [response, error] = await attempt(() => api.get('/endpoint'));
+
+if (error && error instanceof FetchError && error.aborted) {
+    console.log('Request was aborted:', error.message);
 }
 
 // Using events
@@ -686,14 +682,16 @@ api.on('fetch-retry', (event) => {
 The FetchError object includes additional information about retries:
 
 ```ts
-try {
-    const response = await api.get('/endpoint');
-} catch (error) {
-    if (error instanceof FetchError) {
-        console.log(`Failed after ${error.attempt} attempts`);
-        console.log(`Failed during ${error.step} step`); // 'fetch', 'parse', or 'response'
-        console.log(`Status code: ${error.status}`);
+const [response, error] = await attempt(() => api.get('/endpoint', {
+    retryConfig: {
+        maxAttempts: 3
     }
+}));
+
+if (error && error instanceof FetchError) {
+    console.log(`Failed after ${error.attempt} attempts`);
+    console.log(`Failed during ${error.step} step`);
+    console.log(`Status code: ${error.status}`);
 }
 ```
 
@@ -729,41 +727,34 @@ interface FetchError<T = {}> extends Error {
 ### Handling Different Error Scenarios
 
 ```ts
-try {
-    const response = await api.get('/endpoint', {
-        retryConfig: {
-            maxAttempts: 3
-        }
-    });
-} catch (error) {
-    if (error instanceof FetchError) {
-        // Handle different error scenarios
-        switch (error.step) {
-            case 'fetch':
-                // Network level errors
-                console.error('Network error:', error.message);
-                break;
+const [response, error] = await attempt(() => api.get('/endpoint', {
+    retryConfig: {
+        maxAttempts: 3
+    }
+}));
 
-            case 'parse':
-                // Response parsing errors
-                console.error('Failed to parse response:', error.message);
-                break;
+if (error && error instanceof FetchError) {
+    // Handle different error scenarios
+    switch (error.step) {
+        case 'fetch':
+            console.error('Network error:', error.message);
+            break;
+        case 'parse':
+            console.error('Failed to parse response:', error.message);
+            break;
+        case 'response':
+            console.error(`Server error ${error.status}:`, error.data);
+            break;
+    }
 
-            case 'response':
-                // Server errors or non-200 responses
-                console.error(`Server error ${error.status}:`, error.data);
-                break;
-        }
+    // Check if it was an aborted request
+    if (error.aborted) {
+        console.log('Request was aborted after', error.attempt, 'attempts');
+    }
 
-        // Check if it was an aborted request
-        if (error.aborted) {
-            console.log('Request was aborted after', error.attempt, 'attempts');
-        }
-
-        // Check if it failed after retries
-        if (error.attempt && error.attempt > 1) {
-            console.log(`Request failed after ${error.attempt} attempts`);
-        }
+    // Check if it failed after retries
+    if (error.attempt && error.attempt > 1) {
+        console.log(`Request failed after ${error.attempt} attempts`);
     }
 }
 ```
@@ -857,13 +848,10 @@ const newUser = await api.post<User, CreateUserPayload>('/users', {
 });
 
 // Type-safe error handling
-try {
-    await api.get<User>('/user/1');
-} catch (error) {
-    if (error instanceof FetchError<{ message: string }>) {
-        // Error.data will be typed as { message: string } | null
-        console.error(error.data?.message);
-    }
+const [user, userError] = await attempt(() => api.get<User>('/user/1'));
+
+if (userError && userError instanceof FetchError<{ message: string }>) {
+    console.error(userError.data?.message);
 }
 ```
 

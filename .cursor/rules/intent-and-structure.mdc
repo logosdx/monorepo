@@ -1,13 +1,75 @@
 ---
 description:
 globs:
-alwaysApply: false
+alwaysApply: true
 ---
-This repo is a PNPM monorepo. It publishes multiple packages.
+# Intent & Structure
 
-Source code is found in `packages/`
-Documentation is found in `docs/`
-Tests are in `tests/`
-    - Tests should include modules via a relative path, not the package: `../../packages/utils/src/index.ts` vs `@logos-dx/utils`
+PNPM monorepo structure and organizational patterns for the @logosdx ecosystem.
 
-Testing scripts can be found in [package.json](mdc:package.json)
+## Repository Structure
+- **Source code**: `packages/*/src/` - Each package has its own source directory
+- **Documentation**: `docs/` - Centralized documentation for all packages
+- **Tests**: `tests/src/` - Mirrors source structure for validation
+- **Scripts**: `scripts/` - Build, release, and utility scripts
+- **Configuration**: Root-level configs for TypeScript, build tools, etc.
+
+## Package Organization
+- **Independent packages**: Each package builds and publishes separately
+- **Shared dependencies**: Internal packages depend on each other via published interfaces
+- **Cross-package imports**: Use package names (`@logosdx/utils`) not relative paths
+- **Test imports**: Use relative paths (`../../packages/utils/src/index.ts`) to validate actual implementation
+
+## Error Handling Philosophy
+- **Fail-prone operations** (I/O, network, async) → Use Go-style error monad `[result, error]`
+- **Business logic functions** → Return actual results directly
+- **Composition** → Combine error monad for I/O with direct returns for business logic
+
+## Build & Release
+- **Individual builds**: Each package builds independently with its own config
+- **Coordinated releases**: Use changeset for version management and releases
+- **Type generation**: Shared TypeScript configs for consistent type generation
+- **Documentation**: TypeDoc generation for each package
+
+## Development Workflow
+- **Package creation**: Use `pnpm run new` script for new packages
+- **Testing**: `pnpm run test` runs all tests, `pnpm run tdd` for development
+- **Building**: `pnpm run build` builds all packages
+- **Documentation**: `pnpm run build:docs` generates TypeDoc
+
+## Quick Examples
+```bash
+# Create new package
+pnpm run new
+
+# Run tests
+pnpm run test
+pnpm run tdd
+
+# Build everything
+pnpm run build
+
+# Generate docs
+pnpm run build:docs
+```
+
+```ts
+// ✅ Cross-package imports (production code)
+import { attempt } from '@logosdx/utils';
+import { ObserverEngine } from '@logosdx/observer';
+
+// ✅ Test imports (relative paths)
+import { attempt } from '../../../../packages/utils/src/index.ts';
+import { ObserverEngine } from '../../../../packages/observer/src/engine.ts';
+
+// ❌ Wrong import pattern in tests
+import { attempt } from '@logosdx/utils'; // Won't validate actual implementation
+
+// ✅ Error handling patterns
+// Fail-prone operation (I/O)
+const [user, err] = await attempt(() => fetchUser(userId));
+if (err) throw err;
+
+// Business logic (direct return)
+const modifiedUser = modifyUserEmail(user, newEmail);
+```

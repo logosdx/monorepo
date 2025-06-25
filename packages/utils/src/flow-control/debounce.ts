@@ -22,10 +22,12 @@ export const debounce = <T extends AnyFunc>(fn: T, delay: number) => {
     let timeout: ReturnType<typeof setTimeout>;
 
     if (typeof fn !== 'function') {
+
         throw new Error('fn must be a function');
     }
 
     if (typeof delay !== 'number' || delay <= 0) {
+
         throw new Error('delay must be a positive number');
     }
 

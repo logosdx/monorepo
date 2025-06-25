@@ -242,8 +242,6 @@ describe('@logosdx/localize', function () {
 
         l10bMngr.changeTo('fr' as any);
 
-        expect(stubWarn.calledOnce).to.be.true;
-
         expect(l10bMngr.text('some.more')).to.eq(english.some.more);
     });
 

@@ -102,8 +102,11 @@ export const withTimeout = <T extends AnyFunc>(
         let timeoutId: NodeJS.Timeout | null = null;
 
         const timeoutPromise = new Promise((_, reject) => {
+
             timeoutId = setTimeout(
+
                 () => reject(
+
                     new TimeoutError('Function timed out')
                 ),
                 opts.timeout

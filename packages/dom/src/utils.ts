@@ -3,9 +3,13 @@ import { html } from './index.ts';
 import { EvListener } from './events.ts';
 
 /**
- * Appends children to the parent element
- * @param parent
- * @param children
+ * Appends children to the parent element.
+ * Uses a while loop to efficiently append multiple children.
+ * @param parent parent element to append children to
+ * @param children child elements or text nodes to append
+ *
+ * @example
+ * appendIn(container, child1, child2, child3);
  */
 export const appendIn = (parent: Element, ...children: (Element | Node)[]) => {
 
@@ -18,9 +22,14 @@ export const appendIn = (parent: Element, ...children: (Element | Node)[]) => {
 };
 
 /**
- * Appends elements after the target element
- * @param target
- * @param elements
+ * Appends elements after the target element.
+ * Elements are inserted sequentially, with each new element becoming the new target.
+ * @param target reference element to append after
+ * @param elements elements to append after the target
+ *
+ * @example
+ * appendAfter(reference, newElement1, newElement2);
+ * // Result: reference -> newElement1 -> newElement2
  */
 export const appendAfter = (target: Element, ...elements: Element[]) => {
 
@@ -33,9 +42,14 @@ export const appendAfter = (target: Element, ...elements: Element[]) => {
 };
 
 /**
- * Appends elements after the target element
- * @param target
- * @param elements
+ * Appends elements before the target element.
+ * Elements are inserted sequentially, with each new element becoming the new target.
+ * @param target reference element to append before
+ * @param elements elements to append before the target
+ *
+ * @example
+ * appendBefore(reference, newElement1, newElement2);
+ * // Result: newElement2 -> newElement1 -> reference
  */
 export const appendBefore = (target: Element, ...elements: Element[]) => {
 
@@ -50,8 +64,14 @@ export const appendBefore = (target: Element, ...elements: Element[]) => {
 /**
  * Receives a form to clone, and a callback to manipulate the clone.
  * Appends a hidden form to DOM and then submits.
- * @param {HTMLFormElement} form The form element
- * @param {Function} changeCb The callback that will be passed cloned form
+ * @param form The form element to clone and submit
+ * @param changeCb The callback that will be passed the cloned form for manipulation
+ *
+ * @example
+ * cloneAndSubmitForm(myForm, (clone) => {
+ *     // Modify the cloned form
+ *     clone.querySelector('input[name="id"]').value = 'new-id';
+ * });
  */
 export const cloneAndSubmitForm = <T extends HTMLFormElement>(
     form: T,
@@ -70,13 +90,19 @@ export const cloneAndSubmitForm = <T extends HTMLFormElement>(
         html.css.set(clone, { display: 'none'});
         document.body.appendChild(clone);
         clone.submit();
+        clone.remove();
     });
 };
 
 /**
- * Triggers then given function when the DOMContentLoaded
- * event is triggered.
- * @param fn
+ * Triggers the given function when the DOMContentLoaded event is triggered.
+ * @param fn function to execute when DOM is ready
+ *
+ * @example
+ * onceReady(() => {
+ *     // DOM is fully loaded and ready
+ *     initializeApp();
+ * });
  */
 export const onceReady = (fn: Func) => {
 
@@ -84,8 +110,12 @@ export const onceReady = (fn: Func) => {
 }
 
 /**
- * Copy given text to clipboard
- * @param text
+ * Copies given text to clipboard using the Clipboard API.
+ * @param text text to copy to clipboard
+ *
+ * @example
+ * copyToClipboard('Hello World');
+ * // Text is now in the user's clipboard
  */
 export const copyToClipboard = (text: string) => {
 
@@ -93,9 +123,13 @@ export const copyToClipboard = (text: string) => {
 };
 
 /**
- * Shortcut to `document.createElement(...)`
- * @param args
- * @returns
+ * Shortcut to `document.createElement(...)`.
+ * @param args arguments to pass to document.createElement
+ * @returns created HTML element
+ *
+ * @example
+ * const div = createEl('div');
+ * const input = createEl('input', { type: 'text' });
  */
 export const createEl: Document['createElement'] = (...args: Parameters<Document['createElement']>) => {
 
@@ -113,10 +147,11 @@ type CreateElWithOpts<CustomHtmlEvents> = {
 }
 
 /**
- * Create an HTML element and attach attributes, css, events, classes.
- * Attaches `cleanup()` function for later detaching event listeners.
- * @param opts
- * @returns
+ * Create an HTML element and attach attributes, CSS, events, and classes.
+ * Attaches a `cleanup()` function for later detaching event listeners.
+ * @param name HTML element tag name
+ * @param opts configuration options for the element
+ * @returns created element with cleanup function
  *
  * @example
  *
@@ -124,7 +159,7 @@ type CreateElWithOpts<CustomHtmlEvents> = {
  *     text: 'inner text',
  *     attrs: {
  *         method: 'post',
- *         acton: '/login'
+ *         action: '/login'
  *     },
  *     css: {
  *         background: 'red',
@@ -195,7 +230,7 @@ export const createElWith = <
 
     /**
      * Cleans up events, if any were passed
-     * @returns
+     * @returns void
      */
     let cleanup = () => null as any;
 
@@ -236,6 +271,18 @@ export const createElWith = <
     return returnEl
 };
 
+/**
+ * Checks if an element is fully visible within the viewport.
+ * @param element HTML element to check
+ * @param refHeight reference height (defaults to window height)
+ * @param refWidth reference width (defaults to window width)
+ * @returns true if element is completely within the viewport
+ *
+ * @example
+ * if (isInViewport(myElement)) {
+ *     // Element is fully visible
+ * }
+ */
 export const isInViewport = (
     element: HTMLElement,
     refHeight = window.innerHeight || document.documentElement.clientHeight,
@@ -252,6 +299,17 @@ export const isInViewport = (
     );
 };
 
+/**
+ * Checks if an element is scrolled into view within a container.
+ * @param el element to check
+ * @param inRelationTo container element or window to check against
+ * @returns true if element is scrolled into view
+ *
+ * @example
+ * if (isScrolledIntoView(myElement, container)) {
+ *     // Element is visible within the container
+ * }
+ */
 export const isScrolledIntoView = (
     el: HTMLElement,
     inRelationTo: HTMLElement | Window = window
@@ -268,6 +326,18 @@ export const isScrolledIntoView = (
     return top >= offset && top < offset + height;
 };
 
+/**
+ * Swaps two CSS classes on an element.
+ * If the element has the first class, it's replaced with the second, and vice versa.
+ * @param el HTML element to swap classes on
+ * @param one first CSS class name
+ * @param two second CSS class name
+ *
+ * @example
+ * swapClasses(button, 'active', 'inactive');
+ * // If button has 'active' class, it becomes 'inactive'
+ * // If button has 'inactive' class, it becomes 'active'
+ */
 export const swapClasses = (el: HTMLElement, one: string, two: string) => {
 
     const hasOne = el.classList.contains(one);

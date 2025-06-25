@@ -1,39 +1,50 @@
 import { attempt, attemptSync } from './attempt.ts';
 import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
 
+/**
+ * Configuration options for memoization functions.
+ *
+ * @template T - The function type being memoized
+ */
 export type MemoizeOptions<T extends AnyFunc> = {
 
     /**
-     * Time to live in milliseconds.
+     * Time to live in milliseconds. After this time, cached values will be considered expired.
      *
-     * @default 1 * 60 * 1000
+     * @default 1 * 60 * 1000 (1 minute)
      */
     ttl: number,
 
     /**
-     * Maximum number of items in the cache.
+     * Maximum number of items in the cache. When exceeded, least recently used items are evicted.
      *
      * @default 1000
      */
     maxSize: number,
 
     /**
-     * Function to call when an error occurs.
+     * Function to call when an error occurs during key generation or function execution.
+     *
+     * @param error - The error that occurred
+     * @param args - The arguments that were passed to the memoized function
      */
     onError: (error: Error, args: Parameters<T>) => void
 
     /**
-     * Generates the cache key from the arguments.
+     * Generates the cache key from the function arguments.
      *
      * Default implementation handles object property ordering,
-     * circular references, and non-serializable values better than JSON.stringify
+     * circular references, and non-serializable values better than JSON.stringify.
      *
+     * @param args - The arguments passed to the memoized function
+     * @returns A string key for caching
      * @default enhanced key generator
      */
     generateKey?: (args: Parameters<T>) => string,
 
     /**
      * Whether to use WeakRef for large objects to prevent memory leaks.
+     * When true, object values are stored as WeakRefs and may be garbage collected.
      *
      * @default false
      */
@@ -48,43 +59,92 @@ export type MemoizeOptions<T extends AnyFunc> = {
     cleanupInterval?: number
 }
 
+/**
+ * Represents a cached item with metadata for LRU eviction and expiration.
+ *
+ * @template T - The type of the cached value
+ */
 type CacheItem<T> = {
+    /** The cached value */
     value: T,
+    /** Timestamp when this item expires */
     expiresAt: number,
+    /** Number of times this item has been accessed */
     accessCount: number,
+    /** Timestamp of last access for LRU calculations */
     lastAccessed: number,
+    /** Sequence number for tie-breaking in LRU eviction */
     accessSequence: number
 } | {
+    /** Weak reference to the cached object value */
     value: WeakRef<object>,
+    /** Timestamp when this item expires */
     expiresAt: number,
+    /** Number of times this item has been accessed */
     accessCount: number,
+    /** Timestamp of last access for LRU calculations */
     lastAccessed: number,
+    /** Sequence number for tie-breaking in LRU eviction */
     accessSequence: number,
+    /** Flag indicating this is a WeakRef item */
     isWeak: true
 }
 
+/**
+ * Type alias for the memoization cache map.
+ *
+ * @template T - The function type being memoized
+ */
 type MemoCache<T extends AnyFunc> = Map<string, CacheItem<ReturnType<T>>>;
 
+/**
+ * Statistics about cache performance and usage.
+ */
 type CacheStats = {
+    /** Number of cache hits */
     hits: number,
+    /** Number of cache misses */
     misses: number,
+    /** Hit rate as a ratio (hits / (hits + misses)) */
     hitRate: number,
+    /** Current number of items in cache */
     size: number,
+    /** Number of items evicted due to size limits */
     evictions: number
 }
 
+/**
+ * Enhanced memoized function with additional cache management methods.
+ *
+ * @template T - The original function type
+ */
 type EnhancedMemoizedFunction<T extends AnyFunc> = T & {
+    /** Cache management interface */
     cache: {
+        /** Clears all cached items and stops background cleanup */
         clear: () => void;
+        /** Removes a specific item from cache by key */
         delete: (key: string) => boolean;
+        /** Checks if a key exists in cache */
         has: (key: string) => boolean;
+        /** Current number of items in cache */
         get size(): number;
+        /** Returns cache performance statistics */
         stats: () => CacheStats;
+        /** Returns an iterator of all cache keys */
         keys: () => IterableIterator<string>;
+        /** Returns all cache entries as key-value pairs */
         entries: () => Array<[string, ReturnType<T> | undefined]>;
     }
 };
 
+/**
+ * Validates memoization options and throws descriptive errors for invalid values.
+ *
+ * @template T - The function type being memoized
+ * @param opts - The options to validate
+ * @throws {Error} When options are invalid
+ */
 const validateOpts = <T extends AnyFunc>(opts: MemoizeOptions<T>) => {
 
     if (typeof opts.ttl !== 'number' || opts.ttl <= 0) {
@@ -115,6 +175,20 @@ const validateOpts = <T extends AnyFunc>(opts: MemoizeOptions<T>) => {
 /**
  * Enhanced key generation that handles object property ordering,
  * circular references, and non-serializable values.
+ *
+ * This function provides more reliable key generation than JSON.stringify
+ * by handling edge cases like circular references, function objects,
+ * and consistent object key ordering.
+ *
+ * @template T - The function type being memoized
+ * @param args - The arguments to generate a key from
+ * @returns A string key suitable for caching
+ *
+ * @example
+ * ```typescript
+ * const key = defaultKeyGenerator([{a: 1, b: 2}, "test", 123]);
+ * // Returns: '{"a":1,"b":2}|"test"|123'
+ * ```
  */
 const defaultKeyGenerator = <T extends AnyFunc>(args: Parameters<T>): string => {
     const seen = new WeakSet();
@@ -153,18 +227,34 @@ const defaultKeyGenerator = <T extends AnyFunc>(args: Parameters<T>): string => 
 };
 
 /**
- * Manages cache statistics and cleanup operations
+ * Manages cache statistics and cleanup operations for memoized functions.
+ *
+ * This class handles:
+ * - Tracking cache hits, misses, and evictions
+ * - Background cleanup of expired entries
+ * - Access sequence numbering for LRU eviction
+ *
+ * @template T - The function type being memoized
  */
 class CacheManager<T extends AnyFunc> {
+    /** Internal statistics tracking */
     private stats = {
         hits: 0,
         misses: 0,
         evictions: 0
     };
 
+    /** Timer for background cleanup operations */
     private cleanupTimer: NodeJS.Timeout | undefined = undefined;
+    /** Monotonically increasing sequence number for access tracking */
     private accessSequence = 0;
 
+    /**
+     * Creates a new cache manager.
+     *
+     * @param cache - The cache map to manage
+     * @param cleanupInterval - Interval in milliseconds for background cleanup
+     */
     constructor(
         private cache: MemoCache<T>,
         private cleanupInterval: number
@@ -174,22 +264,41 @@ class CacheManager<T extends AnyFunc> {
         }
     }
 
+    /**
+     * Records a cache hit.
+     */
     recordHit(): void {
         this.stats.hits++;
     }
 
+    /**
+     * Records a cache miss.
+     */
     recordMiss(): void {
         this.stats.misses++;
     }
 
+    /**
+     * Records a cache eviction.
+     */
     recordEviction(): void {
         this.stats.evictions++;
     }
 
+    /**
+     * Gets the next access sequence number for LRU tie-breaking.
+     *
+     * @returns The next sequence number
+     */
     getNextSequence(): number {
         return ++this.accessSequence;
     }
 
+    /**
+     * Returns comprehensive cache statistics.
+     *
+     * @returns Object containing hits, misses, hit rate, size, and evictions
+     */
     getStats(): CacheStats {
         const total = this.stats.hits + this.stats.misses;
         return {
@@ -199,6 +308,9 @@ class CacheManager<T extends AnyFunc> {
         };
     }
 
+    /**
+     * Starts the background cleanup timer.
+     */
     private startCleanupTimer(): void {
         this.cleanupTimer = setInterval(
             () => this.cleanupExpired(),
@@ -211,6 +323,9 @@ class CacheManager<T extends AnyFunc> {
         }
     }
 
+    /**
+     * Removes expired entries from the cache.
+     */
     private cleanupExpired(): void {
 
         const now = Date.now();
@@ -223,6 +338,9 @@ class CacheManager<T extends AnyFunc> {
         }
     }
 
+    /**
+     * Destroys the cache manager and stops background cleanup.
+     */
     destroy(): void {
         if (this.cleanupTimer) {
             clearInterval(this.cleanupTimer);
@@ -232,7 +350,13 @@ class CacheManager<T extends AnyFunc> {
 }
 
 /**
- * Implements true LRU eviction by finding the least recently used item
+ * Implements true LRU eviction by finding the least recently used item.
+ *
+ * Uses both timestamp and sequence number for accurate LRU determination,
+ * with sequence numbers providing tie-breaking when timestamps are identical.
+ *
+ * @template T - The function type being memoized
+ * @param cache - The cache to evict from
  */
 const evictLRU = <T extends AnyFunc>(cache: MemoCache<T>): void => {
     let oldestKey: string | null = null;
@@ -257,7 +381,11 @@ const evictLRU = <T extends AnyFunc>(cache: MemoCache<T>): void => {
 };
 
 /**
- * Safely gets value from cache item, handling WeakRef
+ * Safely gets value from cache item, handling WeakRef dereferencing.
+ *
+ * @template T - The type of the cached value
+ * @param item - The cache item to extract value from
+ * @returns The cached value, or undefined if WeakRef was garbage collected
  */
 const getCacheValue = <T>(item: CacheItem<T>): T | undefined => {
     if ('isWeak' in item && item.isWeak) {
@@ -268,7 +396,14 @@ const getCacheValue = <T>(item: CacheItem<T>): T | undefined => {
 };
 
 /**
- * Creates a cache item, optionally using WeakRef for objects
+ * Creates a cache item with appropriate metadata and optional WeakRef wrapping.
+ *
+ * @template T - The type of the value to cache
+ * @param value - The value to cache
+ * @param expiresAt - Timestamp when this item expires
+ * @param useWeakRef - Whether to use WeakRef for object values
+ * @param accessSequence - Sequence number for LRU tracking
+ * @returns A properly formatted cache item
  */
 const createCacheItem = <T>(
     value: T,
@@ -301,7 +436,17 @@ const createCacheItem = <T>(
 
 /**
  * Runs the first part of the memoization function before
- * splitting between sync and async.
+ * splitting between sync and async execution paths.
+ *
+ * This function handles:
+ * - Key generation with error handling
+ * - Cache lookup and validation
+ * - Expiration checking
+ * - Access statistics updates
+ *
+ * @template T - The function type being memoized
+ * @param opts - Options containing function, arguments, and cache state
+ * @returns Object containing cache lookup results and metadata
  */
 const prepareMemo = <T extends AnyFunc>(
     opts: {
@@ -393,7 +538,16 @@ const prepareMemo = <T extends AnyFunc>(
 
 /**
  * Runs the second part of the memoization function after
- * splitting between sync and async.
+ * splitting between sync and async execution paths.
+ *
+ * This function handles:
+ * - Error processing and reporting
+ * - Cache storage of successful results
+ * - LRU eviction when cache is full
+ *
+ * @template T - The function type being memoized
+ * @param opts - Options containing execution results and cache state
+ * @returns The function result (may be undefined on error)
  */
 const processMemo = <T extends AnyFunc>(
     opts: {
@@ -438,14 +592,24 @@ const processMemo = <T extends AnyFunc>(
 }
 
 /**
- * Memoizes a function that is synchronous.
+ * Memoizes a synchronous function with intelligent caching, LRU eviction, and comprehensive statistics.
  *
- * @param fn function to memoize
- * @param opts options
- * @returns memoized function with enhanced cache methods
+ * Features:
+ * - Time-based expiration (TTL)
+ * - Least Recently Used (LRU) eviction
+ * - Background cleanup of expired entries
+ * - WeakRef support for memory management
+ * - Enhanced key generation for complex objects
+ * - Comprehensive cache statistics
+ * - Error handling and reporting
+ *
+ * @template T - The synchronous function type to memoize
+ * @param fn - The function to memoize
+ * @param opts - Memoization configuration options
+ * @returns The memoized function with enhanced cache management methods
  *
  * @example
- *
+ * ```typescript
  * const fib = (n: number) => {
  *     if (n <= 1) return n;
  *     return fib(n - 1) + fib(n - 2);
@@ -455,7 +619,7 @@ const processMemo = <T extends AnyFunc>(
  *     ttl: 1000,
  *     maxSize: 1000,
  *     onError: (error, args) => {
- *         console.error(error);
+ *         console.error('Memoization error:', error);
  *     }
  * });
  *
@@ -466,10 +630,28 @@ const processMemo = <T extends AnyFunc>(
  * console.log(result2); // 55
  *
  * // Check cache statistics
- * console.log(memoizedFib.cache.stats()); // { hits: 1, misses: 1, hitRate: 0.5, ... }
+ * console.log(memoizedFib.cache.stats());
+ * // { hits: 1, misses: 1, hitRate: 0.5, size: 1, evictions: 0 }
  *
  * // Clear cache if needed
  * memoizedFib.cache.clear();
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // With custom key generation
+ * const expensiveCalculation = (data: { id: string, params: any[] }) => {
+ *     // Expensive computation...
+ *     return data.id + data.params.join(',');
+ * };
+ *
+ * const memoizedCalc = memoizeSync(expensiveCalculation, {
+ *     ttl: 5000,
+ *     maxSize: 100,
+ *     generateKey: (args) => `${args[0].id}-${args[0].params.length}`,
+ *     onError: console.error
+ * });
+ * ```
  */
 export const memoizeSync = <T extends AnyFunc>(
     fn: T,
@@ -547,23 +729,35 @@ export const memoizeSync = <T extends AnyFunc>(
 }
 
 /**
- * Memoizes a function that is asynchronous.
+ * Memoizes an asynchronous function with intelligent caching, LRU eviction, and comprehensive statistics.
  *
- * @param fn function to memoize
- * @param opts options
- * @returns memoized function with enhanced cache methods
+ * Features:
+ * - Time-based expiration (TTL)
+ * - Least Recently Used (LRU) eviction
+ * - Background cleanup of expired entries
+ * - WeakRef support for memory management
+ * - Enhanced key generation for complex objects
+ * - Comprehensive cache statistics
+ * - Error handling and reporting
+ * - Full async/await support
+ *
+ * @template T - The asynchronous function type to memoize
+ * @param fn - The async function to memoize
+ * @param opts - Memoization configuration options
+ * @returns The memoized async function with enhanced cache management methods
  *
  * @example
- *
+ * ```typescript
  * const getUser = async (id: string) => {
- *     return await fetch(`https://api.example.com/users/${id}`);
+ *     const response = await fetch(`https://api.example.com/users/${id}`);
+ *     return response.json();
  * }
  *
  * const memoizedGetUser = memoize(getUser, {
- *     ttl: 1000,
+ *     ttl: 300000, // 5 minutes
  *     maxSize: 1000,
  *     onError: (error, args) => {
- *         console.error(error);
+ *         console.error('API error:', error);
  *     }
  * });
  *
@@ -574,7 +768,25 @@ export const memoizeSync = <T extends AnyFunc>(
  * console.log(user2);
  *
  * // Check cache statistics
- * console.log(memoizedGetUser.cache.stats()); // { hits: 1, misses: 1, hitRate: 0.5, ... }
+ * console.log(memoizedGetUser.cache.stats());
+ * // { hits: 1, misses: 1, hitRate: 0.5, size: 1, evictions: 0 }
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // With WeakRef for large objects
+ * const fetchLargeData = async (params: { query: string, filters: object }) => {
+ *     // Returns large object that might be garbage collected
+ *     return await api.fetchData(params);
+ * };
+ *
+ * const memoizedFetch = memoize(fetchLargeData, {
+ *     ttl: 60000,
+ *     maxSize: 50,
+ *     useWeakRef: true, // Allow GC of large objects
+ *     onError: console.error
+ * });
+ * ```
  */
 export const memoize = <T extends AnyAsyncFunc>(
     fn: T,

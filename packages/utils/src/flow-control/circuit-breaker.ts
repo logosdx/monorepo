@@ -5,37 +5,80 @@ const DEFAULT_MAX_FAILURES = 3;
 const DEFAULT_RESET_AFTER = 1000;
 const DEFAULT_HALF_OPEN_MAX_ATTEMPTS = 1;
 
+/**
+ * Represents the three states of a circuit breaker.
+ */
 enum CircuitBreakerState {
+    /** Normal operation - all calls pass through and failures are counted */
     Closed,
+    /** Circuit is tripped - all calls fail immediately without invoking the function */
     Open,
+    /** Testing recovery - allows limited test calls to check if service has recovered */
     HalfOpen
 }
 
+/**
+ * Internal state store for circuit breaker operations.
+ */
 type CircuitBreakerStore = {
+    /** Current state of the circuit breaker */
     state: CircuitBreakerState,
+    /** Number of consecutive failures in closed state */
     failures: number,
+    /** Number of attempts made in half-open state */
     halfOpenAttempts: number,
+    /** Timestamp when circuit was last tripped (opened) */
     trippedAt: number | null,
+    /** Flag indicating if a test call is currently in progress in half-open state */
     testInProgress: boolean,
 }
 
+/**
+ * Configuration options for circuit breaker behavior.
+ *
+ * @template T - The function type being protected
+ */
 export type CircuitBreakerOptions<T extends AnyFunc> = {
+    /** Maximum number of consecutive failures before tripping the circuit (default: 3) */
     maxFailures?: number,
+    /** Maximum number of test attempts allowed in half-open state (default: 1) */
     halfOpenMaxAttempts?: number,
+    /** Time in milliseconds to wait before testing recovery (default: 1000) */
     resetAfter?: number,
+    /** Callback invoked when circuit breaker trips (opens) */
     onTripped?: (error: CircuitBreakerError, store: CircuitBreakerStore) => void
+    /** Callback invoked when the protected function throws an error */
     onError?: (error: Error, args: Parameters<T>) => void
+    /** Callback invoked when circuit breaker resets (closes) */
     onReset?: () => void
+    /** Callback invoked when circuit breaker enters half-open state */
     onHalfOpen?: (store: CircuitBreakerStore) => void
+    /** Predicate function to determine if an error should trip the circuit (default: all errors trip) */
     shouldTripOnError?: (error: Error) => boolean
 }
 
+/**
+ * Error thrown when circuit breaker is in open state and prevents function execution.
+ */
 export class CircuitBreakerError extends Error {
+    /**
+     * Creates a new CircuitBreakerError.
+     *
+     * @param message - Error message describing the circuit breaker state
+     */
     constructor(message: string) {
         super(message);
+        this.name = 'CircuitBreakerError';
     }
 }
 
+/**
+ * Validates circuit breaker configuration options.
+ *
+ * @template T - The function type being protected
+ * @param opts - Configuration options to validate
+ * @throws {Error} When validation fails
+ */
 const validateOpts = <T extends AnyFunc>(opts: CircuitBreakerOptions<T>) => {
 
     if (
@@ -96,7 +139,12 @@ const validateOpts = <T extends AnyFunc>(opts: CircuitBreakerOptions<T>) => {
 
 }
 
-
+/**
+ * Resets the circuit breaker store to closed state.
+ *
+ * @param store - Circuit breaker state store to reset
+ * @param onReset - Optional callback to invoke after reset
+ */
 const resetStore = (
     store: CircuitBreakerStore,
     onReset?: () => void
@@ -111,6 +159,13 @@ const resetStore = (
     onReset?.();
 }
 
+/**
+ * Performs pre-attempt checks and state transitions before function execution.
+ *
+ * @template T - The function type being protected
+ * @param opts - Options containing store, arguments, and configuration
+ * @throws {CircuitBreakerError} When circuit breaker is in open state or half-open limits exceeded
+ */
 const preAttempt = <T extends AnyFunc>(
     opts: {
         store: CircuitBreakerStore,
@@ -174,6 +229,14 @@ const preAttempt = <T extends AnyFunc>(
     }
 }
 
+/**
+ * Performs post-attempt processing and state management after function execution.
+ *
+ * @template T - The function type being protected
+ * @param opts - Options containing result, store, arguments, and configuration
+ * @returns The function result if successful
+ * @throws {Error} The original error if function failed
+ */
 const postAttempt = <T extends AnyFunc>(
     opts: {
         value?: ReturnType<T> | null,

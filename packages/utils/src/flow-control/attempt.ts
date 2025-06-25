@@ -20,12 +20,15 @@ type ResultTuple<T> = [T, null] | [null, Error];
 export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<ResultTuple<Awaited<ReturnType<T>>>> => {
 
     if (typeof fn !== 'function') {
+
         throw new Error('fn must be a function');
     }
 
     try {
+
         return [await fn(), null]
     } catch (e) {
+
         return [null, e as Error]
     }
 }
@@ -48,12 +51,15 @@ export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<Resu
 export const attemptSync = <T extends () => any>(fn: T): ResultTuple<ReturnType<T>> => {
 
     if (typeof fn !== 'function') {
+
         throw new Error('fn must be a function');
     }
 
     try {
+
         return [fn(), null]
     } catch (e) {
+
         return [null, e as Error]
     }
 }

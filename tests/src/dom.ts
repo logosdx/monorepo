@@ -537,4 +537,410 @@ describe('@logosdx/dom', () => {
         });
 
     });
+
+    describe('behaviors[fn] (...)', () => {
+
+        let testDiv: HTMLDivElement;
+        let testButton: HTMLButtonElement;
+
+        beforeEach(() => {
+
+            // Create fresh test elements for each test
+            testDiv = document.createElement('div');
+            testButton = document.createElement('button');
+            testButton.setAttribute('copy', 'test text');
+            testDiv.appendChild(testButton);
+            document.body.appendChild(testDiv);
+
+            // Clean up any existing behaviors
+            html.behaviors.stopAllObserving();
+        });
+
+        afterEach(() => {
+
+            // Clean up DOM and behaviors
+            testDiv.remove();
+            html.behaviors.stopAllObserving();
+            sandbox.resetBehavior();
+        });
+
+        describe('isBound/markBound', () => {
+
+            it('should initially return false for unbound elements', () => {
+
+                expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.false;
+            });
+
+            it('should return true after marking element as bound', () => {
+
+                html.behaviors.markBound(testButton, 'TestFeature');
+                expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.true;
+            });
+
+            it('should handle multiple features on same element', () => {
+
+                html.behaviors.markBound(testButton, 'Feature1');
+                html.behaviors.markBound(testButton, 'Feature2');
+
+                expect(html.behaviors.isBound(testButton, 'Feature1')).to.be.true;
+                expect(html.behaviors.isBound(testButton, 'Feature2')).to.be.true;
+                expect(html.behaviors.isBound(testButton, 'Feature3')).to.be.false;
+            });
+        });
+
+        describe('bindBehavior', () => {
+
+            it('should bind behavior and mark element as bound', () => {
+
+                const handler = sandbox.fake();
+
+                html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
+
+                expect(handler.calledOnce).to.be.true;
+                expect(handler.calledWith(testButton)).to.be.true;
+                expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.true;
+            });
+
+            it('should not bind if already bound', () => {
+
+                const handler = sandbox.fake();
+
+                html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
+                html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
+
+                expect(handler.calledOnce).to.be.true;
+            });
+
+                         it('should handle errors in handler gracefully', () => {
+
+                 const consoleWarn = sandbox.stub(console, 'warn');
+                 const handler = sandbox.fake.throws(new Error('Test error'));
+
+                 html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
+
+                 expect(handler.calledOnce).to.be.true;
+                 expect(consoleWarn.calledOnce).to.be.true;
+                 expect(consoleWarn.firstCall?.args[0]).to.include('Failed to bind TestFeature');
+                 expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.false;
+             });
+        });
+
+        describe('registerPrepare/dispatchPrepare', () => {
+
+            it('should register and trigger prepare events', () => {
+
+                const initHandler = sandbox.fake();
+
+                html.behaviors.registerPrepare('testFeature', initHandler);
+                html.behaviors.dispatchPrepare('testFeature');
+
+                expect(initHandler.calledOnce).to.be.true;
+            });
+
+            it('should trigger multiple prepare events', () => {
+
+                const handler1 = sandbox.fake();
+                const handler2 = sandbox.fake();
+
+                html.behaviors.registerPrepare('feature1', handler1);
+                html.behaviors.registerPrepare('feature2', handler2);
+
+                html.behaviors.dispatchPrepare('feature1', 'feature2');
+
+                expect(handler1.calledOnce).to.be.true;
+                expect(handler2.calledOnce).to.be.true;
+            });
+
+            it('should handle multiple triggers of same event', () => {
+
+                const handler = sandbox.fake();
+
+                html.behaviors.registerPrepare('testFeature', handler);
+                html.behaviors.dispatchPrepare('testFeature');
+                html.behaviors.dispatchPrepare('testFeature');
+
+                expect(handler.calledTwice).to.be.true;
+            });
+        });
+
+        describe('createBehaviorRegistry', () => {
+
+            it('should register multiple behaviors at once', () => {
+
+                const handler1 = sandbox.fake();
+                const handler2 = sandbox.fake();
+                const handler3 = sandbox.fake();
+
+                html.behaviors.createBehaviorRegistry({
+                    feature1: handler1,
+                    feature2: handler2,
+                    feature3: handler3
+                });
+
+                html.behaviors.dispatchPrepare('feature1', 'feature2', 'feature3');
+
+                expect(handler1.calledOnce).to.be.true;
+                expect(handler2.calledOnce).to.be.true;
+                expect(handler3.calledOnce).to.be.true;
+            });
+        });
+
+        describe('setupLifecycle/teardownFeature', () => {
+
+            it('should setup and execute teardown callbacks', () => {
+
+                const teardownCallback = sandbox.fake();
+
+                html.behaviors.setupLifecycle(testButton, 'TestFeature', teardownCallback);
+                html.behaviors.teardownFeature(testButton, 'TestFeature');
+
+                expect(teardownCallback.calledOnce).to.be.true;
+            });
+
+            it('should handle multiple teardown callbacks', () => {
+
+                const teardown1 = sandbox.fake();
+                const teardown2 = sandbox.fake();
+
+                html.behaviors.setupLifecycle(testButton, 'Feature1', teardown1);
+                html.behaviors.setupLifecycle(testButton, 'Feature2', teardown2);
+
+                html.behaviors.teardownFeature(testButton, 'Feature1');
+                html.behaviors.teardownFeature(testButton, 'Feature2');
+
+                expect(teardown1.calledOnce).to.be.true;
+                expect(teardown2.calledOnce).to.be.true;
+            });
+
+            it('should handle teardown of non-existent feature gracefully', () => {
+
+                expect(() => {
+
+                    html.behaviors.teardownFeature(testButton, 'NonExistentFeature');
+                }).to.not.throw();
+            });
+        });
+
+        describe('queryLive', () => {
+
+            beforeEach(() => {
+
+                // Set up test DOM structure
+                testDiv.innerHTML = `
+                    <button class="live-btn">Live Button</button>
+                    <button class="live-btn" hidden>Hidden Button</button>
+                    <div data-template>
+                        <button class="live-btn">Template Button</button>
+                    </div>
+                    <div aria-hidden="true">
+                        <button class="live-btn">Aria Hidden Button</button>
+                    </div>
+                `;
+            });
+
+            it('should return only live elements', () => {
+
+                const liveButtons = html.behaviors.queryLive('.live-btn', testDiv);
+
+                expect(liveButtons).to.have.length(1);
+                expect(liveButtons[0]?.textContent).to.equal('Live Button');
+            });
+
+            it('should work with document as default root', () => {
+
+                // Add elements to document body
+                const liveBtn = document.createElement('button');
+                liveBtn.className = 'global-live-btn';
+                liveBtn.textContent = 'Global Live';
+                document.body.appendChild(liveBtn);
+
+                const hiddenBtn = document.createElement('button');
+                hiddenBtn.className = 'global-live-btn';
+                hiddenBtn.hidden = true;
+                document.body.appendChild(hiddenBtn);
+
+                const results = html.behaviors.queryLive('.global-live-btn');
+
+                expect(results).to.have.length(1);
+                expect(results[0]?.textContent).to.equal('Global Live');
+
+                // Cleanup
+                liveBtn.remove();
+                hiddenBtn.remove();
+            });
+
+            it('should return empty array when no elements found', () => {
+
+                const results = html.behaviors.queryLive('.non-existent');
+                expect(results).to.be.an('array');
+                expect(results).to.have.length(0);
+            });
+        });
+
+        describe('observePrepare', () => {
+
+            it('should handle missing MutationObserver gracefully', () => {
+
+                const consoleWarn = sandbox.stub(console, 'warn');
+
+                // This should warn and not throw in environments without MutationObserver
+                html.behaviors.observePrepare('testFeature', '[data-test]');
+
+                expect(consoleWarn.calledOnce).to.be.true;
+                expect(consoleWarn.firstCall?.args[0]).to.include('MutationObserver not available');
+            });
+
+            it('should configure observer options correctly', () => {
+
+                // Test that options are parsed correctly (even if observer isn't created)
+                expect(() => {
+
+                    html.behaviors.observePrepare('configTest', '[data-config]', {
+                        root: testDiv,
+                        debounceMs: 100
+                    });
+                }).to.not.throw();
+            });
+
+            it('should handle duplicate registration attempts', () => {
+
+                // Multiple calls with same parameters should not cause issues
+                html.behaviors.observePrepare('duplicate', '[data-dup]');
+                html.behaviors.observePrepare('duplicate', '[data-dup]');
+                html.behaviors.observePrepare('duplicate', '[data-dup]');
+
+                // Test passes if no errors thrown
+                expect(true).to.be.true;
+            });
+        });
+
+        describe('stopObserving/stopAllObserving', () => {
+
+            it('should handle stopObserving without errors', () => {
+
+                // Setup observers first
+                html.behaviors.observePrepare('stopTest', '[data-stop]', {
+                    root: testDiv
+                });
+
+                // Stopping should not throw errors
+                expect(() => {
+
+                    html.behaviors.stopObserving('stopTest', '[data-stop]', testDiv);
+                }).to.not.throw();
+            });
+
+            it('should handle stopAllObserving without errors', () => {
+
+                // Setup multiple observers
+                html.behaviors.observePrepare('stopAll1', '[data-stop1]');
+                html.behaviors.observePrepare('stopAll2', '[data-stop2]');
+
+                // Stop all should not throw errors
+                expect(() => {
+
+                    html.behaviors.stopAllObserving();
+                }).to.not.throw();
+            });
+
+            it('should handle stopping non-existent observers gracefully', () => {
+
+                expect(() => {
+
+                    html.behaviors.stopObserving('nonExistent', '[data-fake]');
+                }).to.not.throw();
+            });
+        });
+
+        describe('integration scenarios', () => {
+
+            it('should handle complete behavior lifecycle with manual triggers', () => {
+
+                const initHandler = sandbox.fake();
+                const behaviorHandler = sandbox.fake();
+                const teardownHandler = sandbox.fake();
+
+                // Register behavior
+                html.behaviors.registerPrepare('integration', () => {
+
+                    initHandler();
+
+                    html.behaviors.queryLive('[data-integration]', testDiv).forEach(el => {
+
+                        html.behaviors.bindBehavior(el, 'Integration', (element) => {
+
+                            behaviorHandler(element);
+
+                            html.behaviors.setupLifecycle(element, 'Integration', () => {
+
+                                teardownHandler();
+                            });
+                        });
+                    });
+                });
+
+                // Add element first
+                const newEl = document.createElement('button');
+                newEl.setAttribute('data-integration', 'true');
+                testDiv.appendChild(newEl);
+
+                // Trigger behavior manually
+                html.behaviors.dispatchPrepare('integration');
+
+                // Verify initialization happened
+                expect(initHandler.calledOnce).to.be.true;
+                expect(behaviorHandler.calledOnce).to.be.true;
+                expect(behaviorHandler.calledWith(newEl)).to.be.true;
+                expect(html.behaviors.isBound(newEl, 'Integration')).to.be.true;
+
+                // Test teardown
+                html.behaviors.teardownFeature(newEl, 'Integration');
+                expect(teardownHandler.calledOnce).to.be.true;
+            });
+
+            it('should prevent double-binding with manual triggers', () => {
+
+                const bindingHandler = sandbox.fake();
+
+                html.behaviors.registerPrepare('rapidTest', () => {
+
+                    html.behaviors.queryLive('[data-rapid]', testDiv).forEach(el => {
+
+                        html.behaviors.bindBehavior(el, 'Rapid', bindingHandler);
+                    });
+                });
+
+                // Add element first
+                const el = document.createElement('div');
+                el.setAttribute('data-rapid', 'true');
+                testDiv.appendChild(el);
+
+                // Trigger multiple prepare events manually
+                html.behaviors.dispatchPrepare('rapidTest');
+                html.behaviors.dispatchPrepare('rapidTest');
+                html.behaviors.dispatchPrepare('rapidTest');
+
+                // Should only be bound once
+                expect(bindingHandler.calledOnce).to.be.true;
+                expect(html.behaviors.isBound(el, 'Rapid')).to.be.true;
+            });
+
+            it('should work with behavior registry and manual dispatch', () => {
+
+                const copyHandler = sandbox.fake();
+                const modalHandler = sandbox.fake();
+
+                html.behaviors.createBehaviorRegistry({
+                    copyBehavior: copyHandler,
+                    modalBehavior: modalHandler
+                });
+
+                // Trigger behaviors
+                html.behaviors.dispatchPrepare('copyBehavior', 'modalBehavior');
+
+                expect(copyHandler.calledOnce).to.be.true;
+                expect(modalHandler.calledOnce).to.be.true;
+            });
+        });
+    });
 });
