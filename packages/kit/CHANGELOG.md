@@ -1,5 +1,19 @@
 # @logosdx/kit
 
+## 1.0.3
+
+### Patch Changes
+
+- a84138b: Force release due to bad build
+- Updated dependencies [1dcc2d1]
+- Updated dependencies [a84138b]
+  - @logosdx/utils@1.1.0
+  - @logosdx/fetch@1.0.3
+  - @logosdx/localize@1.0.3
+  - @logosdx/observer@1.0.3
+  - @logosdx/state-machine@1.0.3
+  - @logosdx/storage@1.0.3
+
 ## 1.0.2
 
 ### Patch Changes
