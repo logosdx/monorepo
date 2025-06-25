@@ -27,6 +27,8 @@ Comprehensive patterns for TypeScript code organization, classes, types, and sym
 
 ## Function Structure
 
+The comments below `// === whatever ===` are for context and not to be included. Only apply this block structure when necessary.
+
 ```ts
 /**
  * Updates the email address for a given user.
@@ -77,12 +79,14 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 // Descriptive names with proper constraints
 export type Events<Shape> = keyof Shape;
 export interface EventCallback<Shape> {
+
     (data: Shape): void;
 }
 export type EventData<Shape, E extends Events<Shape>> = Shape[E];
 
 // Interface for extensibility
 export interface BehaviorOptions {
+
     debounceMs?: number;
     root?: Element;
 }
@@ -96,19 +100,21 @@ export interface BehaviorOptions {
 ## Instance Class Patterns
 ```ts
 export class DataProcessor {
+
     #cache: Map<string, Data> = new Map();
 
     constructor(config: Config) {
-        // === Declaration ===
+
+        // Declare
         let x: string = '';
 
-        // === Validation ===
+        // Validate
         assert(isObject(config), 'Config required');
 
-        // === Business Logic ===
-        this.#config = deepClone(config);
+        // Apply Business Logic
+        this.#config = clone(config);
 
-        // === Commit ===
+        // Commit
         definePrivateProps(this, {
             process: this.process,
             cleanup: this.cleanup
@@ -123,12 +129,15 @@ export class DataProcessor {
 ## Static Class Patterns
 ```ts
 export class HtmlBehaviors {
+
     static isBound(el: Element, feature: string): boolean { }
     static markBound(el: Element, feature: string): void { }
     static bindBehavior(el: Element, feature: string, handler: Function): void {
+
         if (this.isBound(el, feature)) return;
 
         const [, err] = attemptSync(() => handler(el));
+
         if (err) console.warn(`Failed ${feature}:`, err);
         else this.markBound(el, feature);
     }
@@ -145,6 +154,7 @@ const BINDING_SYMBOL = Symbol('bindings');
 const TEARDOWN_SYMBOL = Symbol('teardowns');
 
 interface BoundElement extends Element {
+
     [BINDING_SYMBOL]?: Set<string>;
     [TEARDOWN_SYMBOL]?: Map<string, () => void>;
 }
@@ -154,7 +164,9 @@ interface BoundElement extends Element {
 ```ts
 // Type organization
 export type Events<Shape> = keyof Shape;
+
 export interface EventCallback<Shape> {
+
     (data: Shape): void;
 }
 
@@ -163,25 +175,28 @@ export type EventData<Shape, E extends Events<Shape>> = Shape[E];
 
 // Interface for extensibility
 export interface BehaviorOptions {
+
     debounceMs?: number;
     root?: Element;
 }
 
-// Instance class with 4-block constructor
+// Instance class. 4-block constructor when relevant.
 export class DataProcessor {
+
     #cache: Map<string, Data> = new Map();
 
     constructor(config: Config) {
-        // === Declaration ===
+
+        // Declaration
         let x: string = '';
 
-        // === Validation ===
+        // Validation
         assert(isObject(config), 'Config required');
 
-        // === Business Logic ===
-        this.#config = deepClone(config);
+        // Business Logic
+        this.#config = clone(config);
 
-        // === Commit ===
+        // Commit
         definePrivateProps(this, {
             process: this.process,
             cleanup: this.cleanup
@@ -194,9 +209,11 @@ export class DataProcessor {
 
 // Static utility class
 export class HtmlBehaviors {
+
     static isBound(el: Element, feature: string): boolean { }
     static markBound(el: Element, feature: string): void { }
     static bindBehavior(el: Element, feature: string, handler: Function): void {
+
         if (this.isBound(el, feature)) return;
 
         const [, err] = attemptSync(() => handler(el));
@@ -210,11 +227,13 @@ const BINDING_SYMBOL = Symbol('bindings');
 const TEARDOWN_SYMBOL = Symbol('teardowns');
 
 interface BoundElement extends Element {
+
     [BINDING_SYMBOL]?: Set<string>;
     [TEARDOWN_SYMBOL]?: Map<string, () => void>;
 }
 
 function markBound(el: Element, feature: string) {
+
     const bound = el as BoundElement;
     bound[BINDING_SYMBOL] ??= new Set();
     bound[BINDING_SYMBOL].add(feature);
@@ -222,8 +241,11 @@ function markBound(el: Element, feature: string) {
 
 // Module augmentation
 declare module './engine.ts' {
+
     export namespace ObserverEngine {
+
         export interface Options<Ev> {
+
             spy?: Spy<Ev>;
         }
     }

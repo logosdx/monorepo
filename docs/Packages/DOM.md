@@ -2,7 +2,18 @@
 permalink: '/packages/dom'
 aliases: ["DOM", "@logosdx/dom"]
 ---
+
+**A lightweight, utility-first DOM manipulation toolkit for contrarians who prefer raw DOM over React or Vue.**
+
+Simple, composable utilities for the 90% of common web use cases—no framework boilerplate required.
+
+Works wherever the DOM is available: modern browsers, SPAs, server-rendered pages, and more.
+
+> 📚 **Complete API Documentation**: [typedoc.logosdx.dev/modules/_logosdx_dom.html](https://typedoc.logosdx.dev/modules/_logosdx_dom.html)
+
+
 The DOM should be an extension of your programming abilities, and not the thing that is abstracted or hidden by framework X. The idea behind library is to give you a set of utilities for DOM manipulation that saves you time and iteration:
+
 - Instead of `document.querySelectorAll(...)` you can simply call `$(...)`.
 - Instead of `elements.forEach(el => el.addEventListener(...))` you can call `html.events.on(elements, ...)`
 - and so on...
@@ -11,6 +22,24 @@ The DOM should be an extension of your programming abilities, and not the thing 
 npm install @logosdx/dom
 yarn add @logosdx/dom
 pnpm add @logosdx/dom
+```
+
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/dom@latest/dist/browser/bundle.js"></script>
+```
+
+```html
+<script>
+	const { $, html } = LogosDx.Dom;
+
+    html.behaviors.bind('[copy]', 'Copy', (el) => {
+
+        const copy = new CopyToClipboard(el);
+        return () => copy.destroy();
+    });
+</script>
 ```
 
 ## Browser Support & Error Handling
@@ -404,150 +433,283 @@ html.events.emit(div, existingEvent);
 
 ## Behaviors
 
-Modern DOM development often requires coordinating behaviors across multiple elements while avoiding double-binding and managing lifecycle properly. The behaviors system provides a framework-less approach to organizing DOM interactions using an event-driven prepare pattern.
+Declarative DOM behavior engine for MPAs and dynamic UIs. Binds handlers to elements based on feature names, prevents double bindings, supports auto-rebinding on DOM changes (via `MutationObserver`), and gives you full manual control when needed.
 
-**Built with your own utilities** - The behaviors system dogfoods the DOM package's own `html.events.emit` for consistent event handling and returns cleanup functions for proper lifecycle management.
-
-```ts
+```typescript
 import { $, html, onceReady } from '@logosdx/dom';
 
-// Register behaviors that respond to prepare:* events
-html.behaviors.registerPrepare('copy', () => {
-
-	$('[copy]').forEach(el => {
-
-		// Prevent double-binding
-		if (html.behaviors.isBound(el, 'CopyToClipboard')) return;
-
-		// Safely bind behavior with error handling
-		html.behaviors.bindBehavior(el, 'CopyToClipboard', (element) => {
-
-			const text = html.attrs.get(element, 'copy');
-
-			html.events.on(element, 'click', () => {
-
-				copyToClipboard(text);
-			});
-		});
-	});
-});
-
-// Register multiple behaviors at once
-html.behaviors.createBehaviorRegistry({
-	copy: () => { /* copy behavior init */ },
-	modal: () => { /* modal behavior init */ },
-	nav: () => { /* navigation behavior init */ },
-});
-
-// Auto-observe for dynamic content - perfect for SPAs
-html.behaviors.observePrepare('copy', '[copy]', {
-	debounceMs: 100 // Debounce rapid DOM changes
-});
-
-// Trigger behavior initialization manually
+// Simple behavior binding
 onceReady(() => {
 
-	html.behaviors.dispatchPrepare('copy', 'modal', 'nav');
+    // Bind copy-to-clipboard behavior
+    html.behaviors.bind('[copy]', 'Copy', (el) => {
+
+        const target = html.attrs.get(el, 'copy');
+
+        return html.events.on(el, 'click', () => {
+
+            const [targetEl] = $(target);
+            targetEl && copyToClipboard(targetEl.textContent);
+        });
+    });
+
+    // Auto-bind behaviors as new elements appear
+    html.behaviors.observe('modal', '[data-modal]');
+    html.behaviors.on('modal', () => {
+
+        return html.behaviors.bind('[data-modal]', 'Modal', (el) => {
+
+            const modal = new Modal(el);
+            return () => modal.destroy();
+        });
+    });
 });
+
+// Batch registration with auto-observation
+const { cleanup, dispatch } = html.behaviors.create({
+
+    tooltip: {
+        els: '[tooltip]',
+        handler: el => new Tooltip(el),
+        shouldObserve: true // Watch for new tooltip elements
+    },
+
+    lazyLoad: {
+        els: 'img[data-src]',
+        handler: el => {
+
+            const observer = new IntersectionObserver(entries => {
+
+                entries.forEach(entry => {
+
+                    if (entry.isIntersecting) {
+
+                        const img = entry.target as HTMLImageElement;
+                        img.src = img.dataset.src!;
+                        observer.unobserve(img);
+                    }
+                });
+            });
+
+            observer.observe(el);
+            return () => observer.disconnect();
+        }
+    },
+
+    keyboard: () => {
+
+        return html.events.on(document, 'keydown', (e) => {
+
+            if (e.key === 'Escape') {
+
+                html.events.emit(document.body, 'escape-pressed');
+            }
+        });
+    }
+});
+
+// Clean up when done
+cleanup();
+```
+
+### `html.behaviors.bind(...)`
+
+Bind a handler to one or more elements. Ensures idempotency and tracks unbinders for later cleanup. Automatically filters out hidden and template elements.
+
+```ts
+(el: Element | Element[] | string, featureName: string, handler: (el: Element) => void | (() => void)): () => void
+```
+
+**Examples:**
+
+```ts
+// Bind to elements by selector
+const cleanup = html.behaviors.bind('[accordion]', 'Accordion', (el) => {
+
+    const toggle = el.querySelector('.toggle');
+    const content = el.querySelector('.content');
+
+    return html.events.on(toggle, 'click', () => {
+
+        content.classList.toggle('open');
+    });
+});
+
+// Bind to specific elements
+const buttons = $('.action-button');
+html.behaviors.bind(buttons, 'ActionButton', (el) => {
+
+    const action = html.attrs.get(el, 'data-action');
+
+    return html.events.on(el, 'click', () => {
+
+        performAction(action);
+    });
+});
+
+// Handler with cleanup
+html.behaviors.bind('.video-player', 'VideoPlayer', (el) => {
+
+    const player = new VideoPlayer(el);
+
+    // Return cleanup function
+    return () => {
+
+        player.pause();
+        player.destroy();
+    };
+});
+```
+
+> **Error Handling Philosophy:** Behavior handlers are always executed in a safe context. If your handler throws an error or returns a failing result, the error is caught and logged, and the behavior is skipped for that element. This ensures that a single faulty handler does not break the initialization of other behaviors or elements.
+
+> **Custom Cleanup Patterns:** When you bind a behavior that attaches event listeners, timers, or other side effects, always return a cleanup function from your handler. This function will be called automatically when the behavior is unbound or the element is removed, ensuring no memory leaks or dangling listeners. If your handler does not need cleanup, you can simply omit the return value.
+
+### `html.behaviors.unbind(...)`
+
+Remove a specific behavior from an element.
+
+```ts
+(el: Element, featureName: string): void
+```
+
+**Examples:**
+
+```ts
+const modal = document.querySelector('.modal');
+
+// Remove just the modal behavior
+html.behaviors.unbind(modal, 'Modal');
+
+// Element can still have other behaviors
+console.log(html.behaviors.allBound(modal)); // ['Draggable', 'Focusable']
+```
+
+### `html.behaviors.unbindAll(...)`
+
+Remove all behaviors from an element. Essential for cleanup when removing elements from DOM.
+
+```ts
+(el: Element): void
+```
+
+**Examples:**
+
+```ts
+// Clean up before removing element
+const component = document.querySelector('.complex-component');
+html.behaviors.unbindAll(component);
+component.remove();
+
+// Clean up in framework lifecycle
+class MyComponent {
+
+    onDestroy() {
+
+        html.behaviors.unbindAll(this.element);
+    }
+}
 ```
 
 ### `html.behaviors.isBound(...)`
 
-Check if an element has already been bound to a specific behavior feature.
+Check if a specific feature is already bound to an element.
 
 ```ts
-(el: Element, feature: string): boolean
+(el: Element, featureName: string): boolean
 ```
 
 **Examples:**
 
 ```ts
-if (html.behaviors.isBound(button, 'ClickHandler')) {
-	return; // Already bound, skip initialization
+// Prevent duplicate initialization
+function initializeFeature(el: Element) {
+
+    if (!html.behaviors.isBound(el, 'Feature')) {
+
+        html.behaviors.bind(el, 'Feature', handler);
+    }
 }
 
-const isSetup = html.behaviors.isBound(modal, 'Modal');
-// > true/false
+// Conditional behavior
+$('.item').forEach(el => {
+
+    if (!html.behaviors.isBound(el, 'Draggable')) {
+
+        el.classList.add('draggable-available');
+    }
+});
 ```
 
-### `html.behaviors.markBound(...)`
+### `html.behaviors.allBound(...)`
 
-Mark an element as bound to a specific behavior feature to prevent double-binding.
+Get all feature names bound to an element.
 
 ```ts
-(el: Element, feature: string): void
+(el: Element): string[]
 ```
 
 **Examples:**
 
 ```ts
-html.behaviors.markBound(button, 'ClickHandler');
+const features = html.behaviors.allBound(myElement);
+// ['Tooltip', 'Draggable', 'Focusable']
 
-// After binding a complex behavior
-html.behaviors.markBound(carousel, 'ImageCarousel');
+// Debug what's bound
+function debugElement(el: Element) {
+
+    const bound = html.behaviors.allBound(el);
+    console.log(`Element has ${bound.length} behaviors:`, bound);
+}
 ```
 
-### `html.behaviors.bindBehavior(...)`
+### `html.behaviors.on(...)`
 
-Safely bind a behavior to an element with built-in error handling and duplicate prevention.
+Register a lazy behavior for later activation. Listens for `init:${feature}` events.
 
 ```ts
-(el: Element, feature: string, handler: (el: Element) => void): void
+(feature: string, init: () => void | (() => void)): () => void
 ```
 
 **Examples:**
 
 ```ts
-$('[tooltip]').forEach(el => {
+// Register behavior that initializes on demand
+const cleanup = html.behaviors.on('tabs', () => {
 
-	html.behaviors.bindBehavior(el, 'Tooltip', (element) => {
+    const tabs = $('[role="tablist"]');
 
-		new TooltipBehavior(element);
-	});
+    return html.behaviors.bind(tabs, 'Tabs', (el) => {
+
+        const tabManager = new TabManager(el);
+        return () => tabManager.destroy();
+    });
 });
 
-// Error handling is built-in - failed bindings are logged but don't crash
-html.behaviors.bindBehavior(el, 'ComplexWidget', (element) => {
+// Trigger initialization later
+html.behaviors.dispatch('tabs');
 
-	throw new Error('Something went wrong'); // Safely caught and logged
-});
-```
+// Chain multiple behaviors
+html.behaviors.on('forms', () => {
 
-### `html.behaviors.registerPrepare(...)`
+    // Validation
+    html.behaviors.bind('form[validate]', 'Validation', (el) => {
 
-Register a behavior initialization function that responds to `prepare:*` events.
+        return new FormValidator(el);
+    });
 
-```ts
-(feature: string, init: () => void): () => void
-```
+    // Auto-save
+    html.behaviors.bind('form[auto-save]', 'AutoSave', (el) => {
 
-**Examples:**
-
-```ts
-const cleanup = html.behaviors.registerPrepare('accordion', () => {
-
-	$('[data-accordion]').forEach(el => {
-
-		html.behaviors.bindBehavior(el, 'Accordion', (element) => {
-
-			new AccordionBehavior(element);
-		});
-	});
-});
-
-// Later, to unregister the behavior
-cleanup();
-
-// Grouped behavior setup
-const formsCleanup = html.behaviors.registerPrepare('forms', () => {
-
-	html.behaviors.dispatchPrepare('validation', 'autosave', 'formatting');
+        const saver = new AutoSaver(el);
+        return () => saver.stop();
+    });
 });
 ```
 
-### `html.behaviors.dispatchPrepare(...)`
+### `html.behaviors.dispatch(...)`
 
-Trigger prepare events for one or more behavior features.
+Trigger initialization for one or more features.
 
 ```ts
 (...features: string[]): void
@@ -556,157 +718,75 @@ Trigger prepare events for one or more behavior features.
 **Examples:**
 
 ```ts
-// Initialize single behavior
-html.behaviors.dispatchPrepare('copy');
+// Initialize single feature
+html.behaviors.dispatch('modal');
 
-// Initialize multiple behaviors at once
-html.behaviors.dispatchPrepare('copy', 'modal', 'nav', 'forms');
+// Initialize multiple features
+html.behaviors.dispatch('forms', 'tooltips', 'accordions');
 
-// Great for SPA route changes
-router.on('page-load', () => {
+// Conditional initialization
+if (document.querySelector('.needs-charts')) {
 
-	html.behaviors.dispatchPrepare('copy', 'modal', 'analytics');
-});
+    html.behaviors.dispatch('charts');
+}
+
+// After dynamic content load
+fetch('/partial')
+    .then(res => res.text())
+    .then(html => {
+
+        container.innerHTML = html;
+        html.behaviors.dispatch('modal', 'forms');
+    });
 ```
 
-### `html.behaviors.createBehaviorRegistry(...)`
+### `html.behaviors.observe(...)`
 
-Register multiple prepare event listeners from an object map - cleaner than multiple `registerPrepare` calls.
+Watch for new elements and automatically initialize behaviors when they appear.
 
 ```ts
-(registry: Record<string, () => void>): () => void
+(feature: string, selector: string, options?: { root?: Element, debounceMs?: number }): void
 ```
 
 **Examples:**
 
 ```ts
-const cleanupAll = html.behaviors.createBehaviorRegistry({
+// Basic observation
+html.behaviors.observe('tooltip', '[data-tooltip]');
 
-	copy: () => {
-		$('[copy]').forEach(el => /* bind copy behavior */);
-	},
-
-	modal: () => {
-		$('[data-modal]').forEach(el => /* bind modal behavior */);
-	},
-
-	dropdown: () => {
-		$('[dropdown]').forEach(el => /* bind dropdown behavior */);
-	},
-
-	forms: () => {
-		html.behaviors.dispatchPrepare('validation', 'autosave');
-	}
+// Observe within specific container
+const appRoot = document.getElementById('app');
+html.behaviors.observe('modal', '[data-modal]', {
+    root: appRoot,
+    debounceMs: 100
 });
 
-// Later, to unregister all behaviors at once
-cleanupAll();
-```
-
-### `html.behaviors.setupLifecycle(...)`
-
-Attach a teardown callback to an element for proper cleanup when the behavior is no longer needed.
-
-```ts
-(el: Element, key: string, teardown: () => void): void
-```
-
-**Examples:**
-
-```ts
-html.behaviors.bindBehavior(modal, 'Modal', (element) => {
-
-	const observer = new ResizeObserver(/* ... */);
-	const interval = setInterval(/* ... */, 1000);
-
-	// Setup teardown for cleanup
-	html.behaviors.setupLifecycle(element, 'Modal', () => {
-
-		observer.disconnect();
-		clearInterval(interval);
-	});
-});
-```
-
-### `html.behaviors.teardownFeature(...)`
-
-Execute the teardown function for a behavior feature on an element. Safely handles cases where no teardown function exists.
-
-```ts
-(el: Element, key: string): void
-```
-
-**Examples:**
-
-```ts
-// Clean up before removing element
-html.behaviors.teardownFeature(modal, 'Modal');
-modal.remove();
-
-// Cleanup on SPA route change
-router.on('route-change', () => {
-
-	$('[data-modal]').forEach(el => {
-
-		html.behaviors.teardownFeature(el, 'Modal');
-	});
-});
-```
-
-### `html.behaviors.queryLive(...)`
-
-Query for elements while ignoring hidden, template, or inert elements - perfect for prepare functions. Filters out elements that are hidden, have data-template attribute, or aria-hidden="true".
-
-```ts
-(selector: string, root?: Document | Element): Element[]
-```
-
-**Examples:**
-
-```ts
-// Only gets visible, active elements
-const liveButtons = html.behaviors.queryLive('[data-action]');
-
-// Ignores elements in templates or hidden containers
-const activeModals = html.behaviors.queryLive('[data-modal]');
-// Won't return: <div data-modal hidden>, <template><div data-modal></template>
-
-// Scoped to container
-const scopedElements = html.behaviors.queryLive('[copy]', document.getElementById('content'));
-```
-
-### `html.behaviors.observePrepare(...)`
-
-Automatically observe DOM changes and dispatch prepare events when matching elements are added. Uses a shared MutationObserver for optimal performance with many features. Requires MutationObserver support (not available in Node.js environments).
-
-```ts
-(feature: string, selector: string, options?: { root?: Element; debounceMs?: number }): void
-```
-
-**Examples:**
-
-```ts
-// Watch for new copy elements anywhere on the page
-html.behaviors.observePrepare('copy', '[copy]');
-
-// Watch for modals with debouncing to prevent thrashing
-html.behaviors.observePrepare('modal', '[data-modal]', {
-	debounceMs: 100
+// Dynamic content areas
+html.behaviors.observe('gallery', '.gallery-item', {
+    root: document.querySelector('.content-area'),
+    debounceMs: 50
 });
 
-// Scoped observation within a container
-html.behaviors.observePrepare('widget', '[data-widget]', {
-	root: document.getElementById('dynamic-content'),
-	debounceMs: 50
+// Combine with on() for complete setup
+html.behaviors.on('gallery', () => {
+
+    return html.behaviors.bind('.gallery-item', 'GalleryItem', (el) => {
+
+        const item = new GalleryItem(el);
+        return () => item.cleanup();
+    });
 });
 
-// Perfect for SPA dynamic content
-// As soon as new [copy] elements are inserted, prepare:copy fires automatically
+html.behaviors.observe('gallery', '.gallery-item');
 ```
 
-### `html.behaviors.stopObserving(...)`
+> **MutationObserver Limitations:** Automatic behavior observation relies on the browser's `MutationObserver` API. If you attempt to use `observe` in a non-browser environment (such as Node.js or server-side rendering), an error will be thrown: `Error: MutationObserver not available in this environment. observePrepare will not work.` Use feature detection or environment checks if you need to support non-browser runtimes.
 
-Stop observing prepare events for a specific feature and selector combination. Automatically disconnects the MutationObserver if no more features are being observed for that root.
+> **Performance Note:** While automatic observation is powerful, observing very large DOM trees or using extremely low debounce values can impact performance, especially during rapid DOM mutations. For best results, use the narrowest possible root and selector for observation, set a reasonable `debounceMs` (e.g., 50–100ms) to batch rapid changes, and unobserve features when they are no longer needed using `html.behaviors.stop` or `stopAll`. For most apps, the default settings are efficient. If you notice performance issues, review your observation scope and debounce settings.
+
+### `html.behaviors.stop(...)`
+
+Stop observing for new elements matching a selector.
 
 ```ts
 (feature: string, selector: string, root?: Element): void
@@ -715,16 +795,29 @@ Stop observing prepare events for a specific feature and selector combination. A
 **Examples:**
 
 ```ts
-// Stop watching for copy elements
-html.behaviors.stopObserving('copy', '[copy]');
+// Stop observing
+html.behaviors.stop('modal', '[data-modal]');
 
-// Stop scoped observation
-html.behaviors.stopObserving('widget', '[data-widget]', widgetContainer);
+// Stop observing in specific root
+const container = document.getElementById('dynamic-content');
+html.behaviors.stop('tooltip', '[data-tooltip]', container);
+
+// Conditional observation
+function toggleFeatureObservation(enabled: boolean) {
+
+    if (enabled) {
+
+        html.behaviors.observe('lazy', '[data-lazy]');
+    } else {
+
+        html.behaviors.stop('lazy', '[data-lazy]');
+    }
+}
 ```
 
-### `html.behaviors.stopAllObserving(...)`
+### `html.behaviors.stopAll(...)`
 
-Stop all active DOM mutation observers and clear all observed features. Useful for cleanup when the application is shutting down or when you want to stop all automatic behavior binding.
+Stop all mutation observers. Useful for cleanup in tests or when unmounting large UI sections.
 
 ```ts
 (): void
@@ -733,14 +826,124 @@ Stop all active DOM mutation observers and clear all observed features. Useful f
 **Examples:**
 
 ```ts
-// Clean shutdown - stop all DOM observation
-html.behaviors.stopAllObserving();
+// Test cleanup
+afterEach(() => {
 
-// Good for SPA cleanup or testing
-window.addEventListener('beforeunload', () => {
-
-	html.behaviors.stopAllObserving();
+    html.behaviors.stopAll();
 });
+
+// SPA route change
+router.on('beforeRouteChange', () => {
+
+    html.behaviors.stopAll();
+});
+
+// Full reset
+function resetBehaviors() {
+
+    html.behaviors.stopAll();
+    document.querySelectorAll('[data-behavior]').forEach(el => {
+
+        html.behaviors.unbindAll(el);
+    });
+}
+```
+
+### `html.behaviors.create(...)`
+
+Batch register multiple behaviors with automatic observation and initialization.
+
+```ts
+(registry: Record<string, BehaviorInit>, opts?: { shouldObserve?: boolean, shouldDispatch?: boolean, debounceMs?: number }): { cleanup: () => void, dispatch: () => void }
+```
+
+**Examples:**
+
+```ts
+// Complete behavior setup
+const behaviors = html.behaviors.create({
+
+    // Element-based behavior
+    accordion: {
+        els: '.accordion',
+        handler: (el) => {
+
+            const controller = new AccordionController(el);
+            return () => controller.destroy();
+        },
+        shouldObserve: true // Auto-bind new accordions
+    },
+
+    // Global behavior
+    shortcuts: () => {
+
+        const shortcuts = new KeyboardShortcuts();
+        return () => shortcuts.unbind();
+    },
+
+    // Conditional behavior
+    analytics: {
+        els: '[track-event]',
+        handler: (el) => {
+
+            const event = html.attrs.get(el, 'track-event');
+
+            return html.events.on(el, 'click', () => {
+
+                analytics.track(event);
+            });
+        },
+        shouldObserve: true,
+        debounceMs: 100
+    }
+}, {
+    shouldDispatch: true, // Initialize immediately
+    shouldObserve: true,  // Watch for new elements
+    debounceMs: 50        // Default debounce
+});
+
+// Manual dispatch if needed
+behaviors.dispatch();
+
+// Cleanup everything
+behaviors.cleanup();
+
+// Modular feature sets
+const coreBehaviors = html.behaviors.create({
+    forms: formBehaviors,
+    navigation: navBehaviors,
+    modals: modalBehaviors
+});
+
+const enhancedBehaviors = html.behaviors.create({
+    animations: animationBehaviors,
+    charts: chartBehaviors
+}, {
+    shouldDispatch: false // Manual initialization
+});
+
+// Initialize enhanced features on demand
+if (userPreferences.animations) {
+
+    enhancedBehaviors.dispatch();
+}
+```
+
+> **Behavior Registry Validation:** When using `html.behaviors.create`, the registry is strictly validated. Invalid entries (such as missing handlers, invalid selectors, or incorrect types) are logged as errors and skipped. This helps catch configuration mistakes early and ensures only valid behaviors are registered. Check your console for validation errors if a behavior does not initialize as expected.
+
+### Debugging
+
+You can enable verbose debug logging for all behavior operations. This will print detailed information about binding, unbinding, observation, and errors to the console, making it easier to trace issues during development.
+
+```ts
+html.behaviors.debug(true);
+// Console will now show [HtmlBehaviors] logs for all operations
+```
+
+To disable, call:
+
+```ts
+html.behaviors.debug(false);
 ```
 
 ## Viewport Utilities

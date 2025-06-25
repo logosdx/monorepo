@@ -17,25 +17,25 @@ declare module './engine.ts' {
 
         export type Cleanup = () => void
 
-        export type Component<Ev> = {
+        export type Component<Ev extends Record<string, any>> = {
             on: ObserverEngine<Ev>['on'],
             once: ObserverEngine<Ev>['once'],
             emit: ObserverEngine<Ev>['emit'],
             off: ObserverEngine<Ev>['off'],
         };
 
-        export type Child<C, Ev> = C & Component<Ev> & {
+        export type Child<C, Ev extends Record<string, any>> = C & Component<Ev> & {
             cleanup: Cleanup
         }
 
-        export type Instance<Ev> = Component<Ev> & {
+        export type Instance<Ev extends Record<string, any>> = Component<Ev> & {
             observe: ObserverEngine<Ev>['observe'],
             $observer: ObserverEngine<Ev>
         }
 
         export type FuncName = 'on' | 'once' | 'off' | 'emit' | 'cleanup';
 
-        export type SpyAction<Ev> =  {
+        export type SpyAction<Ev extends Record<string, any>> =  {
             event: keyof Ev | RegExp | '*',
             listener?: Function | null | undefined,
             data?: unknown | undefined,
@@ -43,11 +43,11 @@ declare module './engine.ts' {
             context: ObserverEngine<Ev>
         }
 
-        export interface Spy<Ev> {
+        export interface Spy<Ev extends Record<string, any>> {
             (action: SpyAction<Ev>): void
         }
 
-        export interface EmitValidator<Ev> {
+        export interface EmitValidator<Ev extends Record<string, any>> {
             (
                 event: keyof Ev,
                 data: Ev[keyof Ev],
@@ -65,7 +65,7 @@ declare module './engine.ts' {
             ): void
         }
 
-        export type Options<Ev> = {
+        export type Options<Ev extends Record<string, any>> = {
             name?: string | undefined,
             spy?: Spy<Ev> | undefined,
             emitValidator?: EmitValidator<Ev> | undefined

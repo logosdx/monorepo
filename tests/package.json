@@ -3,12 +3,12 @@
     "version": "0.0.1",
     "private": true,
     "scripts": {
-        "tdd": "nodemon -e 'ts' -x pnpm test",
-        "tdd:only": "nodemon -e 'ts' -x pnpm test:only",
-        "test": "NODE_ENV=test tsx src/index.ts",
-        "test:coverage": "NODE_ENV=test tsx --experimental-test-coverage src/index.ts",
-        "test:only": "NODE_ENV=test tsx --test-only src/index.ts",
-        "__ci": "NODE_ENV=test tsx --test-reporter spec --test-reporter-destination stdout --test-reporter node-test-github-reporter --test-reporter-destination stdout",
+        "tdd": "nodemon -e 'ts' -w src -w ../packages -x pnpm test",
+        "tdd:only": "nodemon -e 'ts' -w src -w ../packages -x pnpm test:only",
+        "test": "NODE_ENV=test tsx --expose-gc src/index.ts",
+        "test:coverage": "NODE_ENV=test tsx --experimental-test-coverage --expose-gc src/index.ts",
+        "test:only": "NODE_ENV=test tsx --test-only --expose-gc src/index.ts",
+        "__ci": "NODE_ENV=test tsx --expose-gc --test-reporter spec --test-reporter-destination stdout --test-reporter node-test-github-reporter --test-reporter-destination stdout",
         "test:ci": "pnpm run __ci src/index.ts"
     },
     "keywords": [],

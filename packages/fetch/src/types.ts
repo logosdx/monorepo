@@ -1,3 +1,4 @@
+import { MaybePromise } from '@logosdx/utils';
 import { FetchError } from './helpers.ts';
 
 export type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
@@ -12,23 +13,50 @@ export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
 // Add RetryConfig type
 export type RetryConfig = {
 
-    /** Maximum number of retry attempts */
+    /**
+     * Maximum number of retry attempts.
+     *
+     * @default 3
+     */
     maxAttempts?: number | undefined;
 
-    /** Base delay between retries in ms. Can be a number or a function that takes the error and attempt number and returns a delay in ms */
+    /**
+     * Base delay between retries in ms.
+     * Can be a number or a function that takes the error and attempt number and returns a delay in ms
+     *
+     * @default 1000
+     */
     baseDelay?: number | ((error: FetchError, attempt: number) => number) | undefined;
 
-    /** Maximum delay between retries in ms */
+    /**
+     * Maximum delay between retries in ms
+     *
+     * @default 10000
+     */
     maxDelay?: number | undefined;
 
-    /** Whether to use exponential backoff */
-    useExponentialBackoff?: boolean | undefined ;
+    /**
+     * Whether to use exponential backoff
+     *
+     * @default true
+     */
+    useExponentialBackoff?: boolean | undefined;
 
-    /** Status codes that should trigger a retry */
+    /**
+     * Status codes that should trigger a retry
+     *
+     * @default [408, 429, 500, 502, 503, 504]
+     */
     retryableStatusCodes?: number[] | undefined;
 
-    /** Custom function to determine if a request should be retried */
-    shouldRetry?: (error: FetchError, attempt: number) => boolean | Promise<boolean> | undefined;
+    /**
+     * Custom function to determine if a request should be retried.
+     * If the function returns a number, it will be used as the delay
+     * in milliseconds before the next retry.
+     *
+     * @default (error, attempt) => attempt < maxAttempts
+     */
+    shouldRetry?: (error: FetchError, attempt: number) => MaybePromise<boolean | number> | undefined;
 };
 
 declare module './engine.ts' {

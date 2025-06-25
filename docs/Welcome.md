@@ -1,6 +1,7 @@
 ---
 permalink: '/'
 ---
+
 LogosDX is an collection of utilities brought together for the purpose of simplifying the building of frontend UI's. It is perfect for building websites, small utilities, frontend components, or even full-fledged web-apps. It was designed for the purpose of giving developers a simple-to-use set of tools that they can "just use" in their applications.
 
 - [Visit our github](https://github.com/logosdx/monorepo)

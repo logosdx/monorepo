@@ -51,7 +51,7 @@ export type AppKitFetch = {
  */
 export type AppKitType = {
     /** Event definitions for the observer engine */
-    events?: Record<string, unknown>,
+    events?: Record<string, any>,
     /** Storage configuration for data persistence */
     storage?: Record<string, unknown>,
     /** Locale configuration for internationalization */
@@ -69,6 +69,24 @@ export type AppKitType = {
 /**
  * Utility type to create a kit type with proper typing.
  * @template KitType - The kit type to be created
+ *
+ * @example
+ * ```typescript
+ * type MyKit = MakeKitType<{
+ *   events: {
+ *     'my-event': {
+ *       payload: {
+ *         name: string;
+ *         age: number;
+ *       };
+ *     };
+ *   };
+ * }>;
+ *
+ * const kit = appKit<MyKit>({
+ *   observer: {}
+ * });
+ * ```
  */
 export type MakeKitType<KitType extends AppKitType> = KitType
 
@@ -79,7 +97,7 @@ export type MakeKitType<KitType extends AppKitType> = KitType
  */
 export type AppKitOpts<KitType extends AppKitType> = {
     /** Observer engine options for event handling */
-    observer?: ObserverEngine.Options<KitType['events']>,
+    observer?: ObserverEngine.Options<NotUndefined<KitType['events']>>,
     /** State machine configuration with initial state, options, and reducer */
     stateMachine?: {
             /** Initial state for the state machine */
@@ -162,7 +180,7 @@ export const appKit = <Kit extends AppKitType = any>(
     type FetchHeadersType = NotUndefined<Kit['fetch']>['headers'];
 
     // Component type aliases
-    type KitObserver = ObserverEngine<Kit['events']>;
+    type KitObserver = ObserverEngine<NotUndefined<Kit['events']>>;
     type KitLocales = LocaleManager<LocaleType, LocaleCodes>;
     type KitStateMachine = StateMachine<StateType, ReducerValType>;
     type KitStorage = StorageAdapter<Kit['storage']>;

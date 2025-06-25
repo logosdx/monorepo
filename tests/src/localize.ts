@@ -1,4 +1,4 @@
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import { describe, it } from 'node:test'
 
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
@@ -8,7 +8,7 @@ import {
 } from '../../packages/localize/src/index.ts';
 
 import { DeepOptional } from '../../packages/utils/src/index.ts';
-import { sandbox, stubWarn } from './_helpers';
+import { sandbox } from './_helpers';
 
 const english = {
 
@@ -206,6 +206,7 @@ describe('@logosdx/localize', function () {
 
             const vals = tests[c as Codes];
             const code = c as Codes;
+
             l10bMngr.changeTo(code);
 
             for (const [key, val] of vals) {

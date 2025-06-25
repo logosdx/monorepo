@@ -23,8 +23,6 @@ export type {
     EvListener
 } from './events';
 
-export { BINDING_SYMBOL, TEARDOWN_SYMBOL } from './behaviors';
-
 import { isBrowserLike } from '@logosdx/utils';
 
 if (!isBrowserLike()) {
@@ -34,13 +32,10 @@ if (!isBrowserLike()) {
 
 const document = window?.document;
 
-const css = HtmlCss;
-
-const attrs = HtmlAttr;
-
-const events = HtmlEvents;
-
-const behaviors = HtmlBehaviors
+export const css = HtmlCss;
+export const attrs = HtmlAttr;
+export const events = HtmlEvents;
+export const behaviors = HtmlBehaviors
 
 
 /**
@@ -82,7 +77,7 @@ export const $ = <R extends Element = HTMLElement>(selector: string, ctx?: Eleme
  * const cleanup = html.events.on(element, 'click', handleClick);
  *
  * // Behavior management
- * html.behaviors.bindBehavior(element, 'MyFeature', handler);
+ * html.behaviors.bind(element, 'MyFeature', handler);
  */
 export const html = {
     css,

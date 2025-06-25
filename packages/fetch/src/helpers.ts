@@ -4,7 +4,7 @@ import {
     assertOptional,
     isObject,
     isFunction,
-    forInEvery
+    allKeysValid
 } from '@logosdx/utils';
 import type { FetchEngine } from './engine.ts';
 import { HttpMethods, RetryConfig } from './types.ts';
@@ -22,6 +22,10 @@ export interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
 }
 
 export class FetchError<T = {}> extends Error {}
+
+export const isFetchError = (error: unknown): error is FetchError<any, any> => {
+    return error instanceof FetchError;
+}
 
 
 export class  FetchEvent<
@@ -151,7 +155,7 @@ export const validateOptions = <H, P, S>(
 
     assertOptional(
         methodHeaders,
-        () => forInEvery(methodHeaders!, (val) => isObject(val)),
+        () => allKeysValid(methodHeaders!, isObject),
         'methodHeaders items must be objects'
     );
 
@@ -169,7 +173,7 @@ export const validateOptions = <H, P, S>(
 
     assertOptional(
         methodParams,
-        () => forInEvery(methodParams!, (val) => isObject(val)),
+        () => allKeysValid(methodParams!, isObject),
         'methodParams items must be objects'
     );
 
@@ -187,7 +191,7 @@ export const validateOptions = <H, P, S>(
 
     assertOptional(
         modifyMethodOptions,
-        () => forInEvery(modifyMethodOptions!, (val) => isFunction(val)),
+        () => allKeysValid(modifyMethodOptions!, isFunction),
         'modifyMethodOptions items must be functions'
     );
 

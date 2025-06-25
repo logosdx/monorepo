@@ -1,17 +1,43 @@
-import { Func, PathNames, PathValue, Truthy } from './types';
-
-
-export const isBrowser = () => typeof window !== 'undefined' && typeof window.document !== 'undefined';
-export const isReactNative = () => typeof navigator !== 'undefined' && navigator?.product === 'ReactNative';
-export const isCloudflare = () => typeof globalThis !== 'undefined' && globalThis?.navigator?.userAgent === 'Cloudflare-Workers';
-export const isBrowserLike = () => isBrowser() || isReactNative() || isCloudflare();
-export const isNode = () => typeof process !== 'undefined' && process.versions?.node;
-
+import { Func, PathNames, PathValue } from './types';
 
 /**
- * Defines visible, non-configurable properties on an object
- * @param target
- * @param props
+ * A no-operation function that accepts any arguments and returns any value.
+ *
+ * @param args any arguments
+ * @returns any value
+ */
+export const noop: (...args: any[]) => any = () => {};
+
+/**
+ * Defines visible, non-configurable properties on an object.
+ *
+ * Creates properties that are enumerable (show up in for...in loops and Object.keys)
+ * but cannot be modified or deleted. Useful for creating public APIs.
+ *
+ * @param target object to add properties to
+ * @param props properties to define
+ * @param configurable whether properties can be deleted or reconfigured
+ *
+ * @example
+ * const api = {};
+ * definePublicProps(api, {
+ *     version: '1.0.0',
+ *     name: 'MyAPI'
+ * });
+ *
+ * console.log(api.version); // '1.0.0'
+ * console.log(Object.keys(api)); // ['version', 'name']
+ * api.version = '2.0.0'; // Fails silently or throws in strict mode
+ *
+ * @example
+ * class DataProcessor {
+ *     constructor(config) {
+ *         definePublicProps(this, {
+ *             id: crypto.randomUUID(),
+ *             createdAt: new Date()
+ *         });
+ *     }
+ * }
  */
 export const definePublicProps = <T, U extends Record<string, unknown>>(target: T, props: U, configurable = false) => {
 
@@ -31,9 +57,36 @@ export const definePublicProps = <T, U extends Record<string, unknown>>(target: 
 };
 
 /**
- * Defines hidden, non-configurable properties on an object
- * @param target
- * @param props
+ * Defines hidden, non-configurable properties on an object.
+ *
+ * Creates properties that are not enumerable (hidden from for...in loops and Object.keys)
+ * and cannot be modified or deleted. Useful for internal state and private methods.
+ *
+ * @param target object to add properties to
+ * @param props properties to define
+ * @param configurable whether properties can be deleted or reconfigured
+ *
+ * @example
+ * const cache = new Map();
+ * const api = {};
+ *
+ * definePrivateProps(api, {
+ *     _cache: cache,
+ *     _getId: () => crypto.randomUUID()
+ * });
+ *
+ * console.log(Object.keys(api)); // [] (hidden properties)
+ * console.log(api._cache); // Map instance (accessible but hidden)
+ *
+ * @example
+ * class EventEmitter {
+ *     constructor() {
+ *         definePrivateProps(this, {
+ *             _listeners: new Map(),
+ *             _emit: this.emit.bind(this)
+ *         });
+ *     }
+ * }
  */
 export const definePrivateProps = <T, U extends Record<string, unknown>>(target: T, props: U, configurable = false) => {
 
@@ -53,9 +106,36 @@ export const definePrivateProps = <T, U extends Record<string, unknown>>(target:
 };
 
 /**
- * Defines hidden, non-configurable getters on an object
- * @param target
- * @param props
+ * Defines hidden, non-configurable getters on an object.
+ *
+ * Creates getter properties that are not enumerable and cannot be modified.
+ * Useful for computed properties and lazy-loaded values.
+ *
+ * @param target object to add getters to
+ * @param props getter functions to define
+ * @param configurable whether getters can be deleted or reconfigured
+ *
+ * @example
+ * const user = { firstName: 'John', lastName: 'Doe' };
+ *
+ * definePrivateGetters(user, {
+ *     _fullName: () => `${user.firstName} ${user.lastName}`,
+ *     _initials: () => `${user.firstName[0]}${user.lastName[0]}`
+ * });
+ *
+ * console.log(user._fullName); // 'John Doe'
+ * console.log(Object.keys(user)); // ['firstName', 'lastName'] (getters hidden)
+ *
+ * @example
+ * class DataProcessor {
+ *     constructor(data) {
+ *         this.data = data;
+ *         definePrivateGetters(this, {
+ *             _size: () => this.data.length,
+ *             _isEmpty: () => this.data.length === 0
+ *         });
+ *     }
+ * }
  */
 export const definePrivateGetters = <T, U extends Record<string, Func>>(target: T, props: U, configurable = false) => {
 
@@ -73,161 +153,32 @@ export const definePrivateGetters = <T, U extends Record<string, Func>>(target: 
     });
 };
 
-class AssertationError extends Error {}
-
 /**
- * Asserts that a value is true
+ * Returns an array of items, wrapping single items in an array.
  *
- * @param test value that is coerced to true
- * @param message error message to display when test is false
- * @param ErrorClass error class to throw
- */
-export const assert = (
-    test: Truthy | (() => boolean),
-    message?: string,
-    ErrorClass?: typeof Error
-) => {
-
-    const check = test instanceof Function ? test() : !!test
-
-    if (check === false) {
-
-        throw new (ErrorClass || AssertationError)(message || 'assertion failed');
-    }
-};
-
-type AssertObjTestFn<T, P extends string> = (val: PathValue<T, P>) => [boolean, string];
-
-/**
- * Asserts the values in an object based on the provided assertations.
- * The assertations are a map of paths to functions that return a tuple
- * of a boolean and a message. This is intended to be used for testing
- * and validation when there is no schema validator available.
+ * Normalizes input to always return an array, whether the input
+ * was a single item or already an array.
  *
- *
- * @param obj
- * @param assertions
+ * @param items single item or array of items
+ * @returns array containing the items
  *
  * @example
+ * itemsToArray('single') // ['single']
+ * itemsToArray(['already', 'array']) // ['already', 'array']
+ * itemsToArray(42) // [42]
+ * itemsToArray([]) // []
  *
- * const obj = {
- *     a: 1,
- *     b: 'hello',
- *     c: { d: 2 }
+ * @example
+ * function processFiles(files: string | string[]) {
+ *     const fileArray = itemsToArray(files);
+ *
+ *     for (const file of fileArray) {
+ *         console.log(`Processing: ${file}`);
+ *     }
  * }
  *
- * assertObject(obj, {
- *     a: (val) => [val === 1, 'a should be 1'],
- *     b: (val) => [val === 'hello', 'b should be hello'],
- *     c: [
- *         (val) => [!!val, 'c should not be empty'],
- *         (val) => [isObject(val), 'c should be an object']
- *     ],
- *     'c.d': (val) => [val === 2, 'c.d should be 2']
- * });
- */
-export const assertObject = <T extends object>(
-    obj: T,
-    assertions: {
-        [K in PathNames<T>]?: AssertObjTestFn<T, K> | AssertObjTestFn<T, K>[]
-    }
-) => {
-
-    const tests = [] as [
-        unknown,
-        AssertObjTestFn<T, any>
-    ][]
-
-    for (const path in assertions) {
-
-        const val = reach(obj, path as never);
-        const test = assertions[path as never] as AssertObjTestFn<T, any> | AssertObjTestFn<T, any>[];
-
-        if (test === undefined) {
-
-            throw new Error(`assertation for path ${path} is undefined`);
-        }
-
-        if (test instanceof Array) {
-
-            for (const t of test) {
-
-                tests.push([val, t]);
-            }
-            continue;
-        }
-
-        tests.push([val, test]);
-    }
-
-    for (const [val, test] of tests) {
-
-        const [check, message] = test(val as never);
-
-        assert(check, message);
-    }
-}
-
-
-/**
- * Asserts only if value is not undefined
- *
- * @param val value to test
- * @param test
- * @param message
- * @param ErrorClass
- */
-export const assertOptional = <T>(
-    val: T | undefined,
-    ...rest: Parameters<typeof assert>
-) => {
-
-    if (val !== undefined) {
-
-        assert(...rest);
-    }
-}
-
-
-/**
- * Merges sources into targets, using the target as a default fallback
- * @param target object to modify
- * @param sources to apply against target
- * @returns
- */
-export const applyDefaults = <T>(target: T, ...sources: T[]) => {
-
-    for (const source of sources) {
-
-        for (const k in source) {
-
-            if (typeof source[k] === 'object') {
-
-                const _t = (target || {}) as T;
-                type NextVal = T[keyof T];
-
-                const value = applyDefaults(
-                    (_t[k] || {}) as NextVal,
-                    (source[k])
-                );
-
-                target[k as keyof T] = value as NextVal;
-            }
-            else {
-
-                target[k] = source[k];
-            }
-        }
-    }
-
-
-    return target;
-}
-
-/**
- * Returns an array of things, if not already an array.
- * @param items item or items
- * @returns
+ * processFiles('single.txt'); // Works with single file
+ * processFiles(['file1.txt', 'file2.txt']); // Works with multiple files
  */
 export const itemsToArray = <T>(items: T | T[]): T[] => {
 
@@ -240,9 +191,32 @@ export const itemsToArray = <T>(items: T | T[]): T[] => {
 };
 
 /**
- * Returns 1 only if array of items contains only 1
+ * Returns a single item if array has only one element, otherwise returns the array.
+ *
+ * Unwraps single-item arrays to the item itself, useful for APIs that
+ * can return either single items or collections.
+ *
  * @param items array of items
- * @returns
+ * @returns single item if array length is 1, otherwise the array
+ *
+ * @example
+ * oneOrMany(['single']) // 'single'
+ * oneOrMany(['multiple', 'items']) // ['multiple', 'items']
+ * oneOrMany([]) // []
+ * oneOrMany([42]) // 42
+ *
+ * @example
+ * function findUsers(query: string): User | User[] {
+ *     const results = database.search(query);
+ *     return oneOrMany(results); // Return single user or array
+ * }
+ *
+ * const result = findUsers('john');
+ * if (Array.isArray(result)) {
+ *     console.log(`Found ${result.length} users`);
+ * } else {
+ *     console.log(`Found user: ${result.name}`);
+ * }
  */
 export const oneOrMany = <T>(items: T[]): T | T[] => {
 
@@ -254,174 +228,56 @@ export const oneOrMany = <T>(items: T[]): T | T[] => {
 };
 
 /**
- * Checks if value is non-iterable:
- * null, undefined, String, Number, Boolean, Symbol
- * @param val
- * @returns {boolean}
- */
-export const isNonIterable = (val: unknown): boolean => (
-    val === null ||
-    val === undefined ||
-    val.constructor === String ||
-    val.constructor === Number ||
-    val.constructor === Boolean ||
-    val.constructor === Symbol
-);
-
-/**
- * Checks if value is a type that does not
- * have a constructor
- * @param val
- * @returns {boolean}
- */
-export const hasNoConstructor = (val: unknown): boolean => (
-    val === null ||
-    val === undefined
-);
-
-/**
- * Checks if either value is non iterable
- * @param value
- * @param compare
- * @returns {boolean}
- */
-export const oneIsNonIterable = (value: unknown, compare: unknown): boolean => (
-    isNonIterable(value) || isNonIterable(compare)
-);
-
-/**
- * Checks if both values have the same constructor
- * @param value
- * @param compare
- * @returns {boolean}
- */
-export const hasSameConstructor = (value: unknown, compare: unknown): boolean => (
-    (value as {}).constructor === (compare as {}).constructor
-);
-
-/**
- * Checks if both values are the length (or size). Values can be any iterable with
- * the property `length` or `size`.
- * @param a
- * @param b
- * @returns {boolean}
- */
-export const isSameLength = (
-    a: unknown[] | Set<unknown>,
-    b: unknown[] | Set<unknown>
-): boolean => (
-    (a as []).length === (b as []).length &&
-    (a as Set<''>).size === (b as Set<''>).size
-);
-
-/**
- * Checks if value is instance of a function
- * @param a
- * @returns {boolean}
- */
-export const isFunction = (a: unknown) => a instanceof Function;
-
-/**
- * Checks if value is instance of an object
- * @param a
- * @returns {boolean}
- */
-export const isObject = (a: unknown) => a instanceof Object;
-
-/**
- * Performs a for-in loop that breaks the instance `check` function returns false.
- * Used to check that a value is in another item.
- * @param {Object|Array} item an object or array
- * @param {Function} check function to perform the check
- * @returns {boolean}
- */
-export const forInEvery = <T extends object>(
-    item: T,
-    check: {
-        (v: T[keyof T], i: number | string): boolean
-    }
-): boolean => {
-
-    let isEqual: boolean;
-
-    for (const i in item) {
-
-        isEqual = check(item[i], i);
-
-        if (isEqual === false) {
-            break;
-        }
-    }
-
-    return isEqual!;
-};
-
-/**
- * Performs a for-of loop that breaks the instance `check` function returns false.
- * Used to check that a value is in another item.
- * @param {Array|Set|Map} item an array, set or map
- * @param {Function} check function to perform the check
- * @returns {boolean}
- */
-export const forOfEvery = <
-    I extends Iterable<unknown>
->(
-    item: I,
-    check: (v: unknown) => boolean
-): boolean => {
-
-    let isEqual: boolean;
-
-    for (const val of item) {
-
-        isEqual = check(val);
-
-        if (isEqual === false) {
-            break;
-        }
-    }
-
-    return isEqual!;
-};
-
-/**
- * Checks if value is a function or an object
- * @param val
- * @returns {boolean}
- */
-export const isFunctionOrObject = <T extends Function | Object>(val: T): boolean => (
-    val instanceof Function ||
-    val instanceof Object
-);
-
-/**
- * Checks if value is specifically undefined
- * @param val
- * @returns {boolean}
- */
-export const isUndefined = (val: unknown) => val === undefined;
-
-/**
- * Optional value check. If value is undefined or null, it is considered optional.
- * If a function is provided, it is used to check the value. If a boolean is provided,
- * it is used to check the value.
+ * Reaches into an object, Map, Set, or Array and returns the value at the end of the path.
  *
- * @param val value to check
- * @param check function or boolean to check value
+ * Safely navigates nested object properties using dot notation.
+ * Supports Maps (using .get() method), Sets (using numeric indices or .has()),
+ * and Arrays (using numeric indices).
+ * Returns undefined if any part of the path doesn't exist.
  *
- * @returns {boolean}
- */
-export const isOptional = (
-    val: unknown,
-    check: ((val: unknown) => boolean) | boolean
-) => (
-    val === undefined || val === null
-) || (
-    check instanceof Function ? check(val) : check
-);
-
-/**
- * Reaches into an object and returns the value at the end of the path
+ * @param obj object, Map, Set, or Array to navigate
+ * @param val dot-separated path to the desired value
+ * @returns value at the path, or undefined if path doesn't exist
+ *
+ * @example
+ * const user = {
+ *     profile: {
+ *         name: 'John',
+ *         settings: {
+ *             theme: 'dark',
+ *             notifications: true
+ *         }
+ *     }
+ * };
+ *
+ * reach(user, 'profile.name') // 'John'
+ * reach(user, 'profile.settings.theme') // 'dark'
+ * reach(user, 'profile.missing.property') // undefined
+ *
+ * @example
+ * // Safe API response parsing
+ * function getNestedValue(response: any, path: string) {
+ *     const value = reach(response, path);
+ *     return value ?? 'Not found';
+ * }
+ *
+ * const apiResponse = { data: { users: [{ name: 'Alice' }] } };
+ * getNestedValue(apiResponse, 'data.users.0.name') // 'Alice'
+ * getNestedValue(apiResponse, 'data.posts.0.title') // 'Not found'
+ *
+ * @example
+ * // Working with Maps, Sets, and Arrays
+ * const data = {
+ *     users: new Map([['john', { name: 'John', age: 30 }]]),
+ *     tags: new Set(['admin', 'user', 'moderator']),
+ *     scores: [100, 95, 87, 92]
+ * };
+ *
+ * reach(data, 'users.john.name') // 'John'
+ * reach(data, 'tags.0') // 'admin'
+ * reach(data, 'tags.admin') // 'admin' (if exists in Set)
+ * reach(data, 'scores.1') // 95
+ * reach(data, 'scores.5') // undefined
  */
 export const reach = <T extends object, P extends PathNames<T>>(
     obj: T,
@@ -437,6 +293,22 @@ export const reach = <T extends object, P extends PathNames<T>>(
                 return null;
             }
 
+            if (acc instanceof Map) {
+                return acc.get(key);
+            }
+
+            if (acc instanceof Set) {
+
+                const has = acc.has(key);
+                const values = Array.from(acc);
+
+                if (has) {
+                    return values[values.indexOf(key)];
+                }
+
+                return values[key as never];
+            }
+
             return acc[key];
         },
         obj as any
@@ -444,12 +316,68 @@ export const reach = <T extends object, P extends PathNames<T>>(
 }
 
 /**
- * Creates a deferred promise
+ * Creates a deferred promise that can be resolved or rejected externally.
+ *
+ * Provides a promise with externally accessible resolve and reject methods.
+ * Useful for creating promises that need to be controlled from outside
+ * their creation context.
+ *
+ * @example
+ * const deferred = new Deferred<string>();
+ *
+ * // Set up the promise consumer
+ * deferred.promise.then(result => {
+ *     console.log('Got result:', result);
+ * });
+ *
+ * // Resolve from elsewhere
+ * setTimeout(() => {
+ *     deferred.resolve('Hello world!');
+ * }, 1000);
+ *
+ * @example
+ * class AsyncQueue<T> {
+ *     private pending = new Map<string, Deferred<T>>();
+ *
+ *     async waitFor(id: string): Promise<T> {
+ *         if (!this.pending.has(id)) {
+ *             this.pending.set(id, new Deferred<T>());
+ *         }
+ *         return this.pending.get(id)!.promise;
+ *     }
+ *
+ *     complete(id: string, result: T) {
+ *         const deferred = this.pending.get(id);
+ *         if (deferred) {
+ *             deferred.resolve(result);
+ *             this.pending.delete(id);
+ *         }
+ *     }
+ * }
+ *
+ * @example
+ * // Coordinate multiple async operations
+ * const coordinateWork = () => {
+ *     const coordinator = new Deferred<void>();
+ *     let completed = 0;
+ *
+ *     const checkComplete = () => {
+ *         if (++completed === 3) {
+ *             coordinator.resolve();
+ *         }
+ *     };
+ *
+ *     doWork1().then(checkComplete);
+ *     doWork2().then(checkComplete);
+ *     doWork3().then(checkComplete);
+ *
+ *     return coordinator.promise;
+ * };
  */
 export class Deferred<T> {
 
     public promise: Promise<T>;
-    public resolve!: (value: T) => void;
+    public resolve!: (value: T | PromiseLike<T>) => void;
     public reject!: (reason?: Error | string) => void;
 
     constructor() {
@@ -461,34 +389,118 @@ export class Deferred<T> {
     }
 }
 
-/**
- * Helper utilities for working with text
- */
-export const txt = {
+if (typeof Promise.withResolvers !== 'function') {
 
-    msgs: (...args: ({ toString(): string } | string)[]) => {
+    Promise.withResolvers = <T>() => {
 
-        return args.map((arg) => arg.toString()).join(' ');
-    },
-
-    lines: (...args: ({ toString(): string } | string)[]) => {
-
-        return args.map((arg) => arg.toString()).join('\n');
+        return new Deferred<T>();
     }
 }
 
 /**
- * Waits for `ms` milliseconds
- * @param ms milliseconds to wait
- * @returns
+ * A promise that can be cleared.
+ *
+ * A promise that can be cleared using the `clear` method.
  */
-export const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+class TimeoutPromise extends Promise<void> {
+
+    clear!: () => void;
+}
 
 /**
- * Chunk an array into smaller arrays
- * @param array
- * @param size
- * @returns
+ * Waits for the specified number of milliseconds before
+ * resolving with the optional value.
+ *
+ * Can be cleared using the `clear` method.
+ *
+ * @param ms milliseconds to wait
+ * @param value value to resolve with
+ * @returns TimeoutPromise that resolves after the delay
+ *
+ * @example
+ * await wait(1000); // Wait 1 second
+ * console.log('One second has passed');
+ *
+ * const timeout = wait(1000);
+ * timeout.clear(); // Clears the timeout
+ *
+ * const someVal = await wait(100, 'some value');
+ * console.log(someVal); // 'some value'
+ *
+ * // Add delay between operations
+ * for (const item of items) {
+ *     await processItem(item);
+ *     await wait(100); // Throttle processing
+ * }
+ *
+ * // Retry with backoff
+ * async function retryOperation(fn: () => Promise<any>, attempts = 3) {
+ *     for (let i = 0; i < attempts; i++) {
+ *         try {
+ *             return await fn();
+ *         } catch (error) {
+ *             if (i === attempts - 1) throw error;
+ *             await wait(1000 * Math.pow(2, i)); // Exponential backoff
+ *         }
+ *     }
+ * }
+ */
+export const wait = (ms: number, value: any = true) => {
+
+    let timeout: NodeJS.Timeout | number;
+
+    const promise = new TimeoutPromise(
+        resolve => {
+
+            timeout = setTimeout(
+                () => resolve(value),
+                ms
+            );
+        }
+    );
+
+    promise.clear = () => clearTimeout(timeout);
+
+    return promise;
+};
+
+/**
+ * Splits an array into smaller arrays of the specified size.
+ *
+ * Divides a large array into multiple smaller arrays (chunks) of the given size.
+ * The last chunk may be smaller if the array length is not evenly divisible.
+ *
+ * @param array array to split into chunks
+ * @param size maximum size of each chunk
+ * @returns array of arrays, each containing up to `size` elements
+ *
+ * @example
+ * chunk([1, 2, 3, 4, 5, 6, 7], 3) // [[1, 2, 3], [4, 5, 6], [7]]
+ * chunk(['a', 'b', 'c', 'd'], 2) // [['a', 'b'], ['c', 'd']]
+ * chunk([1, 2], 5) // [[1, 2]]
+ * chunk([], 3) // []
+ *
+ * @example
+ * // Process large datasets in batches
+ * async function processBatches(items: any[], batchSize = 10) {
+ *     const batches = chunk(items, batchSize);
+ *
+ *     for (const batch of batches) {
+ *         await Promise.all(batch.map(processItem));
+ *         console.log(`Processed batch of ${batch.length} items`);
+ *     }
+ * }
+ *
+ * @example
+ * // Paginate results
+ * function paginateResults<T>(results: T[], pageSize = 20) {
+ *     const pages = chunk(results, pageSize);
+ *     return pages.map((page, index) => ({
+ *         page: index + 1,
+ *         data: page,
+ *         hasNext: index < pages.length - 1
+ *     }));
+ * }
  */
 export const chunk = <T>(array: T[], size: number) => {
 
@@ -505,3 +517,12 @@ export const chunk = <T>(array: T[], size: number) => {
         return result;
     }, [] as T[][]);
 };
+
+/**
+ * Generates a random ID.
+ *
+ * Creates a random ID string using Math.random().
+ *
+ * @returns random ID string
+ */
+export const generateId = () => '_' + Math.random().toString(36).slice(2, 9);

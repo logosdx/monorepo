@@ -1,11 +1,9 @@
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import { describe, it } from 'node:test'
 
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import * as Kit from '../../packages/kit/src/index.ts';
-
-import { log as console } from './_helpers'
 
 describe('@logosdx/kit', () => {
 
@@ -48,7 +46,7 @@ describe('@logosdx/kit', () => {
 
     const stateReducer: Kit.ReducerFunction<AppStateType> = (val, state) => {
 
-        return Kit.deepMerge(state, val) as AppStateType;
+        return Kit.merge(state, val) as AppStateType;
     }
 
     type AppStorageType = {
@@ -244,5 +242,65 @@ describe('@logosdx/kit', () => {
             storage: null,
             observer: null
         });
+    });
+
+    it('can compose a custom type', () => {
+
+        type MyKit = Kit.MakeKitType<{
+            apis: {
+                stripe: {
+                    headers: { Authorization: string },
+                    state: {},
+                    params: {}
+                }
+            },
+            events: {
+                test: true
+            },
+            locales: {
+                locale: {
+                    test: 'test',
+                    test2: 'test2',
+                    nested: {
+                        test3: 'test3'
+                    }
+                },
+                codes: 'en' | 'es'
+            },
+            storage: {
+                name: 'test',
+                age: 123
+            },
+            stateMachine: {
+                state: {
+                    name: 'test'
+                },
+                reducerValue: {
+                    name: 'test'
+                }
+            },
+        }>
+
+        const kit = appKit<MyKit>({});
+
+        kit.apis?.stripe?.addHeader({ Authorization: 'Bearer 123' });
+
+        kit.observer?.on('test', (bool) => {
+
+            bool === true;
+        });
+
+        kit.observer?.emit('test', true);
+
+        kit.locale?.t('test');
+        kit.locale?.t('nested.test3');
+
+        kit.locale?.changeTo('en');
+
+        kit.storage?.set('name', 'test');
+        kit.storage?.get('name') === 'test';
+
+        kit.stateMachine?.dispatch({ name: 'test' });
+        kit.stateMachine?.state().name === 'test';
     });
 });

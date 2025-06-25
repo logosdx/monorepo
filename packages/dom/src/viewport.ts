@@ -161,8 +161,8 @@ export function scrollTop(): number {
     }
 
     return max(
-        global.window?.scrollY || 0,
-        global.window?.pageYOffset || 0,
+        window?.scrollY || 0,
+        window?.pageYOffset || 0,
         document.documentElement?.scrollTop || 0
     );
 }
@@ -192,8 +192,8 @@ export function scrollLeft(): number {
     }
 
     return max(
-        global.window?.scrollX || 0,
-        global.window?.pageXOffset || 0,
+        window?.scrollX || 0,
+        window?.pageXOffset || 0,
         document.documentElement?.scrollLeft || 0
     );
 }
@@ -215,7 +215,7 @@ export function scrollLeft(): number {
  * const topOffset = elementOffsetTop(myElement);
  * // Use for positioning calculations or scroll-to-element
  */
-export function elementOffsetTop(el: HTMLElement): number {
+export function elementOffsetTop <T extends Element>(el: T): number {
 
     if (!el) {
 
@@ -248,7 +248,7 @@ export function elementOffsetTop(el: HTMLElement): number {
  * const leftOffset = elementOffsetLeft(myElement);
  * // Use for positioning calculations or horizontal alignment
  */
-export function elementOffsetLeft(el: HTMLElement): number {
+export function elementOffsetLeft <T extends Element>(el: T): number {
 
     if (!el) {
 
@@ -283,8 +283,6 @@ export function elementOffsetLeft(el: HTMLElement): number {
  */
 export function viewportWidth(): number {
 
-    const window = global.window;
-
     if (!window) {
 
         return 0;
@@ -313,8 +311,6 @@ export function viewportWidth(): number {
  * // Use for responsive layout calculations
  */
 export function viewportHeight(): number {
-
-    const window = global.window;
 
     if (!window) {
 
@@ -345,7 +341,7 @@ export function viewportHeight(): number {
  */
 export function devicePixelRatio(): number {
 
-    return global.window?.devicePixelRatio || 1;
+    return window?.devicePixelRatio || 1;
 }
 
 /**
@@ -494,7 +490,7 @@ export function isAtTop(threshold = 10): boolean {
  * const visibility = elementVisibility(myElement);
  * // Fade in element based on visibility
  */
-export function elementVisibility(el: HTMLElement): number {
+export function elementVisibility <T extends Element>(el: T): number {
 
     if (!el) {
 
@@ -540,7 +536,7 @@ export function elementVisibility(el: HTMLElement): number {
  *     // Element is at least 50% visible
  * }
  */
-export function isPartiallyVisible(el: HTMLElement, threshold = 0.1): boolean {
+export function isPartiallyVisible <T extends Element>(el: T, threshold = 0.1): boolean {
 
     return elementVisibility(el) >= threshold * 100;
 }
@@ -561,7 +557,7 @@ export function isPartiallyVisible(el: HTMLElement, threshold = 0.1): boolean {
  * const distances = elementViewportDistances(myElement);
  * // Position tooltip based on available space
  */
-export function elementViewportDistances(el: HTMLElement): { top: number; bottom: number; left: number; right: number } {
+export function elementViewportDistances <T extends Element>(el: T): { top: number; bottom: number; left: number; right: number } {
 
     if (!el) {
 
@@ -598,16 +594,21 @@ export function elementViewportDistances(el: HTMLElement): { top: number; bottom
  * Provides consistent scroll behavior across browsers.
  * @param el - element to scroll to
  * @param offset - additional offset from element top (default: 0)
- * @param behavior - scroll behavior (default: 'smooth')
+ * @param opts - options
+ * @param opts.behavior - scroll behavior (default: 'smooth')
+ * @param opts.scrollElement - element to scroll (default: window)
  *
  * @example
  * scrollToElement(myElement, 20);
  * // Scrolls to element with 20px offset from top
  */
-export function scrollToElement(
-    el: HTMLElement,
-    offset = 0,
-    behavior: ScrollBehavior = 'smooth'
+export function scrollToElement <T extends Element, S extends Element>(
+    el: T,
+    opts: {
+        offset?: number,
+        behavior?: ScrollBehavior,
+        scrollElement?: S
+    } = {}
 ): void {
 
     if (!el) {
@@ -615,9 +616,15 @@ export function scrollToElement(
         return;
     }
 
+    const {
+        offset = 0,
+        behavior = 'smooth',
+        scrollElement = window
+    } = opts;
+
     const targetY = elementOffsetTop(el) - offset;
 
-    window?.scrollTo({
+    scrollElement?.scrollTo({
         top: targetY,
         behavior
     });
@@ -634,7 +641,9 @@ export function scrollToElement(
  * Wrapper around window.scrollTo with consistent behavior.
  * @param x - horizontal position
  * @param y - vertical position
- * @param behavior - scroll behavior (default: 'smooth')
+ * @param opts - options
+ * @param opts.behavior - scroll behavior (default: 'smooth')
+ * @param opts.scrollElement - element to scroll (default: window)
  *
  * @example
  * scrollToPosition(0, 500);
@@ -643,10 +652,18 @@ export function scrollToElement(
 export function scrollToPosition(
     x: number,
     y: number,
-    behavior: ScrollBehavior = 'smooth'
+    opts: {
+        behavior?: ScrollBehavior,
+        scrollElement?: HTMLElement
+    } = {}
 ): void {
 
-    window?.scrollTo({
+    const {
+        behavior = 'smooth',
+        scrollElement = window
+    } = opts;
+
+    scrollElement?.scrollTo({
         left: x,
         top: y,
         behavior

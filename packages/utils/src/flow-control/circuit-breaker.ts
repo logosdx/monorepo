@@ -1,5 +1,6 @@
 import { attempt, attemptSync } from './attempt.ts';
-import { AnyFunc } from './_helpers.ts';
+import { AnyFunc, markWrapped, assertNotWrapped } from './_helpers.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
 
 const DEFAULT_MAX_FAILURES = 3;
 const DEFAULT_RESET_AFTER = 1000;
@@ -20,17 +21,19 @@ enum CircuitBreakerState {
 /**
  * Internal state store for circuit breaker operations.
  */
-type CircuitBreakerStore = {
+class CircuitBreakerStore {
     /** Current state of the circuit breaker */
-    state: CircuitBreakerState,
+    state: CircuitBreakerState = CircuitBreakerState.Closed;
     /** Number of consecutive failures in closed state */
-    failures: number,
+    failures: number = 0;
     /** Number of attempts made in half-open state */
-    halfOpenAttempts: number,
+    halfOpenAttempts: number = 0;
     /** Timestamp when circuit was last tripped (opened) */
-    trippedAt: number | null,
+    trippedAt: number | null = null;
     /** Flag indicating if a test call is currently in progress in half-open state */
-    testInProgress: boolean,
+    testInProgress: boolean = false;
+    /** Timestamp when the circuit breaker will be available again */
+    nextAvailable: number | null = null;
 }
 
 /**
@@ -39,21 +42,45 @@ type CircuitBreakerStore = {
  * @template T - The function type being protected
  */
 export type CircuitBreakerOptions<T extends AnyFunc> = {
-    /** Maximum number of consecutive failures before tripping the circuit (default: 3) */
+    /**
+     * Maximum number of consecutive failures before tripping the circuit
+     *
+     * @default 3
+     */
     maxFailures?: number,
-    /** Maximum number of test attempts allowed in half-open state (default: 1) */
+    /**
+     * Maximum number of test attempts allowed in half-open state
+     *
+     * @default 1
+     */
     halfOpenMaxAttempts?: number,
-    /** Time in milliseconds to wait before testing recovery (default: 1000) */
+    /**
+     * Time in milliseconds to wait before testing recovery
+     *
+     * @default 1000
+     */
     resetAfter?: number,
-    /** Callback invoked when circuit breaker trips (opens) */
+    /**
+     * Callback invoked when circuit breaker trips (opens)
+     */
     onTripped?: (error: CircuitBreakerError, store: CircuitBreakerStore) => void
-    /** Callback invoked when the protected function throws an error */
+    /**
+     * Callback invoked when the protected function throws an error
+     */
     onError?: (error: Error, args: Parameters<T>) => void
-    /** Callback invoked when circuit breaker resets (closes) */
+    /**
+     * Callback invoked when circuit breaker resets (closes)
+     */
     onReset?: () => void
-    /** Callback invoked when circuit breaker enters half-open state */
+    /**
+     * Callback invoked when circuit breaker enters half-open state
+     */
     onHalfOpen?: (store: CircuitBreakerStore) => void
-    /** Predicate function to determine if an error should trip the circuit (default: all errors trip) */
+    /**
+     * Predicate function to determine if an error should trip the circuit
+     *
+     * @default all errors trip
+     */
     shouldTripOnError?: (error: Error) => boolean
 }
 
@@ -72,6 +99,10 @@ export class CircuitBreakerError extends Error {
     }
 }
 
+export const isCircuitBreakerError = (error: unknown): error is CircuitBreakerError => {
+    return error?.constructor?.name === CircuitBreakerError.name;
+}
+
 /**
  * Validates circuit breaker configuration options.
  *
@@ -81,62 +112,31 @@ export class CircuitBreakerError extends Error {
  */
 const validateOpts = <T extends AnyFunc>(opts: CircuitBreakerOptions<T>) => {
 
-    if (
-        opts.maxFailures !== undefined &&
-        (typeof opts.maxFailures !== 'number' || opts.maxFailures <= 0)
-    ) {
-        throw new Error('maxFailures must be a positive number');
-    }
+    assert(isPlainObject(opts), 'opts must be an object');
 
-    if (
-        opts.halfOpenMaxAttempts !== undefined &&
-        (typeof opts.halfOpenMaxAttempts !== 'number' || opts.halfOpenMaxAttempts <= 0)
-    ) {
-        throw new Error('halfOpenMaxAttempts must be a positive number');
-    }
+    assertOptional(
+        opts.maxFailures,
+        typeof opts.maxFailures === 'number' && opts.maxFailures > 0,
+        'maxFailures must be a positive number'
+    );
 
-    if (
-        opts.resetAfter !== undefined &&
-        (typeof opts.resetAfter !== 'number' || opts.resetAfter <= 0)
-    ) {
-        throw new Error('resetAfter must be a positive number');
-    }
+    assertOptional(
+        opts.halfOpenMaxAttempts,
+        typeof opts.halfOpenMaxAttempts === 'number' && opts.halfOpenMaxAttempts > 0,
+        'halfOpenMaxAttempts must be a positive number'
+    );
 
-    if (
-        opts.onTripped &&
-        typeof opts.onTripped !== 'function'
-    ) {
-        throw new Error('onTripped must be a function');
-    }
+    assertOptional(
+        opts.resetAfter,
+        typeof opts.resetAfter === 'number' && opts.resetAfter > 0,
+        'resetAfter must be a positive number'
+    );
 
-    if (
-        opts.onError &&
-        typeof opts.onError !== 'function'
-    ) {
-        throw new Error('onError must be a function');
-    }
-
-    if (
-        opts.onReset &&
-        typeof opts.onReset !== 'function'
-    ) {
-        throw new Error('onReset must be a function');
-    }
-
-    if (
-        opts.onHalfOpen &&
-        typeof opts.onHalfOpen !== 'function'
-    ) {
-        throw new Error('onHalfOpen must be a function');
-    }
-
-    if (
-        opts.shouldTripOnError &&
-        typeof opts.shouldTripOnError !== 'function'
-    ) {
-        throw new Error('shouldTripOnError must be a function');
-    }
-
+    assertOptional(opts.onTripped, isFunction(opts.onTripped), 'onTripped must be a function');
+    assertOptional(opts.onError, isFunction(opts.onError), 'onError must be a function');
+    assertOptional(opts.onReset, isFunction(opts.onReset), 'onReset must be a function');
+    assertOptional(opts.onHalfOpen, isFunction(opts.onHalfOpen), 'onHalfOpen must be a function');
+    assertOptional(opts.shouldTripOnError, isFunction(opts.shouldTripOnError), 'shouldTripOnError must be a function');
 }
 
 /**
@@ -155,6 +155,7 @@ const resetStore = (
     store.trippedAt = null;
     store.testInProgress = false;
     store.state = CircuitBreakerState.Closed;
+    store.nextAvailable = null;
 
     onReset?.();
 }
@@ -219,6 +220,7 @@ const preAttempt = <T extends AnyFunc>(
             store.state = CircuitBreakerState.Open;
             store.trippedAt = now;
             store.testInProgress = false;
+            store.nextAvailable = null;
 
             onTripped?.(circError, store);
 
@@ -252,7 +254,14 @@ const postAttempt = <T extends AnyFunc>(
         error,
         store,
         args,
-        opts: { onError, onReset, shouldTripOnError, onTripped, maxFailures }
+        opts: {
+            onError,
+            onReset,
+            shouldTripOnError,
+            onTripped,
+            maxFailures,
+            resetAfter
+        }
     } = opts;
 
     const originalState = store.state;
@@ -274,6 +283,7 @@ const postAttempt = <T extends AnyFunc>(
                 if (store.failures >= (maxFailures ?? DEFAULT_MAX_FAILURES)) {
                     store.state = CircuitBreakerState.Open;
                     store.trippedAt = Date.now();
+                    store.nextAvailable = store.trippedAt + (resetAfter ?? DEFAULT_RESET_AFTER);
 
                     const circError = new CircuitBreakerError('Circuit breaker tripped');
                     onTripped?.(circError, store);
@@ -283,6 +293,7 @@ const postAttempt = <T extends AnyFunc>(
             else if (store.state === CircuitBreakerState.HalfOpen) {
                 store.state = CircuitBreakerState.Open;
                 store.trippedAt = Date.now();
+                store.nextAvailable = store.trippedAt + (resetAfter ?? DEFAULT_RESET_AFTER);
 
                 const circError = new CircuitBreakerError('Circuit breaker tripped');
                 onTripped?.(circError, store);
@@ -358,24 +369,16 @@ const postAttempt = <T extends AnyFunc>(
  */
 export const circuitBreakerSync = <T extends AnyFunc>(
     fn: T,
-    opts: CircuitBreakerOptions<T>
+    opts: CircuitBreakerOptions<T> = {}
 ) => {
 
-    const store: CircuitBreakerStore = {
-        failures: 0,
-        halfOpenAttempts: 0,
-        trippedAt: null,
-        testInProgress: false,
-        state: CircuitBreakerState.Closed
-    }
-
-    if (typeof fn !== 'function') {
-        throw new Error('fn must be a function');
-    }
-
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'circuitBreaker');
     validateOpts(opts);
 
-    return function (...args: Parameters<T>) {
+    const store = new CircuitBreakerStore();
+
+    const circuitBreakerSyncFunction = function(...args: Parameters<T>) {
 
         preAttempt({
             store,
@@ -393,6 +396,10 @@ export const circuitBreakerSync = <T extends AnyFunc>(
             opts
         });
     }
+
+    markWrapped(circuitBreakerSyncFunction, 'circuitBreaker');
+
+    return circuitBreakerSyncFunction;
 }
 
 /**
@@ -459,24 +466,16 @@ export const circuitBreakerSync = <T extends AnyFunc>(
  */
 export const circuitBreaker = <T extends AnyFunc>(
     fn: T,
-    opts: CircuitBreakerOptions<T>
+    opts: CircuitBreakerOptions<T> = {}
 ) => {
 
-    const store: CircuitBreakerStore = {
-        failures: 0,
-        halfOpenAttempts: 0,
-        trippedAt: null,
-        testInProgress: false,
-        state: CircuitBreakerState.Closed
-    }
-
-    if (typeof fn !== 'function') {
-        throw new Error('fn must be a function');
-    }
-
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'circuitBreaker');
     validateOpts(opts);
 
-    return async function (...args: Parameters<T>) {
+    const store = new CircuitBreakerStore();
+
+    const circuitBreakerFunction = async function(...args: Parameters<T>) {
 
         preAttempt({
             store,
@@ -494,4 +493,8 @@ export const circuitBreaker = <T extends AnyFunc>(
             opts
         });
     }
+
+    markWrapped(circuitBreakerFunction, 'circuitBreaker');
+
+    return circuitBreakerFunction;
 }

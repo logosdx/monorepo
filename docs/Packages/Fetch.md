@@ -3,42 +3,46 @@ permalink: '/packages/fetch'
 aliases: ["Fetch", "@logosdx/fetch"]
 ---
 
-# @logosdx/fetch
+**A lightweight, type-safe wrapper for the Fetch API with production-grade resilience.**
 
-**Modern HTTP client built on the Fetch API for the real world**
+Modern applications need HTTP clients that handle real-world network conditions gracefully. `@logosdx/fetch` provides a thin layer over the native Fetch API, adding retry logic, request cancellation, and state management without the overhead of traditional HTTP libraries.
 
-Building applications today means dealing with unreliable networks, complex authentication flows, and demanding performance requirements. The `@logosdx/fetch` package provides a powerful, type-safe HTTP client that solves the real problems you encounter when building production applications.
+Works everywhere the Fetch API works: browsers, React Native, Cloudflare Workers, Node.js.
 
-This package is designed to work on all platforms that support the Fetch API, including browsers, React Native, and Cloudflare Workers.
-
-> 📚 **Detailed API Reference**: For complete function signatures, parameters, and technical details, visit [typedoc.logosdx.dev](https://typedoc.logosdx.dev)
+> 📚 **Complete API Documentation**: [typedoc.logosdx.dev](https://typedoc.logosdx.dev/modules/_logosdx_fetch.html)
 
 ```bash
 npm install @logosdx/fetch
-yarn add @logosdx/fetch
+```
+
+```bash
 pnpm add @logosdx/fetch
 ```
 
-## Why This Package Exists
+```bash
+yarn add @logosdx/fetch
+```
 
-It's 2025, and we're still using heavyweight HTTP libraries when there's a perfectly capable Fetch API available in every browser and Node.js environment. Most existing solutions either:
+With jsdeliver:
 
-- **Add unnecessary bloat** - Axios is 13KB minified, but you only need 2KB of actual functionality
-- **Lack of features** - No built-in retry logic, circuit breakers, or request cancellation
-- **Poor TypeScript support** - Generic types that don't actually help you catch errors
-- **Inflexible configuration** - Can't adapt headers or behavior based on application state
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/fetch@latest/dist/browser/bundle.js"></script>
+```
 
-Consider this common scenario: You're building a SaaS dashboard that needs to authenticate users, handle API rate limits, retry failed requests, and gracefully handle network issues. Or maybe you're ingesting thousands of transactions from a third-party API, and a single failure corrupts the state of your company's accounting system.
-
-With traditional HTTP clients, you end up writing the same boilerplate code over and over, or worse, ignoring these concerns until they cause production issues.
-
-`FetchEngine` solves these problems by providing a thin, powerful wrapper around the native Fetch API that gives you production-ready features without the bloat.
+```html
+<script>
+	const { FetchEngine, isFetchError } = LogosDx.Fetch;
+</script>
+```
 
 ## Quick Start
 
 Get up and running quickly with FetchEngine:
 
 ```typescript
+import { attempt } from '@logosdx/utils';
+import { FetchEngine, isFetchError } from '@logosdx/fetch';
+
 // 1. Create a simple instance
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com'
@@ -51,7 +55,8 @@ await api.post('/users', { name: 'John' });
 // 3. Handle errors
 const [response, error] = await attempt(() => api.get('/users'));
 
-if (error && error instanceof FetchError) {
+// Helper type-assert for FetchError
+if (isFetchError(error)) {
     console.error(`${error.status}: ${error.message}`);
 }
 
@@ -63,95 +68,128 @@ api.get('/users', {
     }
 });
 
-// 5. Cancel requests
+// 5. Cancel requests with `AbortablePromise` returned by request methods
 const request = api.get('/users');
 request.abort(); // Cancel when needed
 ```
 
-## Core Philosophy
+## The Problem
 
-### 1. **Built on Web Standards**
+Building reliable HTTP communication requires handling several challenges:
 
-Instead of reinventing HTTP, we embrace the Fetch API and enhance it:
+**Library overhead**: Many HTTP libraries add significant bundle size for features already available in web standards. You need functionality, not bloat. Axios is 18kb gzipped, and has 3rd party dependencies.
+
+**Retry complexity**: Network failures are inevitable. Writing proper retry logic with exponential backoff is error-prone and often skipped until production issues arise.
+
+**State coordination**: Authentication tokens, feature flags, and user context need consistent management across requests. Manual header management leads to inconsistencies.
+
+**Network resilience**: Rate limits, timeouts, and transient failures are normal in distributed systems. Your HTTP client should handle these gracefully by default.
+
+Consider a typical scenario: You're building a SaaS application that authenticates users, handles rate limits, and needs to gracefully recover from network failures. Without proper abstractions, you're implementing the same patterns repeatedly across your codebase.
+
+## How FetchEngine Solves This
+
+### 1. Standards-First Design
+
+FetchEngine builds on the native Fetch API, adding only what's needed for the extra features:
 
 ```typescript
-// ❌ Heavy dependencies with custom APIs
-import axios from 'axios'; // 13KB + lacks features
+// Traditional approach with external libraries
+import axios from 'axios'; // 18KB bundle addition, has 3rd party dependencies
 
-const response = await axios.get('/api/users', {
-    headers: { 'Authorization': `Bearer ${token}` }
+const instance = axios.create({
+    baseURL: 'https://api.example.com'
 });
 
-// ✅ Native Fetch API with intelligent enhancements
-import { FetchEngine } from '@logosdx/fetch'; // 2KB, familiar API
+const response = await instance.get('/users');
 
-const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
-const users = await api.get('/users'); // Automatic retry, type-safe, cancellable
+// FetchEngine approach - minimal overhead
+import { FetchEngine } from '@logosdx/fetch'; // 5.5KB, extends native Fetch, no 3rd party dependencies outside of @logosdx
+
+const api = new FetchEngine({
+    // FetchEngine options
+    baseUrl: 'https://api.example.com',
+    retryConfig: {
+        maxAttempts: 3,
+        retryableStatusCodes: [500, 502, 503]
+    },
+
+    // Rest of the Fetch API options
+    cache: 'no-cache',
+    credentials: 'include',
+    mode: 'cors',
+    redirect: 'follow',
+    referrerPolicy: 'no-referrer',
+    integrity: 'sha256-...'
+});
+
+const users = await api.get('/users'); // Built-in retry, type-safe, cancellable, and more
 ```
 
-### 2. **Production-Ready Resilience**
+By extending rather than replacing web standards, you get familiar APIs with production-grade enhancements.
 
-Real applications need to handle failures gracefully. `FetchEngine` includes battle-tested patterns and is designed to be flexible and type-safe:
+### 2. Built-In Network Resilience
+
+Production applications face network failures, timeouts, and rate limits. FetchEngine handles these scenarios automatically:
 
 ```typescript
-// ❌ Fragile code that breaks in production
+// Manual retry implementation (error-prone)
 async function fetchUserData(id: string) {
-    const response = await fetch(`/api/users/${id}`); // What if this times out?
-    return response.json(); // What if the server returns HTML error page?
-}
-
-// ❌ Manual retry logic that's hard to get right
-let attempts = 0;
-while (attempts < 3) {
-    try {
-        return await fetchUserData(id);
-    } catch (error) {
-        attempts++;
-        if (attempts >= 3) throw error;
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+    let attempts = 0;
+    while (attempts < 3) {
+        try {
+            const response = await fetch(`/api/users/${id}`);
+            return response.json();
+        } catch (error) {
+            attempts++;
+            if (attempts >= 3) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+        }
     }
 }
-```
 
-With `FetchEngine`, resilience is built-in:
-
-```typescript
-// ✅ Comprehensive protection with minimal code
+// FetchEngine approach with proper retry logic
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     retryConfig: {
         maxAttempts: 3,
         baseDelay: 1000,
         useExponentialBackoff: true,
-        retryableStatusCodes: [408, 429, 500, 502, 503, 504, 429],
+        retryableStatusCodes: [408, 429, 500, 502, 503, 504],
         shouldRetry: (error, attempt) => {
-            // Don't retry if request was cancelled
+            // Skip retrying cancelled requests
             if (error.aborted) return false;
 
-            // Custom logic for specific errors
+            // Respect rate limit headers
             if (error.status === 429) {
-                // Check if server provided retry-after header
                 const retryAfter = error.headers?.['retry-after'];
-                return retryAfter ? parseInt(retryAfter) < 60 : true;
+
+                const now = Date.now();
+                const nextAllowed = parseInt(retryAfter) - now;
+
+                // Return the number of milliseconds to wait before retrying
+                // which will override the default exponential backoff
+                return nextAllowed;
             }
 
-            return attempt < 5;
+            // Default retry logic, will retry if the error is not a 429
+            return true;
         }
     }
 });
 
-// Automatically retries on failure, handles timeouts, parses responses safely
+// Clean, reliable API calls
 const userData = await api.get(`/users/${id}`);
 ```
 
-### 3. **Intelligent State Management**
+### 3. Centralized State Management
 
-Modern applications need to adapt requests based on current state - authentication tokens, user preferences, feature flags:
+Managing authentication, feature flags, and request context becomes simple with FetchEngine's state system:
 
 ```typescript
-// ❌ Manually managing headers everywhere
+// Scattered header management
 const token = getAuthToken();
-const response = await fetch('/api/data', {
+const response1 = await fetch('/api/data', {
     headers: {
         'Authorization': `Bearer ${token}`,
         'X-User-ID': getCurrentUserId(),
@@ -159,17 +197,16 @@ const response = await fetch('/api/data', {
     }
 });
 
-// ❌ Forgetting to add headers to some requests
-const anotherResponse = await fetch('/api/other-data'); // Oops, no auth!
-```
+// Oops - forgot headers on another request
+const response2 = await fetch('/api/other-data');
 
-`FetchEngine` manages this complexity for you:
-
-```typescript
-// ✅ Centralized, automatic header management
+// FetchEngine approach
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     modifyOptions: (opts, state) => {
+
+        // Modify each request based on the state
+        // of the fetch engine instance
         if (state.token) {
             opts.headers.authorization = `Bearer ${state.token}`;
             opts.headers['x-user-id'] = state.userId;
@@ -179,7 +216,7 @@ const api = new FetchEngine({
     }
 });
 
-// Set state once, applies to all requests
+// Configure once, and all requests will automatically include proper headers
 api.setState({
     token: 'abc123',
     userId: 'user-456',
@@ -191,12 +228,12 @@ const data = await api.get('/data');
 const otherData = await api.get('/other-data');
 ```
 
-### 4. **Observability and Monitoring**
+### 4. Observable Request Lifecycle
 
-Production applications need visibility into HTTP requests for debugging, monitoring, and analytics.
+Monitor and debug your HTTP layer with comprehensive events:
 
 ```typescript
-// Monitor all requests
+// Track performance
 api.on('fetch-before', (event) => {
     console.log(`Starting ${event.method} ${event.url}`);
     performance.mark(`request-start-${event.url}`);
@@ -211,7 +248,7 @@ api.on('fetch-after', (event) => {
     );
 });
 
-// Track errors for monitoring
+// Handle errors systematically
 api.on('fetch-error', (event) => {
     errorReporting.captureException(event.error, {
         tags: {
@@ -232,12 +269,12 @@ api.on('fetch-retry', (event) => {
 });
 ```
 
-### 5. **Type-Safe and Flexible**
+### 5. Complete TypeScript Support
 
-FetchEngine is designed to be flexible and type-safe. You can define your own headers, params, and state types to match your API. It provides a robust set of options to facilitate your requests and business logic.
+Get compile-time safety for your entire HTTP layer:
 
 ```typescript
-
+// Define your API contract
 type SomeHeaders = {
     'Authorization'?: string,
     'X-API-Key'?: string
@@ -256,7 +293,7 @@ type SomeState = {
     'refreshToken'?: string
 }
 
-// ✅ Type-safe and flexible
+// Create a type-safe instance
 const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
     baseUrl: 'https://api.example.com',
     headers: {
@@ -264,32 +301,29 @@ const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
     }
 });
 
-type SomeResponse = {
+// Type-safe request and response
+type AuthResponse = {
     authToken: string,
     refreshToken: string
 }
 
-const { authToken, refreshToken } = await api.get<SomeResponse>('/auth/refresh', {
-    // ✅ Type-safe params
+const { authToken, refreshToken } = await api.get<AuthResponse>('/auth/refresh', {
     params: {
         auth_token: '1234567890'
     },
-
-    // ✅ Type-safe headers
     headers: {
         'Authorization': `Bearer ${authToken}`
     },
 
-    // ✅ Request lifecycle hooks
+    // Request lifecycle hooks that resolve asynchronously
     onBeforeReq: async (opts) => {
-
         if (someCondition) {
 
             opts.controller.abort();
         }
     },
 
-    onAfterReq: (response, opts) => {
+    onAfterReq: async (response, opts) => {
 
         if (response.status === 200) {
 
@@ -297,7 +331,7 @@ const { authToken, refreshToken } = await api.get<SomeResponse>('/auth/refresh',
         }
     },
 
-    onError: (error) => {
+    onError: async (error) => {
 
         if (error.status === 401) {
 
@@ -305,7 +339,7 @@ const { authToken, refreshToken } = await api.get<SomeResponse>('/auth/refresh',
         }
     },
 
-    // ✅ Native Fetch API options
+    // Native Fetch API options
     cache: 'no-cache',
     credentials: 'include',
     mode: 'cors',
@@ -314,14 +348,15 @@ const { authToken, refreshToken } = await api.get<SomeResponse>('/auth/refresh',
     integrity: 'sha256-...',
 });
 
-type OtherResponse = {
+// Type-safe POST request
+type SearchResponse = {
     users: {
         id: string,
         name: string
     }[]
 }
 
-const res = await api.post<OtherResponse>(
+const res = await api.post<SearchResponse>(
     '/users/search',
     {
         // Payload
@@ -337,145 +372,145 @@ const res = await api.post<OtherResponse>(
 
 ## Example
 
-Even though below is a somewhat complete example of how this library can be used, you can [find the typedocs here](https://typedoc.logosdx.dev).
+Here's a complete example showing how to configure and use FetchEngine. For detailed API documentation, visit [the typedocs](https://typedoc.logosdx.dev).
 
 ```ts
 
 type SomeHeaders = {
-	'authorization'?: string,
-	'x-api-key'?: string,
-	'hmac': string,
-	'time': number
+    'authorization'?: string,
+    'x-api-key'?: string,
+    'hmac': string,
+    'time': number
 }
 
 type SomeParams = {
-	auth_token: string,
-	scope: string
+    auth_token: string,
+    scope: string
 }
 
 type SomeState = {
-	isAuthenticated?: boolean,
-	authToken?: string
-	refreshToken?: string,
+    isAuthenticated?: boolean,
+    authToken?: string
+    refreshToken?: string,
 }
 
 const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
+    // Base configuration
+    baseUrl: testUrl,
+    defaultType: 'json',
+    headers: {
+        'content-type': 'application/json',
+        'authorization': 'abc123'
+    },
 
-	// FetchOptions
-	baseUrl: testUrl,
-	defaultType: 'json', // handle type when FetchEngine cannot
-	headers: {           // default headers
-		'content-type': 'application/json',
-		'authorization': 'abc123'
-	},
-	methodHeaders: {
-		POST: {          // Headers for POST requests
-			'x-some-key': process.env.SOME_KEY
-		}
-	},
+    // Method-specific headers
+    methodHeaders: {
+        POST: {
+            'x-some-key': process.env.SOME_KEY
+        }
+    },
 
-	params: {
-		auth_token: ''  // default params
-	},
-	methodParams: {
-		POST: {
-			scope: ''   // params for POST requests
-		}
-	},
+    // Default parameters
+    params: {
+        auth_token: ''
+    },
 
-	// runs every request and allows modifying options
-	modifyOptions(opts, state) {
+    // Method-specific parameters
+    methodParams: {
+        POST: {
+            scope: ''
+        }
+    },
 
-		if (state.authToken) {
-			const time = +new Date();
-			opts.headers.authorization = state.authToken;
-			opts.headers.hmac = makeHmac(time);
-			opts.headers.time = time;
-		}
-	},
+    // Modify options for every request
+    modifyOptions(opts, state) {
+        if (state.authToken) {
+            const time = +new Date();
+            opts.headers.authorization = state.authToken;
+            opts.headers.hmac = makeHmac(time);
+            opts.headers.time = time;
+        }
+    },
 
-	// modify options per http method
-	modifyMethodOptions: {
-		PATCH(opts, state) {
+    // Method-specific option modifiers
+    modifyMethodOptions: {
+        PATCH(opts, state) {
 
-			if (state.permission) {
-				opts.headers['special-patch-only-header'] = 'abc123'
-			}
-		}
-	},
+            if (state.permission) {
+                opts.headers['special-patch-only-header'] = 'abc123'
+            }
+        }
+    },
 
-	validate: {
+    // Validation configuration
+    validate: {
+        headers(headers) {
+            Joi.assert(headersSchema, headers);
+        },
+        state(state) {
+            zodStateSchema.parse(state);
+        },
+        params(params) {
+            jsonschema.validate(params, paramsSchema);
+        },
 
-		headers(headers) {    // Validate headers
+        // Validate per request or only when setting
+        // headers or params
+        perRequest: {
+            headers: true,
+            params: true
+        }
+    },
 
-			Joi.assert(headersSchema, headers);
-		},
+    // Custom response type determination
+    determineType(response) {
 
-		state(state) {        // Validate state
+        if (/json/.test(response.headers.get('content-type'))) {
+            return 'text';
+        }
 
-			Joi.assert(fetchStateSchema, state);
-		},
+        return 'blob'
+    },
 
-		params(params) {
+    // Header formatting
+    formatHeaders: 'lowercase' || 'uppercase' || 'none',
 
-			Joi.assert(paramsSchema, params);
-		},
-
-		perRequest: {
-			headers: true,
-			params: true
-		}
-	},
-
-	// If you don't want FetchEngine to guess your content type,
-	// handle it yourself.
-	determineType(response) {
-
-		if (/json/.test(response.headers.get('content-type'))) {
-			return 'text';
-		}
-
-		return 'blob'
-	},
-
-	// If your server requires specific header formatting, you can
-	// use this option to modify them. Set to `false` to never format.
-	formatHeaders: 'lowercase',
-
+    // Retry configuration
     retryConfig: {
         maxAttempts: 3,
         retryableStatusCodes: [500, 502, 503],
         baseDelay: 1000,
         maxDelay: 10000,
         useExponentialBackoff: true,
-        shouldRetry: (error, attempt) => {
+
+        // Resolve asynchronously
+        shouldRetry: async (error, attempt) => {
             return !error.status || error.status === 503;
         }
     },
 
-
-	// RequestInit options
-	cache: 'no-cache',
-	credentials: 'include',
-	mode: 'cors',
-
+    // Standard RequestInit options
+    cache: 'no-cache',
+    credentials: 'include',
+    mode: 'cors',
 });
 
-const res = await api.get <SomeType>('/some-endpoint');
-const res = await api.delete <SomeType>('/some-endpoint');
-const res = await api.post <SomeType>('/some-endpoint', { payload });
-const res = await api.put <SomeType>('/some-endpoint', { payload });
-const res = await api.patch <SomeType>('/some-endpoint', { payload });
+// Making requests
+const userData = await api.get<UserType>('/users/me');
+const deleted = await api.delete<DeleteResponse>('/users/123');
+const created = await api.post<User>('/users', { name: 'John', email: 'john@example.com' });
+const updated = await api.put<User>('/users/123', { name: 'John Doe' });
+const patched = await api.patch<User>('/users/123', { email: 'newemail@example.com' });
 
-if (res.authToken) {
-
-	api.setState({ authToken: res.authToken });
+// Update state based on response
+if (userData.authToken) {
+    api.setState({ authToken: userData.authToken });
 }
 ```
 
 ## How responses are handled
 
-When you configure your `FetchEngine` instance, you might pass the `defaultType` configuration. This only states how FetchEngine should handle your if it can't resolve it itself. Servers usually respond with the standard-place header `Content-Type` to signify the mime-type that should be used to handle the response. `FetchEngine` extracts those headers and guesses how it should handle that response.
+When you configure your `FetchEngine` instance, you might pass the `defaultType` configuration. This only states how FetchEngine should handle your response if it can't resolve it itself. Servers usually respond with the standard-place header `Content-Type` to signify the mime-type that should be used to handle the response. `FetchEngine` extracts those headers and guesses how it should handle that response.
 
 ### Reponses are matched and handled in the following order
 
@@ -490,36 +525,36 @@ When you configure your `FetchEngine` instance, you might pass the `defaultType`
 
 ### Handling your own responses
 
-If you don't want `FetchEngine` to guess your content type, you can handle it yourself. You can do this by passing a function to the `determineType` configuration option. This function should return a string that matches the type you want to handle.
+You can override FetchEngine's response type determination by providing a custom `determineType` function:
 
 ```ts
 const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
-	// other configurations
-	determineType(response) {
+    // other configurations
+    determineType(response) {
 
-		if (/json/.test(response.headers.get('content-type'))) {
-			return 'text';
-		}
+        if (/json/.test(response.headers.get('content-type'))) {
+            return 'text';
+        }
 
-		return 'blob'
-	}
+        return 'blob'
+    }
 });
 ```
 
-You can also use the static `FetchEngine.useDefault` symbol to tell FetchEngine to use the internal response handler to determine the type. This way, you can handle your very specific use cases and let FetchEngine handle the rest.
+Use the static `FetchEngine.useDefault` symbol to fall back to internal handling for specific cases:
 
 ```ts
 const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
-	// other configurations
-	determineType(response) {
+    // other configurations
+    determineType(response) {
 
-		if (shouldSpecialHandle(response.headers)) {
-			return 'arrayBuffer';
-		}
+        if (shouldSpecialHandle(response.headers)) {
+            return 'arrayBuffer';
+        }
 
-		// Let FetchEngine handle other cases
-		return FetchEngine.useDefault;
-	}
+        // Let FetchEngine handle other cases
+        return FetchEngine.useDefault;
+    }
 });
 ```
 
@@ -545,15 +580,19 @@ FetchEngine emits a variety of events during different phases of the request pro
 
 ## Aborting Requests
 
-Aborting requests can be particularly useful in scenarios where the need for a request becomes obsolete due to user interactions, changing application state, or other factors. By promptly canceling unnecessary requests, developers can enhance the performance and responsiveness of their applications. Request abortion can also be beneficial when implementing features such as autocomplete, where users may input multiple characters quickly, triggering multiple requests. In such cases, aborting previous requests can prevent unnecessary processing and ensure that only the latest relevant response is handled.
+Request cancellation is essential for responsive applications. Common use cases include:
 
-By leveraging `FetchEngine`'s request abortion functionality, developers have fine-grained control over their application's network requests, enabling efficient resource management and improved user experience.
+- User navigation that makes pending requests obsolete
+- Autocomplete features where rapid typing triggers multiple requests
+- Cleanup when components unmount
+
+FetchEngine provides two approaches for request cancellation.
 
 ### Using Built-in Abort Functionality
 
 ```ts
-// requests return an agumented Promise called an AbortablePromise
-const call = api.get('/');
+// FetchEngine requests return an AbortablePromise
+const call = api.get('/endpoint');
 
 if (condition) {
     call.abort();
@@ -564,10 +603,7 @@ const res = await call;
 
 ### Using External Abort Controllers
 
-You can provide your own AbortController to manage request cancellation externally. This is particularly useful when you need to:
-- Cancel multiple requests at once
-- Share abort signals across different parts of your application
-- Integrate with frameworks that provide their own abort controllers
+You can provide your own AbortController for more control:
 
 ```ts
 // Create an abort controller
@@ -599,7 +635,7 @@ When a request is aborted, either through the built-in `abort()` method or an ex
 // Using try-catch
 const [response, error] = await attempt(() => api.get('/endpoint'));
 
-if (error && error instanceof FetchError && error.aborted) {
+if (isFetchError(error) && error.aborted) {
     console.log('Request was aborted:', error.message);
 }
 
@@ -640,6 +676,9 @@ const api = new FetchEngine({
 
             // Don't retry if we've exceeded max attempts
             if (attempt >= 3) return false;
+
+            // Override the default retry time with a number
+            if (attempt === 1) return 1000; // 1 second
 
             // Retry on network errors or configured status codes
             return !error.status ||
@@ -698,6 +737,7 @@ if (error && error instanceof FetchError) {
 ### Default Retry Behavior
 
 By default, FetchEngine will:
+
 - Retry up to 3 times
 - Use exponential backoff starting at 1 second
 - Maximum delay of 10 seconds between retries
@@ -727,13 +767,15 @@ interface FetchError<T = {}> extends Error {
 ### Handling Different Error Scenarios
 
 ```ts
+import { isFetchError } from '@logosdx/fetch';
+
 const [response, error] = await attempt(() => api.get('/endpoint', {
     retryConfig: {
         maxAttempts: 3
     }
 }));
 
-if (error && error instanceof FetchError) {
+if (isFetchError(error)) {
     // Handle different error scenarios
     switch (error.step) {
         case 'fetch':
@@ -787,26 +829,29 @@ api.on('fetch-abort', (event) => {
 ### Best Practices
 
 1. **Always handle aborted requests separately**
+
 ```ts
 if (error.aborted) {
-	// Don't show error to user if request was intentionally cancelled
-	return;
+    // Don't show error to user if request was intentionally cancelled
+    return;
 }
 ```
 
 2. **Consider retry attempts in error messages**
+
 ```ts
 const errorMessage = error.attempt > 1
-	? `Failed after ${error.attempt} attempts`
-	: 'Request failed';
+    ? `Failed after ${error.attempt} attempts`
+    : 'Request failed';
 ```
 
-3. **Use step information for detailed logging**
+3. **Use step information for detailed logging** This helps you see where the error occurred (fetch, parse, response).
+
 ```ts
 logger.error(`${error.method} ${error.path} failed at ${error.step} step`, {
-	status: error.status,
-	attempt: error.attempt,
-	data: error.data
+    status: error.status,
+    attempt: error.attempt,
+    data: error.data
 });
 ```
 
@@ -817,6 +862,7 @@ FetchEngine is built with TypeScript and provides strong type safety. Here's how
 ### Type Parameters
 
 FetchEngine accepts three type parameters:
+
 ```typescript
 FetchEngine<Headers, Params, State>
 ```
@@ -850,7 +896,7 @@ const newUser = await api.post<User, CreateUserPayload>('/users', {
 // Type-safe error handling
 const [user, userError] = await attempt(() => api.get<User>('/user/1'));
 
-if (userError && userError instanceof FetchError<{ message: string }>) {
+if (isFetchError(userError)) {
     console.error(userError.data?.message);
 }
 ```
@@ -895,21 +941,21 @@ Make a request against any HTTP method
 
 ```ts
 const someType = await api.request <SomeType>(
-	'SEARCH',
-	'/some-endpoint',
-	{
-		payload: { categories: ['a', 'b'] },
-		params: { limit: 50, page: 1 },
-		headers: { 'x-api-key': 'abc123' },
-		determineType: () => 'json',
-		formatHeaders(headers: Headers) { return snakeCase(headers) },
-		onError(err: FetchError) { ... },
-		onBeforeReq(opts: FetchEngine.RequestOpts) { ... }
-		onAfterReq(
-			clonedResponse: Response,
-			opts: FetchEngine.RequestOpts
-		) { ... },
-	}
+    'SEARCH',
+    '/some-endpoint',
+    {
+        payload: { categories: ['a', 'b'] },
+        params: { limit: 50, page: 1 },
+        headers: { 'x-api-key': 'abc123' },
+        determineType: () => 'json',
+        formatHeaders(headers: Headers) { return snakeCase(headers) },
+        onError(err: FetchError) { ... },
+        onBeforeReq(opts: FetchEngine.RequestOpts) { ... }
+        onAfterReq(
+            clonedResponse: Response,
+            opts: FetchEngine.RequestOpts
+        ) { ... },
+    }
 );
 ```
 
@@ -921,7 +967,7 @@ Makes an options request
 
 ```ts
 const someData = await api.options <ResponseType>('/some-endpoint', {
-	headers: { ... }
+    headers: { ... }
 });
 ```
 
@@ -974,11 +1020,11 @@ Makes a post request
 
 ```ts
 const someData = await api.post <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
@@ -990,11 +1036,11 @@ Makes a put request
 
 ```ts
 const someData = await api.put <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
@@ -1006,11 +1052,11 @@ Makes a delete request
 
 ```ts
 const someData = await api.delete <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
@@ -1022,50 +1068,50 @@ Makes a put request
 
 ```ts
 const someData = await api.patch <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
 ## Common Patterns
 
-### Authentication and Security
+### Authentication
 
 ```typescript
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     modifyOptions: (opts, state) => {
 
-		// Add hmac header if token is present
-		if (state.token) {
-			opts.headers.hmac = makeHmac(opts.body, state.token);
-		}
+        // Add security headers when authenticated
+        if (state.token) {
+            opts.headers.hmac = makeHmac(opts.body, state.token);
+        }
 
-		return opts;
+        return opts;
     }
 });
 
 // Login and store token
 const { token } = await api.post('/login', credentials);
+
 api.setState({ isAuthenticated: true, token });
 api.addHeader('authorization', `Bearer ${token}`);
 
-// Token is automatically added to subsequent requests
-// and hmac header is added if token is present
+// Subsequent requests automatically include auth headers
 const userData = await api.get('/user/profile');
 ```
 
-### Rate Limiting
+### Rate Limit Handling
 
 ```typescript
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     retryConfig: {
         shouldRetry: (error, attempt) => {
-            if (error.status === 429) { // Too Many Requests
+            if (error.status === 429) {
                 const retryAfter = error.headers?.get('retry-after');
                 if (retryAfter) {
                     return true;
@@ -1080,33 +1126,6 @@ const api = new FetchEngine({
         }
     }
 });
-```
-
-### Caching Responses
-
-```typescript
-const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-const api = new FetchEngine({
-    baseUrl: 'https://api.example.com'
-});
-
-const getCached = async <T>(url: string): Promise<T> => {
-    const cached = cache.get(url);
-    const now = Date.now();
-
-    if (cached && (now - cached.timestamp) < CACHE_TTL) {
-        return cached.data;
-    }
-
-    const data = await api.get<T>(url);
-    cache.set(url, { data, timestamp: now });
-    return data;
-};
-
-// Use cached requests
-const data = await getCached('/frequently-accessed-endpoint');
 ```
 
 ## Modifying your fetch instance
@@ -1148,7 +1167,7 @@ api.hasHeader('authorization', 'POST');
 
 ### `addParams(...)`
 
-Set an object of params
+Set an object of params. These will be added to the URL as query parameters.
 
 **Example**
 
@@ -1159,7 +1178,7 @@ api.addParams({ scope: 'abc123' }, 'POST');
 
 ### `rmParams(...)`
 
-Remove one or many headers
+Remove one or many params
 
 **Example**
 
@@ -1171,7 +1190,7 @@ api.rmParams('auth_token', 'POST');
 
 ### `hasParam(...)`
 
-Checks if header is set
+Checks if param is set
 
 **Example**
 
@@ -1180,7 +1199,6 @@ api.hasHeader('scope');
 api.hasHeader('scope', 'POST');
 ```
 
-
 ### `setState(...)`
 
 Merges a passed object into the `FetchEngine` instance state
@@ -1188,18 +1206,20 @@ Merges a passed object into the `FetchEngine` instance state
 **Example**
 
 ```ts
+// Either an entire object
 api.setState({
-	refreshToken: 'abc123',
-	authToken: 'abc123',
-	isAuthenticated: true
+    refreshToken: 'abc123',
+    authToken: 'abc123',
+    isAuthenticated: true
 });
 
+// Or a single key
 api.setState('isAuthenticated', false);
 ```
 
 ### `resetState()`
 
-Resets the `FetchEngine` instance state.
+Resets the `FetchEngine` instance state to an empty object.
 
 **Example**
 
@@ -1209,7 +1229,7 @@ api.resetState();
 
 ### `getState()`
 
-Returns the `FetchEngine` instance state.
+Returns the `FetchEngine` instance state. This is a shallow copy of the state object.
 
 **Example**
 
@@ -1220,12 +1240,169 @@ const state = api.getState();
 
 ### `changeBaseUrl(...)`
 
-Changes the base URL for this fetch instance
+Changes the base URL for this fetch instance. This is useful if you need to change the base URL for a request.
 
 **Example**
 
 ```ts
-api.changeBaseUrl('http://dev.sample.com');
+myApp.on('change-env', (env) => {
+
+    api.changeBaseUrl(`http://${env}.example.com`);
+})
 ```
 
 
+## FAQ
+
+**Is this just a wrapper around fetch?**
+
+Yes — intentionally. FetchEngine doesn’t replace the native Fetch API; it extends it with production-ready features like retries, aborts, lifecycle hooks, and stateful header/param handling. You keep full access to RequestInit, Response, and the browser-native behavior.
+
+---
+
+**How is this different from Axios?**
+
+- No magic: Axios rewrites request/response behavior, auto-transforms payloads, and polyfills old browsers. FetchEngine respects web standards.
+- Smaller: ~5.5KB vs Axios' 18KB.
+- Better retry + abort: Built-in exponential backoff, retry-after support, and cancellation by default.
+- Typed: Uses generics for full request/response typing — Axios types are bolted on.
+
+---
+
+**Does it work in Node.js?**
+
+Yes, if you're using:
+
+- Node 18+: native fetch is available
+- < Node 18: you must polyfill with undici or node-fetch.
+
+Caveats:
+
+- Cookies and credentials: `'include'` behave differently in Node — don't assume browser behavior.
+- `AbortController` and streaming work in modern Node, but not in all polyfills.
+
+---
+
+**How do I cancel a request?**
+
+There are two ways:
+
+1. Use the abortable return:
+
+    ```ts
+    const call = api.get('/something');
+    call.abort(); // Cancels immediately
+    ```
+
+2. Pass your own AbortController:
+
+    ```ts
+    const controller = new AbortController();
+    api.get('/thing', { abortController: controller });
+    controller.abort();
+    ```
+
+Both integrate with fetch-abort events and retry suppression.
+
+---
+
+**How do I mock or test this?**
+
+Inject a mock fetch globally or per-instance:
+
+```ts
+global.fetch = vi.fn(() => Promise.resolve(new Response(...)));
+```
+
+To test retry logic:
+
+- Simulate a 500/429 and assert event listeners
+- Use attempt() and inspect error.attempt, error.step
+
+---
+
+**How do I add headers dynamically?**
+
+Use modifyOptions or setState:
+
+```ts
+const api = new FetchEngine({
+  modifyOptions: (opts, state) => {
+
+    if (state.token) {
+        opts.headers.authorization = `Bearer ${state.token}`;
+    }
+
+    // or even better
+    if (opts.body instanceof FormData) {
+        opts.headers['content-type'] = 'multipart/form-data';
+    }
+
+    return opts;
+  }
+});
+```
+
+Then update with:
+
+```ts
+api.setState({ token: 'abc123' });
+```
+
+All future requests include the header.
+
+---
+
+**How does response type detection work?**
+
+By default, FetchEngine inspects the Content-Type header:
+
+- application/json → .json()
+- text/html → .text()
+- image/png, font/woff2 → .blob()
+
+You can override this with determineType():
+
+```ts
+determineType: (res) => {
+  if (shouldStream(res)) return 'arrayBuffer';
+  return FetchEngine.useDefault;
+}
+```
+
+
+---
+
+**Can I cache requests?**
+
+There's no built-in cache layer — but it's easy to add with `@logosdx/utils`:
+
+```ts
+import { memoize } from '@logosdx/utils';
+
+const api = new FetchEngine({ /* ... */ });
+
+const cachedGet = memoize(api.get.bind(api), { /* ... */ });
+
+// or override the cache function:
+
+api.fetch = memoize(api.get.bind(api), { /* ... */ });
+```
+
+
+---
+
+**Does it support multipart/form-data or file uploads?**
+
+Yes — just pass a FormData object as the payload:
+
+```ts
+const form = new FormData();
+form.append('file', fileInput.files[0]);
+
+await api.post('/upload', form, {
+  headers: { 'content-type': 'multipart/form-data' }
+});
+```
+
+It will detect the type unless you override determineType.

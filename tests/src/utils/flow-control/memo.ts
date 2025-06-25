@@ -1,10 +1,7 @@
 import {
     describe,
     it,
-    before,
-    after,
     mock,
-    Mock
 } from 'node:test'
 
 // @ts-expect-error - chai is not a module
@@ -13,18 +10,12 @@ import { expect } from 'chai';
 import { mockHelpers } from '../../_helpers';
 
 import {
-    attempt,
-    attemptSync,
-    debounce,
-    throttle,
-    retry,
-    batch,
-    circuitBreaker,
-    circuitBreakerSync,
     wait,
     memoizeSync,
     memoize,
+    attempt,
 } from '../../../../packages/utils/src/index.ts';
+import { attemptSync } from '../../../../packages/kit/src/index.ts';
 
 describe('@logosdx/utils', () => {
 
@@ -129,15 +120,15 @@ describe('@logosdx/utils', () => {
             });
 
             // Fill cache to capacity
-            const result1 = memoized(1); // oldest
-            const result2 = memoized(2);
+            memoized(1); // oldest
+            memoized(2);
             expect(memoized.cache.size).to.equal(2);
 
             // Access first item to make it recently used
-            const result1Again = memoized(1);
+            memoized(1);
 
             // Add third item, should evict least recently used (2)
-            const result3 = memoized(3);
+            memoized(3);
 
             expect(memoized.cache.size).to.equal(2);
             expect(memoized.cache.has('1')).to.be.true; // 1 should still be cached
@@ -414,6 +405,22 @@ describe('@logosdx/utils', () => {
             memoized("string");
 
             calledExactly(fn, 10, 'data types cached correctly');
+        });
+
+        it('should not double wrap the function', async () => {
+
+            const fn = mock.fn(() => 'ok');
+
+            const wrappedFnSync = memoizeSync(fn);
+            const wrappedFnAsync = memoize(fn as any);
+
+            const [, error1] = attemptSync(() => memoizeSync(wrappedFnSync));
+            const [, error2] = await attempt(() => memoize(wrappedFnAsync));
+
+            expect(error1).to.be.an.instanceof(Error);
+            expect((error1 as Error).message).to.equal('Function is already wrapped by memoize');
+            expect(error2).to.be.an.instanceof(Error);
+            expect((error2 as Error).message).to.equal('Function is already wrapped by memoize');
         });
     })
 });

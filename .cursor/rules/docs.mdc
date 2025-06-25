@@ -1,0 +1,195 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# 📘 Documentation Meta Layout for LogosDX Packages
+
+Each package should have a single file written for a competent but time-starved developer. Prioritize clarity, brevity, and usefulness. Avoid hype language and unnecessary verbosity.
+
+---
+
+## ✍️ Tone and Style Guidelines
+
+**Personality:**
+
+* Calm, clear, senior-dev energy.
+* Witty is fine. Condescending is not.
+* Be opinionated where it helps. Justify trade-offs.
+
+**Avoid:**
+
+* Overused buzzwords like *robust*, *intuitive*, *powerful*, *comprehensive*
+* Passive voice
+* Words like *simply*, *just*, or *seamlessly*
+
+**Prefer:**
+
+* Direct sentences
+* Honest tradeoffs (“This works well unless you’re doing X.”)
+* Short paragraphs, meaningful whitespace, and real-world language
+
+---
+
+## 🧱 Sections and Their Purpose
+
+Each doc file should follow this structure (some sections can be optional depending on the package):
+
+---
+
+### 1. `# Package Name`
+
+> One-liner summary of what this package does and why it exists.
+
+Keep it human:
+
+> “Declarative retry, timeout, and error flow for async JavaScript. Works everywhere. No ceremony.”
+
+---
+
+### 2. `## Core Concepts` *(Required)*
+
+> A short explanation of the package’s mental model.
+
+* What problem does it solve?
+* How does it fit the LogosDX philosophy? (e.g., structure over scaffolding)
+* How is it different from what developers might already be using?
+
+---
+
+### 3. `## Quick Start` *(Required)*
+
+> Show how to install and use it in under 10 lines.
+
+* Installation command
+* A real (but minimal) usage snippet
+* Zero explanation unless it's essential — this is a “see for yourself” moment
+
+---
+
+### 4. `## API Overview` *(Required)*
+
+> List of exported utilities, components, or functions with short 1–2 sentence blurbs.
+
+Can be a list or table like:
+
+```md
+- `attempt(fn)`: Wraps sync or async logic and returns [result, error]
+- `retry(fn, opts)`: Retries a function N times before failing
+```
+
+---
+
+### 5. `## Usage` *(Required)*
+
+> Detailed explanations and examples for each export.
+
+Each utility/function/module gets a heading:
+
+````md
+### `attempt(fn)`
+
+**What it does:**
+Wraps logic and returns `[result, error]` instead of throwing.
+
+```ts
+const [user, err] = await attempt(() => fetchUser(userId));
+````
+
+**When to use:**
+Avoids nesting or repeating try/catch. Good for flattening async flow.
+
+````
+
+Prefer clarity over completeness. Use examples that *show the shape* of usage — not toy problems.
+
+---
+
+### 6. `## Patterns` *(Optional)*
+
+> Show how to compose or combine exports in realistic ways.
+
+This is optional, but great for things like combining `retry + timeout + circuitBreaker`.
+
+---
+
+### 7. `## Compatibility` *(Optional but recommended)*
+
+> State runtime/platform support, any required polyfills, etc.
+
+Keep it blunt:
+
+```md
+✅ Node 14+
+✅ Chrome 90+
+✅ React Native
+⚠️ Requires `fetch` to exist (polyfill if needed)
+````
+
+---
+
+### 8. `## TypeScript Notes` *(If applicable)*
+
+> Tips on inference, extending types, generics, and common TS gotchas.
+
+Not a full type reference — just the useful stuff.
+
+---
+
+### 9. `## Testing Notes` *(If applicable)*
+
+> How to test the utilities, mock them, or simulate behavior like retries and failures.
+
+Only include this if testing the package takes more than calling it directly.
+
+---
+
+### 10. `## FAQ` *(Optional)*
+
+> Answers to predictable questions or confusion traps.
+
+Use a few concise entries. Only include if it helps reduce GitHub issues.
+
+---
+
+### 11. `## Changelog` *(Link or Summary)*
+
+> Link to changelog or include recent changes.
+
+Keep it simple:
+
+```md
+See [CHANGELOG.md](mdc:CHANGELOG.md)
+```
+
+---
+
+### 12. `## Contributing / Feedback` *(Optional)*
+
+> Link to GitHub, open source notes, or request for feedback.
+
+```md
+Issues or suggestions? [Open a GitHub issue](mdc:https:/github.com/your-org/logosdx).
+```
+
+---
+
+## ✅ Example Top-Level Outline
+
+```md
+# @logosdx/utils
+
+## Core Concepts
+## Quick Start
+## API Overview
+## Usage
+  - attempt()
+  - retry()
+  - timeout()
+## Patterns
+## Compatibility
+## TypeScript Notes
+## FAQ
+## Changelog
+## Contributing
+```

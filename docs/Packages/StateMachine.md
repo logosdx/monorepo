@@ -5,7 +5,7 @@ aliases: ["StateMachine", "@logosdx/state-machine"]
 
 Any frontend app that grows in complexity eventually needs a to share data across components. This endeavor should be simple, and should allow you to use all the things modern-day javascript has to offer. In comes the State Machine:
 
-- A stream-based mechaniwsm to update application state
+- A stream-based mechanism to update application state
 - With the ability to move forward and backwards in states
 - And manipulate the state as you need it using reducers
 - Able to listen for changes
@@ -15,6 +15,18 @@ Any frontend app that grows in complexity eventually needs a to share data acros
 npm install @logosdx/state-machine
 yarn add @logosdx/state-machine
 pnpm add @logosdx/state-machine
+```
+
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/state-machine@latest/dist/browser/bundle.js"></script>
+```
+
+```html
+<script>
+	const { StateMachine } = LogosDx.StateMachine;
+</script>
 ```
 
 ## Example
@@ -129,7 +141,7 @@ stateMachine.flushStates();
 
 ### Declaring and reducing state
 
-State Machine allows for flexible manipulation of state. It is built using a custom [[Packages/Utils#`deepEqual(a, b)`|state differ]] to allow for the use of new data types as the things to manage state, such as `Map` and `Set`. The idea is as follows:
+State Machine allows for flexible manipulation of state. It is built using a custom [[Packages/Utils#`equals(a, b)`|state differ]] to allow for the use of new data types as the things to manage state, such as `Map` and `Set`. The idea is as follows:
 
 First, you want to strongly type your application's state
 

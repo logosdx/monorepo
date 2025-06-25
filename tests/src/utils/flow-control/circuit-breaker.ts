@@ -13,6 +13,7 @@ import {
     attempt,
     attemptSync,
     circuitBreaker,
+    CircuitBreakerError,
     circuitBreakerSync,
     wait,
 } from '../../../../packages/utils/src/index.ts';
@@ -398,6 +399,58 @@ describe('@logosdx/utils', () => {
             expect(circuitError).to.be.an.instanceof(Error);
             expect((circuitError as Error).constructor.name).to.equal('CircuitBreakerError');
             expect((circuitError as Error).message).to.equal('Circuit breaker tripped');
+        });
+
+        it('should return nextAvailable date when circuit is open', async () => {
+
+            const fn = mock.fn(() => {
+                throw new Error('service failure');
+            });
+
+            const onTripped = mock.fn();
+
+            const wrappedFn = circuitBreaker(fn, {
+                maxFailures: 1,
+                resetAfter: 100,
+                onTripped
+            });
+
+            const now = Date.now();
+
+            // Trip the circuit
+            await attempt(wrappedFn);
+
+            // Should throw CircuitBreakerError
+            const [, circuitError] = await attempt(wrappedFn);
+
+            expect(circuitError).to.be.an.instanceof(Error);
+            expect((circuitError as Error).constructor.name).to.equal('CircuitBreakerError');
+            expect((circuitError as Error).message).to.equal('Circuit breaker tripped');
+
+            calledExactly(onTripped, 1, 'should call onTripped callback');
+
+            const [err, store] = onTripped.mock.calls[0]?.arguments || [];
+            expect(err).to.be.an.instanceof(CircuitBreakerError);
+            expect(store).to.be.an('object');
+            expect(store.nextAvailable).to.be.a('number');
+            expect(store.nextAvailable).to.be.greaterThan(now);
+            expect(store.nextAvailable).to.be.lessThanOrEqual(now + 100);
+        });
+
+        it('should not double wrap the function', async () => {
+
+            const fn = mock.fn(() => 'ok');
+
+            const wrappedFnAsync = circuitBreaker(fn);
+            const wrappedFnSync = circuitBreakerSync(fn);
+
+            const [, error1] = attemptSync(() => circuitBreakerSync(wrappedFnSync));
+            const [, error2] = await attempt(() => circuitBreaker(wrappedFnAsync) as any);
+
+            expect(error1).to.be.an.instanceof(Error);
+            expect((error1 as Error).message).to.equal('Function is already wrapped by circuitBreaker');
+            expect(error2).to.be.an.instanceof(Error);
+            expect((error2 as Error).message).to.equal('Function is already wrapped by circuitBreaker');
         });
     })
 });

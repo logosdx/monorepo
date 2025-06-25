@@ -1688,6 +1688,42 @@ describe('@logosdx/fetch', () => {
         expect(onError.callCount).to.eq(4);
     });
 
+    it('retries with custom shouldRetry that returns a number', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retryConfig: {
+                maxAttempts: 3,
+                baseDelay: 10,
+                useExponentialBackoff: false,
+                shouldRetry: (error) => {
+
+                    if (error.status === 400) {
+
+                        return 50;
+                    }
+
+                    return false;
+                },
+            },
+        });
+
+        const onError = sandbox.stub();
+
+        api.on('fetch-error', onError);
+
+        const start = Date.now();
+
+        await attempt(() => api.get('/validate?name=&age=17'))
+
+        expect(onError.called).to.be.true;
+        expect(onError.callCount).to.eq(3);
+
+        const end = Date.now();
+
+        expect(end - start).to.be.greaterThan(149);
+    });
+
     it('retries with custom baseDelay', async () => {
 
         const api = new FetchEngine({

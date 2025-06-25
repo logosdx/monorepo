@@ -2,9 +2,11 @@ import {
     Func,
     assert,
     assertOptional,
-    deepClone,
-    txt,
+    clone,
     attempt,
+    wait,
+    isPlainObject,
+    isPrimitive,
 } from '@logosdx/utils';
 
 import {
@@ -276,12 +278,12 @@ export class FetchEngine<
             }
             else {
 
-                throw new FetchError(txt.msgs(
-                    'Unknown content type:',
-                    contentType,
-                    'You may need to set the "determineType" option',
-                    'to customize how the response is parsed.',
-                ));
+                throw new FetchError(
+                    'Unknown content type: ' +
+                    contentType +
+                    ' You may need to set the "determineType" option' +
+                    ' to customize how the response is parsed.'
+                );
             }
         }
 
@@ -745,7 +747,10 @@ export class FetchEngine<
         opts.headers = this.#makeHeaders(rest.headers, method);
 
         if (/put|post|patch|delete/i.test(method)) {
-            if (type === 'json') {
+            if (
+                type === 'json' &&
+                (isPlainObject(payload) || isPrimitive(payload) || Array.isArray(payload))
+            ) {
                 opts.body = JSON.stringify(payload);
             }
             else {
@@ -944,7 +949,14 @@ export class FetchEngine<
             const shouldRetry = await mergedRetryConfig.shouldRetry(fetchError, _attempt);
 
             if (shouldRetry && _attempt <= mergedRetryConfig.maxAttempts!) {
-                const delay = this.#calculateRetryDelay(_attempt, mergedRetryConfig, fetchError);
+
+                // If shouldRetry is a number, use it as the delay
+                // Otherwise, calculate the delay using the default logic
+                const delay = (
+                    typeof shouldRetry === 'number' ?
+                    shouldRetry :
+                    this.#calculateRetryDelay(_attempt, mergedRetryConfig, fetchError)
+                );
 
                 this.dispatchEvent(
                     new FetchEvent(FetchEventNames['fetch-retry'], {
@@ -956,7 +968,8 @@ export class FetchEngine<
                     })
                 );
 
-                await new Promise(resolve => setTimeout(resolve, delay));
+                await wait(delay);
+
                 _attempt++;
                 continue;
             }
@@ -1881,7 +1894,7 @@ export class FetchEngine<
      */
     getState() {
 
-        return deepClone(this.#state);
+        return clone(this.#state);
     }
 
     /**

@@ -175,5 +175,5 @@ component.cleanup(); // Test teardown
 
 ## Linking & Cross-References
 - **Cross-link packages**: `[@logosdx/observer](mdc:packages/observer)`
-- **Reference TypeDoc**: `[deepMerge](mdc:https:/typedoc.logosdx.dev)`
+- **Reference TypeDoc**: `[merge](mdc:https:/typedoc.logosdx.dev)`
 - **Link examples to API** methods for comprehensive coverage

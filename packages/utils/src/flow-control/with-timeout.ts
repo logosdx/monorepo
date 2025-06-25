@@ -1,4 +1,5 @@
-import { AnyFunc } from './_helpers.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
+import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 import { attempt } from './attempt.ts';
 
 /**
@@ -21,6 +22,37 @@ export class TimeoutError extends Error {
     }
 }
 
+export const isTimeoutError = (error: unknown): error is TimeoutError => {
+    return error?.constructor?.name === TimeoutError.name;
+}
+
+export interface WithTimeoutOptions {
+    /**
+     * Timeout in milliseconds after which the function will be rejected
+     */
+    timeout: number;
+
+    /**
+     * Abort controller to cancel the operation
+     */
+    abortController?: AbortController;
+
+    /**
+     * Capture errors
+     */
+    onError?: (error: Error, didTimeout: boolean) => void;
+
+    /**
+     * On timeout
+     */
+    onTimeout?: (error: TimeoutError, execPromise: Promise<any>) => void;
+
+    /**
+     * Rethrow errors
+     */
+    throws?: boolean;
+}
+
 /**
  * Wraps an async function with a timeout mechanism. If the function doesn't complete
  * within the specified timeout, it will reject with a TimeoutError.
@@ -29,16 +61,21 @@ export class TimeoutError extends Error {
  * @param fn - The async function to wrap with timeout functionality
  * @param opts - Configuration options
  * @param opts.timeout - Timeout in milliseconds after which the function will be rejected
+ * @param opts.abortController - Abort controller to cancel the operation
+ * @param opts.onError - Callback to handle errors
+ * @param opts.onTimeout - Callback to handle timeout
+ * @param opts.throws - Whether to throw an error when the function execution exceeds the specified timeout
  * @returns A new async function with the same signature as the original, but with timeout behavior
  * @throws {TimeoutError} When the function execution exceeds the specified timeout
  *
  * @example
  * ```typescript
  * // Basic usage with a fetch request
- * const fetchWithTimeout = withTimeout(fetch, { timeout: 5000 });
+ * const abortController = new AbortController();
+ * const fetchWithTimeout = withTimeout(fetch, { timeout: 5000, abortController });
  *
  * try {
- *   const response = await fetchWithTimeout('https://api.example.com/data');
+ *   const response = await fetchWithTimeout('https://api.example.com/data', { signal: abortController.signal });
  *   console.log('Request completed within 5 seconds');
  * } catch (error) {
  *   if (error instanceof TimeoutError) {
@@ -58,10 +95,11 @@ export class TimeoutError extends Error {
  *   return data.join(', ');
  * }
  *
- * const processWithTimeout = withTimeout(processData, { timeout: 2000 });
+ * const abortController = new AbortController();
+ * const processWithTimeout = withTimeout(processData, { timeout: 2000, abortController });
  *
  * const [result, error] = await attempt(() =>
- *   processWithTimeout(['a', 'b', 'c'])
+ *   processWithTimeout(['a', 'b', 'c'], { signal: abortController.signal })
  * );
  *
  * if (error) {
@@ -75,7 +113,7 @@ export class TimeoutError extends Error {
  * ```typescript
  * // Using with database operations
  * const queryWithTimeout = withTimeout(
- *   async (query: string) => database.execute(query),
+ *   async (query: string) => database.execute(query)
  *   { timeout: 10000 }
  * );
  *
@@ -92,12 +130,24 @@ export class TimeoutError extends Error {
  */
 export const withTimeout = <T extends AnyFunc>(
     fn: T,
-    opts: {
-        timeout: number
-    }
-) => {
+    opts: WithTimeoutOptions
+): T => {
 
-    return async (...args: Parameters<T>) => {
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'withTimeout');
+    assert(isPlainObject(opts), 'opts must be an object');
+
+    assert(
+        typeof opts.timeout === 'number' && opts.timeout > 0,
+        'opts.timeout must be a positive number'
+    );
+
+    assertOptional(opts.abortController, opts.abortController instanceof AbortController, 'opts.abortController must be an AbortController');
+    assertOptional(opts.onError, isFunction(opts.onError), 'opts.onError must be a function');
+    assertOptional(opts.onTimeout, isFunction(opts.onTimeout), 'opts.onTimeout must be a function');
+    assertOptional(opts.throws, typeof opts.throws === 'boolean', 'opts.throws must be a boolean');
+
+    const withTimeoutFunction = async function(...args: Parameters<T>) {
 
         let timeoutId: NodeJS.Timeout | null = null;
 
@@ -105,10 +155,19 @@ export const withTimeout = <T extends AnyFunc>(
 
             timeoutId = setTimeout(
 
-                () => reject(
+                () => {
 
-                    new TimeoutError('Function timed out')
-                ),
+                    opts.abortController?.abort();
+
+                    execPromise.catch((error) => opts.onError?.(error, true));
+
+                    const error = new TimeoutError('Function timed out');
+
+                    opts.onError?.(error, true);
+                    opts.onTimeout?.(error, execPromise);
+
+                    reject(error);
+                },
                 opts.timeout
             );
         });
@@ -121,17 +180,27 @@ export const withTimeout = <T extends AnyFunc>(
 
             if (error) {
 
-                throw error;
+                opts.onError?.(error, false);
+
+                if (opts.throws) {
+                    throw error;
+                }
             }
 
             return result;
         }
 
+        const execPromise = exec();
+
         const result = await Promise.race([
-            exec(),
+            execPromise,
             timeoutPromise
         ]);
 
         return result;
-    }
+    } as T;
+
+    markWrapped(withTimeoutFunction, 'withTimeout');
+
+    return withTimeoutFunction;
 }

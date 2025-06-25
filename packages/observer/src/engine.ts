@@ -2,7 +2,8 @@ import {
     Func,
     assert,
     definePrivateProps,
-    deepClone
+    clone,
+    MaybePromise
 } from '@logosdx/utils';
 
 import {
@@ -10,12 +11,9 @@ import {
 } from './types.ts';
 
 import {
-    ALL_CALLBACKS,
-    MATCH_EVERYTHING,
     arrOfMatchingValues,
-    DeferredEvent,
-    EventGenerator,
-    EventPromise,
+    type EventData,
+    type EventPromise,
     InternalEvent,
     InternalEvs,
     InternalListener,
@@ -25,8 +23,18 @@ import {
     validateListener,
 } from './helpers.ts';
 
+import {
+    EventGenerator,
+    DeferredEvent,
+} from './generator.ts';
+
+import {
+    EventQueue,
+    type QueueOpts,
+} from './queue/queue.ts';
+
 export class ObserverEngine<
-    Shape = Record<string, any>
+    Shape extends Record<string, any> = Record<string, any>
 > {
 
     #listenerMap: Map<Events<Shape>, Set<Func>> = new Map();
@@ -121,9 +129,9 @@ export class ObserverEngine<
     $internals() {
 
         return {
-            listenerMap: deepClone(this.#listenerMap),
-            rgxListenerMap: deepClone(this.#rgxListenerMap),
-            internalListener: deepClone(this.#internalListener),
+            listenerMap: clone(this.#listenerMap),
+            rgxListenerMap: clone(this.#rgxListenerMap),
+            internalListener: clone(this.#internalListener),
             name: this.name,
             spy: this.#spy
         }
@@ -142,10 +150,9 @@ export class ObserverEngine<
     /**
      * Returns if the observable instance has the given event
      */
-    $has(event: '*' | string): boolean;
+    $has(event: string): boolean;
     $has(event: Events<Shape> | RegExp | string) {
 
-        if (event === '*') return true;
         if (event instanceof RegExp) {
 
             return this.#rgxListenerMap.has(event.toString());
@@ -265,15 +272,8 @@ export class ObserverEngine<
 
             const [event, callback] = _event.data;
 
-            if (event === ALL_CALLBACKS) {
-
-                rmAll();
-            }
-            else {
-
-                const _set = track.get(event);
-                _set?.delete(callback as Func);
-            }
+            const _set = track.get(event);
+            _set?.delete(callback as Func);
         };
 
         this.#internalListener.addEventListener(InternalEvs.off, afterOff as Func);
@@ -282,7 +282,7 @@ export class ObserverEngine<
         const on = (ev: string, fn: Func) => {
 
             return self.on(
-                ev,
+                ev as never,
                 trackListener(ev, fn)
             );
         }
@@ -297,15 +297,6 @@ export class ObserverEngine<
 
         const off = (ev: string, fn: Func) => {
 
-            if (
-                ev ===  ALL_CALLBACKS
-            ) {
-
-                rmAll();
-
-                return;
-            }
-
             self.off(ev as never, fn);
         }
 
@@ -316,6 +307,8 @@ export class ObserverEngine<
                 data as never
             );
         }
+
+        const clear = () => rmAll();
 
         const cleanup = () => {
 
@@ -329,6 +322,7 @@ export class ObserverEngine<
             once,
             off,
             emit,
+            clear,
             cleanup
         });
 
@@ -398,34 +392,6 @@ export class ObserverEngine<
     }
 
     /**
-     * Returns an event generator that will listen for all events
-     *
-     * @example
-     *
-     * const obs = new ObserverEngine();
-     *
-     * const onEvent = obs.on('*');
-     * await onEvent.next(); // waits for next event
-     * onEvent.emit('data'); // emits data to listeners
-     *
-     * onEvent.cleanup(); // stops listening for events
-     */
-    on (event: '*'): EventGenerator<ObserverEngine.RgxEmitData<Shape>, '*'>;
-
-    /**
-     * Listens for all events and executes the given callback
-     *
-     * @example
-     *
-     * const obs = new ObserverEngine();
-     *
-     * obs.on('*', (data) => {
-     *     console.log(data);
-     * });
-     */
-    on (event: '*', listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
-
-    /**
      * Returns an event generator that will listen for the specified event
      *
      * @example
@@ -439,6 +405,7 @@ export class ObserverEngine<
      * something.cleanup(); // stops listening for events
      */
     on <E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
+    on <E extends string>(event: E): EventGenerator<Record<E, any>>;
 
     /**
      * Listens for the specified event and executes the given callback
@@ -452,6 +419,7 @@ export class ObserverEngine<
      * });
      */
     on <E extends Events<Shape>>(event: E, listener: ObserverEngine.EventCallback<Shape[E]>): ObserverEngine.Cleanup;
+    on <E extends string>(event: E, listener: ObserverEngine.EventCallback<Record<E, any>>): ObserverEngine.Cleanup;
 
     /**
      * Returns an event generator that will listen for all events matching the regex
@@ -482,22 +450,22 @@ export class ObserverEngine<
     on (event: RegExp, listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
 
     /**
-     * Used internally
-     */
-    on (event: unknown, listener?: Func, opts?: object): ObserverEngine.Cleanup | EventGenerator<any>
-
-    /**
      * Listen for an event
      * @param event
      * @param listener
      */
     on (
-        event: RegExp | Events<Shape> | '*',
+        event: RegExp | Events<Shape> | string,
         listener?: (
             ObserverEngine.EventCallback<Shape[Events<Shape>]> |
-            ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>
+            ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>> |
+            ObserverEngine.EventCallback<Record<string, any>>
         ),
         _opts?: { once: boolean }
+    ): (
+        ObserverEngine.Cleanup |
+        EventGenerator<Shape, Events<Shape>> |
+        EventGenerator<Shape, RegExp>
     ) {
 
         if (!_opts?.once) {
@@ -506,23 +474,16 @@ export class ObserverEngine<
             validateListener('on', { event, listener } as never);
         }
 
-        if (event === '*') {
-
-            event = MATCH_EVERYTHING;
-        }
-
-        const { eventName, isRgx } = this.#eventInfo(
-            event
-        );
+        const { eventName, isRgx } = this.#eventInfo(event);
 
         const listenerMap = isRgx ? this.#rgxListenerMap : this.#listenerMap;
 
         if (listener === undefined) {
 
-            return new EventGenerator(
+            return new EventGenerator<Shape, Events<Shape>>(
                 this,
                 event as never
-            ) as EventGenerator<any, any>;
+            );
         }
 
         this.#currentSpy({
@@ -571,27 +532,31 @@ export class ObserverEngine<
 
     /**
      * Returns an event promise that resolves when
-     * any event is emitted
-     */
-    once (event: '*'): EventPromise<ObserverEngine.RgxEmitData<Shape>>;
-
-    /**
-     * Executes a callback once when any event is
-     * emitted
-     */
-    once (event: '*', listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
-
-    /**
-     * Returns an event promise that resolves when
      * the specified event is emitted
      */
     once <E extends Events<Shape>>(event: E): EventPromise<Shape[E]>;
+
+    /**
+     * Returns an event promise that resolves when
+     * the specified event is emitted. This overload
+     * is untyped and can be used to listen for any
+     * event that is emitted.
+     */
+    once <E extends string>(event: E): EventPromise<Record<E, any>>;
 
     /**
      * Executes a callback once when the specified
      * event is emitted
      */
     once <E extends Events<Shape>>(event: E, listener: ObserverEngine.EventCallback<Shape[E]>): ObserverEngine.Cleanup;
+
+    /**
+     * Executes a callback once when the specified
+     * event is emitted. This overload is untyped
+     * and can be used to listen for any event that
+     * is emitted.
+     */
+    once <E extends string>(event: E, listener: ObserverEngine.EventCallback<Record<E, any>>): ObserverEngine.Cleanup;
 
     /**
      * Returns an event promise that resolves when
@@ -611,11 +576,17 @@ export class ObserverEngine<
      * resolves when the event is emitted
      */
     once (
-        event: RegExp | string,
+        event: RegExp | Events<Shape> | string,
         listener?: (
             ObserverEngine.EventCallback<Shape[Events<Shape>]> |
-            ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>
+            ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>> |
+            ObserverEngine.EventCallback<Record<string, any>>
         )
+    ): (
+        ObserverEngine.Cleanup |
+        EventPromise<Shape[Events<Shape>]> |
+        EventPromise<ObserverEngine.RgxEmitData<Shape>> |
+        EventPromise<Record<string, any>>
     ) {
 
         validateEvent('once', { event, listener } as never);
@@ -632,7 +603,12 @@ export class ObserverEngine<
 
             defer.promise.cleanup = cleanup;
 
-            return defer.promise;
+            return defer.promise as (
+                ObserverEngine.Cleanup |
+                EventPromise<Shape[Events<Shape>]> |
+                EventPromise<ObserverEngine.RgxEmitData<Shape>> |
+                EventPromise<Record<string, any>>
+            )
         }
 
         const self = this;
@@ -645,13 +621,12 @@ export class ObserverEngine<
             (listener as Func).apply(self, args);
         }
 
-        cleanup = this.on(
-            event as never,
-            runOnce,
-            { once: true }
-        ) as ObserverEngine.Cleanup;
+        cleanup = this.on.apply(
+            this,
+            [event as never, runOnce, { once: true }] as never
+        )
 
-        return cleanup;
+        return cleanup as ObserverEngine.Cleanup;
     }
 
     /**
@@ -660,7 +635,7 @@ export class ObserverEngine<
      * @param listener
      */
     off (
-        event: Events<Shape> | RegExp | '*',
+        event: Events<Shape> | RegExp | string,
         listener?: Function
     ) {
 
@@ -673,17 +648,6 @@ export class ObserverEngine<
             listener,
             context: this
         });
-
-        if (event === ALL_CALLBACKS && !listener) {
-
-            this.#listenerMap.clear();
-            this.#rgxListenerMap.clear();
-
-            this.#internalListener.dispatchEvent(
-                new InternalEvent(InternalEvs.clear, [event as string, listener])
-            );
-            return;
-        }
 
         const { eventName, isRgx, rgx } = this.#eventInfo(event);
 
@@ -718,16 +682,13 @@ export class ObserverEngine<
     }
 
     /** Emits an event */
-    // emit (event: '*', data?: Shape[Events<Shape>]): void;
-    // emit <E extends Events<Shape>>(event: E, data: Shape[E]): void;
-    // emit (event: RegExp, data: Observable.RgxEmitData<Shape>): void;
-    emit <E extends Events<Shape> | RegExp | '*'>(
+    emit <E extends Events<Shape> | RegExp | string>(
         event: E,
-        data?: E extends '*'
-            ? Shape[Events<Shape>]
-            : E extends Events<Shape>
-                ? Shape[E]
-                : unknown
+        data?: E extends Events<Shape>
+            ? Shape[E]
+            : E extends string
+            ? Record<E, any>[E]
+            : unknown
     ) {
 
         validateEvent('emit', { event, data } as never);
@@ -749,24 +710,19 @@ export class ObserverEngine<
             context: this
         });
 
-        if (event === '*') {
-
-            event = MATCH_EVERYTHING as E;
-        }
-
-
         const { eventName, isRgx, rgx } = this.#eventInfo(event);
 
         if (!isRgx) {
 
             const cbs = this.#listenerMap.get(eventName);
-
             const rgxCbs = this.#matchRgx(eventName as string);
+
             if (cbs) cbs.forEach(
                 (fn) => fn.apply(this, [data, { event, listener: fn }])
             );
+
             if (rgxCbs) rgxCbs.forEach(
-                ({  func }) => func.apply(this, [{ data, event, listener: func }])
+                ({ func }) => func.apply(this, [{ data, event, listener: func }])
             );
 
             this.#internalListener.dispatchEvent(
@@ -796,5 +752,28 @@ export class ObserverEngine<
                 );
             }
         )
+    }
+
+    clear() {
+
+        this.#listenerMap.clear();
+        this.#rgxListenerMap.clear();
+        this.#internalListener.dispatchEvent(
+            new InternalEvent(InternalEvs.clear, ['clear', null])
+        );
+    }
+
+    queue<E extends Events<Shape> | RegExp>(
+        event: E,
+        process: (data: EventData<Shape, E>) => MaybePromise<any>,
+        options: QueueOpts
+    ) {
+
+        return new EventQueue<Shape, E>({
+            ...options,
+            event,
+            process,
+            observer: this,
+        });
     }
 }

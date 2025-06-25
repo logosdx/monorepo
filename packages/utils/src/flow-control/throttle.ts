@@ -1,4 +1,5 @@
-import { AnyFunc } from './_helpers.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
+import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 
 /**
  * Error thrown when a throttled function is called too frequently
@@ -10,6 +11,10 @@ export class ThrottleError extends Error {
         super(message);
         this.name = 'ThrottleError';
     }
+}
+
+export const isThrottleError = (error: unknown): error is ThrottleError => {
+    return error?.constructor?.name === ThrottleError.name;
 }
 
 /**
@@ -73,25 +78,17 @@ export const throttle = <T extends AnyFunc>(
     let lastResult: ReturnType<T> | null = null;
 
     // Validate input parameters
-    if (typeof fn !== 'function') {
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'throttle');
+    assert(isPlainObject(opts), 'opts must be an object');
 
-        throw new Error('fn must be a function');
-    }
+    assert(
+        typeof delay === 'number' && delay > 0,
+        'delay must be a positive number'
+    );
 
-    if (typeof delay !== 'number' || delay <= 0) {
-
-        throw new Error('delay must be a positive number');
-    }
-
-    if (onThrottle !== undefined && typeof onThrottle !== 'function') {
-
-        throw new Error('onThrottle must be a function');
-    }
-
-    if (typeof throws !== 'boolean') {
-
-        throw new Error('throws must be a boolean');
-    }
+    assertOptional(onThrottle, isFunction(onThrottle), 'onThrottle must be a function');
+    assertOptional(throws, typeof throws === 'boolean', 'throws must be a boolean');
 
     const callback = function (...args: Parameters<T>): ReturnType<T> {
 
@@ -116,6 +113,8 @@ export const throttle = <T extends AnyFunc>(
 
         return lastResult!;
     };
+
+    markWrapped(callback, 'throttle');
 
     return callback as T;
 };

@@ -1,11 +1,12 @@
 import {
-    deepClone,
+    clone,
     definePrivateProps,
     assert,
     isUndefined,
     isNonIterable,
     Func,
-    deepEqual
+    equals,
+    generateId
 } from '@logosdx/utils'
 
 const assertFunction = (fn: Func, msg: string) => {
@@ -26,9 +27,6 @@ export const deepFreeze = (target: object) => {
         deepFreeze(target[key as keyof typeof target]);
     }
 };
-
-export const generateId = () => '_' + Math.random().toString(36).slice(2, 9);
-
 
 
 export type StateMachineOptions = {
@@ -219,7 +217,7 @@ export class StateMachine<State = any, ReducerValue = any> {
             nextState = prevState as any;
         }
 
-        if (deepEqual(nextState, currentState)) {
+        if (equals(nextState, currentState)) {
             return;
         }
 
@@ -324,7 +322,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      */
     states() {
 
-        return deepClone(Array.from(this._states.values()));
+        return clone(Array.from(this._states.values()));
     }
 
     /**
@@ -333,7 +331,7 @@ export class StateMachine<State = any, ReducerValue = any> {
      */
     state(): State {
 
-        return deepClone(this._internals.state!);
+        return clone(this._internals.state!);
     }
 
     /**
