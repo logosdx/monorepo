@@ -1,5 +1,11 @@
 # @logosdx/dom
 
+## 1.1.2
+
+### Patch Changes
+
+- 1ac008e: fix scrollToElement and scrollToPosition options
+
 ## 1.1.1
 
 ### Patch Changes
