@@ -594,7 +594,9 @@ export function elementViewportDistances(el: HTMLElement): { top: number; bottom
  * Provides consistent scroll behavior across browsers.
  * @param el - element to scroll to
  * @param offset - additional offset from element top (default: 0)
- * @param behavior - scroll behavior (default: 'smooth')
+ * @param opts - options
+ * @param opts.behavior - scroll behavior (default: 'smooth')
+ * @param opts.scrollElement - element to scroll (default: window)
  *
  * @example
  * scrollToElement(myElement, 20);
@@ -602,8 +604,11 @@ export function elementViewportDistances(el: HTMLElement): { top: number; bottom
  */
 export function scrollToElement(
     el: HTMLElement,
-    offset = 0,
-    behavior: ScrollBehavior = 'smooth'
+    opts: {
+        offset?: number,
+        behavior?: ScrollBehavior,
+        scrollElement?: HTMLElement
+    } = {}
 ): void {
 
     if (!el) {
@@ -611,9 +616,15 @@ export function scrollToElement(
         return;
     }
 
+    const {
+        offset = 0,
+        behavior = 'smooth',
+        scrollElement = window
+    } = opts;
+
     const targetY = elementOffsetTop(el) - offset;
 
-    window?.scrollTo({
+    scrollElement?.scrollTo({
         top: targetY,
         behavior
     });
@@ -630,7 +641,9 @@ export function scrollToElement(
  * Wrapper around window.scrollTo with consistent behavior.
  * @param x - horizontal position
  * @param y - vertical position
- * @param behavior - scroll behavior (default: 'smooth')
+ * @param opts - options
+ * @param opts.behavior - scroll behavior (default: 'smooth')
+ * @param opts.scrollElement - element to scroll (default: window)
  *
  * @example
  * scrollToPosition(0, 500);
@@ -639,10 +652,18 @@ export function scrollToElement(
 export function scrollToPosition(
     x: number,
     y: number,
-    behavior: ScrollBehavior = 'smooth'
+    opts: {
+        behavior?: ScrollBehavior,
+        scrollElement?: HTMLElement
+    } = {}
 ): void {
 
-    window?.scrollTo({
+    const {
+        behavior = 'smooth',
+        scrollElement = window
+    } = opts;
+
+    scrollElement?.scrollTo({
         left: x,
         top: y,
         behavior

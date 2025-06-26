@@ -547,7 +547,7 @@ describe('@logosdx/dom', () => {
             it('should apply offset correctly', function () {
 
                 const offset = 50;
-                Lib.scrollToElement(testElement, offset);
+                Lib.scrollToElement(testElement, { offset });
 
                 const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
                 const call = scrollToSpy.getCall(0);
@@ -558,7 +558,7 @@ describe('@logosdx/dom', () => {
 
             it('should use custom scroll behavior', function () {
 
-                Lib.scrollToElement(testElement, 0, 'auto');
+                Lib.scrollToElement(testElement, { behavior: 'auto' });
 
                 const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
                 const call = scrollToSpy.getCall(0);
@@ -601,7 +601,7 @@ describe('@logosdx/dom', () => {
 
             it('should use custom scroll behavior', function () {
 
-                Lib.scrollToPosition(0, 0, 'auto');
+                Lib.scrollToPosition(0, 0, { behavior: 'auto' });
 
                 const scrollToSpy = window.scrollTo as Sinon.SinonSpy;
                 const call = scrollToSpy.getCall(0);
