@@ -3,8 +3,8 @@
     "version": "0.0.1",
     "private": true,
     "scripts": {
-        "tdd": "nodemon -e 'ts' -x pnpm test",
-        "tdd:only": "nodemon -e 'ts' -x pnpm test:only",
+        "tdd": "nodemon -e 'ts' -w src -w ../packages -x pnpm test",
+        "tdd:only": "nodemon -e 'ts' -w src -w ../packages -x pnpm test:only",
         "test": "NODE_ENV=test tsx src/index.ts",
         "test:coverage": "NODE_ENV=test tsx --experimental-test-coverage src/index.ts",
         "test:only": "NODE_ENV=test tsx --test-only src/index.ts",

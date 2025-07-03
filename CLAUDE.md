@@ -5,12 +5,14 @@ This document provides comprehensive instructions for code reviews and feedback 
 ## 🏗️ Repository Structure & Organization
 
 ### Monorepo Architecture
+
 - **Source code**: `packages/*/src/` - Each package has its own source directory
 - **Documentation**: `docs/` - Centralized documentation for all packages
 - **Tests**: `tests/src/` - Mirrors source structure for validation
 - **Scripts**: `scripts/` - Build, release, and utility scripts
 
 ### Package Organization
+
 - **Independent packages**: Each package builds and publishes separately
 - **Cross-package imports**: Use package names (`@logosdx/utils`) not relative paths
 - **Test imports**: Use relative paths (`../../packages/utils/src/index.ts`) to validate actual implementation
@@ -33,7 +35,9 @@ import { attempt } from '@logosdx/utils'; // Won't validate actual implementatio
 ### Code Style Conventions
 
 #### Syntax & Formatting
+
 - Newline **after** function declaration:
+
   ```ts
   function doSomething() {
 
@@ -42,6 +46,7 @@ import { attempt } from '@logosdx/utils'; // Won't validate actual implementatio
   ```
 
 - Newline **after** opening blocks:
+
   ```ts
   if (condition) {
 
@@ -57,16 +62,19 @@ import { attempt } from '@logosdx/utils'; // Won't validate actual implementatio
   4. Commit block
 
 #### Naming Philosophy
+
 - Use **meaningful names** that explain **what** the thing is
   - ✅ `userExists`, `fetchInvoiceTotal`
   - ❌ `x`, `data`, `handleIt`
 - Functions and variables should **read like English**
 
 ### Comments & JSDoc
+
 - JSDoc all **functions and classes**
 - Comments and docs must explain **WHY** something exists — not how or what
 - **Ambiguous validation logic must be commented** explicitly
 - Always provide **usage examples**:
+
   ```ts
   /**
    * Throttles notifications per user to prevent spam.
@@ -79,6 +87,7 @@ import { attempt } from '@logosdx/utils'; // Won't validate actual implementatio
 ## 🚫 Error Handling Standards
 
 ### Core Principle: Use Go-style error monad for fail-prone operations
+
 Use utilities from `@logosdx/utils` for operations that can fail (async, I/O, network) — these provide safe, legible, consistent control flow.
 
 ```ts
@@ -122,13 +131,15 @@ async function updateUserEmail(userId: string, newEmail: string): Promise<User> 
 
 ### When to Use Error Monad vs Direct Returns
 
-#### ✅ Use Error Monad (`[result, error]`) for:
+#### ✅ Use Error Monad (`[result, error]`) for
+
 - **Async operations**: `fetch()`, database queries, file I/O
 - **External API calls**: Third-party services, network requests
 - **System operations**: File system, process spawning
 - **Unpredictable failures**: Network timeouts, disk full, permissions
 
-#### ✅ Use Direct Returns for:
+#### ✅ Use Direct Returns for
+
 - **Business logic**: Data transformations, calculations, validations
 - **Pure functions**: Mathematical operations, string manipulation
 - **Deterministic operations**: Type checking, object manipulation
@@ -207,18 +218,21 @@ function modifyUserEmail(user: User, newEmail: EmailAddress): User {
 ## 🧪 Testing Standards
 
 ### Test File Structure
+
 - **Mirror source structure**: `tests/src/` mirrors `packages/*/src/`
 - **Relative imports**: Use `../../../../packages/utils/src/index.ts` not `@logosdx/utils`
 - **Required for tests**: Relative imports validate actual implementation
 - **Use `mockHelpers`** pattern with `calledExactly` for consistent verification
 
 ### Test Organization
+
 - **Group by functionality**: `describe('flow-control: memo', () => {})`
 - **Descriptive names**: `"should [behavior] when [condition]"`
 - **Test all paths**: Positive cases, error cases, edge cases
 - **Nest related tests** in sub-describes
 
 ### Mock & Assertion Patterns
+
 ```ts
 // Use `mock.fn()` from `node:test`
 const fn = mock.fn();
@@ -235,7 +249,9 @@ component.cleanup(); // Test teardown
 ```
 
 ### Required Test Coverage
+
 Each exported function must have:
+
 - ✅ Unit tests
 - ✅ Error-path tests
 - ✅ Integration test (if interacting with DB or IO)
@@ -243,12 +259,14 @@ Each exported function must have:
 ## 📦 TypeScript Patterns
 
 ### Type Organization
+
 - **Dedicated `types.ts` files** for shared types across modules
 - **`export type`** for type-only exports (enables tree-shaking)
 - **Re-export from index**: `export type { Events } from './types.ts'`
 - **Group logically** by domain/feature
 
 ### Generic & Type Patterns
+
 ```ts
 // Descriptive names
 export type Events<Shape> = keyof Shape;
@@ -267,11 +285,13 @@ export interface BehaviorOptions {
 ```
 
 ### Class Design
+
 - **Static classes** → Stateless utilities (DOM, behaviors, helpers)
 - **Instance classes** → Stateful components with private state and lifecycle
 - **Always dogfood** `@logosdx/utils` for validation, error handling, flow control
 
 ### Instance Class Patterns
+
 ```ts
 export class DataProcessor {
     #cache: Map<string, Data> = new Map();
@@ -284,7 +304,7 @@ export class DataProcessor {
         assert(isObject(config), 'Config required');
 
         // === Business Logic ===
-        this.#config = deepClone(config);
+        this.#config = clone(config);
 
         // === Commit ===
         definePrivateProps(this, {
@@ -299,6 +319,7 @@ export class DataProcessor {
 ```
 
 ### Static Class Patterns
+
 ```ts
 export class HtmlBehaviors {
     static isBound(el: Element, feature: string): boolean { }
@@ -314,6 +335,7 @@ export class HtmlBehaviors {
 ```
 
 ### Symbol Usage
+
 - **When to use**: Private metadata on DOM elements, hidden internal state
 - **When NOT to use**: Public APIs, simple private data (use `#private` fields)
 - **Pattern**: Module-level constants with descriptive names
@@ -332,17 +354,19 @@ interface BoundElement extends Element {
 ## 🐕 Dogfooding Standards
 
 ### Core Principle
+
 Always use `@logosdx/utils` throughout the monorepo to validate APIs and demonstrate best practices.
 
 ### Required Usage Patterns
+
 ```ts
 // Error handling
 const [result, err] = await attempt(() => fetch('/api'));
 if (err) return handleError(err);
 
 // Data operations
-const cloned = deepClone(complexState);
-if (!deepEqual(oldState, newState)) triggerUpdate();
+const cloned = clone(complexState);
+if (!equals(oldState, newState)) triggerUpdate();
 
 // Flow control
 const debouncedSearch = debounce(search, 300);
@@ -353,12 +377,14 @@ assert(isObject(config), 'Config required');
 ```
 
 ### Data Operations
-- `deepClone()` for safe copying (handles Maps, Sets, classes)
-- `deepEqual()` for reliable comparisons
-- `deepMerge()` for intelligent object merging
+
+- `clone()` for safe copying (handles Maps, Sets, classes)
+- `equals()` for reliable comparisons
+- `merge()` for intelligent object merging
 - `reach()` for safe nested property access
 
 ### Flow Control & Performance
+
 - `debounce()` for user input, search, resize handlers
 - `throttle()` for scroll, animation callbacks
 - `rateLimit()` for API call limiting
@@ -366,6 +392,7 @@ assert(isObject(config), 'Config required');
 - `batch()` for concurrent array processing
 
 ### Memory & Performance
+
 - `memoize()` / `memoizeSync()` for expensive computations
 - `definePrivateProps()` for non-enumerable class methods
 - Use modern data structures (Map, Set) with utils that support them
@@ -373,6 +400,7 @@ assert(isObject(config), 'Config required');
 ## 📚 Documentation Standards
 
 ### Documentation Structure
+
 1. **Problem Statement** - Why it exists, what problems it solves
 2. **Core Philosophy** - Design principles with examples
 3. **Problem-Solving Examples** - Real scenarios, not toy examples
@@ -380,6 +408,7 @@ assert(isObject(config), 'Config required');
 5. **Advanced Patterns** - Composition examples
 
 ### /docs Directory Requirements
+
 **Primary focus**: Answer "what is this?", "why does it exist?", and "when should I use this?"
 
 - **What is this?** - Clear, concise description of the package/utility
@@ -389,12 +418,14 @@ assert(isObject(config), 'Config required');
 - **Link to TypeDoc** - "How to use" details belong in JSDoc and generated TypeDoc
 
 ### Documentation Patterns
+
 - **Always contrast**: Show ❌ problematic vs ✅ good patterns
 - **Real-world context**: Shopping carts, user data, not `foo`/`bar`
 - **Show @logosdx/utils**: Demonstrate dogfooding in examples
 - **Include fallbacks**: Error handling and graceful degradation
 
 ### Problem-driven Documentation Format
+
 ```markdown
 #### The Problem: [Specific Real Scenario]
 [Context about why this is challenging in production]
@@ -406,6 +437,7 @@ assert(isObject(config), 'Config required');
 // ✅ Resilient approach using @logosdx/utils
 // Show proper error handling and fallbacks
 ```
+
 ```
 
 ## 🔄 Development Workflow
@@ -437,40 +469,47 @@ pnpm run build:docs
 When reviewing code, ensure:
 
 ### ✅ Structure & Organization
+
 - [ ] Follows monorepo import patterns (package names in prod, relative in tests)
 - [ ] Proper file organization (types.ts, index.ts exports)
 - [ ] Logical grouping of functions and classes
 
 ### ✅ TypeScript Standards
+
 - [ ] No `try-catch` blocks (use `attempt`/`attemptSync`)
 - [ ] Proper function structure (4-block pattern)
 - [ ] Meaningful names that read like English
 - [ ] JSDoc with examples and WHY explanations
 
 ### ✅ Dogfooding
+
 - [ ] Uses `@logosdx/utils` for error handling
 - [ ] Uses `@logosdx/utils` for data operations
 - [ ] Uses `@logosdx/utils` for flow control
 - [ ] Demonstrates best practices in examples
 
 ### ✅ Testing
+
 - [ ] Tests mirror source structure
 - [ ] Uses relative imports in tests
 - [ ] Tests all paths (success, error, edge cases)
 - [ ] Proper mock patterns with `calledExactly`
 
 ### ✅ Documentation
+
 - [ ] Problem statement with real-world context
 - [ ] Shows ❌ vs ✅ patterns
 - [ ] Links to TypeDoc
 - [ ] Demonstrates dogfooding
 
 ### ✅ Performance & Memory
+
 - [ ] Uses appropriate utilities (debounce, throttle, memo)
 - [ ] Proper cleanup in integration tests
 - [ ] No memory leaks in observer patterns
 
 ### ✅ Error Handling Patterns
+
 - [ ] Uses error monad (`[result, error]`) for fail-prone operations only
 - [ ] Business logic functions return actual results, not error tuples
 - [ ] Proper composition between error monad and direct returns
@@ -479,6 +518,7 @@ When reviewing code, ensure:
 ## 🚨 Common Issues to Flag
 
 ### ❌ Anti-patterns
+
 - `try-catch` blocks instead of `attempt`/`attemptSync`
 - Error monad pattern used for pure business logic functions
 - Business logic functions returning `[result, error]` tuples
@@ -486,6 +526,7 @@ When reviewing code, ensure:
 - Inconsistent error handling patterns
 
 ### ✅ Best Practices to Encourage
+
 - Error monad for I/O, direct returns for business logic
 - Clear separation between fail-prone and deterministic operations
 - Proper composition of error handling and business logic

@@ -129,7 +129,7 @@ stateMachine.flushStates();
 
 ### Declaring and reducing state
 
-State Machine allows for flexible manipulation of state. It is built using a custom [[Packages/Utils#`deepEqual(a, b)`|state differ]] to allow for the use of new data types as the things to manage state, such as `Map` and `Set`. The idea is as follows:
+State Machine allows for flexible manipulation of state. It is built using a custom [[Packages/Utils#`equals(a, b)`|state differ]] to allow for the use of new data types as the things to manage state, such as `Map` and `Set`. The idea is as follows:
 
 First, you want to strongly type your application's state
 

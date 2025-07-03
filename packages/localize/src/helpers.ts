@@ -1,7 +1,7 @@
 import {
     StrOrNum,
     PathLeaves,
-    GetFieldType
+    PathValue
 } from '@logosdx/utils';
 
 import type { LocaleManager } from './manager.ts';
@@ -9,8 +9,8 @@ import type { LocaleManager } from './manager.ts';
 export const reachIn = <
     O extends LocaleManager.LocaleType = LocaleManager.LocaleType,
     P extends PathLeaves<O> = PathLeaves<O>,
-    D extends GetFieldType<O, P> = GetFieldType<O, P>
->(obj: O, path: P, defValue: D): GetFieldType<O, P> | undefined => {
+    D extends PathValue<O, P> = PathValue<O, P>
+>(obj: O, path: P, defValue: D): PathValue<O, P> | undefined => {
 
     // If path is not defined or it has false value
     if (!path) {
@@ -19,7 +19,7 @@ export const reachIn = <
 
     // Allow for passing a flat object
     if (obj[path] !== undefined) {
-        return obj[path] as GetFieldType<O, P>;
+        return obj[path] as PathValue<O, P>;
     }
 
     // Check if path is string or array. Regex : ensure that we do not have '.' and brackets.
@@ -45,7 +45,7 @@ export const reachIn = <
     // If found value is undefined return default value; otherwise return the value
     return (
         result === undefined ? defValue : result
-    ) as GetFieldType<O, P>;
+    ) as PathValue<O, P>;
 }
 
 /**

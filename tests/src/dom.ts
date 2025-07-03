@@ -721,7 +721,7 @@ describe('@logosdx/dom', () => {
     describe('css[fn] (...)', function () {
 
         stub.sampleCss = {
-            color: 'rgb(255, 0, 0)',
+            color: 'rgb(100, 100, 100)',
             fontSize: '12px'
         }
 
@@ -1069,7 +1069,7 @@ describe('@logosdx/dom', () => {
             const span = document.createElement('div');
             html.attrs.set([div, span], { hidden: 'true' })
 
-            const result = html.attrs.get([div, span], 'hidden') as string[];
+            const result = html.attrs.get([div, span], 'hidden');
 
             expect(result[0]).to.equal('true');
             expect(result[1]).to.equal('true');
@@ -1088,17 +1088,20 @@ describe('@logosdx/dom', () => {
 
             html.attrs.set([div, span], attrs)
 
-            const result = html.attrs.get([div, span], ['hidden', 'data']) as (typeof attrs)[];
+            const result = html.attrs.get([div, span], ['hidden', 'data']);
 
-            expect(result[0]).to.include(attrs);
-            expect(result[1]).to.include(attrs);
+            expect(result[0]?.data).to.equal(attrs.data);
+            expect(result[1]?.data).to.equal(attrs.data);
+
+            expect(result[0]?.hidden).to.equal(attrs.hidden);
+            expect(result[1]?.hidden).to.equal(attrs.hidden);
         });
 
         it('it can remove attributes', () => {
 
             const div = document.createElement('div');
-            html.attrs.set(div, { hidden: 'true' })
 
+            html.attrs.set(div, { hidden: 'true' })
             html.attrs.remove(div, 'hidden');
 
             expect(div.getAttribute('hidden')).to.equal(null);
@@ -1112,15 +1115,18 @@ describe('@logosdx/dom', () => {
             html.attrs.set([div, span], { hidden: 'true', data: 'false' })
             html.attrs.remove([div, span], ['hidden', 'data']);
 
-            const result = html.attrs.get([div, span], ['hidden', 'data']) as {}[];
+            const result = html.attrs.get([div, span], ['hidden', 'data']);
 
             const nope = {
                 hidden: null,
                 data: null
             };
 
-            expect(result[0]).to.include(nope);
-            expect(result[1]).to.include(nope);
+            expect(result[0]?.data).to.equal(nope.data);
+            expect(result[1]?.data).to.equal(nope.data);
+
+            expect(result[0]?.hidden).to.equal(nope.hidden);
+            expect(result[1]?.hidden).to.equal(nope.hidden);
         });
 
         it('it can detect attributes', () => {

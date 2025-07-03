@@ -43,7 +43,7 @@ async function updateUserEmail(userId: string, newEmail: string): Promise<User> 
 
 ## Required Utilities
 - **Error handling**: `attempt`, `attemptSync`
-- **Data ops**: `deepClone`, `deepEqual`, `deepMerge`, `reach`
+- **Data ops**: `clone`, `equals`, `merge`, `reach`
 - **Flow control**: `debounce`, `throttle`, `rateLimit`, `retry`, `circuitBreaker`, `withTimeout`, `batch`
 - **Validation**: `assert`, `assertObject`, `isObject`, `isBrowser`
 - **Performance**: `memoize`, `memoizeSync`, `definePrivateProps`
@@ -55,8 +55,8 @@ const [result, err] = await attempt(() => fetch('/api'));
 if (err) return handleError(err);
 
 // Data operations
-const cloned = deepClone(complexState);
-if (!deepEqual(oldState, newState)) triggerUpdate();
+const cloned = clone(complexState);
+if (!equals(oldState, newState)) triggerUpdate();
 
 // Flow control
 const debouncedSearch = debounce(search, 300);

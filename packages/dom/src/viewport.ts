@@ -215,7 +215,7 @@ export function scrollLeft(): number {
  * const topOffset = elementOffsetTop(myElement);
  * // Use for positioning calculations or scroll-to-element
  */
-export function elementOffsetTop(el: HTMLElement): number {
+export function elementOffsetTop <T extends Element>(el: T): number {
 
     if (!el) {
 
@@ -248,7 +248,7 @@ export function elementOffsetTop(el: HTMLElement): number {
  * const leftOffset = elementOffsetLeft(myElement);
  * // Use for positioning calculations or horizontal alignment
  */
-export function elementOffsetLeft(el: HTMLElement): number {
+export function elementOffsetLeft <T extends Element>(el: T): number {
 
     if (!el) {
 
@@ -490,7 +490,7 @@ export function isAtTop(threshold = 10): boolean {
  * const visibility = elementVisibility(myElement);
  * // Fade in element based on visibility
  */
-export function elementVisibility(el: HTMLElement): number {
+export function elementVisibility <T extends Element>(el: T): number {
 
     if (!el) {
 
@@ -536,7 +536,7 @@ export function elementVisibility(el: HTMLElement): number {
  *     // Element is at least 50% visible
  * }
  */
-export function isPartiallyVisible(el: HTMLElement, threshold = 0.1): boolean {
+export function isPartiallyVisible <T extends Element>(el: T, threshold = 0.1): boolean {
 
     return elementVisibility(el) >= threshold * 100;
 }
@@ -557,7 +557,7 @@ export function isPartiallyVisible(el: HTMLElement, threshold = 0.1): boolean {
  * const distances = elementViewportDistances(myElement);
  * // Position tooltip based on available space
  */
-export function elementViewportDistances(el: HTMLElement): { top: number; bottom: number; left: number; right: number } {
+export function elementViewportDistances <T extends Element>(el: T): { top: number; bottom: number; left: number; right: number } {
 
     if (!el) {
 
@@ -602,12 +602,12 @@ export function elementViewportDistances(el: HTMLElement): { top: number; bottom
  * scrollToElement(myElement, 20);
  * // Scrolls to element with 20px offset from top
  */
-export function scrollToElement(
-    el: HTMLElement,
+export function scrollToElement <T extends Element, S extends Element>(
+    el: T,
     opts: {
         offset?: number,
         behavior?: ScrollBehavior,
-        scrollElement?: HTMLElement
+        scrollElement?: S
     } = {}
 ): void {
 

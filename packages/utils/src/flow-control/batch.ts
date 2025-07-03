@@ -1,31 +1,44 @@
-import { attempt } from './attempt.ts';
-import { AnyFunc } from './_helpers.ts';
-import { chunk } from '../misc.ts';
-import { MaybePromise } from '../types.ts';
+import {
+    attempt,
+    chunk,
+    MaybePromise,
+    Func, AsyncFunc,
+    isFunction,
+    assert,
+    assertOptional
+} from '../index.ts';
 
-type OnChunkParam<T extends AnyFunc> = {
+type BatchFunction<A extends unknown[] = unknown[], R = unknown> = (
+    AsyncFunc<A, R> |
+    Func<A, R>
+);
+
+type OnChunkParam<T> = {
     index: number;
     total: number;
-    items: Parameters<T>[];
+    items: T[];
     processedCount: number;
     remainingCount: number;
     completionPercent: number;
 };
 
-type BatchOptions<T extends AnyFunc> = {
-    items: Parameters<T>[];
+type BatchOptions<T, R> = {
+    items: T[];
     concurrency?: number;
     failureMode?: 'abort' | 'continue';
-    onError?: (error: Error, args: Parameters<T>) => MaybePromise<void>;
+    onError?: (error: Error, item: T, itemIndex: number) => MaybePromise<void>;
     onStart?: (total: number) => MaybePromise<void>;
-    onEnd?: (results: BatchResult<T>[]) => MaybePromise<void>;
+    onEnd?: (results: BatchResult<T, R>[]) => MaybePromise<void>;
     onChunkStart?: (params: OnChunkParam<T>) => MaybePromise<void>;
     onChunkEnd?: (params: OnChunkParam<T>) => MaybePromise<void>;
 };
 
-type BatchResult<T extends AnyFunc> = {
-    result: Awaited<ReturnType<T>> | null;
+type BatchResult<T, R> = {
+    result: R | null;
     error: Error | null;
+    item: T;
+    index: number;
+    itemIndex: number;
 };
 
 /**
@@ -36,7 +49,7 @@ type BatchResult<T extends AnyFunc> = {
  *
  * @example
  *
- * const items = [[1], [2], [3], [4], [5]]; // Array of argument arrays
+ * const items = [1, 2, 3, 4, 5]; // Array of arguments
  *
  * const handleOneItem = async (item: number) => {
  *     console.log(item);
@@ -46,8 +59,8 @@ type BatchResult<T extends AnyFunc> = {
  *     concurrency: 10,
  *     items,
  *     failureMode: 'continue',
- *     onError: (error, args) => {
- *         console.error(error, args);
+ *     onError: (error, item) => {
+ *         console.error(error, item);
  *     },
  *     onStart: (total) => {
  *         console.log(`Starting batch with ${total} chunks`);
@@ -63,12 +76,12 @@ type BatchResult<T extends AnyFunc> = {
  *     }
  * });
  */
-export const batch = async <T extends AnyFunc>(
-    fn: T,
-    options: BatchOptions<T>
-): Promise<BatchResult<T>[]> => {
+export const batch = async <T, R>(
+    fn: BatchFunction<[T], R>,
+    options: BatchOptions<T, R>
+): Promise<BatchResult<T, R>[]> => {
 
-    const results: BatchResult<T>[] = [];
+    const results: BatchResult<T, R>[] = [];
 
     const {
         items,
@@ -81,61 +94,28 @@ export const batch = async <T extends AnyFunc>(
         onEnd
     } = options;
 
-    if (typeof fn !== 'function') {
+    assert(isFunction(fn), 'fn must be a function');
+    assert(Array.isArray(items), 'items must be an array');
+    assert(concurrency > 0, 'concurrency must be greater than 0');
+    assert(failureMode === 'abort' || failureMode === 'continue', 'failureMode must be either "abort" or "continue"');
 
-        throw new Error('fn must be a function');
-    }
-
-    if (concurrency < 1) {
-
-        throw new Error('concurrency must be greater than 0');
-    }
-
-    if (!Array.isArray(items)) {
-
-        throw new Error('items must be an array');
-    }
-
-    if (failureMode !== 'abort' && failureMode !== 'continue') {
-
-        throw new Error('failureMode must be either "abort" or "continue"');
-    }
-
-    if (onError && typeof onError !== 'function') {
-
-        throw new Error('onError must be a function');
-    }
-
-    if (onStart && typeof onStart !== 'function') {
-
-        throw new Error('onStart must be a function');
-    }
-
-    if (onChunkStart && typeof onChunkStart !== 'function') {
-
-        throw new Error('onChunkStart must be a function');
-    }
-
-    if (onChunkEnd && typeof onChunkEnd !== 'function') {
-
-        throw new Error('onChunkEnd must be a function');
-    }
-
-    if (onEnd && typeof onEnd !== 'function') {
-
-        throw new Error('onEnd must be a function');
-    }
+    assertOptional(onError, isFunction(onError), 'onError must be a function');
+    assertOptional(onStart, isFunction(onStart), 'onStart must be a function');
+    assertOptional(onChunkStart, isFunction(onChunkStart), 'onChunkStart must be a function');
+    assertOptional(onChunkEnd, isFunction(onChunkEnd), 'onChunkEnd must be a function');
+    assertOptional(onEnd, isFunction(onEnd), 'onEnd must be a function');
 
     const chunks = chunk(items, concurrency);
     const totalChunks = chunks.length;
+    let chunkIndex = 0;
 
-    const processOne = async (args: Parameters<T>): Promise<BatchResult<T>> => {
+    const processOne = async (item: T, itemIndex: number): Promise<BatchResult<T, R>> => {
 
-        const [result, error] = await attempt(() => fn(...args));
+        const [result, error] = await attempt(() => fn(item) as Promise<R>);
 
         if (error) {
 
-            onError?.(error, args);
+            onError?.(error, item, itemIndex);
 
             if (failureMode === 'abort') {
 
@@ -145,11 +125,14 @@ export const batch = async <T extends AnyFunc>(
 
         return {
             result,
-            error
+            error,
+            item,
+            index: chunkIndex,
+            itemIndex
         };
     };
 
-    const batchExec = async (argsList: Parameters<T>[]): Promise<void> => {
+    const batchExec = async (argsList: T[]): Promise<void> => {
 
         const all = await Promise.all(argsList.map(processOne));
 
@@ -158,28 +141,28 @@ export const batch = async <T extends AnyFunc>(
 
     await onStart?.(totalChunks);
 
-    for (let index = 0; index < chunks.length; index++) {
+    for (chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
 
-        const chunk = chunks[index];
+        const chunk = chunks[chunkIndex];
 
         await onChunkStart?.({
-            index,
+            index: chunkIndex,
             total: totalChunks,
             items: chunk ?? [],
-            processedCount: index * concurrency,
-            remainingCount: (totalChunks - index - 1) * concurrency,
-            completionPercent: ((index + 1) / totalChunks) * 100
+            processedCount: chunkIndex * concurrency,
+            remainingCount: (totalChunks - chunkIndex - 1) * concurrency,
+            completionPercent: ((chunkIndex + 1) / totalChunks) * 100
         });
 
         await batchExec(chunk ?? []);
 
         await onChunkEnd?.({
-            index,
+            index: chunkIndex,
             total: totalChunks,
             items: chunk ?? [],
-            processedCount: index * concurrency,
-            remainingCount: (totalChunks - index - 1) * concurrency,
-            completionPercent: ((index + 1) / totalChunks) * 100
+            processedCount: chunkIndex * concurrency,
+            remainingCount: (totalChunks - chunkIndex - 1) * concurrency,
+            completionPercent: ((chunkIndex + 1) / totalChunks) * 100
         });
     }
 

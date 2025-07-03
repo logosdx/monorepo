@@ -1,5 +1,7 @@
 import { attempt, attemptSync } from './attempt.ts';
-import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
+import { AnyAsyncFunc, AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
+import { noop } from '../misc.ts';
 
 /**
  * Configuration options for memoization functions.
@@ -13,14 +15,14 @@ export type MemoizeOptions<T extends AnyFunc> = {
      *
      * @default 1 * 60 * 1000 (1 minute)
      */
-    ttl: number,
+    ttl?: number,
 
     /**
      * Maximum number of items in the cache. When exceeded, least recently used items are evicted.
      *
      * @default 1000
      */
-    maxSize: number,
+    maxSize?: number,
 
     /**
      * Function to call when an error occurs during key generation or function execution.
@@ -28,7 +30,7 @@ export type MemoizeOptions<T extends AnyFunc> = {
      * @param error - The error that occurred
      * @param args - The arguments that were passed to the memoized function
      */
-    onError: (error: Error, args: Parameters<T>) => void
+    onError?: (error: Error, args: Parameters<T>) => void
 
     /**
      * Generates the cache key from the function arguments.
@@ -40,7 +42,7 @@ export type MemoizeOptions<T extends AnyFunc> = {
      * @returns A string key for caching
      * @default enhanced key generator
      */
-    generateKey?: (args: Parameters<T>) => string,
+    generateKey?: (args: Parameters<T>) => string
 
     /**
      * Whether to use WeakRef for large objects to prevent memory leaks.
@@ -48,7 +50,7 @@ export type MemoizeOptions<T extends AnyFunc> = {
      *
      * @default false
      */
-    useWeakRef?: boolean,
+    useWeakRef?: boolean
 
     /**
      * Interval in milliseconds for background cleanup of expired entries.
@@ -147,29 +149,13 @@ type EnhancedMemoizedFunction<T extends AnyFunc> = T & {
  */
 const validateOpts = <T extends AnyFunc>(opts: MemoizeOptions<T>) => {
 
-    if (typeof opts.ttl !== 'number' || opts.ttl <= 0) {
-        throw new Error('ttl must be a positive number');
-    }
-
-    if (typeof opts.maxSize !== 'number' || opts.maxSize <= 0) {
-        throw new Error('maxSize must be a positive number');
-    }
-
-    if (typeof opts.onError !== 'function') {
-        throw new Error('onError must be a function');
-    }
-
-    if (opts.generateKey && typeof opts.generateKey !== 'function') {
-        throw new Error('generateKey must be a function');
-    }
-
-    if (opts.useWeakRef && typeof opts.useWeakRef !== 'boolean') {
-        throw new Error('useWeakRef must be a boolean');
-    }
-
-    if (opts.cleanupInterval && typeof opts.cleanupInterval !== 'number') {
-        throw new Error('cleanupInterval must be a number');
-    }
+    assert(isPlainObject(opts), 'opts must be an object');
+    assertOptional(opts.ttl, typeof opts.ttl === 'number' && opts.ttl >= 0, 'ttl must be a positive number');
+    assertOptional(opts.maxSize, typeof opts.maxSize === 'number' && opts.maxSize >= 0, 'maxSize must be a positive number');
+    assertOptional(opts.onError, isFunction(opts.onError), 'onError must be a function');
+    assertOptional(opts.generateKey, isFunction(opts.generateKey), 'generateKey must be a function');
+    assertOptional(opts.useWeakRef, typeof opts.useWeakRef === 'boolean', 'useWeakRef must be a boolean');
+    assertOptional(opts.cleanupInterval, typeof opts.cleanupInterval === 'number', 'cleanupInterval must be a number');
 }
 
 /**
@@ -218,6 +204,20 @@ const defaultKeyGenerator = <T extends AnyFunc>(args: Parameters<T>): string => 
             const result = `{${pairs.join(',')}}`;
             seen.delete(value);
             return result;
+        }
+
+        if (value instanceof Map) {
+            const pairs = Array.from(value.entries())
+                .map(
+                    ([key, value]) => `${stringify(key)}:${stringify(value)}`
+                )
+                .sort();
+            return `map:${pairs.join(',')}`;
+        }
+
+        if (value instanceof Set) {
+            const values = Array.from(value).map(stringify).sort();
+            return `set:${values.join(',')}`;
         }
 
         return String(value);
@@ -479,7 +479,7 @@ const prepareMemo = <T extends AnyFunc>(
     const [key, keyError] = attemptSync(() => generateKey(args));
 
     if (keyError) {
-        onError(keyError, args);
+        onError?.(keyError, args);
         cacheManager.recordMiss();
         return {
             key,
@@ -568,7 +568,12 @@ const processMemo = <T extends AnyFunc>(
         args,
         key,
         now,
-        opts: { onError, ttl, maxSize, useWeakRef = false },
+        opts: {
+            onError = noop,
+            ttl = 60000,
+            maxSize = 1000,
+            useWeakRef = false
+        },
         cache,
         cacheManager
     } = opts;
@@ -655,12 +660,11 @@ const processMemo = <T extends AnyFunc>(
  */
 export const memoizeSync = <T extends AnyFunc>(
     fn: T,
-    opts: MemoizeOptions<T>
+    opts: MemoizeOptions<T> = {}
 ): EnhancedMemoizedFunction<T> => {
 
-    if (typeof fn !== 'function') {
-        throw new Error('fn must be a function');
-    }
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'memoize');
 
     validateOpts(opts);
 
@@ -724,6 +728,8 @@ export const memoizeSync = <T extends AnyFunc>(
         enumerable: false,
         configurable: false
     });
+
+    markWrapped(memoized, 'memoize');
 
     return memoized;
 }
@@ -790,12 +796,11 @@ export const memoizeSync = <T extends AnyFunc>(
  */
 export const memoize = <T extends AnyAsyncFunc>(
     fn: T,
-    opts: MemoizeOptions<T>
+    opts: MemoizeOptions<T> = {}
 ): EnhancedMemoizedFunction<T> => {
 
-    if (typeof fn !== 'function') {
-        throw new Error('fn must be a function');
-    }
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'memoize');
 
     validateOpts(opts);
 
@@ -859,6 +864,8 @@ export const memoize = <T extends AnyAsyncFunc>(
         enumerable: false,
         configurable: false
     });
+
+    markWrapped(memoized, 'memoize');
 
     return memoized;
 };

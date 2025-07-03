@@ -25,8 +25,9 @@ export default defineConfig({
         outDir: path.join(BUNDLE_PATH!, 'browser'),
         target: 'es2020',
         sourcemap: true,
-        minify: false,
+        minify: true,
         rollupOptions: {
+            treeshake: 'smallest',
             output: {
                 // Ensure global variable definition for IIFE
                 globals: {},

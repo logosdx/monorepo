@@ -2,7 +2,7 @@ import {
     Func,
     assert,
     definePrivateProps,
-    deepClone
+    clone
 } from '@logosdx/utils';
 
 import {
@@ -121,9 +121,9 @@ export class ObserverEngine<
     $internals() {
 
         return {
-            listenerMap: deepClone(this.#listenerMap),
-            rgxListenerMap: deepClone(this.#rgxListenerMap),
-            internalListener: deepClone(this.#internalListener),
+            listenerMap: clone(this.#listenerMap),
+            rgxListenerMap: clone(this.#rgxListenerMap),
+            internalListener: clone(this.#internalListener),
             name: this.name,
             spy: this.#spy
         }
@@ -766,7 +766,7 @@ export class ObserverEngine<
                 (fn) => fn.apply(this, [data, { event, listener: fn }])
             );
             if (rgxCbs) rgxCbs.forEach(
-                ({  func }) => func.apply(this, [{ data, event, listener: func }])
+                ({ func }) => func.apply(this, [{ data, event, listener: func }])
             );
 
             this.#internalListener.dispatchEvent(

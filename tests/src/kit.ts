@@ -48,7 +48,7 @@ describe('@logosdx/kit', () => {
 
     const stateReducer: Kit.ReducerFunction<AppStateType> = (val, state) => {
 
-        return Kit.deepMerge(state, val) as AppStateType;
+        return Kit.merge(state, val) as AppStateType;
     }
 
     type AppStorageType = {

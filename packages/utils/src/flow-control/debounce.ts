@@ -1,4 +1,9 @@
-import { AnyFunc } from './_helpers.ts';
+import { assert, isFunction, isPlainObject } from '../index.ts';
+import { AnyFunc, markWrapped, assertNotWrapped } from './_helpers.ts';
+
+export interface DebounceOptions {
+    delay: number;
+}
 
 /**
  * Delays the last call of a function for `delay`
@@ -6,35 +11,38 @@ import { AnyFunc } from './_helpers.ts';
  * until the delay has passed.
  *
  * @param fn function to debounce
- * @param delay delay in milliseconds
+ * @param opts options for the debounce function
  * @returns debounced function
  *
  * @example
- * const debouncedFn = debounce(fn, 1000);
+ * const debouncedFn = debounce(fn, { delay: 1000 });
  * debouncedFn(); // ignored
  * await wait(500);
  * debouncedFn(); // ignored
  * await wait(500);
  * debouncedFn(); // will call fn after 1000ms
  */
-export const debounce = <T extends AnyFunc>(fn: T, delay: number) => {
+export const debounce = <T extends AnyFunc>(fn: T, opts: DebounceOptions) => {
 
     let timeout: ReturnType<typeof setTimeout>;
 
-    if (typeof fn !== 'function') {
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'debounce');
+    assert(isPlainObject(opts), 'opts must be an object');
 
-        throw new Error('fn must be a function');
-    }
+    assert(
+        typeof opts.delay === 'number' && opts.delay > 0,
+        'opts.delay must be a positive number'
+    );
 
-    if (typeof delay !== 'number' || delay <= 0) {
-
-        throw new Error('delay must be a positive number');
-    }
-
-    return function (...args: Parameters<T>) {
+    const debouncedFunction = function(...args: Parameters<T>) {
 
         clearTimeout(timeout);
 
-        timeout = setTimeout(() => fn(...args), delay);
+        timeout = setTimeout(() => fn(...args), opts.delay);
     }
+
+    markWrapped(debouncedFunction, 'debounce');
+
+    return debouncedFunction;
 }

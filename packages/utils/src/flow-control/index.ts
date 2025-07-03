@@ -7,3 +7,4 @@ export * from './throttle.ts';
 export * from './circuit-breaker.ts';
 export * from './with-timeout.ts';
 export * from './retry.ts';
+export * from './compose-flow.ts';

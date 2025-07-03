@@ -1,10 +1,7 @@
 import {
     describe,
     it,
-    before,
-    after,
     mock,
-    Mock
 } from 'node:test'
 
 // @ts-expect-error - chai is not a module
@@ -13,6 +10,7 @@ import { expect } from 'chai';
 import { mockHelpers } from '../../_helpers';
 
 import {
+    attempt,
     rateLimit,
     RateLimitError,
     wait
@@ -99,10 +97,14 @@ describe('@logosdx/utils', () => {
             expect(firstCall).to.not.be.undefined;
 
             const error = firstCall!.arguments[0];
-            const args = firstCall!.arguments[1];
+            const nextAvailable = firstCall!.arguments[1];
+            const args = firstCall!.arguments[2];
 
             expect(error).to.be.instanceOf(RateLimitError);
             expect(error.maxCalls).to.equal(1);
+
+            expect(nextAvailable).to.be.instanceOf(Date);
+            expect(nextAvailable.getTime()).to.be.greaterThan(Date.now());
 
             expect(args).to.deep.equal([2, 'b']);
 
@@ -180,6 +182,18 @@ describe('@logosdx/utils', () => {
                     onLimitReached: 'not a function'
                 });
             }).to.throw('onLimitReached must be a function');
+        });
+
+        it('should not double wrap the function', async () => {
+
+            const fn = mock.fn(() => 'ok');
+
+            const wrappedFn = rateLimit(fn as any, { maxCalls: 1 });
+
+            const [, error] = await attempt(() => rateLimit(wrappedFn, { maxCalls: 1 }) as any);
+
+            expect(error).to.be.an.instanceof(Error);
+            expect((error as Error).message).to.equal('Function is already wrapped by rateLimit');
         });
     });
 });

@@ -60,7 +60,7 @@ const extractCssProps = (props: CssProps, names: CssPropNames[]) => {
  * @param propName CSS property name
  * @param value CSS property value
  */
-const setCss = (el: HTMLElement, propName: CssPropNames, value: string) => {
+const setCss = <T extends HTMLElement>(el: T, propName: CssPropNames, value: string) => {
 
     el.style[sanitize(propName) as any] = value;
 }
@@ -89,13 +89,13 @@ export class HtmlCss {
      * // > [{ color: 'red', fontSize: '12px' }, { color: 'blue', fontSize: '10px' }]
      *
      */
-    static get(el: HTMLElement, prop: CssPropNames): string;
-    static get(el: HTMLElement[], prop: CssPropNames): string[];
-    static get(el: HTMLElement, props: CssPropNames[]): CssProps;
-    static get(el: HTMLElement[], props: CssPropNames[]): CssProps[];
-    static get(
-        els: OneOrMany<HTMLElement>,
-        props: OneOrMany<CssPropNames>
+    static get <T extends HTMLElement, P extends CssPropNames>(el: T, prop: P): CssProps[P];
+    static get <T extends HTMLElement, P extends CssPropNames>(el: T[], prop: P): CssProps[P][];
+    static get <T extends HTMLElement, P extends CssPropNames>(el: T, props: P[]): { [K in P]: CssProps[K] };
+    static get <T extends HTMLElement, P extends CssPropNames>(el: T[], props: P[]): { [K in P]: CssProps[K] }[];
+    static get <T extends HTMLElement, P extends CssPropNames>(
+        els: OneOrMany<T>,
+        props: OneOrMany<P>
     ) {
 
         if (Array.isArray(els)) {
@@ -146,7 +146,10 @@ export class HtmlCss {
      *      paddingRight: '10px'
      * });
      */
-    static set(els: OneOrMany<HTMLElement>, props: CssProps) {
+    static set <
+        T extends OneOrMany<HTMLElement>,
+        P extends CssPropNames
+    >(els: T, props: { [K in P]?: CssProps[K] | null }) {
 
         const entries = Object.entries(props) as [CssPropNames, CssProps[CssPropNames]][];
 
@@ -183,20 +186,24 @@ export class HtmlCss {
      * html.css.remove(div, ['color', 'fontSize']);
      * html.css.remove([div, span], ['color', 'fontSize']);
      */
-    static remove(
-        els: OneOrMany<HTMLElement>,
+    static remove <T extends HTMLElement>(
+        els: OneOrMany<T>,
         propNames: OneOrMany<CssPropNames>
     ) {
 
         if (!Array.isArray(propNames)) {
 
-            this.set(els, { [propNames]: '' });
-            return;
+            propNames = [propNames];
         }
 
-        this.set(els, Object.fromEntries(
+        const props = Object.fromEntries(
             propNames.map(n => [n, ''])
-        ));
+        ) as CssProps;
+
+        this.set(
+            els,
+            props
+        );
     }
 
 }

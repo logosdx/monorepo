@@ -1,4 +1,5 @@
-import { AnyFunc } from './_helpers.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
+import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 
 /**
  * Error thrown when rate limit is exceeded.
@@ -15,6 +16,10 @@ export class RateLimitError extends Error {
     }
 }
 
+export const isRateLimitError = (error: unknown): error is RateLimitError => {
+    return error instanceof RateLimitError;
+}
+
 /**
  * Configuration options for rate limiting behavior.
  *
@@ -28,7 +33,7 @@ export type RateLimitOptions<T extends AnyFunc> = {
     /** Whether to throw an error when limit is exceeded (default: true) */
     throws?: boolean,
     /** Callback invoked when rate limit is exceeded */
-    onLimitReached?: (error: RateLimitError, args: Parameters<T>) => void
+    onLimitReached?: (error: RateLimitError, nextAvailable: Date, args: Parameters<T>) => void
 }
 
 /**
@@ -94,7 +99,6 @@ export function rateLimit<T extends AnyFunc>(
     opts: RateLimitOptions<T>
 ): (...args: Parameters<T>) => ReturnType<T> | undefined {
 
-    // === Declaration block ===
     const callTimestamps: number[] = [];
     const {
         maxCalls,
@@ -103,39 +107,19 @@ export function rateLimit<T extends AnyFunc>(
         onLimitReached
     } = opts;
 
-    // === Validation block ===
-    if (typeof fn !== 'function') {
+    assert(isFunction(fn), 'fn must be a function');
+    assertNotWrapped(fn, 'rateLimit');
+    assert(isPlainObject(opts), 'opts must be an object');
+    assertOptional(maxCalls, typeof maxCalls === 'number' && maxCalls > 0, 'maxCalls must be a positive number');
+    assertOptional(windowMs, typeof windowMs === 'number' && windowMs > 0, 'windowMs must be a positive number representing time in milliseconds');
+    assertOptional(onLimitReached, isFunction(onLimitReached), 'onLimitReached must be a function');
+    assertOptional(throws, typeof throws === 'boolean', 'throws must be a boolean');
 
-        throw new Error('fn must be a function');
-    }
+    const rateLimitedFunction = function(...args: Parameters<T>): ReturnType<T> | undefined {
 
-    if (typeof maxCalls !== 'number' || maxCalls <= 0) {
-
-        throw new Error('maxCalls must be a positive number');
-    }
-
-    if (typeof windowMs !== 'number' || windowMs <= 0) {
-
-        throw new Error('windowMs must be a positive number representing time in milliseconds');
-    }
-
-    if (onLimitReached && typeof onLimitReached !== 'function') {
-
-        throw new Error('onLimitReached must be a function');
-    }
-
-    if (typeof throws !== 'boolean') {
-
-        throw new Error('throws must be a boolean');
-    }
-
-    return function rateLimitedFunction(...args: Parameters<T>): ReturnType<T> | undefined {
-
-        // === Declaration block ===
         const now = Date.now();
         const windowStart = now - windowMs;
 
-        // === Business logic block ===
         // Remove timestamps outside current window
         while (callTimestamps.length > 0 && callTimestamps[0]! <= windowStart) {
 
@@ -150,7 +134,10 @@ export function rateLimit<T extends AnyFunc>(
                 maxCalls
             );
 
-            onLimitReached?.(rateLimitError, args);
+            const lastCall = callTimestamps[0]!;
+            const nextAvailable = new Date(lastCall + windowMs);
+
+            onLimitReached?.(rateLimitError, nextAvailable, args);
 
             if (throws) {
 
@@ -160,9 +147,12 @@ export function rateLimit<T extends AnyFunc>(
             return undefined;
         }
 
-        // === Commit block ===
         callTimestamps.push(now);
 
         return fn(...args);
     };
+
+    markWrapped(rateLimitedFunction, 'rateLimit');
+
+    return rateLimitedFunction;
 }

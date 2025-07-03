@@ -1,5 +1,5 @@
 import {
-    applyDefaults,
+    merge,
     DeepOptional,
     PathLeaves,
     assert
@@ -122,14 +122,11 @@ export class LocaleManager<
 
     private merge() {
 
-        const fallback = this._locales[this.fallback];
-        const current = this._locales[this.current];
+        const fallback = this._locales[this.fallback]
+        const current = this._locales[this.current]
 
-        this._loc = applyDefaults(
-            {} as any,
-            fallback.labels as Locale,
-            current.labels as Locale
-        );
+        this._loc = merge({} as Locale, fallback.labels) as Locale;
+        this._loc = merge(this._loc, current.labels) as Locale;
     }
 
     updateLang <C extends Code>(
@@ -137,13 +134,8 @@ export class LocaleManager<
         locale: DeepOptional<Locale>
     ) {
 
-        const labels = applyDefaults <
-            Locale | DeepOptional<Locale>
-        >(
-            {} as any,
-            this._locales[code].labels,
-            locale
-        );
+        let labels = merge({} as Locale, this._locales[code].labels) as Locale;
+        labels = merge(labels, locale) as Locale;
 
         this._locales[code] = {
             ...this._locales[code],

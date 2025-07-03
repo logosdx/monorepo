@@ -3,8 +3,7 @@ import {
     it,
     before,
     after,
-    mock,
-    Mock
+    afterEach,
 } from 'node:test'
 
 // @ts-expect-error - chai is not a module
@@ -13,10 +12,10 @@ import { expect } from 'chai';
 import * as fc from 'fast-check';
 
 import {
-    deepClone,
-    deepEqual,
-    deepMerge,
-    addHandlerFor,
+    clone,
+    equals,
+    merge,
+    addHandlerFor
 } from '../../../packages/utils/src/data-structures/index.ts';
 
 import { stubWarn } from '../_helpers.ts';
@@ -95,7 +94,7 @@ const stub = {
 
 describe('@logosdx/utils', () => {
 
-    describe('deepClone(...)', () => {
+    describe('clone(...)', () => {
 
         before(() => {
 
@@ -110,7 +109,7 @@ describe('@logosdx/utils', () => {
         it('should clone any kind of value', function () {
 
             const predicate = (a: any) => {
-                deepClone(a);
+                clone(a);
             };
 
             fc.assert(
@@ -131,26 +130,27 @@ describe('@logosdx/utils', () => {
 
         it('clones different data types', () => {
 
-            const obj = deepClone(stub.obj);
+            const obj = clone(stub.obj);
+
             expect(obj).not.to.equal(stub.obj);
             expect(obj).to.deep.equal(stub.obj);
 
-            const arr = deepClone(stub.arr);
+            const arr = clone(stub.arr);
             expect(arr).not.to.equal(stub.arr);
             expect(arr).to.deep.equal(stub.arr);
 
-            const map = deepClone(stub.map);
+            const map = clone(stub.map);
             expect(map).not.to.equal(stub.map);
             expect(map).to.deep.equal(stub.map);
 
-            const set = deepClone(stub.set);
+            const set = clone(stub.set);
             expect(set).not.to.equal(stub.set);
             expect(set).to.deep.equal(stub.set);
         });
 
         it('clones nested objects', () => {
 
-            const clonedStub = deepClone(stub);
+            const clonedStub = clone(stub);
             expect(clonedStub).not.to.equal(stub);
             expect(clonedStub.obj).not.to.equal(stub.obj);
             expect(clonedStub.arr).not.to.equal(stub.arr);
@@ -159,7 +159,7 @@ describe('@logosdx/utils', () => {
         });
     });
 
-    describe('deepEqual(...)', () => {
+    describe('equals(...)', () => {
 
         describe('Args', function () {
 
@@ -167,7 +167,7 @@ describe('@logosdx/utils', () => {
 
                 const predicate = (a: any, b: any) => {
 
-                    deepEqual(a,b)
+                    equals(a,b)
                 };
 
                 fc.assert(
@@ -187,11 +187,11 @@ describe('@logosdx/utils', () => {
                     )
                 );
 
-                deepEqual(null, null);
-                deepEqual(undefined, undefined);
-                deepEqual(true, true);
-                deepEqual(new Date(), new Date());
-                deepEqual(new RegExp('test'), new RegExp('tets'));
+                equals(null, null);
+                equals(undefined, undefined);
+                equals(true, true);
+                equals(new Date(), new Date());
+                equals(new RegExp('test'), new RegExp('tets'));
 
                 const iterables = [
                     Int8Array,
@@ -205,11 +205,11 @@ describe('@logosdx/utils', () => {
                     Float64Array
                 ];
 
-                for (const Klass of iterables) {
+                for (const ClassType of iterables) {
 
-                    deepEqual(
-                        new Klass([21, 32]),
-                        new Klass([22, 43]),
+                    equals(
+                        new ClassType([21, 32]),
+                        new ClassType([22, 43]),
                     )
                 }
 
@@ -220,7 +220,7 @@ describe('@logosdx/utils', () => {
 
                 for (const [a, b] of others) {
 
-                    deepEqual(a, b);
+                    equals(a, b);
                 }
 
             })
@@ -244,7 +244,7 @@ describe('@logosdx/utils', () => {
                     new RegExp('lol')
                 ].forEach(x => {
 
-                    const isEqual = deepEqual(state1, { x });
+                    const isEqual = equals(state1, { x });
                     expect(isEqual).to.be.false;
                 })
             });
@@ -254,14 +254,14 @@ describe('@logosdx/utils', () => {
                 const hasNull = { x: null };
                 const hasUndefined = { x: undefined };
 
-                expect(() => deepEqual(hasNull, { ...hasNull })).to.not.throw();
-                expect(() => deepEqual(hasUndefined, { ...hasUndefined })).to.not.throw();
+                expect(() => equals(hasNull, { ...hasNull })).to.not.throw();
+                expect(() => equals(hasUndefined, { ...hasUndefined })).to.not.throw();
             });
 
-            it('should not error on undeepEqualable types', () => {
+            it('should not error on unequalsable types', () => {
 
-                expect(() => deepEqual(new Function, new WeakMap)).to.not.throw();
-                expect(() => deepEqual(new WeakSet, new Promise(() => {}))).to.not.throw();
+                expect(() => equals(new Function, new WeakMap)).to.not.throw();
+                expect(() => equals(new WeakSet, new Promise(() => {}))).to.not.throw();
             });
         });
 
@@ -272,7 +272,7 @@ describe('@logosdx/utils', () => {
                 const state1 = { x: 1 };
                 const state2 = { x: 1, y: 1 };
 
-                const isEqual = deepEqual(state1, state2);
+                const isEqual = equals(state1, state2);
                 expect(isEqual).to.be.false;
             });
 
@@ -281,7 +281,7 @@ describe('@logosdx/utils', () => {
                 const state1 = { x: 1, z: 1 };
                 const state2 = { x: 1, y: 1 };
 
-                const isEqual = deepEqual(state1, state2);
+                const isEqual = equals(state1, state2);
                 expect(isEqual).to.be.false;
             });
 
@@ -290,7 +290,7 @@ describe('@logosdx/utils', () => {
                 const state1 = { x: 1, y: 1 };
                 const state2 = { x: 1, y: 2 };
 
-                const isEqual = deepEqual(state1, state2);
+                const isEqual = equals(state1, state2);
                 expect(isEqual).to.be.false;
             });
 
@@ -301,7 +301,7 @@ describe('@logosdx/utils', () => {
                 const state2 = stub.complex('pauli girl');
 
                 expect(
-                    deepEqual(state1, state2)
+                    equals(state1, state2)
                 ).to.be.false;
 
             });
@@ -313,7 +313,7 @@ describe('@logosdx/utils', () => {
                 const state1 = { x: { x: { x: { x }}}}
                 const state2 = { x: { x: { x: { x: `${x}s` }}}}
 
-                const isEqual = deepEqual(state1, state2);
+                const isEqual = equals(state1, state2);
                 expect(isEqual).to.be.false;
             });
 
@@ -324,12 +324,12 @@ describe('@logosdx/utils', () => {
 
                 state2.obj = { y: true };
 
-                const isEqual = deepEqual(state1, state2);
+                const isEqual = equals(state1, state2);
 
                 expect(isEqual).to.be.false;
             });
 
-            it('should not deepEqual mismatching arrays', () => {
+            it('should not equals mismatching arrays', () => {
 
                 const notEquals = [
                     [ [1,2,3], [2,1,3] ],
@@ -340,11 +340,11 @@ describe('@logosdx/utils', () => {
 
                 for (const [a, b] of notEquals) {
 
-                    expect(deepEqual(a, b)).to.be.false;
+                    expect(equals(a, b)).to.be.false;
                 }
             });
 
-            it('should deepEqual matching arrays', () => {
+            it('should equals matching arrays', () => {
 
                 const n = [1,2,3];
                 const b = [true, false];
@@ -358,30 +358,30 @@ describe('@logosdx/utils', () => {
                 ];
 
                 for (const [a,b] of isEquals) {
-                    expect(deepEqual(a, b)).to.be.true;
+                    expect(equals(a, b)).to.be.true;
                 }
             });
 
 
-            it('should deepEqual empty array', () => {
+            it('should equals empty array', () => {
 
-                expect(deepEqual(
+                expect(equals(
                     { t: [1] },
                     { t: [] }
                 )).to.be.false
 
 
-                expect(deepEqual(
+                expect(equals(
                     { t: [] },
                     { t: [1] }
                 )).to.be.false
 
-                expect(deepEqual(
+                expect(equals(
                     [1],
                     []
                 )).to.be.false
 
-                expect(deepEqual(
+                expect(equals(
                     [],
                     [2]
                 )).to.be.false
@@ -397,7 +397,7 @@ describe('@logosdx/utils', () => {
                 const e1 = new Map(Object.entries(stub.any()));
                 const e2 = new Map(Object.entries(stub.complex()));
 
-                expect(deepEqual(e1, e2)).to.be.false;
+                expect(equals(e1, e2)).to.be.false;
             });
 
             it('should equal matching maps', () => {
@@ -405,7 +405,7 @@ describe('@logosdx/utils', () => {
                 const e1 = new Map(Object.entries(stub.complex()));
                 const e2 = new Map(Object.entries(stub.complex()));
 
-                expect(deepEqual(e1, e2)).to.be.true;
+                expect(equals(e1, e2)).to.be.true;
             });
 
             it('should not equal mismatching sets', () => {
@@ -418,17 +418,17 @@ describe('@logosdx/utils', () => {
                 e3.add('x');
                 e3.delete(null);
 
-                expect(deepEqual(e1, e2)).to.be.false;
-                expect(deepEqual(e1, e3)).to.be.false;
-                expect(deepEqual(e2, e3)).to.be.false;
+                expect(equals(e1, e2)).to.be.false;
+                expect(equals(e1, e3)).to.be.false;
+                expect(equals(e2, e3)).to.be.false;
             });
 
-            it('should not deepEqual matching sets', () => {
+            it('should not equals matching sets', () => {
 
                 const e1 = new Set(Object.values(stub.simple()));
                 const e2 = new Set(Object.values(stub.simple()));
 
-                expect(deepEqual(e1, e2)).to.be.true;
+                expect(equals(e1, e2)).to.be.true;
             });
 
         });
@@ -442,9 +442,9 @@ describe('@logosdx/utils', () => {
                 const r2 = new RegExp(rgx, 'im');
                 const r3 = new RegExp(rgx + '$', 'im');
 
-                expect(deepEqual(r1, r2)).to.be.false;
-                expect(deepEqual(r1, r3)).to.be.false;
-                expect(deepEqual(r2, r3)).to.be.false;
+                expect(equals(r1, r2)).to.be.false;
+                expect(equals(r1, r3)).to.be.false;
+                expect(equals(r2, r3)).to.be.false;
             });
 
             it('should equal matching regex', () => {
@@ -453,7 +453,7 @@ describe('@logosdx/utils', () => {
                 const r1 = new RegExp(rgx, 'i');
                 const r2 = new RegExp(rgx, 'i');
 
-                expect(deepEqual(r1, r2)).to.be.true;
+                expect(equals(r1, r2)).to.be.true;
             });
 
             it('should not equal mismatching dates', () => {
@@ -462,7 +462,7 @@ describe('@logosdx/utils', () => {
                 const d1 = new Date(+d);
                 const d2 = new Date(+d + 1);
 
-                expect(deepEqual(d1, d2)).to.be.false;
+                expect(equals(d1, d2)).to.be.false;
             });
             it('should equal matching dates', () => {
 
@@ -470,16 +470,16 @@ describe('@logosdx/utils', () => {
                 const d1 = new Date(+d);
                 const d2 = new Date(+d);
 
-                expect(deepEqual(d1, d2)).to.be.true;
+                expect(equals(d1, d2)).to.be.true;
             });
         });
     });
 
-    describe('deepMerge(...)', () => {
+    describe('merge(...)', () => {
 
         it('should merge arrays', () => {
 
-            const val = deepMerge(stub.a.arr, stub.b.arr);
+            const val = merge(stub.a.arr, stub.b.arr);
 
 
             expect(val).to.contain.members(stub.a.arr);
@@ -488,7 +488,7 @@ describe('@logosdx/utils', () => {
 
         it('should merge objects', () => {
 
-            const val = deepMerge(stub.a.obj, stub.b.obj);
+            const val = merge(stub.a.obj, stub.b.obj);
 
             expect(val).to.contain({
                 a: true,
@@ -505,7 +505,7 @@ describe('@logosdx/utils', () => {
             objA.d = { some: 'values' };
             objB.d = { other: 'values' };
 
-            const val = deepMerge(objA, objB) as any;
+            const val = merge(objA, objB) as any;
 
             expect(val).to.include({
                 a: true,
@@ -521,7 +521,7 @@ describe('@logosdx/utils', () => {
 
         it('should merge maps', () => {
 
-            const val = deepMerge(stub.a.map, stub.b.map) as any;
+            const val = merge(stub.a.map, stub.b.map) as any;
 
             const keys = [...val.keys()];
 
@@ -543,7 +543,7 @@ describe('@logosdx/utils', () => {
                 ['b', { tats: true }],
             ]);
 
-            const val = deepMerge(mapA, mapB) as any;
+            const val = merge(mapA, mapB) as any;
 
             expect(val.get('a')).to.include({
                 test: true,
@@ -558,7 +558,7 @@ describe('@logosdx/utils', () => {
 
         it('should merge sets', () => {
 
-            const val = deepMerge(stub.a.set, stub.b.set) as any;
+            const val = merge(stub.a.set, stub.b.set) as any;
 
             const values = [...val];
 
@@ -576,8 +576,8 @@ describe('@logosdx/utils', () => {
             const mapA = new Map([['test', []]]);
             const mapB = new Map([['test', {}]]);
 
-            const obj = deepMerge(objA, objB) as any;
-            const map = deepMerge(mapA, mapB) as any;
+            const obj = merge(objA, objB) as any;
+            const map = merge(mapA, mapB) as any;
 
             expect(obj.test.constructor).to.equal(Object);
             expect(map.get('test')!.constructor).to.equal(Object);
@@ -588,14 +588,14 @@ describe('@logosdx/utils', () => {
             const objSample = { test: ['ok'] };
             const mapSample = new Map([['test', []]]);
 
-            const objUndefined = deepMerge(objSample, { test: undefined }) as any;
-            const mapUndefined = deepMerge(mapSample, new Map([['test', undefined]])) as any;
+            const objUndefined = merge(objSample, { test: undefined }) as any;
+            const mapUndefined = merge(mapSample, new Map([['test', undefined]])) as any;
 
             expect(objUndefined.test).to.equal(undefined);
             expect(mapUndefined.get('test')).to.equal(undefined);
 
-            const objNull = deepMerge(objSample, { test: null }) as any;
-            const mapNull = deepMerge(mapSample, new Map([['test', null]])) as any;
+            const objNull = merge(objSample, { test: null }) as any;
+            const mapNull = merge(mapSample, new Map([['test', null]])) as any;
 
             expect(objNull.test).to.equal(null);
             expect(mapNull.get('test')).to.equal(null);
@@ -609,19 +609,19 @@ describe('@logosdx/utils', () => {
 
             const options = { mergeArrays: false };
 
-            const arrSampleResult = deepMerge(
+            const arrSampleResult = merge(
                 arrSample,
                 [4,5,6],
                 options
             );
 
-            const objArrSampleResult = deepMerge(
+            const objArrSampleResult = merge(
                 objArrSample,
                 { test: [4,5,6] },
                 options
             ) as any;
 
-            const mapArrSampleResult = deepMerge(
+            const mapArrSampleResult = merge(
                 mapArrSample,
                 new Map([['test', [4,5,6]]]),
                 options
@@ -641,19 +641,19 @@ describe('@logosdx/utils', () => {
 
             const options = { mergeArrays: false };
 
-            const setSampleResult = deepMerge(
+            const setSampleResult = merge(
                 setSample,
                 new Set([4,5,6]),
                 options
             ) as any;
 
-            const objSetSampleResult = deepMerge(
+            const objSetSampleResult = merge(
                 objSetSample,
                 { test: new Set([4,5,6])},
                 options
             ) as any;
 
-            const mapSetSampleResult = deepMerge(
+            const mapSetSampleResult = merge(
                 mapSetSample,
                 new Map([['test', new Set([4,5,6])]]),
                 options
@@ -687,7 +687,7 @@ describe('@logosdx/utils', () => {
             expect(() => (addHandlerFor as any)({})).to.throw();
             expect(() => (addHandlerFor as any)({ constructor: Triangle })).to.throw();
             expect(() => (addHandlerFor as any)('poop', { constructor: Triangle })).to.throw(/invalid function/);
-            expect(() => (addHandlerFor as any)('deepMerge', { constructor: Triangle })).to.throw(/handler/);
+            expect(() => (addHandlerFor as any)('merge', { constructor: Triangle })).to.throw(/handler/);
         });
 
         it('should add special constructor to respective functions', () => {
@@ -716,49 +716,49 @@ describe('@logosdx/utils', () => {
                 return target;
             };
 
-            addHandlerFor('deepClone', Triangle, cloneTriangle);
-            addHandlerFor('deepEqual', Triangle, equateTriangle);
-            addHandlerFor('deepMerge', Triangle, mergeTriangle);
+            addHandlerFor('clone', Triangle, cloneTriangle);
+            addHandlerFor('equals', Triangle, equateTriangle);
+            addHandlerFor('merge', Triangle, mergeTriangle);
         });
 
-        it('should deepEqual custom constructor', () => {
+        it('should equals custom constructor', () => {
 
             expect(
-                deepEqual(
+                equals(
                     new Triangle(1,2,3),
                     new Triangle(1,2,3)
                 )
             ).to.be.true
 
             expect(
-                deepEqual(
+                equals(
                     new Triangle(1,2,3),
                     new Triangle(1,1,3)
                 )
             ).to.be.true
 
             expect(
-                deepEqual(
+                equals(
                     new Triangle(1,2,3),
                     new Triangle(1,1,4)
                 )
             ).to.be.false
         });
 
-        it('should deepClone custom constructor', () => {
+        it('should clone custom constructor', () => {
 
             const x = new Triangle(1,2,3);
-            const y = deepClone(x);
+            const y = clone(x);
 
             expect(x === y).to.be.false;
         });
 
-        it('should deepMerge custom constructor', () => {
+        it('should merge custom constructor', () => {
 
             const x = new Triangle(1,2,3);
             const y = new Triangle(1,1,1);
 
-            const z = deepMerge(x, y);
+            const z = merge(x, y);
 
             expect(x.a).to.eq(y.a);
             expect(x.b).to.eq(y.b);
@@ -778,7 +778,7 @@ describe('@logosdx/utils', () => {
             obj.circular = obj;
             obj.b.parent = obj;
 
-            const cloned = deepClone(obj);
+            const cloned = clone(obj);
 
             expect(cloned).not.to.equal(obj);
             expect(cloned.circular).to.equal(cloned);
@@ -793,7 +793,7 @@ describe('@logosdx/utils', () => {
             (arr[2] as any).nested = arr;
             arr.push(arr);
 
-            const cloned = deepClone(arr);
+            const cloned = clone(arr);
 
             expect(cloned).not.to.equal(arr);
             expect((cloned[2] as any).nested).to.equal(cloned);
@@ -809,7 +809,7 @@ describe('@logosdx/utils', () => {
             map.set('self', map);
             map.set('obj', obj);
 
-            const cloned = deepClone(map);
+            const cloned = clone(map);
 
             expect(cloned).not.to.equal(map);
             expect(cloned.get('self')).to.equal(cloned);
@@ -823,7 +823,7 @@ describe('@logosdx/utils', () => {
             set.add(set);
             set.add(obj);
 
-            const cloned = deepClone(set);
+            const cloned = clone(set);
 
             expect(cloned).not.to.equal(set);
             expect(cloned.has(cloned)).to.be.true;
@@ -843,7 +843,7 @@ describe('@logosdx/utils', () => {
             const obj2 = { a: 1 } as any;
             obj2.self = obj2;
 
-            expect(deepEqual(obj1, obj2)).to.be.true;
+            expect(equals(obj1, obj2)).to.be.true;
         });
 
         it('should not equal objects with different circular structure', () => {
@@ -854,7 +854,7 @@ describe('@logosdx/utils', () => {
             const obj2 = { a: 2 } as any;
             obj2.self = obj2;
 
-            expect(deepEqual(obj1, obj2)).to.be.false;
+            expect(equals(obj1, obj2)).to.be.false;
         });
     });
 
@@ -881,7 +881,7 @@ describe('@logosdx/utils', () => {
                 it('should clone correctly', () => {
 
                     const original = new (TypedArrayConstructor as any)(values);
-                    const cloned = deepClone(original);
+                    const cloned = clone(original);
 
                     expect(cloned).not.to.equal(original);
                     expect(cloned.constructor).to.equal(TypedArrayConstructor);
@@ -899,15 +899,15 @@ describe('@logosdx/utils', () => {
                     const arr2 = new (TypedArrayConstructor as any)(values);
                     const arr3 = new (TypedArrayConstructor as any)(values.slice(0, -1));
 
-                    expect(deepEqual(arr1, arr2)).to.be.true;
-                    expect(deepEqual(arr1, arr3)).to.be.false;
+                    expect(equals(arr1, arr2)).to.be.true;
+                    expect(equals(arr1, arr3)).to.be.false;
                 });
 
                 it('should merge correctly (replace)', () => {
 
                     const target = new (TypedArrayConstructor as any)(values);
                     const source = new (TypedArrayConstructor as any)(values.slice().reverse());
-                    const merged = deepMerge(target, source) as any;
+                    const merged = merge(target, source) as any;
 
                     expect(merged.constructor).to.equal(TypedArrayConstructor);
 
@@ -936,15 +936,15 @@ describe('@logosdx/utils', () => {
                 ])
             };
 
-            const cloned = deepClone(complex);
+            const cloned = clone(complex);
 
             expect(cloned.arrays.int8).not.to.equal(complex.arrays.int8);
             expect(cloned.arrays.int8.constructor).to.equal(Int8Array);
-            expect(deepEqual(cloned.arrays.int8, complex.arrays.int8)).to.be.true;
+            expect(equals(cloned.arrays.int8, complex.arrays.int8)).to.be.true;
 
             expect(cloned.map.get('key1')).not.to.equal(complex.map.get('key1'));
             expect(cloned.map.get('key1')!.constructor).to.equal(Uint8Array);
-            expect(deepEqual(cloned.map.get('key1'), complex.map.get('key1'))).to.be.true;
+            expect(equals(cloned.map.get('key1'), complex.map.get('key1'))).to.be.true;
         });
     });
 
@@ -957,11 +957,11 @@ describe('@logosdx/utils', () => {
             view[0] = 42;
             view[15] = 255;
 
-            const cloned = deepClone(buffer);
+            const cloned = clone(buffer);
 
             expect(cloned).not.to.equal(buffer);
             expect(cloned.byteLength).to.equal(buffer.byteLength);
-            expect(deepEqual(cloned, buffer)).to.be.true;
+            expect(equals(cloned, buffer)).to.be.true;
 
             const clonedView = new Uint8Array(cloned);
             expect(clonedView[0]).to.equal(42);
@@ -975,14 +975,14 @@ describe('@logosdx/utils', () => {
             view.setInt32(0, 42);
             view.setFloat64(8, Math.PI);
 
-            const cloned = deepClone(view);
+            const cloned = clone(view);
 
             expect(cloned).not.to.equal(view);
             expect(cloned.byteLength).to.equal(view.byteLength);
             expect(cloned.byteOffset).to.equal(view.byteOffset);
             expect(cloned.getInt32(0)).to.equal(42);
             expect(cloned.getFloat64(8)).to.equal(Math.PI);
-            expect(deepEqual(cloned, view)).to.be.true;
+            expect(equals(cloned, view)).to.be.true;
         });
 
         it('should check ArrayBuffer equality correctly', () => {
@@ -997,11 +997,11 @@ describe('@logosdx/utils', () => {
             view1[0] = 42;
             view2[0] = 42;
 
-            expect(deepEqual(buffer1, buffer2)).to.be.true;
-            expect(deepEqual(buffer1, buffer3)).to.be.false;
+            expect(equals(buffer1, buffer2)).to.be.true;
+            expect(equals(buffer1, buffer3)).to.be.false;
 
             view2[0] = 43;
-            expect(deepEqual(buffer1, buffer2)).to.be.false;
+            expect(equals(buffer1, buffer2)).to.be.false;
         });
 
         it('should check DataView equality correctly', () => {
@@ -1016,11 +1016,11 @@ describe('@logosdx/utils', () => {
             view1.setInt32(0, 42);
             view2.setInt32(0, 42);
 
-            expect(deepEqual(view1, view2)).to.be.true;
-            expect(deepEqual(view1, view3)).to.be.false; // Different offset
+            expect(equals(view1, view2)).to.be.true;
+            expect(equals(view1, view3)).to.be.false; // Different offset
 
             view2.setInt32(0, 43);
-            expect(deepEqual(view1, view2)).to.be.false;
+            expect(equals(view1, view2)).to.be.false;
         });
 
         it('should merge ArrayBuffer and DataView correctly', () => {
@@ -1031,7 +1031,7 @@ describe('@logosdx/utils', () => {
             const view2 = new Uint8Array(buffer2);
             view2[0] = 42;
 
-            const merged = deepMerge(buffer1, buffer2) as ArrayBuffer;
+            const merged = merge(buffer1, buffer2) as ArrayBuffer;
             const mergedView = new Uint8Array(merged);
 
             expect(merged).not.to.equal(buffer1);
@@ -1061,7 +1061,7 @@ describe('@logosdx/utils', () => {
                     const original = new ErrorConstructor('Test message') as any;
                     original.customProperty = 'custom value';
 
-                    const cloned = deepClone(original);
+                    const cloned = clone(original);
 
                     expect(cloned).not.to.equal(original);
                     expect(cloned.constructor).to.equal(ErrorConstructor);
@@ -1080,11 +1080,11 @@ describe('@logosdx/utils', () => {
                     error2.customProperty = 'same';
                     error3.customProperty = 'same';
 
-                    expect(deepEqual(error1, error2)).to.be.true;
-                    expect(deepEqual(error1, error3)).to.be.false;
+                    expect(equals(error1, error2)).to.be.true;
+                    expect(equals(error1, error3)).to.be.false;
 
                     error2.customProperty = 'different';
-                    expect(deepEqual(error1, error2)).to.be.false;
+                    expect(equals(error1, error2)).to.be.false;
                 });
 
                 it('should merge correctly (replace)', () => {
@@ -1093,7 +1093,7 @@ describe('@logosdx/utils', () => {
                     const source = new ErrorConstructor('Source message') as any;
                     source.customProperty = 'source value';
 
-                    const merged = deepMerge(target, source) as any;
+                    const merged = merge(target, source) as any;
 
                     expect(merged.constructor).to.equal(ErrorConstructor);
                     expect(merged.message).to.equal('Source message');
@@ -1113,7 +1113,7 @@ describe('@logosdx/utils', () => {
                 }
             };
 
-            const cloned = deepClone(error);
+            const cloned = clone(error);
 
             expect(cloned).not.to.equal(error);
             expect((cloned as any).details).not.to.equal(error.details);
@@ -1121,7 +1121,7 @@ describe('@logosdx/utils', () => {
             expect((cloned as any).details.nested.array).not.to.equal(error.details.nested.array);
             expect((cloned as any).details.nested.map).not.to.equal(error.details.nested.map);
 
-            expect(deepEqual(cloned, error)).to.be.true;
+            expect(equals(cloned, error)).to.be.true;
         });
 
         it('should handle Error objects in complex structures', () => {
@@ -1143,7 +1143,7 @@ describe('@logosdx/utils', () => {
             (complex.errors[0] as any).context = complex;
             (complex.nested.error as any).parent = complex;
 
-            const cloned = deepClone(complex);
+            const cloned = clone(complex);
 
             expect(cloned.errors[0]).not.to.equal(complex.errors[0]);
             expect((cloned.errors[0] as any).context).to.equal(cloned);
@@ -1181,7 +1181,7 @@ describe('@logosdx/utils', () => {
             (complex.errors.type as any).context = complex;
             complex.binaryData.view.setInt32(0, 42);
 
-            const cloned = deepClone(complex);
+            const cloned = clone(complex);
 
             // Test circular references
             expect((cloned as any).self).to.equal(cloned);
@@ -1189,7 +1189,7 @@ describe('@logosdx/utils', () => {
 
             // Test TypedArrays
             expect(cloned.typedArrays.int8).not.to.equal(complex.typedArrays.int8);
-            expect(deepEqual(cloned.typedArrays.int8, complex.typedArrays.int8)).to.be.true;
+            expect(equals(cloned.typedArrays.int8, complex.typedArrays.int8)).to.be.true;
 
             // Test binary data
             expect(cloned.binaryData.buffer).not.to.equal(complex.binaryData.buffer);
@@ -1206,7 +1206,7 @@ describe('@logosdx/utils', () => {
 
             expect(clonedArray).not.to.equal(originalArray);
             expect(clonedArray!.constructor).to.equal(Uint8Array);
-            expect(deepEqual(clonedArray, originalArray)).to.be.true;
+            expect(equals(clonedArray, originalArray)).to.be.true;
         });
 
         it('should handle performance with large structures', () => {
@@ -1232,7 +1232,7 @@ describe('@logosdx/utils', () => {
             (complex as any).self = complex;
 
             const start = performance.now();
-            const cloned = deepClone(complex);
+            const cloned = clone(complex);
             const end = performance.now();
 
             expect(cloned).not.to.equal(complex);
@@ -1243,6 +1243,82 @@ describe('@logosdx/utils', () => {
 
             // Performance should be reasonable (adjust threshold as needed)
             expect(end - start).to.be.lessThan(1000); // Less than 1 second
+        });
+    });
+
+    describe('Prototype Pollution Safeguards', () => {
+
+        let polluted = false;
+        afterEach(() => {
+            // Ensure a clean prototype after each test
+            if (polluted) {
+                delete (Object.prototype as any).polluted;
+                polluted = false;
+            }
+        });
+
+        it('clone should not clone properties from the prototype chain', () => {
+            const proto = { polluted: true };
+            polluted = true;
+            const obj = Object.create(proto);
+            obj.own = 'value';
+
+            const cloned = clone(obj);
+
+            expect(cloned).to.deep.equal({ own: 'value' });
+            expect(cloned).to.not.have.property('polluted');
+        });
+
+        it('clone should ignore dangerous properties from the source object', () => {
+            const payload = JSON.parse('{ "myProp": "value", "__proto__": {"polluted":true}, "constructor": {"polluted":true}, "prototype": {"polluted":true} }');
+            polluted = true;
+            const cloned = clone(payload);
+
+            expect(cloned).to.deep.equal({ myProp: 'value' });
+            expect(Object.prototype.hasOwnProperty.call(cloned, '__proto__')).to.be.false;
+            expect(Object.prototype.hasOwnProperty.call(cloned, 'constructor')).to.be.false;
+            expect(Object.prototype.hasOwnProperty.call(cloned, 'prototype')).to.be.false;
+
+            // Check that no pollution occurred
+            expect(({} as any).polluted).to.be.undefined;
+        });
+
+        it('merge should not merge dangerous __proto__ properties', () => {
+            const target = {};
+            const source = JSON.parse('{"__proto__": {"polluted": true}}');
+            polluted = true;
+            merge(target, source);
+
+            expect(target).to.deep.equal({});
+            expect(({} as any).polluted).to.be.undefined;
+        });
+
+        it('merge should not merge dangerous constructor/prototype properties', () => {
+            const target = {};
+            const source = JSON.parse('{"constructor": {"prototype": {"polluted": true}}}');
+            polluted = true;
+            merge(target, source);
+
+            expect(target).to.deep.equal({});
+            expect(({} as any).polluted).to.be.undefined;
+        });
+
+        it('merge on nested objects should not allow pollution', () => {
+            const target = { nested: {} };
+            const source = JSON.parse('{ "nested": { "__proto__": { "polluted": true } } }');
+            polluted = true;
+            merge(target, source);
+
+            expect(target.nested).to.deep.equal({});
+            expect(({} as any).polluted).to.be.undefined;
+        });
+
+        it('equals should ignore prototype chain for equality', () => {
+            const obj1 = { a: 1 };
+            const maliciousObj = JSON.parse('{"a": 1, "__proto__": {"polluted": true}}');
+            polluted = true;
+            expect(equals(obj1, maliciousObj)).to.be.true;
+            expect(({} as any).polluted).to.be.undefined;
         });
     });
 

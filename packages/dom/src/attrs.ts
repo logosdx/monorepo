@@ -4,9 +4,7 @@ import {
 } from '@logosdx/utils';
 
 type HasAttrObj<T extends string> = Record<T, boolean>;
-type GetAttrObj<T extends string> = Record<T, string>;
-
-
+type GetAttrObj<T extends string> = Record<T, string | null>;
 
 const getAttrsObj = <T extends string>(el: HTMLElement, attrs: string[]) => {
 
@@ -68,13 +66,13 @@ export class HtmlAttr {
      * html.attrs.get([select, input], ['name', 'value']);
      * // > [{ name: '', value: '' }, { name: '', value: '' }]
      */
-    static get(el: HTMLElement, attr: string): string;
-    static get(el: HTMLElement[], attr: string): string[];
-    static get <T extends string = string>(el: HTMLElement, attr: string[]): GetAttrObj<T>;
-    static get <T extends string = string>(el: HTMLElement[], attr: string[]): GetAttrObj<T>[];
-    static get <T extends string = string>(
+    static get <T extends string>(el: HTMLElement, attr: T): string;
+    static get <T extends string>(el: HTMLElement[], attr: T): string[];
+    static get <T extends string>(el: HTMLElement, attr: T[]): GetAttrObj<T>;
+    static get <T extends string>(el: HTMLElement[], attr: T[]): GetAttrObj<T>[];
+    static get <T extends string>(
         els: OneOrMany<HTMLElement>,
-        attrs: OneOrMany<string>
+        attrs: OneOrMany<T>
     ) {
 
         if (Array.isArray(els)) {

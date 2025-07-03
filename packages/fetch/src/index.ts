@@ -1,7 +1,8 @@
 export {
     FetchError,
     FetchEvent,
-    FetchEventNames
+    FetchEventNames,
+    isFetchError
 } from './helpers.ts';
 
 export {

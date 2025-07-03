@@ -1,18 +1,17 @@
 import {
+    isPrimitive,
     hasNoConstructor,
     hasSameConstructor,
 } from '../index.ts';
 
-import type {
+import {
     AnyConstructor,
-    deepMerge as DeepMergeFn,
-} from './index.ts';
+    MergeTypes,
+    isDangerousKey,
+    getSafeKeys,
+    mergeHandlers,
+} from './helpers.ts';
 
-export interface HandleMergeOf<T = unknown, U = unknown> {
-    (a: T, b: U, opts?: MergeOptions): T & U;
-}
-
-export const mergeHandlers: Map<AnyConstructor, HandleMergeOf> = new Map();
 
 export type MergeOptions = {
     mergeArrays?: boolean;
@@ -68,7 +67,7 @@ const overwriteSets = <T>(target: Set<T>, source: Set<T>) => {
     return target;
 };
 
-export const prepareMergeHandlers = (merge: typeof DeepMergeFn) => {
+export const prepareMergeHandlers = () => {
 
     mergeHandlers.set(Array, (target, source, options?: MergeOptions) => {
 
@@ -94,14 +93,20 @@ export const prepareMergeHandlers = (merge: typeof DeepMergeFn) => {
 
         const target = _target as Record<string, unknown>;
         const source = _source as Record<string, unknown>;
+        const sourceKeys = Object.keys(source);
 
-        for (const key in source) {
+        for (const key of sourceKeys) {
 
-            if (key === '__proto__') {
+            // Skip dangerous prototype pollution keys
+            if (isDangerousKey(key)) {
                 continue;
             }
 
-            if (hasNoConstructor(target[key]) || hasNoConstructor(source[key])) {
+            if (
+                target[key] === undefined ||
+                hasNoConstructor(target[key]) ||
+                hasNoConstructor(source[key])
+            ) {
 
                 target[key] = source[key];
                 continue;
@@ -152,10 +157,36 @@ export const prepareMergeHandlers = (merge: typeof DeepMergeFn) => {
 
         return target;
     });
-}
 
-// Add support for TypedArrays, ArrayBuffer, and DataView after prepareMergeHandlers
-export const addBinaryDataMergeHandlers = () => {
+    mergeHandlers.set(Error, (_target, _source, options?: MergeOptions) => {
+
+        const target = _target as Error;
+        const source = _source as Error;
+
+        // Get safe keys (excluding dangerous prototype pollution keys)
+        const sourceKeys = getSafeKeys(source);
+
+        for (const key of sourceKeys) {
+
+            if (target[key] === undefined) {
+
+                target[key] = source[key] as any;
+                continue;
+            }
+
+            if (
+                hasSameConstructor(target[key], source[key])
+            ) {
+
+                target[key] = merge(target[key], source[key], options) as any;
+                continue;
+            }
+
+            target[key] = source[key] as any;
+        }
+
+        return target;
+    });
 
     const TYPED_ARRAYS = [
         Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array,
@@ -207,10 +238,16 @@ export const addBinaryDataMergeHandlers = () => {
                 cloned.stack = sourceError.stack;
             }
 
-            // Copy any additional enumerable properties
-            for (const key in sourceError) {
+            // Copy any additional enumerable properties (protected against prototype pollution)
+            const keys = Object.keys(sourceError);
+            for (const key of keys) {
 
-                if (key !== 'name' && key !== 'message' && key !== 'stack') {
+                if (
+                    key !== 'name' &&
+                    key !== 'message' &&
+                    key !== 'stack' &&
+                    !isDangerousKey(key)
+                ) {
 
                     (cloned as any)[key] = (sourceError as any)[key];
                 }
@@ -219,4 +256,63 @@ export const addBinaryDataMergeHandlers = () => {
             return cloned;
         });
     });
+};
+
+
+let mergeHandlersInitialized = false;
+
+/**
+ * overridable defaults for the merge function
+ */
+export const mergeDefaults: MergeOptions = {
+
+    mergeArrays: true,
+    mergeSets: true
+};
+
+
+/**
+ * Deep merge Objects, Arrays, Maps and Sets
+ * @param target
+ * @param source
+ */
+export const merge = <
+    Target = any,
+    Source = any
+>(
+    target: Target,
+    source: Source,
+    options: MergeOptions = {}
+): MergeTypes<Target, Source> => {
+
+    if (!mergeHandlersInitialized) {
+        prepareMergeHandlers();
+        mergeHandlersInitialized = true;
+    }
+
+    options = {
+        ...mergeDefaults,
+        ...options
+    };
+
+    // Primatives do not have issues with hoisting
+    if (isPrimitive(source) || (source instanceof Date)) {
+        return source as MergeTypes<Target, Source>;
+    }
+
+    if (hasSameConstructor(source, target)) {
+
+        // Get the actual constructor from the prototype chain to avoid prototype pollution
+        const actualConstructor = Object.getPrototypeOf(target)?.constructor || target!.constructor;
+        const mergeType = mergeHandlers.get(actualConstructor as AnyConstructor);
+
+        // Warn about using specific types that are not supported
+        if (!mergeType) {
+            return target as MergeTypes<Target, Source>;
+        }
+
+        return mergeType(target, source, options) as MergeTypes<Target, Source>;
+    }
+
+    return source as MergeTypes<Target, Source>;
 };

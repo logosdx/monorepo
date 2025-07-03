@@ -68,7 +68,7 @@ export class HtmlBehaviors {
      *     return; // Already bound, skip
      * }
      */
-    static isBound(el: Element, feature: string): boolean {
+    static isBound<T extends Element>(el: T, feature: string): boolean {
 
         const boundEl = el as BoundElement;
         return boundEl[BINDING_SYMBOL]?.has(feature) ?? false;
@@ -82,7 +82,7 @@ export class HtmlBehaviors {
      * @example
      * html.behaviors.markBound(button, 'CopyToClipboard');
      */
-    static markBound(el: Element, feature: string): void {
+    static markBound<T extends Element>(el: T, feature: string): void {
 
         const boundEl = el as BoundElement;
         boundEl[BINDING_SYMBOL] ??= new Set();
@@ -141,7 +141,7 @@ export class HtmlBehaviors {
      *     html.behaviors.bindBehavior(el, 'Copy', el => new CopyToClipboard(el));
      * });
      */
-    static bindBehavior(el: Element, feature: string, handler: BehaviorHandler): void {
+    static bindBehavior<T extends Element>(el: T, feature: string, handler: BehaviorHandler): void {
 
         if (this.isBound(el, feature)) {
 
@@ -201,7 +201,7 @@ export class HtmlBehaviors {
      *     // cleanup modal observers, timers, etc.
      * });
      */
-    static setupLifecycle(el: Element, key: string, teardown: () => void): void {
+    static setupLifecycle<T extends Element>(el: T, key: string, teardown: () => void): void {
 
         const boundEl = el as BoundElement;
         boundEl[TEARDOWN_SYMBOL] ??= new Map();
@@ -217,7 +217,7 @@ export class HtmlBehaviors {
      * @example
      * html.behaviors.teardownFeature(modal, 'Modal');
      */
-    static teardownFeature(el: Element, key: string): void {
+    static teardownFeature<T extends Element>(el: T, key: string): void {
 
         const boundEl = el as BoundElement;
         const teardownFn = boundEl[TEARDOWN_SYMBOL]?.get(key);
@@ -245,7 +245,12 @@ export class HtmlBehaviors {
      * const liveButtons = html.behaviors.queryLive('[data-action]');
      * const liveButtonsInContainer = html.behaviors.queryLive('[data-action]', container);
      */
-    static queryLive(selector: string, root: Document | Element = document): Element[] {
+    static queryLive<T extends Element>(selector: string, root?: T): Element[] {
+
+        if (!root) {
+
+            root = document.body as unknown as T;
+        }
 
         const elements = root.querySelectorAll(selector);
 
@@ -254,7 +259,7 @@ export class HtmlBehaviors {
             return [];
         }
 
-        return (Array.from(elements) as Element[]).filter(el => {
+        return (Array.from(elements)).filter(el => {
 
             return !el.closest('[hidden],[data-template],[aria-hidden="true"]');
         });
@@ -274,7 +279,7 @@ export class HtmlBehaviors {
             HtmlEvents.emit(window, `prepare:${feature}`);
         };
 
-        return debounceMs > 0 ? debounce(dispatchEvent, debounceMs) : dispatchEvent;
+        return debounceMs > 0 ? debounce(dispatchEvent, { delay: debounceMs }) : dispatchEvent;
     }
 
     /**
@@ -410,11 +415,11 @@ export class HtmlBehaviors {
      *     debounceMs: 100
      * });
      */
-    static observePrepare(
+    static observePrepare<T extends Element>(
         feature: string,
         selector: string,
         options: {
-            root?: Element;
+            root?: T;
             debounceMs?: number;
         } = {}
     ): void {
@@ -458,7 +463,12 @@ export class HtmlBehaviors {
      * html.behaviors.stopObserving('copy', '[copy]');
      * html.behaviors.stopObserving('modal', '[data-modal]', document.getElementById('app'));
      */
-    static stopObserving(feature: string, selector: string, root: Element = document.body): void {
+    static stopObserving<T extends Element>(feature: string, selector: string, root?: T): void {
+
+        if (!root) {
+
+            root = document.body as unknown as T;
+        }
 
         const observerKey = `${root.tagName}:${feature}:${selector}`;
 
