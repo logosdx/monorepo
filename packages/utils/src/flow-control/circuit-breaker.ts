@@ -100,7 +100,7 @@ export class CircuitBreakerError extends Error {
 }
 
 export const isCircuitBreakerError = (error: unknown): error is CircuitBreakerError => {
-    return error instanceof CircuitBreakerError;
+    return error?.constructor?.name === CircuitBreakerError.name;
 }
 
 /**

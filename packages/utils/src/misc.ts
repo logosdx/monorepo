@@ -398,26 +398,41 @@ if (typeof Promise.withResolvers !== 'function') {
 }
 
 /**
- * Waits for the specified number of milliseconds.
+ * A promise that can be cleared.
  *
- * Creates a promise that resolves after the given delay.
- * Useful for adding delays in async operations and testing.
+ * A promise that can be cleared using the `clear` method.
+ */
+class TimeoutPromise extends Promise<void> {
+
+    clear!: () => void;
+}
+
+/**
+ * Waits for the specified number of milliseconds before
+ * resolving with the optional value.
+ *
+ * Can be cleared using the `clear` method.
  *
  * @param ms milliseconds to wait
- * @returns promise that resolves after the delay
+ * @param value value to resolve with
+ * @returns TimeoutPromise that resolves after the delay
  *
  * @example
  * await wait(1000); // Wait 1 second
  * console.log('One second has passed');
  *
- * @example
+ * const timeout = wait(1000);
+ * timeout.clear(); // Clears the timeout
+ *
+ * const someVal = await wait(100, 'some value');
+ * console.log(someVal); // 'some value'
+ *
  * // Add delay between operations
  * for (const item of items) {
  *     await processItem(item);
  *     await wait(100); // Throttle processing
  * }
  *
- * @example
  * // Retry with backoff
  * async function retryOperation(fn: () => Promise<any>, attempts = 3) {
  *     for (let i = 0; i < attempts; i++) {
@@ -430,7 +445,24 @@ if (typeof Promise.withResolvers !== 'function') {
  *     }
  * }
  */
-export const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export const wait = (ms: number, value: any = true) => {
+
+    let timeout: NodeJS.Timeout | number;
+
+    const promise = new TimeoutPromise(
+        resolve => {
+
+            timeout = setTimeout(
+                () => resolve(value),
+                ms
+            );
+        }
+    );
+
+    promise.clear = () => clearTimeout(timeout);
+
+    return promise;
+};
 
 /**
  * Splits an array into smaller arrays of the specified size.

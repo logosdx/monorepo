@@ -2,9 +2,6 @@ import type { ObserverEngine } from './engine.ts';
 import type { Events } from './types.ts';
 
 
-export const ALL_CALLBACKS = '*';
-export const MATCH_EVERYTHING = /.*/;
-
 export class EventTrace extends Error {
     listener!: Function | null
     data: unknown | null
@@ -48,126 +45,25 @@ export class EventError extends Error {
     }
 }
 
+export const isEventError = (err: unknown): err is EventError => {
+    return err instanceof EventError;
+}
+
+export type EventData<S, E extends Events<S> | RegExp = Events<S>> = (
+    E extends Events<S>
+    ? S[E]
+    : E extends RegExp
+        ? ObserverEngine.RgxEmitData<S>
+        : S[Events<S>]
+);
+
+
 export class EventPromise<T> extends Promise<T> {
 
     cleanup?: () => void
     reject?: (err: Error | string) => void
 }
 
-export class DeferredEvent<T> {
-
-    private _resolve!: Function;
-    private _reject!: Function;
-    private _promise: EventPromise<T>;
-
-    constructor() {
-        this._promise = new EventPromise((resolve, reject) => {
-            this._resolve = resolve;
-            this._reject = reject;
-        });
-
-        this._promise.reject = this.reject.bind(this);
-    }
-
-    resolve(data: T) {
-        this._resolve(data);
-    }
-
-    reject(err: Error | string) {
-        this._reject(err);
-    }
-
-    get promise() {
-        return this._promise;
-    }
-}
-
-export class EventGenerator<S, E extends Events<S> | RegExp | '*' = Events<S>> {
-
-    #observer: ObserverEngine<S>;
-    #event: E | RegExp | '*';
-    #defer: DeferredEvent<any>;
-    #done: boolean = false;
-    #listener: ObserverEngine.EventCallback<S> | null = null;
-
-    #assertNotDestroyed = () => {
-
-        if (this.#done === true) {
-            throw new EventError(
-                `Event generator for ${this.#event.toString()} has been destroyed`,
-                {
-                    event: this.#event as string,
-                    listener: this.#listener!,
-                    data: null
-                }
-            );
-        }
-    }
-
-    destroy!: ObserverEngine.Cleanup
-
-    next: () => Promise<
-        E extends Events<S>
-        ? S[E]
-        : E extends RegExp
-            ? ObserverEngine.RgxEmitData<S>
-            : S[Events<S>]
-    >;
-
-    constructor(
-        observer: ObserverEngine<S>,
-        event: E | RegExp | '*'
-    ) {
-
-        this.#observer = observer;
-        this.#event = event;
-
-        this.#listener = (data: unknown) => {
-
-            this.#defer.resolve(data);
-            this.#defer = new DeferredEvent();
-            this.#defer.promise.cleanup = this.destroy;
-        }
-
-        const cleanup = observer.on(
-            event as never,
-            this.#listener! as never
-        );
-
-
-        this.next = () => {
-
-            this.#assertNotDestroyed();
-
-            return this.#defer.promise
-        };
-
-        this.destroy = () => {
-
-            cleanup();
-            this.#done = true;
-        }
-
-        this.#defer = new DeferredEvent();
-        this.#defer.promise.cleanup = this.destroy;
-    }
-
-    get done() {
-        return this.#done;
-    }
-
-    emit(
-        data?: (
-            E extends Events<S>
-            ? S[E]
-            : S[Events<S>]
-        )
-    ) {
-
-        this.#assertNotDestroyed();
-        this.#observer.emit(this.#event, data);
-    }
-}
 
 export const makeEventTracer = (
     event: string,

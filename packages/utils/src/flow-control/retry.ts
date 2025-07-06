@@ -20,7 +20,7 @@ export class RetryError extends Error {
 }
 
 export const isRetryError = (error: unknown): error is RetryError => {
-    return error instanceof RetryError;
+    return error?.constructor?.name === RetryError.name;
 }
 
 export interface RetryOptions {

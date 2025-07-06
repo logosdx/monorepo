@@ -367,122 +367,122 @@ Here's a complete example showing how to configure and use FetchEngine. For deta
 ```ts
 
 type SomeHeaders = {
-	'authorization'?: string,
-	'x-api-key'?: string,
-	'hmac': string,
-	'time': number
+    'authorization'?: string,
+    'x-api-key'?: string,
+    'hmac': string,
+    'time': number
 }
 
 type SomeParams = {
-	auth_token: string,
-	scope: string
+    auth_token: string,
+    scope: string
 }
 
 type SomeState = {
-	isAuthenticated?: boolean,
-	authToken?: string
-	refreshToken?: string,
+    isAuthenticated?: boolean,
+    authToken?: string
+    refreshToken?: string,
 }
 
 const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
-	// Base configuration
-	baseUrl: testUrl,
-	defaultType: 'json',
-	headers: {
-		'content-type': 'application/json',
-		'authorization': 'abc123'
-	},
+    // Base configuration
+    baseUrl: testUrl,
+    defaultType: 'json',
+    headers: {
+        'content-type': 'application/json',
+        'authorization': 'abc123'
+    },
 
-	// Method-specific headers
-	methodHeaders: {
-		POST: {
-			'x-some-key': process.env.SOME_KEY
-		}
-	},
+    // Method-specific headers
+    methodHeaders: {
+        POST: {
+            'x-some-key': process.env.SOME_KEY
+        }
+    },
 
-	// Default parameters
-	params: {
-		auth_token: ''
-	},
+    // Default parameters
+    params: {
+        auth_token: ''
+    },
 
-	// Method-specific parameters
-	methodParams: {
-		POST: {
-			scope: ''
-		}
-	},
+    // Method-specific parameters
+    methodParams: {
+        POST: {
+            scope: ''
+        }
+    },
 
-	// Modify options for every request
-	modifyOptions(opts, state) {
-		if (state.authToken) {
-			const time = +new Date();
-			opts.headers.authorization = state.authToken;
-			opts.headers.hmac = makeHmac(time);
-			opts.headers.time = time;
-		}
-	},
+    // Modify options for every request
+    modifyOptions(opts, state) {
+        if (state.authToken) {
+            const time = +new Date();
+            opts.headers.authorization = state.authToken;
+            opts.headers.hmac = makeHmac(time);
+            opts.headers.time = time;
+        }
+    },
 
-	// Method-specific option modifiers
-	modifyMethodOptions: {
-		PATCH(opts, state) {
+    // Method-specific option modifiers
+    modifyMethodOptions: {
+        PATCH(opts, state) {
 
-			if (state.permission) {
-				opts.headers['special-patch-only-header'] = 'abc123'
-			}
-		}
-	},
+            if (state.permission) {
+                opts.headers['special-patch-only-header'] = 'abc123'
+            }
+        }
+    },
 
-	// Validation configuration
-	validate: {
-		headers(headers) {
-			Joi.assert(headersSchema, headers);
-		},
-		state(state) {
-			zodStateSchema.parse(state);
-		},
-		params(params) {
-			jsonschema.validate(params, paramsSchema);
-		},
+    // Validation configuration
+    validate: {
+        headers(headers) {
+            Joi.assert(headersSchema, headers);
+        },
+        state(state) {
+            zodStateSchema.parse(state);
+        },
+        params(params) {
+            jsonschema.validate(params, paramsSchema);
+        },
 
-		// Validate per request or only when setting
+        // Validate per request or only when setting
         // headers or params
-		perRequest: {
-			headers: true,
-			params: true
-		}
-	},
+        perRequest: {
+            headers: true,
+            params: true
+        }
+    },
 
-	// Custom response type determination
-	determineType(response) {
+    // Custom response type determination
+    determineType(response) {
 
-		if (/json/.test(response.headers.get('content-type'))) {
-			return 'text';
-		}
+        if (/json/.test(response.headers.get('content-type'))) {
+            return 'text';
+        }
 
-		return 'blob'
-	},
+        return 'blob'
+    },
 
-	// Header formatting
-	formatHeaders: 'lowercase' || 'uppercase' || 'none',
+    // Header formatting
+    formatHeaders: 'lowercase' || 'uppercase' || 'none',
 
-	// Retry configuration
-	retryConfig: {
-		maxAttempts: 3,
-		retryableStatusCodes: [500, 502, 503],
-		baseDelay: 1000,
-		maxDelay: 10000,
-		useExponentialBackoff: true,
+    // Retry configuration
+    retryConfig: {
+        maxAttempts: 3,
+        retryableStatusCodes: [500, 502, 503],
+        baseDelay: 1000,
+        maxDelay: 10000,
+        useExponentialBackoff: true,
 
         // Resolve asynchronously
-		shouldRetry: async (error, attempt) => {
-			return !error.status || error.status === 503;
-		}
-	},
+        shouldRetry: async (error, attempt) => {
+            return !error.status || error.status === 503;
+        }
+    },
 
-	// Standard RequestInit options
-	cache: 'no-cache',
-	credentials: 'include',
-	mode: 'cors',
+    // Standard RequestInit options
+    cache: 'no-cache',
+    credentials: 'include',
+    mode: 'cors',
 });
 
 // Making requests
@@ -494,7 +494,7 @@ const patched = await api.patch<User>('/users/123', { email: 'newemail@example.c
 
 // Update state based on response
 if (userData.authToken) {
-	api.setState({ authToken: userData.authToken });
+    api.setState({ authToken: userData.authToken });
 }
 ```
 
@@ -519,15 +519,15 @@ You can override FetchEngine's response type determination by providing a custom
 
 ```ts
 const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
-	// other configurations
-	determineType(response) {
+    // other configurations
+    determineType(response) {
 
-		if (/json/.test(response.headers.get('content-type'))) {
-			return 'text';
-		}
+        if (/json/.test(response.headers.get('content-type'))) {
+            return 'text';
+        }
 
-		return 'blob'
-	}
+        return 'blob'
+    }
 });
 ```
 
@@ -535,16 +535,16 @@ Use the static `FetchEngine.useDefault` symbol to fall back to internal handling
 
 ```ts
 const api = new FetchEngine<SomeHeaders, SomeParams, SomeState>({
-	// other configurations
-	determineType(response) {
+    // other configurations
+    determineType(response) {
 
-		if (shouldSpecialHandle(response.headers)) {
-			return 'arrayBuffer';
-		}
+        if (shouldSpecialHandle(response.headers)) {
+            return 'arrayBuffer';
+        }
 
-		// Let FetchEngine handle other cases
-		return FetchEngine.useDefault;
-	}
+        // Let FetchEngine handle other cases
+        return FetchEngine.useDefault;
+    }
 });
 ```
 
@@ -822,8 +822,8 @@ api.on('fetch-abort', (event) => {
 
 ```ts
 if (error.aborted) {
-	// Don't show error to user if request was intentionally cancelled
-	return;
+    // Don't show error to user if request was intentionally cancelled
+    return;
 }
 ```
 
@@ -831,17 +831,17 @@ if (error.aborted) {
 
 ```ts
 const errorMessage = error.attempt > 1
-	? `Failed after ${error.attempt} attempts`
-	: 'Request failed';
+    ? `Failed after ${error.attempt} attempts`
+    : 'Request failed';
 ```
 
 3. **Use step information for detailed logging** This helps you see where the error occurred (fetch, parse, response).
 
 ```ts
 logger.error(`${error.method} ${error.path} failed at ${error.step} step`, {
-	status: error.status,
-	attempt: error.attempt,
-	data: error.data
+    status: error.status,
+    attempt: error.attempt,
+    data: error.data
 });
 ```
 
@@ -931,21 +931,21 @@ Make a request against any HTTP method
 
 ```ts
 const someType = await api.request <SomeType>(
-	'SEARCH',
-	'/some-endpoint',
-	{
-		payload: { categories: ['a', 'b'] },
-		params: { limit: 50, page: 1 },
-		headers: { 'x-api-key': 'abc123' },
-		determineType: () => 'json',
-		formatHeaders(headers: Headers) { return snakeCase(headers) },
-		onError(err: FetchError) { ... },
-		onBeforeReq(opts: FetchEngine.RequestOpts) { ... }
-		onAfterReq(
-			clonedResponse: Response,
-			opts: FetchEngine.RequestOpts
-		) { ... },
-	}
+    'SEARCH',
+    '/some-endpoint',
+    {
+        payload: { categories: ['a', 'b'] },
+        params: { limit: 50, page: 1 },
+        headers: { 'x-api-key': 'abc123' },
+        determineType: () => 'json',
+        formatHeaders(headers: Headers) { return snakeCase(headers) },
+        onError(err: FetchError) { ... },
+        onBeforeReq(opts: FetchEngine.RequestOpts) { ... }
+        onAfterReq(
+            clonedResponse: Response,
+            opts: FetchEngine.RequestOpts
+        ) { ... },
+    }
 );
 ```
 
@@ -957,7 +957,7 @@ Makes an options request
 
 ```ts
 const someData = await api.options <ResponseType>('/some-endpoint', {
-	headers: { ... }
+    headers: { ... }
 });
 ```
 
@@ -1010,11 +1010,11 @@ Makes a post request
 
 ```ts
 const someData = await api.post <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
@@ -1026,11 +1026,11 @@ Makes a put request
 
 ```ts
 const someData = await api.put <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
@@ -1042,11 +1042,11 @@ Makes a delete request
 
 ```ts
 const someData = await api.delete <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
@@ -1058,11 +1058,11 @@ Makes a put request
 
 ```ts
 const someData = await api.patch <ResponseType, PayloadType>(
-	'/some-endpoint',
-	payload,
-	{
-		headers: { ... }
-	}
+    '/some-endpoint',
+    payload,
+    {
+        headers: { ... }
+    }
 );
 ```
 
@@ -1075,12 +1075,12 @@ const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     modifyOptions: (opts, state) => {
 
-		// Add security headers when authenticated
-		if (state.token) {
-			opts.headers.hmac = makeHmac(opts.body, state.token);
-		}
+        // Add security headers when authenticated
+        if (state.token) {
+            opts.headers.hmac = makeHmac(opts.body, state.token);
+        }
 
-		return opts;
+        return opts;
     }
 });
 
@@ -1198,9 +1198,9 @@ Merges a passed object into the `FetchEngine` instance state
 ```ts
 // Either an entire object
 api.setState({
-	refreshToken: 'abc123',
-	authToken: 'abc123',
-	isAuthenticated: true
+    refreshToken: 'abc123',
+    authToken: 'abc123',
+    isAuthenticated: true
 });
 
 // Or a single key
@@ -1242,3 +1242,157 @@ myApp.on('change-env', (env) => {
 ```
 
 
+## FAQ
+
+**Is this just a wrapper around fetch?**
+
+Yes — intentionally. FetchEngine doesn’t replace the native Fetch API; it extends it with production-ready features like retries, aborts, lifecycle hooks, and stateful header/param handling. You keep full access to RequestInit, Response, and the browser-native behavior.
+
+---
+
+**How is this different from Axios?**
+
+- No magic: Axios rewrites request/response behavior, auto-transforms payloads, and polyfills old browsers. FetchEngine respects web standards.
+- Smaller: ~5.5KB vs Axios' 18KB.
+- Better retry + abort: Built-in exponential backoff, retry-after support, and cancellation by default.
+- Typed: Uses generics for full request/response typing — Axios types are bolted on.
+
+---
+
+**Does it work in Node.js?**
+
+Yes, if you're using:
+
+- Node 18+: native fetch is available
+- < Node 18: you must polyfill with undici or node-fetch.
+
+Caveats:
+
+- Cookies and credentials: `'include'` behave differently in Node — don't assume browser behavior.
+- `AbortController` and streaming work in modern Node, but not in all polyfills.
+
+---
+
+**How do I cancel a request?**
+
+There are two ways:
+
+1. Use the abortable return:
+
+    ```ts
+    const call = api.get('/something');
+    call.abort(); // Cancels immediately
+    ```
+
+2. Pass your own AbortController:
+
+    ```ts
+    const controller = new AbortController();
+    api.get('/thing', { abortController: controller });
+    controller.abort();
+    ```
+
+Both integrate with fetch-abort events and retry suppression.
+
+---
+
+**How do I mock or test this?**
+
+Inject a mock fetch globally or per-instance:
+
+```ts
+global.fetch = vi.fn(() => Promise.resolve(new Response(...)));
+```
+
+To test retry logic:
+
+- Simulate a 500/429 and assert event listeners
+- Use attempt() and inspect error.attempt, error.step
+
+---
+
+**How do I add headers dynamically?**
+
+Use modifyOptions or setState:
+
+```ts
+const api = new FetchEngine({
+  modifyOptions: (opts, state) => {
+
+    if (state.token) {
+        opts.headers.authorization = `Bearer ${state.token}`;
+    }
+
+    // or even better
+    if (opts.body instanceof FormData) {
+        opts.headers['content-type'] = 'multipart/form-data';
+    }
+
+    return opts;
+  }
+});
+```
+
+Then update with:
+
+```ts
+api.setState({ token: 'abc123' });
+```
+
+All future requests include the header.
+
+---
+
+**How does response type detection work?**
+
+By default, FetchEngine inspects the Content-Type header:
+
+- application/json → .json()
+- text/html → .text()
+- image/png, font/woff2 → .blob()
+
+You can override this with determineType():
+
+```ts
+determineType: (res) => {
+  if (shouldStream(res)) return 'arrayBuffer';
+  return FetchEngine.useDefault;
+}
+```
+
+
+---
+
+**Can I cache requests?**
+
+There's no built-in cache layer — but it's easy to add with `@logosdx/utils`:
+
+```ts
+import { memoize } from '@logosdx/utils';
+
+const api = new FetchEngine({ /* ... */ });
+
+const cachedGet = memoize(api.get.bind(api), { /* ... */ });
+
+// or override the cache function:
+
+api.fetch = memoize(api.get.bind(api), { /* ... */ });
+```
+
+
+---
+
+**Does it support multipart/form-data or file uploads?**
+
+Yes — just pass a FormData object as the payload:
+
+```ts
+const form = new FormData();
+form.append('file', fileInput.files[0]);
+
+await api.post('/upload', form, {
+  headers: { 'content-type': 'multipart/form-data' }
+});
+```
+
+It will detect the type unless you override determineType.

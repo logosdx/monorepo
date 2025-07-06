@@ -1,5 +1,80 @@
+import { wait } from '../misc.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
 import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+
+/**
+ * Token bucket implementation of rate limiting
+ */
+export class RateLimitTokenBucket {
+    #tokens: number;
+    #lastRefill: number;
+
+    constructor(
+        private capacity: number,
+        private refillIntervalMs: number // rateLimitWindow
+    ) {
+
+        this.#tokens = capacity;
+        this.#lastRefill = Date.now();
+    }
+
+    #refill() {
+
+        const now = Date.now();
+        const elapsed = now - this.#lastRefill;
+        const refillRate = this.capacity / this.refillIntervalMs;
+
+        this.#tokens = Math.min(
+            this.capacity,
+            this.#tokens + refillRate * elapsed
+        );
+
+        this.#lastRefill = now;
+    }
+
+    consume(): boolean {
+
+        this.#refill();
+
+        if (this.#tokens >= 1) {
+
+            this.#tokens -= 1;
+            return true;
+        }
+
+        return false;
+    }
+
+    get waitTimeMs() {
+        this.#refill();
+        return Math.ceil(this.refillIntervalMs / this.capacity);
+    }
+
+    /**
+     * Waits for the next token to be available before
+     * allowing the caller to proceed.
+     *
+     * @param onRateLimit - Callback to invoke when the rate limit is exceeded
+     *
+     * @example
+     * const rateLimit = new RateLimitTokenBucket(10, 1000);
+     *
+     * await rateLimit.waitForToken(() => {
+     *     console.log('Rate limit exceeded');
+     * });
+     * console.log('Token acquired');
+     */
+    async waitForToken(onRateLimit?: (error: RateLimitError) => void) {
+
+        if (this.consume()) return;
+
+        while (!this.consume()) {
+
+            onRateLimit?.(new RateLimitError('Rate limit exceeded', this.capacity));
+            await wait(this.waitTimeMs);
+        }
+    }
+}
 
 /**
  * Error thrown when rate limit is exceeded.
@@ -17,7 +92,7 @@ export class RateLimitError extends Error {
 }
 
 export const isRateLimitError = (error: unknown): error is RateLimitError => {
-    return error instanceof RateLimitError;
+    return error?.constructor?.name === RateLimitError.name;
 }
 
 /**

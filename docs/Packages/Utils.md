@@ -3,13 +3,17 @@ permalink: '/packages/utils'
 aliases: ["@logosdx/utils", "Utils", "utilities"]
 ---
 
-# @logosdx/utils
+> Let there be structure. This is your runtime survival kit for real-world JavaScript.
 
-**Production-tested utilities for building resilient JavaScript applications.**
+A precision toolkit for apps that hit production and start bleeding:
 
-`@logosdx/utils` provides a comprehensive set of utilities that handle common edge cases in production environments: network failures, race conditions, data mutations, and complex error scenarios. Built on patterns proven across thousands of deployments.
+* Transient API failures?
+* Deep state trees that mutate unexpectedly?
+* Flaky async logic no one wants to debug?
 
-Works everywhere: browsers, React Native, Node.js, Cloudflare Workers.
+`@logosdx/utils` is a hardened set of utilities designed to replace the broken standard library. Built for infrastructure engineers, backend workers, frontend state logic, and everything in between.
+
+Works in: Node, browsers, Cloudflare Workers, React Native.
 
 > 📚 **Complete API Documentation**: [typedoc.logosdx.dev](https://typedoc.logosdx.dev/modules/_logosdx_utils.html)
 
@@ -25,198 +29,147 @@ pnpm add @logosdx/utils
 yarn add @logosdx/utils
 ```
 
+## Why This Exists
+
+JavaScript has no built-in retry, no proper deep equality, no safe clone, and no consistent runtime type safety. Other libraries give you pieces — Lodash, Ramda, p-retry — but nothing that actually **holds up across domains**.
+
+This package solves that:
+
+* Resilience primitives: `retry`, `attempt`, `rateLimit`, `circuitBreaker`, `batch`, `withTimeout`, `memoize`
+* State-safe tools: `clone`, `equals`, `merge`
+* Runtime guards: `assert`, `assertObject`, `isDefined`, `isPlainObject`
+* Composable wrappers: `composeFlow`
+* Escape hatches: `addHandlerFor`, `mergeDefaults`
+
+Every function here is designed to be:
+
+* **Composable** (wrappable and layerable)
+* **Safe** (edge-case aware)
+* **Predictable** (no side effects, clear contracts)
+
 ## Quick Start
 
 ```ts
-import { attempt, retry, clone, equals } from '@logosdx/utils';
+import { attempt, retry, clone, equals, assert, isPlainObject } from '@logosdx/utils';
 
-// Clean error handling with [result, error] tuples
-const [user, err] = await attempt(() => fetchUser(id));
-if (err) return handleError(err);
+const fetchUser = async () => {
 
-// Retry with backoff
-const [data, retryErr] = await retry(() => callFlakeyAPI(), {
-    attempts: 3,
-    delay: 1000
-});
+    // Load data from flaky API
+    const [user, err] = await attempt(() =>
+      retry(() => fetch('/api/user/123').then(res => res.json()), {
+        retries: 3,
+        delay: 100,
+        shouldRetry: (e) => !e.message.includes('Unauthorized'),
+      })
+    );
 
-// Deep equality comparison
-if (equals(user, { id: 1, name: 'John' })) {
+    if (err) throw err;
 
-    console.log('Hello John!');
+    return user;
 }
 
-// Clone with Map/Set support
-const config = clone(defaultConfig);
+const updateUserName = async (user: User, name: string) => {
+
+    // Validate the input
+    assert(isPlainObject(user), 'User must be an object');
+    assert(user.id, 'User must have an id');
+    assert(user.name, 'User must have a name');
+    assert(typeof name === 'string', 'Name must be a string');
+
+    // Clone for local editing
+    const draft = clone(user);
+    draft.name = name;
+
+    // Compare before saving
+    if (!equals(user, draft)) {
+        await fetch('/api/user/123', { method: 'PUT', body: JSON.stringify(draft) });
+    }
+}
 ```
 
-## API Overview
+## Common Use Cases
 
-The utilities are organized by category to help you find what you need:
+### Composing Resilience
 
-### Control Flow
+The real power is composability. Use `composeFlow` to apply retry, rate limit, timeout, and circuit breaker behavior in one layer.
 
-You're building a backend worker, or calling APIs from a frontend, or dealing with flaky third-party services. You want to survive timeouts, retries, and slow failures without rewriting the same try/catch wrappers. These utilities help you compose async logic that won't fall over in production.
+```ts
+const getUser = composeFlow(() => fetch('/api/user'), {
+    retry: { retries: 3, delay: 100 },
+    rateLimit: { maxCalls: 10, windowMs: 1000 },
+    circuitBreaker: { maxFailures: 2, resetAfter: 5000 },
+    withTimeout: { timeout: 500 },
+});
 
-| Function | Description | When to Use |
-|----------|-------------|-------------|
-| `attempt` | Go-style error handling that returns `[result, error]` tuples | Replace try-catch blocks for cleaner, composable error handling |
-| `attemptSync` | Synchronous version of attempt for sync operations | Handle errors in sync functions without try-catch |
-| `batch` | Process arrays of items with controlled concurrency | Process large datasets efficiently without overwhelming resources |
-| `circuitBreaker` | Prevents calling failing functions and tests recovery | Protect against cascading failures from unreliable services |
-| `circuitBreakerSync` | Synchronous version of circuit breaker | Protect sync operations from cascading failures |
-| `composeFlow` | Combines multiple flow control utilities into one function | Build resilient operations with timeouts, retries, and circuit breaking |
-| `debounce` | Delays function execution until after calls have stopped | Search inputs, resize handlers, API calls triggered by user input |
-| `memoize` | Caches async function results based on input arguments | Expensive async calculations, API calls with predictable inputs |
-| `memoizeSync` | Caches sync function results based on input arguments | Expensive sync calculations, data transformations |
-| `makeRetryable` | Creates a retryable version of a function | When you need a reusable retryable function |
-| `rateLimit` | Limits function calls to a maximum rate | Respect API rate limits, prevent spam, control resource usage |
-| `retry` | Automatically retries failed operations with backoff | Network requests, database operations, flaky third-party APIs |
-| `throttle` | Limits function execution to a maximum frequency | Scroll handlers, animation frames, frequent user interactions |
-| `withTimeout` | Adds timeout protection to async operations | Prevent hanging requests, ensure responsive UIs |
+const [user, err] = await attempt(() => getUser());
+```
 
-### Data Structures
+This is how you build **fault-tolerant systems** that degrade gracefully.
 
-JavaScript's cloneDeep and Object.assign break on Maps, Sets, Dates, and circular refs. These utilities give you true deep equality and immutable state updates for real-world structures.
+### Customizing Behavior
 
-| Function | Description | When to Use |
-|----------|-------------|-------------|
-| `clone` | Creates deep copies of any JavaScript value including Maps, Sets, WeakRefs | State management, preventing mutations, backup copies |
-| `equals` | Deep equality comparison for any JavaScript values including circular refs | Comparing complex state, testing, change detection |
-| `merge` | Recursively merges objects, arrays, Maps, and Sets | Configuration merging, state updates, API response combining |
-| `addHandlerFor` | Register custom clone/merge/equality handlers for specific constructors | Extend deep operations to work with custom classes |
-| `mergeDefaults` | Default configuration object for merge operations | Customize merge behavior globally |
+For custom data structures, you can register your own clone/equality/merge logic:
 
-Additional type utilities from data structures:
+```ts
+class MyId {
+  constructor(readonly value: string) {}
+}
 
-| Type | Description |
-|------|-------------|
-| `AnyConstructor` | Type for any constructor function |
-| `InferCloneType<T>` | Infer exact cloned type structure |
-| `MergeTypes<Target, Source>` | Smart merge type that properly handles nested object merging |
-| `IsCloneable<T>` | Check if type is cloneable |
-| `CloneableProperties<T>` | Extract cloneable properties from an object type |
-| `DeepPropertyPath<T>` | Type-safe property access for deeply nested objects |
-| `DeepPropertyType<T, Path>` | Get the type of a deeply nested property |
+addHandlerFor('clone', MyId, (x) => new MyId(x.value));
+addHandlerFor('equals', MyId, (a, b) => a.value === b.value);
+addHandlerFor('merge', MyId, (a, b) => b);
+```
 
-### Validation Utils
+You can also set global defaults:
 
-You don't always need a full schema validator. You need to know: "Is this object what I expect?" These guards and assertions give you runtime checks without Zod/ajv overhead. Perfect for usage inside functions.
+```ts
+import { mergeDefaults } from '@logosdx/utils';
+mergeDefaults.mergeArrays = false;
+mergeDefaults.mergeSets = false;
+```
 
-| Function | Description |
-|----------|-------------|
-| `assert` | Asserts that a value is truthy, throws AssertError if false |
-| `assertObject` | Validates object properties against assertion functions |
-| `assertOptional` | Only asserts if value is not undefined |
-| `isOptional` | Returns true if value is undefined or passes custom validation |
-| `isObject` | Checks if value is an object (uses instanceof Object) |
-| `isFunction` | Checks if value is a function (uses instanceof Function) |
-| `isPrimitive` | Checks if value is a primitive type (null, undefined, string, number, boolean, symbol, bigint, function) |
-| `isNull` | Checks if value is null |
-| `isUndefined` | Checks if value is undefined |
-| `isDefined` | Checks if value is not undefined |
-| `hasNoConstructor` | Checks if value is null or undefined (lacks constructor) |
-| `hasSameConstructor` | Checks if both values have the same constructor |
-| `isSameLength` | Checks if both collections have the same length/size |
-| `isNonIterable` | Checks if value cannot be iterated over |
-| `isPlainObject` | Checks if value is an object but not a common built-in type |
-| `isDangerousKey` | Checks if a property key is dangerous for prototype pollution |
-| `allKeysValid` | Validates all keys in an object pass a test function |
-| `allItemsValid` | Validates all items in an iterable pass a test function |
+### Flaky APIs, Retry Logic, Resilience
 
-### Environment Detection
+| Use case                        | Solution                                              |
+| ------------------------------- | ----------------------------------------------------- |
+| Replace nested try/catch        | `attempt(fn)` / `attemptSync(fn)`                     |
+| Debounce function calls         | `debounce(fn, opts)`                                  |
+| Throttle function calls         | `throttle(fn, opts)`                                  |
+| Retry transient failures        | `retry(fn, opts)`                                     |
+| Wrap functions with retry logic | `makeRetryable(fn, opts)`                             |
+| Prevent overload                | `rateLimit(fn, opts)`                                 |
+| Circuit breaker fallback        | `circuitBreaker(fn, opts)` / `circuitBreakerSync(fn)` |
+| Enforce timeouts                | `withTimeout(fn, opts)`                               |
+| Run batched async work          | `batch(fn, opts)`                                     |
+| Cache stable outputs            | `memoize(fn, opts)` / `memoizeSync(fn)`               |
+| Wrap all of the above           | `composeFlow(fn, opts)`                               |
 
-You're building a frontend app, a backend worker, or a library that shares code between the two. You need to detect the current runtime environment.
+### Deep State, Immutable Ops
 
-| Function | Description |
-|----------|-------------|
-| `isBrowser` | Checks if running in a browser environment |
-| `isReactNative` | Checks if running in React Native environment |
-| `isCloudflare` | Checks if running in Cloudflare Workers environment |
-| `isBrowserLike` | Checks if running in any browser-like environment |
-| `isNode` | Checks if running in Node.js environment |
+| Use case                             | Solution                           |
+| ------------------------------------ | ---------------------------------- |
+| Clone complex values (Map, Set, etc) | `clone(value)`                     |
+| Compare deeply with circular refs    | `equals(a, b)`                     |
+| Merge config/state safely            | `merge(a, b)`                      |
+| Customize merge/clone                | `addHandlerFor(fn, ctor, handler)` |
 
-### Types
+### Runtime Type Guards
 
-TypeScript type utilities for better type safety.
+| Use case                      | Solution                                                  |
+| ----------------------------- | --------------------------------------------------------- |
+| Validate function arguments   | `assert`, `assertObject`, `assertOptional`                |
+| Check type at runtime         | `isDefined`, `isPlainObject`, `isFunction`, `isPrimitive` |
+| Validate data structure shape | `allKeysValid`, `allItemsValid`, `hasSameConstructor`     |
+| Traverse safely               | `reach(obj, path)`, `PathValue<T, P>`, `PathNames<T>`     |
 
-| Type | Description |
-|------|-------------|
-| `Func<A, R>` | Generic function type for type-safe function signatures |
-| `AsyncFunc<A, R>` | Generic async function type for Promise-returning functions |
-| `ClassType` | Generic constructor type for class-based operations |
-| `NonFunctionProps<T>` | Extracts only non-function properties from an object type |
-| `FunctionProps<T>` | Extracts only function properties from an object type |
-| `DeepOptional<T>` | Makes all properties in T optional recursively |
-| `DeepPartial<T>` | Makes all properties in T optional recursively (from data-structures) |
-| `DeepRequired<T>` | Makes all properties in T required recursively (from data-structures) |
-| `DeepReadonly<T>` | Makes all properties in T readonly recursively (from data-structures) |
-| `NullableObject<T>` | Makes all properties in T nullable |
-| `PathNames<T>` | Generates all possible dot-notation paths for an object type. Supports nested objects, arrays, maps, and sets. |
-| `PathLeaves<T>` | Generates only the leaf paths (final values) for an object type |
-| `PathValue<T, P>` | Extracts the value type at a specific string path. Supports nested objects, arrays, maps, and sets. |
-| `StrOrNum` | Union of string and number types |
-| `OneOrMany<T>` | Represents either a single item or array of items |
-| `StringProps` | Object with string keys and string values |
-| `BoolProps` | Object with string keys and boolean values |
-| `MaybePromise<T>` | Value that can be either synchronous or asynchronous |
-| `NotUndefined<T>` | Filters out undefined from a union type |
-| `Falsy` | Union of all JavaScript falsy values |
-| `Truthy<T>` | Filters out falsy values from a type |
+### Meta Utilities
 
-### Object Manipulation
-
-You're building a library or a framework that needs to manipulate objects and their properties. These utilities help you do meta-programming on classes and objects. Define properties that shouldn't be enumerable, or hidden, or only have getters, or setters, or whatever.
-
-| Function | Description |
-|----------|-------------|
-| `definePublicProps` | Defines visible, non-configurable properties on an object |
-| `definePrivateProps` | Defines hidden, non-configurable properties on an object |
-| `definePrivateGetters` | Defines hidden, non-configurable getters on an object |
-| `reach` | Safely navigates nested object properties using dot notation |
-
-### Array and Collection Utils
-
-You're doing a lot of array operations, or you're building a library that needs to manipulate arrays.
-
-| Function | Description |
-|----------|-------------|
-| `itemsToArray` | Wraps single items in an array, leaves arrays unchanged |
-| `oneOrMany` | Returns single item if array has one element, otherwise the array |
-| `chunk` | Splits an array into smaller arrays of specified size |
-
-### Other Utilities
-
-You're need some stuff for dealing with async operations.
-
-| Function | Description |
-|----------|-------------|
-| `wait` | Promise-based delay function (waits specified milliseconds) |
-| `Deferred` | Class for creating externally controllable promises. This is a temporary polyfill for `Promise.withResolvers()`. |
-| `noop` | No-operation function that accepts any arguments |
-| `getSafeKeys` | Returns an array of keys from an object, excluding dangerous keys |
-| `getSafeEntries` | Returns an array of [key, value] pairs from an object, excluding dangerous keys |
-
-> ⚠️ `Deferred` is a temporary placeholder for `Promise.withResolvers()`, which is only available in Node.js 22, and any browser after early 2024. It will be deprecated once Node 20 is deprecated. It currently polyfills the method for environments that don't support it, so you _will_ have access to it. You can use the class if you prefer.
-
-## Patterns
-
-| Problem | Solution |
-|----------|-------------|
-| Replace nested try/catch | `attempt(fn)` |
-| Retry transient failures | `retry(fn, opts) + attempt` |
-| Enforce rate limits | `rateLimit(fn, opts)` |
-| Circuit breaker for flaky APIs | `circuitBreaker(fn, opts)` |
-| Compare complex state trees | `equals(a, b)` |
-| Clone immutable app state | `clone(state)` |
-| Merge config or updates | `merge(a, b)` |
-| Memoize expensive lookups | `memoize(fn, opts)` |
-| Debounce input handlers | `debounce(fn, delay)` |
-| Throttle scroll handlers | `throttle(fn, interval)` |
-| Detect Node vs Browser | `isNode(), isBrowser()` |
-| Validate API response shape | `assertObject, isObject, isDefined` |
-| Guard against proto pollution | `getSafeKeys, isDangerousKey` |
-| Control async flow (timeouts, batching) | `composeFlow, batch, withTimeout` |
+| Use case                 | Solution                                          |
+| ------------------------ | ------------------------------------------------- |
+| Delay execution          | `wait(ms)`                                        |
+| Define hidden properties | `definePrivateProps()` / `definePrivateGetters()` |
+| Ensure noop fallback     | `noop()`                                          |
+| Environment detection    | `isBrowser()`, `isReactNative()`, `isCloudflare()`, `isNode()` |
 
 
 ## Usage
@@ -308,8 +261,8 @@ const [value, err] = await attempt(() =>
 **When to use:**
 Any operation that may fail transiently (network, database, etc). Use `shouldRetry` to avoid retrying on permanent errors.
 
-> ⚠️ You probably want to define `shouldRetry` to prevent retrying on unrecoverable errors (e.g. 401s, 403s, 404s, etc).
-> ⚠️ Long backoff + many retries = long stall with no user feedback.
+> ⚠️ Always define shouldRetry. Blindly retrying on 401s or 404s is wasteful and delays the user.
+> ⚠️ Long backoff with many retries means long waits. If the user gets no feedback during this, that's your design flaw.
 
 ### `makeRetryable(fn, options)`
 
@@ -447,7 +400,7 @@ throw err; // Re-throw unexpected errors
 
 Microservice communication, external dependencies, preventing cascade failures. Use the async version for async operations, the sync version for sync operations.
 
-> ⚠️ You probably want to trigger the circuit breaker only on certain errors, such as 4xx errors. You can use the `shouldTripOnError` option to do this.
+> ⚠️ Always define `shouldTripOnError` since not all errors are due to the service being down.
 
 ### `composeFlow(func, options)`
 
@@ -501,7 +454,7 @@ const users = await getAllUsers();
 
 When you need to apply more than one flow control function to a function.
 
-> ⚠️ The order of the flow control functions matters. They are applied in the order they are passed into the options object.
+> ⚠️ The order of the flow control functions matters. `retry` before `timeout` behaves differently than the reverse. This is intentional.
 
 ### `batch(fn, options)`
 
@@ -592,9 +545,9 @@ expensiveCalc.cache.entries();
 Expensive computations, API response caching, reducing redundant database queries.
 
 > ⚠️ Be aware that `memoizeSync` will cache Promises if you give it an async function, not resolved values.
-> ⚠️ The internal `generateKey` function might be verbose. You might have a more efficient one when you know the shape of the arguments.
-> ⚠️ Internal `generateKey` will also sort keys of objects, maps, and sets. This allows for better caching of objects that have the exact same keys, but in a different order. EG: `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` will be considered the same.
-> ⚠️ Does not persist across server instances.
+> ⚠️ If you know your argument shape, use a custom `generateKey`. It's faster and less error-prone than deep serialization.
+> ⚠️ The default key generator canonicalizes key order — so `{ a: 1, b: 2 }` is the same as `{ b: 2, a: 1 }`.
+> ⚠️ All caching is in-memory. No persistence across server instances.
 
 ### `clone(value)`
 
@@ -618,9 +571,9 @@ cloned.users.get('john').age = 31; // Doesn't affect original
 **When to use:**
 State management, creating test fixtures, anywhere you need true immutability.
 
-> ⚠️ `clone` will not clone custom class instances. You need to register a handler for them via `addHandlerFor` if you need a new instance of your class.
-> ⚠️ `clone` will not clone functions.
-> ⚠️ Performance degrades with large graphs. Complexity of O(n). You should be OK in 90% of cases.
+> ⚠️ Custom class instances aren't cloned by default. Register a handler for them via `addHandlerFor` if you need a new instance of your class.
+> ⚠️ Functions aren't cloned. They're not serializable.
+> ⚠️ This walks your entire value graph. It's O(n), like every real deep clone.
 
 ### `equals(a, b)`
 
@@ -645,7 +598,7 @@ equals(circular, circular2); // true
 **When to use:**
 Testing, memoization keys, change detection in state management.
 
-> ⚠️ Performance degrades with large graphs. Complexity of O(n). You should be OK in 90% of cases.
+> ⚠️ This walks your entire value graph. It's O(n), like every real deep equals.
 
 ### `merge(target, source, options)`
 
@@ -684,7 +637,7 @@ console.log(merged); // { a: 1, b: 4, c: 3, d: Map { 'a' => 9, 'b' => 8 }, e: Se
 When you need to merge two objects, arrays, maps, or sets.
 
 > ⚠️ If you set `mergeArrays` or `mergeSets` to `false`, the target will be overwritten with the source.
-> ⚠️ You can set `mergeDefaults` to a default configuration object for merge operations.
+> ⚠️ Override `mergeDefaults` to your own default configuration for consistency.
 >
 > ```ts
 > import { mergeDefaults } from '@logosdx/utils';
@@ -693,8 +646,8 @@ When you need to merge two objects, arrays, maps, or sets.
 > mergeDefaults.mergeSets = false;
 > ```
 >
-> ⚠️ If you need a special way to merge custom classes, you can register a handler for them via `addHandlerFor`.
-> ⚠️ Performance degrades with large graphs. Complexity of O(n). You should be OK in 90% of cases.
+> ⚠️ If you need a special way to merge custom classes, register a handler for them via `addHandlerFor`.
+> ⚠️ This walks your entire value graph. It's O(n), like every real deep merge.
 
 ### `addHandlerFor(fn, constructor, handler)`
 
@@ -801,6 +754,32 @@ wait(1000).then(() => deferred.resolve(1));
 ```
 
 
+
+## Error Taxonomy
+
+All control flow utilities return **typed errors** so you can react programmatically:
+
+* `AssertError` — thrown when an assertion fails
+* `CircuitBreakerError` — thrown when breaker is open
+* `RateLimitError` — thrown when rate limit is exceeded
+* `RetryError` — thrown when all retry attempts fail
+* `ThrottleError` — thrown when a throttle operation fails
+* `TimeoutError` — thrown when a timeout occurs
+
+You should **check error type explicitly**:
+
+```ts
+// These helpers are all exported by the package. They are type-safe and type-assert against the error class.
+if (isAssertError(err)) handleAssertFailure();
+if (isRetryError(err)) handleRetryFailure();
+if (isCircuitBreakerError(err)) handleCircuitBreakerFailure();
+if (isRateLimitError(err)) handleRateLimitFailure();
+if (isThrottleError(err)) handleThrottleFailure();
+if (isTimeoutError(err)) handleTimeoutFailure();
+```
+
+Don't blanket-catch unless you're logging and rethrowing.
+
 ## Compatibility
 
 ✅ Node 14+
@@ -811,14 +790,20 @@ wait(1000).then(() => deferred.resolve(1));
 
 ## FAQ
 
-**Q: How does this differ from p-retry, p-limit, etc?**
-A: We provide a cohesive API designed to work together. Our utilities share consistent options, error types, and composition patterns. Plus we handle ES6+ data structures that older libraries ignore.
+**Q: How big is this thing?**
+A: Tree-shakeable. Fully minified + gzipped, it's ~7kb. Use only what you import. But if you need utility, you shouldn't be too worried about bundle size.
+
+**Q: How is this different from p-retry, p-limit, or p-whatever?**
+A: Those are single-purpose tools. @logosdx/utils is a composable system. Our primitives — retry, timeout, memoize, circuit breaker, etc. — share a similar options shape, a similar error taxonomy, and were designed to be layered. Plus: we support Maps, Sets, circular refs, and modern JS out of the box.
 
 **Q: Is this production-ready?**
-A: Yes. These patterns come from real production systems handling hundreds of thousands of requests. The error handling approach has remedied countless 3am debugging sessions, the async utilities have prevented microservices outages, and guarded against cascading failures. It's battle-tested.
+A: These patterns are extracted from real systems running at scale. They've prevented outages, eliminated race conditions, and debugged 3am alerts so you don't have to. If it's in here, it's been battle-tested in live environments — not just unit tests.
 
-**Q: What about bundle size?**
-A: Everything is tree-shakeable. Import only what you need. Fully minified and gzipped, it's ~7kb.
+**Q: Why not just use Lodash or Ramda?**
+A: Because they don't handle retries, timeouts, memoization, deep clone, and modern JavaScript types like Map/Set/WeakMap. Lodash is great for array transforms. Ramda is FP academic hell that wasn't built for async javascript. This is not a Lodash replacement — it's the runtime toolkit Lodash never was. Also: Ramda hasn't been updated in years.
+
+**Q: What about Zod / Joi / io-ts / schema validation?**
+A: This isn't that. Use this for function-level validation and runtime guards — especially when schema libraries are overkill. These are fast, surgical checks, perfect for validating options, arguments, and internal state. Not for API contracts.
 
 ## Contributing
 

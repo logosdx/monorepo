@@ -2,7 +2,8 @@ import {
     merge,
     DeepOptional,
     PathLeaves,
-    assert
+    assert,
+    clone
 } from '@logosdx/utils';
 
 import {
@@ -122,8 +123,8 @@ export class LocaleManager<
 
     private merge() {
 
-        const fallback = this._locales[this.fallback]
-        const current = this._locales[this.current]
+        const fallback = clone(this._locales[this.fallback]);
+        const current = clone(this._locales[this.current]);
 
         this._loc = merge({} as Locale, fallback.labels) as Locale;
         this._loc = merge(this._loc, current.labels) as Locale;
@@ -173,7 +174,9 @@ export class LocaleManager<
 
     changeTo(code: Code) {
 
+
         if (code === this.current) {
+
             return;
         }
 

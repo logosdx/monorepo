@@ -1,3 +1,5 @@
+import { assert, isFunction } from '../validation';
+
 type ResultTuple<T> = [T, null] | [null, Error];
 
 /**
@@ -19,10 +21,7 @@ type ResultTuple<T> = [T, null] | [null, Error];
  */
 export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<ResultTuple<Awaited<ReturnType<T>>>> => {
 
-    if (typeof fn !== 'function') {
-
-        throw new Error('fn must be a function');
-    }
+    assert(isFunction(fn), 'fn must be a function');
 
     try {
 
@@ -50,10 +49,7 @@ export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<Resu
  */
 export const attemptSync = <T extends () => any>(fn: T): ResultTuple<ReturnType<T>> => {
 
-    if (typeof fn !== 'function') {
-
-        throw new Error('fn must be a function');
-    }
+    assert(isFunction(fn), 'fn must be a function');
 
     try {
 

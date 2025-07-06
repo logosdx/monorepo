@@ -88,6 +88,14 @@ export const isNode = () => typeof process !== 'undefined' && process.versions?.
  */
 export class AssertError extends Error {}
 
+/**
+ * Checks if an error is an AssertError.
+ *
+ * @param err error to check
+ * @returns true if error is an AssertError
+ */
+export const isAssertError = (err: unknown): err is AssertError => (err as Error)?.constructor?.name === AssertError.name;
+
 type AssertTest = (() => boolean) | boolean;
 type AssertTestFn<T> = (v: T extends Function ? never : Truthy<T> | Falsy | undefined) => boolean;
 
@@ -503,6 +511,8 @@ const commonObjects = new Set([
     Float64Array,
     BigInt64Array,
     BigUint64Array,
+    FormData,
+    URLSearchParams,
 ]);
 
 /**

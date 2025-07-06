@@ -5,6 +5,8 @@ import {
     clone,
     attempt,
     wait,
+    isPlainObject,
+    isPrimitive,
 } from '@logosdx/utils';
 
 import {
@@ -745,7 +747,10 @@ export class FetchEngine<
         opts.headers = this.#makeHeaders(rest.headers, method);
 
         if (/put|post|patch|delete/i.test(method)) {
-            if (type === 'json') {
+            if (
+                type === 'json' &&
+                (isPlainObject(payload) || isPrimitive(payload) || Array.isArray(payload))
+            ) {
                 opts.body = JSON.stringify(payload);
             }
             else {

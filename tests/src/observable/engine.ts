@@ -1,10 +1,12 @@
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import { describe, it, before, afterEach } from 'node:test'
 
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { ObserverEngine } from '../../packages/observer/src/index.ts';
-import { sandbox } from './_helpers';
+import { ObserverEngine } from '../../../packages/observer/src/index.ts';
+import { wait } from '../../../packages/utils/src/index.ts';
+
+import { sandbox } from '../_helpers.ts';
 
 interface AppEvents {
     test: string | number
@@ -126,7 +128,7 @@ describe('@logosdx/observer', function () {
             observer.on('test2', fake);
             observer.on('test3', fake);
 
-            observer.off('*');
+            observer.off(/.*/i);
 
             observer.emit('test1');
             observer.emit('test2');
@@ -314,7 +316,7 @@ describe('@logosdx/observer', function () {
             fakeEv.reset(); fakeRgx.reset();
 
             /** Removes all callbacks */
-            observer.off('*');
+            observer.clear();
 
             observer.emit(/a/i, 'works');
             observer.emit('aa', 'works');
@@ -342,7 +344,7 @@ describe('@logosdx/observer', function () {
             expect(typeof generator).to.eq('object');
             expect(typeof generator.emit).to.eq('function');
             expect(typeof generator.next).to.eq('function');
-            expect(typeof generator.destroy).to.eq('function');
+            expect(typeof generator.cleanup).to.eq('function');
 
             const promise = generator.next();
 
@@ -368,11 +370,69 @@ describe('@logosdx/observer', function () {
 
             expect(resolved3).to.eq('c');
 
-            generator.destroy();
+            generator.cleanup();
 
             expect(() => generator.next()).to.throw();
             expect(() => generator.emit()).to.throw();
         });
+
+        it('should return a lastValue', async () => {
+
+            const { observer } = stub;
+            const generator = observer.on('test');
+            const rgxGenerator = observer.on(/te/);
+
+            expect(generator.lastValue).to.be.null;
+            expect(rgxGenerator.lastValue).to.be.null;
+
+            generator.emit('a');
+
+            expect(generator.lastValue).to.eq('a');
+            expect(rgxGenerator.lastValue?.data).to.eq('a');
+            expect(rgxGenerator.lastValue?.event).to.eq('test');
+
+            generator.emit('b');
+
+            expect(generator.lastValue).to.eq('b');
+            expect(rgxGenerator.lastValue?.data).to.eq('b');
+            expect(rgxGenerator.lastValue?.event).to.eq('test');
+
+            generator.cleanup();
+            rgxGenerator.cleanup();
+
+            expect(generator.lastValue).to.be.null;
+            expect(rgxGenerator.lastValue).to.be.null;
+        });
+
+        it('should iterate over events', async () => {
+
+            const { observer } = stub;
+            const generator = observer.on('test');
+
+            const events: string[] = [];
+
+            const listen = async () => {
+
+                for await (const event of generator) {
+
+                    events.push(event as string);
+                }
+            }
+
+            listen();
+
+            generator.emit('a');
+            await wait(1);
+            generator.emit('b');
+            await wait(1);
+            generator.emit('c');
+            await wait(1);
+
+            generator.cleanup();
+
+            expect(events).to.deep.eq(['a', 'b', 'c']);
+        })
+
 
         it('handles regex with EventGenerators', async () => {
 
@@ -450,7 +510,7 @@ describe('@logosdx/observer', function () {
             const { observer } = stub;
             const fake = sandbox.stub();
 
-            observer.on('*', fake);
+            observer.on(/.*/, fake);
             observer.emit('test', 'a');
             observer.emit('test1', 'b');
             observer.emit('test2', 'c');
@@ -463,7 +523,7 @@ describe('@logosdx/observer', function () {
             const { observer } = stub;
             const fake = sandbox.stub();
 
-            observer.once('*', fake);
+            observer.once(/.*/, fake);
             observer.emit('test', 'a');
             observer.emit('test1', 'b');
             observer.emit('test2', 'c');
@@ -479,7 +539,7 @@ describe('@logosdx/observer', function () {
             observer.on('test', fake);
             observer.on('test1', fake);
             observer.on('test2', fake);
-            observer.emit('*', 'a');
+            observer.emit(/.*/, 'a');
 
             expect(fake.callCount).to.eq(3);
         });
@@ -646,7 +706,6 @@ describe('@logosdx/observer', function () {
 
         it('should remove only child listeners on parent', async () => {
 
-
             const parent = stub.observer!;
 
             const child1: any = {};
@@ -666,7 +725,7 @@ describe('@logosdx/observer', function () {
             child1.emit('test1');
             child1.emit('test2');
 
-            child1.off('*');
+            child1.clear();
 
             parent.emit('test1');
             parent.emit('test2');
@@ -693,7 +752,7 @@ describe('@logosdx/observer', function () {
 
             const beforeParentFacts = parent!.$facts();
 
-            child2.off('*');
+            child2.clear();
 
             const afterParentFacts = parent!.$facts();
 
@@ -715,7 +774,7 @@ describe('@logosdx/observer', function () {
         it('should cleanup child observers', async () => {
 
             const parent = stub.observer;
-            parent?.off('*');
+            parent?.clear();
 
             const child: any = {};
 
@@ -767,7 +826,7 @@ describe('@logosdx/observer', function () {
             }
         }
 
-        it('should extend the observer engine', async () => {
+        it('should extend from observer engine', async () => {
 
             const observer = new MyThing('test');
 

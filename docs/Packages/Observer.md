@@ -51,7 +51,7 @@ observer.emit('message', { from: 'Alice', content: 'Hello world' }); // Alice sa
 
 ---
 
-## 📘 Full Guides
+## Full Guides
 
 * [Concepts & Patterns](/docs/observer/core-patterns)
 * [Debugging Tools](/docs/observer/debugging)
@@ -59,7 +59,7 @@ observer.emit('message', { from: 'Alice', content: 'Hello world' }); // Alice sa
 
 ---
 
-## 🔥 Why It's Better
+## Why It's Better
 
 ### 1. **Type Safety That Works**
 
@@ -122,7 +122,7 @@ const cleanup = observer.on('something', () => {});
 cleanup();
 
 const gen = observer.on('stream');
-gen.destroy();
+gen.cleanup();
 
 const promise = observer.once('done');
 promise.cleanup();
@@ -175,21 +175,178 @@ class ModalController extends ObserverEngine<{ open: void; close: void }> {
 
 ---
 
-## 🧠 Conceptual Comparison
+## Conceptual Comparison
+
+* ❌ = Not supported
+* ⚠️ = Partial, limited, or awkward
+* ✅ = Supported or built-in
 
 | Feature                   | EventEmitter | RxJS | `@logosdx/observer` |
 | ------------------------- | ------------ | ---- | ------------------- |
-| Works everywhere          | ❌            | ✅    | ✅                   |
-| Full TypeScript support   | ⚠️           | ✅    | ✅                   |
-| Regex-based subscriptions | ❌            | ❌    | ✅                   |
-| Promises for events       | ❌            | ⚠️   | ✅                   |
-| Async generators          | ❌            | ✅    | ✅                   |
-| Built-in validation       | ❌            | ⚠️   | ✅                   |
-| Manual memory management  | ✅            | ⚠️   | ❌ (auto-cleanup)    |
+| Works everywhere          | ❌           | ✅   | ✅                  |
+| Full TypeScript support   | ⚠️           | ✅   | ✅                  |
+| Regex-based subscriptions | ❌           | ❌   | ✅                  |
+| Promises for events       | ❌           | ⚠️   | ✅                  |
+| Async generators          | ❌           | ✅   | ✅                  |
+| Built-in validation       | ❌           | ⚠️   | ✅                  |
+| Manual memory management  | ✅           | ⚠️   | ❌ (auto-cleanup)   |
+| Easy to use               | ✅           | ❌   | ✅                  |
+| Debugging support         | ❌           | ⚠️   | ✅                  |
+| Class-based extension     | ✅           | ❌   | ✅                  |
+| Runtime safety            | ❌           | ⚠️   | ✅                  |
+| Streaming control flow    | ❌           | ✅   | ✅                  |
 
 ---
 
-## 📚 Explore More
+## FAQ
+
+**Q: Is this just another `EventEmitter` clone?**
+
+No.
+
+`ObserverEngine` is a full replacement with:
+
+* Full TypeScript support
+* Regex subscriptions
+* Promises and generators
+* Built-in validation and cleanup
+* Debugging tools
+
+`EventEmitter` is 2009 tech. This is built for 2025+ systems.
+
+---
+
+**Q: Can I use this in the browser?**
+
+Yes. It works in:
+
+* Node.js
+* Browsers (ESM or bundled)
+* Web Workers
+* React and React Native
+
+No shims required.
+
+---
+
+**Q: Does it support wildcard events like `"user:*"`?**
+
+No, but it supports real RegExp-based event subscriptions:
+
+```ts
+observer.on(/user:/, ({ event, data }) => ...)
+```
+
+This gives you better control using real RegExp, not fake pattern-matching syntax.
+
+---
+
+**Q: Is this reactive like RxJS or Signals?**
+
+No. It's more fundamental:
+
+* No chained operators
+* No observable streams
+* No implicit reactivity
+
+Think of it as a **flexible async event bus**, not a reactive state graph.
+
+---
+
+**Q: How is this better than Redux or Zustand?**
+
+If you're using events as your UI model, `ObserverEngine` replaces the need for an external state container.
+
+Instead of reducers, use event handlers.
+Instead of action types, use string or regex event keys.
+
+---
+
+**Q: Is it fast?**
+
+That's the wrong question. The real question is:
+
+* Am I building realtime game engines or physics simulations?
+* Am I building a high-frequency trading systems?
+* Am I building custom instrumentation inside javascript runtimes / polyfills?
+* Am I building benchmarks / microbenchmark libraries
+
+If you answer yes to any of these, you might not even want to be using NodeJS. `ObserverEngine` is not designed to maximize ops/sec in microbenchmarks.
+
+But here's the real-world tradeoff. I've done benchmarks between `EventEmitter`, `ObserverEngine`, and `EventTarget` since they are the most readily available event emitters in the JS ecosystem. They were simple, single event listeners and emitters. I attached 500 listeners to each and measured the number of events emitted per second.
+
+```text
+fastest: EventEmitter emits 651 ops/s
+slowest: EventTarget emits 468 ops/s
+
+diff:
+    EventEmitter: +52 ops/s
+    EventTarget: -131 ops/s
+
+opsPerSecond:
+    EventEmitter: 651 (325500 listeners called)
+    ObserverEngine: 599 (299500 listeners called)
+    EventTarget: 468 (234000 listeners called)
+
+percent:
+    EventEmitter: +10% (+/- 2%)
+    EventTarget: -28% (+/- 2%)
+
+```
+
+You're trading ~10% emit speed for:
+
+* First-class TypeScript
+* Regex support
+* Memory safety
+* Debugging, validation, and inspection
+* Better abstractions
+
+It's not faster. It's more useful.
+
+---
+
+**Q: Can I extend or compose observers?**
+
+Yes.
+
+```ts
+class MyService extends ObserverEngine<MyEvents> { ... }
+```
+
+You can also use delegation via `observer.observe(instance)`.
+
+---
+
+**Q: What about validation? Can I block bad payloads?**
+
+Yes.
+
+Use `emitValidator`:
+
+```ts
+new ObserverEngine({
+  emitValidator: (event, data) => validate(event, data)
+});
+```
+
+You can plug in Zod, Joi, custom checks, anything.
+
+---
+
+**Q: Is this stable?**
+
+Yes.
+
+Used in production systems. Battle-tested across Node, browser, React Native, and hybrid environments.
+
+This was originally built out of the necessity of having a bridge between NodeJS, a React Native app, and React web app. I needed a single way to react to the same events in all three environments without writing the same code over and over.
+
+No breaking changes planned without major semver.
+
+---
+
+## Explore More
 
 * [Patterns & Use Cases](/docs/observer/core-patterns): queues, workflows, signals
 * [Debugging & Internals](/docs/observer/debugging): spy, facts, leaks

@@ -14,7 +14,7 @@ export class ThrottleError extends Error {
 }
 
 export const isThrottleError = (error: unknown): error is ThrottleError => {
-    return error instanceof ThrottleError;
+    return error?.constructor?.name === ThrottleError.name;
 }
 
 /**

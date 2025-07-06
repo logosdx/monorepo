@@ -206,6 +206,7 @@ describe('@logosdx/localize', function () {
 
             const vals = tests[c as Codes];
             const code = c as Codes;
+
             l10bMngr.changeTo(code);
 
             for (const [key, val] of vals) {
