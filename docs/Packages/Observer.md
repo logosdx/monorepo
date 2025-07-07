@@ -26,6 +26,19 @@ npm install @logosdx/observer
 pnpm add @logosdx/observer
 ```
 
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/observer@latest/dist/browser/bundle.js"></script>
+```
+
+
+```html
+<script>
+	const { ObserverEngine } = LogosDx.Observer;
+</script>
+```
+
 ## Quick Start
 
 ```ts
@@ -55,6 +68,7 @@ observer.emit('message', { from: 'Alice', content: 'Hello world' }); // Alice sa
 
 * [Concepts & Patterns](/docs/observer/core-patterns)
 * [Debugging Tools](/docs/observer/debugging)
+* [Event Queue](/docs/observer/queue)
 * [API Reference](https://typedoc.logosdx.dev/modules/_logosdx_observer.html)
 
 ---
@@ -173,6 +187,48 @@ class ModalController extends ObserverEngine<{ open: void; close: void }> {
 }
 ```
 
+### 9. **Event Queues**
+
+Use the event emitter as a queue.
+
+```ts
+const queue = observer.queue('some-event', myProcessor, {
+  name: 'some-reaction-to-some-event',
+  concurrency: 1,
+  debounceMs: 100,
+  jitter: 0.5,
+  processIntervalMs: 1000,
+  timeoutMs: 10000,
+  maxQueueSize: 1000,
+  rateLimitItems: 100,
+});
+
+queue.on('error', ({ data, error }) => {
+
+  if (is5xxError(error)) {
+    queue.add(data); // Retry the job
+    return;
+  }
+
+  // Do something else
+  analytics.track('error', { error, data });
+});
+```
+
+And now you can emit events to the queue from anywhere.
+
+```ts
+observer.emit('some-event', { data: 'some-data' });
+```
+
+Or directly from the queue.
+
+```ts
+queue.add(data);
+// with priority
+queue.add(data, 10);
+```
+
 ---
 
 ## Conceptual Comparison
@@ -231,7 +287,7 @@ No shims required.
 
 **Q: Does it support wildcard events like `"user:*"`?**
 
-No, but it supports real RegExp-based event subscriptions:
+Not exactly–it supports real RegExp-based event subscriptions:
 
 ```ts
 observer.on(/user:/, ({ event, data }) => ...)

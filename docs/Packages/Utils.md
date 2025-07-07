@@ -29,6 +29,18 @@ pnpm add @logosdx/utils
 yarn add @logosdx/utils
 ```
 
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/utils@latest/dist/browser/bundle.js"></script>
+```
+
+```html
+<script>
+	const { attempt, retry, clone, equals, assert, isPlainObject } = LogosDx.Utils;
+</script>
+```
+
 ## Why This Exists
 
 JavaScript has no built-in retry, no proper deep equality, no safe clone, and no consistent runtime type safety. Other libraries give you pieces — Lodash, Ramda, p-retry — but nothing that actually **holds up across domains**.
@@ -296,7 +308,7 @@ When you want to create a reusable retriable function ahead of time, especially 
 
 **What it does:**
 
-Ensures a function isn't called more than N times per time window. Throws a `RateLimitError` if the limit is exceeded.
+Ensures a function isn't called more than N times per time window. Throws a `RateLimitError` if the limit is exceeded, or waits for the next time token if `throws` is false.
 
 **Options:**
 

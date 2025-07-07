@@ -17,6 +17,6 @@ export {
     type QueueEventNames,
     type QueueState,
     type QueueItem,
-} from './queue.ts';
+} from './queue/index.ts';
 
 export { ObserverEngine } from './engine.ts';

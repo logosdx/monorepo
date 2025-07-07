@@ -3,7 +3,8 @@ export {
     equals,
     merge,
     addHandlerFor,
-    mergeDefaults
+    mergeDefaults,
+    PriorityQueue,
 } from './data-structures/index.ts';
 
 export * from './validation.ts';

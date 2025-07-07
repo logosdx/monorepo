@@ -3,7 +3,7 @@ import { describe, it, afterEach, after } from 'node:test'
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { wait, attempt, noop, attemptSync, isAssertError } from '../../../packages/utils/src/index.ts';
+import { wait, attempt, noop, attemptSync, isAssertError, throttle } from '../../../packages/utils/src/index.ts';
 import { ObserverEngine, EventQueue, QueueOpts } from '../../../packages/observer/src/index.ts';
 
 import { sandbox } from '../_helpers.ts';
@@ -119,7 +119,7 @@ describe('@logosdx/observer', async function () {
 
         it('should create a queue', { timeout }, async () => {
 
-            const fake = sandbox.stub();
+            const fake = sandbox.spy();
 
             const queue = makeQueue(
                 'test',
@@ -278,6 +278,39 @@ describe('@logosdx/observer', async function () {
             expect(snapshot.isStopped).to.be.false;
             expect(snapshot.isDraining).to.be.false;
         });
+
+        it('should add items with priority', { timeout }, async () => {
+
+            const fake = sandbox.spy(
+                (i: string) => wait(10, i)
+            );
+
+            const queue = makeQueue(
+                'priorityTest',
+                fake,
+                {
+                    name: 'priorityTest',
+                    type: 'fifo',
+                    concurrency: 1,
+                    processIntervalMs: 1,
+                }
+            );
+
+            const onceIdle = queue.once('idle');
+
+            queue.add('a', 3);
+            queue.add('b', 2);
+            queue.add('c', 1);
+            queue.add('d', 1);
+
+            await onceIdle;
+
+            expect(fake.callCount).to.eq(4);
+            expect(fake.args[0]?.[0]).to.eq('c');
+            expect(fake.args[1]?.[0]).to.eq('d');
+            expect(fake.args[2]?.[0]).to.eq('b');
+            expect(fake.args[3]?.[0]).to.eq('a');
+        });
     });
 
     describe('Queue: backpressure & limits', { timeout }, async () => {
@@ -427,6 +460,69 @@ describe('@logosdx/observer', async function () {
             expect(time1 - startTime).to.be.within(minTime, maxTime);
             expect(time2 - time1).to.be.within(minTime, maxTime);
             expect(time3 - time2).to.be.within(minTime, maxTime);
+        });
+
+        it('should pause between items for processIntervalMs', async () => {
+
+            const processIntervalMs = 10;
+            const waitTime = 10;
+            const debounceMs = 1;
+            const varianceMs = 10;
+
+            const minTime = ((processIntervalMs + waitTime) * 2) + debounceMs;
+            const maxTime = minTime + varianceMs;
+
+            const queue = makeQueue(
+                'intervalTest',
+                async () => wait(waitTime),
+                {
+                    name: 'intervalTest',
+                    processIntervalMs,
+                    debounceMs,
+                }
+            );
+
+            const times: number[] = [];
+
+            queue.on('idle', () => {
+                times.push(Date.now());
+            });
+
+            let now = Date.now();
+
+            queue.add('1');
+            queue.add('2');
+            await queue.once('idle');
+            queue.add('3');
+            queue.add('4');
+            await queue.once('idle');
+
+            const [time1, time2] = times;
+
+            expect(time1! - now).to.be.within(minTime, maxTime);
+            expect(time2! - time1!).to.be.within(minTime, maxTime);
+        });
+
+        it('should timeout when process takes too long', async () => {
+
+            const queue = makeQueue(
+                'timeoutTest',
+                async () => wait(100),
+                {
+                    name: 'timeoutTest',
+                    timeoutMs: 30,
+                }
+            );
+
+            const onceError = queue.once('error');
+
+            queue.add('1');
+            queue.add('2');
+
+            const { error } = await onceError;
+
+            expect(error).to.be.an('error');
+            expect(error.message).to.eq('Task timed out');
         });
     });
 
@@ -930,11 +1026,9 @@ describe('@logosdx/observer', async function () {
 
             const flushPromise = queue.flush(5);
 
-
             expect(queue.snapshot.pending).to.eq(5);
 
             [11,12,13,14,15].forEach((i) => queue.add(i));
-
 
             expect(queue.snapshot.pending).to.eq(10);
 
@@ -944,56 +1038,140 @@ describe('@logosdx/observer', async function () {
 
             expect(flushPayload.pending).to.eq(5);
             expect(flushedPayload.flushed).to.eq(5);
-
-
-            expect(flushedPayload.flushed).to.eq(5);
             expect(flushedTotal).to.eq(5);
 
         });
     });
 
-    describe('Queue: fuzz & stress', { timeout: 10000 }, async () => {
+    describe('Queue: stress and memory leak tests', async () => {
 
-        it('should process 1000+ items without memory leak', { timeout }, async () => {
+        it('should process 250,000 items x 5 rounds without memory leak', async () => {
 
             observer.clear();
-            const heapBefore = process.memoryUsage().heapUsed;
-            const fake = sandbox.stub();
+
+            const items = 250_000;
+            const rounds = 5
+            const concurrency = 1;
+
+            const log = (...args: any[]) => {
+                if (process.env.CI) return;
+
+                console.log('>>>>', ...args);
+            }
+
+            const getSnapshot = throttle(() => {
+                log(
+                    'pending:', queue.pending,
+                    'running nodes:', queue.snapshot.runningNodes.size,
+                    'ops/sec:', calculateRate(),
+                );
+            }, { delay: 500 });
 
             const queue = makeQueue(
                 'fuzzTest',
-                fake,
+                async () => getSnapshot(),
                 {
                     name: 'fuzzTest',
-                    concurrency: 5,
+                    concurrency,
                     debounceMs: 1,
+                    autoStart: false,
                 }
             );
 
+            const startTime = Date.now();
+            let processedCount = 0;
 
-            for (let i = 0; i < 100_000; i++) {
-                queue.add(i);
+            // Track processing rate
+            const calculateRate = () => {
+                const elapsed = (Date.now() - startTime) / 1000; // seconds
+                const rate = processedCount / elapsed;
+                return Math.round(rate);
+            };
+
+            // Listen for successful processing to track count
+            observer.on('queue:fuzzTest:success', () => {
+                processedCount++;
+            });
+
+            // Force a garbage collection before we start
+            await global.gc?.({ execution: 'async' });
+
+            queue.start();
+
+            const heapBefore = process.memoryUsage().heapUsed;
+            log('run queue', 'start');
+
+            const fullQueueHead: number[] = [];
+            const emptyQueueHead: number[] = [];
+
+            const runSample = async (round: number) => {
+
+                log('run queue', 'sample', round + 1);
+
+                for (let i = 0; i < items; i++) {
+                    queue.add(i);
+                }
+
+                fullQueueHead.push(process.memoryUsage().heapUsed);
+
+                expect(queue.pending).to.eq(items);
+
+                await queue.once('idle');
+
+                // Force a garbage collection after we've processed the items
+                await global.gc?.({ execution: 'async' });
+
+                emptyQueueHead.push(process.memoryUsage().heapUsed);
             }
 
-            expect(queue.pending).to.eq(100_000);
+            for (let i = 0; i < rounds; i++) {
+                await runSample(i);
+            }
 
-            await queue.once('idle');
+            log('run queue', 'done', (Date.now() - startTime) / 1000, 'seconds');
+            log(`Processed: ${processedCount}/${items} (${calculateRate()} items/sec)`);
 
-            expect(fake.callCount).to.eq(100_000);
             expect(queue.pending).to.eq(0);
+            expect(queue.snapshot.runningNodes.size).to.eq(0);
+            expect(queue.snapshot.activeRunners).to.eq(concurrency);
+            expect(processedCount).to.eq(items * rounds);
 
             await queue.shutdown(); // Clear the queue
-            fake.resetHistory(); // Clear the fake args
 
-            global.gc?.();
-            await wait(100);
+            await global.gc?.({ execution: 'async' });
 
             const heapAfter = process.memoryUsage().heapUsed;
 
             const delta = heapAfter - heapBefore;
             const toMb = (bytes: number) => Math.round(bytes / 1024 / 1024 * 100) / 100;
 
-            expect(toMb(delta)).to.be.lessThan(0.5);
+            // Visually inspect the heap usage
+            log({
+                delta: toMb(delta),
+                heapBefore: toMb(heapBefore),
+                heapAfter: toMb(heapAfter),
+                heapRuns: fullQueueHead.map(toMb),
+                heapEmpty: emptyQueueHead.map(toMb),
+            })
+
+            for (const heapSnapshot of fullQueueHead) {
+                expect(toMb(heapSnapshot)).to.be.greaterThan(toMb(heapBefore));
+                expect(toMb(heapSnapshot)).to.be.greaterThan(toMb(heapAfter));
+            }
+
+            /**
+             * 5mb is the max memory delta we're willing to tolerate.
+             *
+             * We want to consider memory pressure placed by tests
+             * overhead as well. In isolation, this test results in a
+             * negative delta, but the whole test suite ramps up memory
+             * usage, so we need to allow for that.
+             *
+             * The heap runs in the arrays above mark ~50mb memory usage
+             * over the course of 5 rounds. If we're actually leaking,
+             * we should see significant growth in memory usage.
+             */
+            expect(toMb(delta)).to.be.lessThan(5);
         });
     });
 });

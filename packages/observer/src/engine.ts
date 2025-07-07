@@ -31,7 +31,7 @@ import {
 import {
     EventQueue,
     type QueueOpts,
-} from './queue.ts';
+} from './queue/queue.ts';
 
 export class ObserverEngine<
     Shape extends Record<string, any> = Record<string, any>
@@ -582,6 +582,11 @@ export class ObserverEngine<
             ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>> |
             ObserverEngine.EventCallback<Record<string, any>>
         )
+    ): (
+        ObserverEngine.Cleanup |
+        EventPromise<Shape[Events<Shape>]> |
+        EventPromise<ObserverEngine.RgxEmitData<Shape>> |
+        EventPromise<Record<string, any>>
     ) {
 
         validateEvent('once', { event, listener } as never);
@@ -598,7 +603,12 @@ export class ObserverEngine<
 
             defer.promise.cleanup = cleanup;
 
-            return defer.promise;
+            return defer.promise as (
+                ObserverEngine.Cleanup |
+                EventPromise<Shape[Events<Shape>]> |
+                EventPromise<ObserverEngine.RgxEmitData<Shape>> |
+                EventPromise<Record<string, any>>
+            )
         }
 
         const self = this;

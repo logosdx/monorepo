@@ -9,6 +9,7 @@
       "import": "./dist/esm/index.mjs"
     }
   },
+  "sideEffects": false,
   "browserNamespace": "LogosDx.Dom",
   "scripts": {
     "build": "node ../../scripts/build.mjs",

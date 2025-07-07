@@ -537,7 +537,7 @@ const commonObjects = new Set([
  * isPlainObject(new MyClass()) // true
  *
  */
-export const isPlainObject = (a: unknown) => (
+export const isPlainObject = (a: unknown): a is object => (
     !isPrimitive(a) &&
     isObject(a) &&
     !commonObjects.has((a as any).constructor)
@@ -561,7 +561,7 @@ export const isPlainObject = (a: unknown) => (
  * let x;
  * isUndefined(x) // true
  */
-export const isUndefined = (val: unknown) => val === undefined;
+export const isUndefined = (val: unknown): val is undefined => val === undefined;
 
 /**
  * Checks if value is specifically not undefined.
@@ -584,7 +584,7 @@ export const isUndefined = (val: unknown) => val === undefined;
  *     // Safe to use config.apiKey
  * }
  */
-export const isDefined = (val: unknown) => val !== undefined;
+export const isDefined = (val: unknown): val is NonNullable<unknown> => val !== undefined;
 
 /**
  * Checks if value is specifically null.
@@ -606,7 +606,7 @@ export const isDefined = (val: unknown) => val !== undefined;
  *     // User was explicitly not found
  * }
  */
-export const isNull = (val: unknown) => val === null;
+export const isNull = (val: unknown): val is null => val === null;
 
 
 /**

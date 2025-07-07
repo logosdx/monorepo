@@ -8,6 +8,8 @@ const DOM = new JSDOM('', {
 
 global.window = DOM.window as never;
 global.document = DOM.window.document;
+global.Element = DOM.window.Element;
+global.MutationObserver = DOM.window.MutationObserver;
 
 const args = process.argv.slice(2);
 

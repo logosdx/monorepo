@@ -47,6 +47,7 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
 
         this.#defer = new DeferredEvent();
         this.#defer.promise.cleanup = this.cleanup;
+        this.#defer.promise.resolve = this.#defer.resolve;
 
         this.#listener = (data: unknown) => {
 
@@ -54,6 +55,7 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
             this.#defer.resolve(data as EventData<S, E>);
             this.#defer = new DeferredEvent();
             this.#defer.promise.cleanup = this.cleanup;
+            this.#defer.promise.resolve = this.#defer.resolve;
         }
 
         const off = observer.on(
@@ -71,22 +73,45 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
 
         this.cleanup = () => {
 
+            this.#assertNotDestroyed();
+
             off();
             this.#done = true;
+
+            // Resolve all lingering promises
+            // with the last value
+            this.#_iterPromise.forEach(promise => {
+                promise.resolve?.(this.#lastValue as EventData<S, E>);
+            });
+
+            // Cleanup the set
+            this.#_iterPromise.clear();
             this.#lastValue = null;
         }
 
     }
 
-    [Symbol.asyncIterator]() {
-        return {
-            next: async () => {
-                if (this.#done) return { value: undefined, done: true };
-                const value = await this.next();
-                return { value, done: this.#done };
-            }
-        };
+    /**
+     * Store iterator's last promise. Handles multiple promises
+     * for when the generator is used in multiple places.
+     */
+    #_iterPromise: Set<EventPromise<EventData<S, E>>> = new Set();
+
+    async * [Symbol.asyncIterator]() {
+
+        while (!this.#done) {
+            // capture the promise before yielding
+            const promise = this.next();
+
+            this.#_iterPromise.add(promise);
+            yield await promise;
+
+            // remove the promise after yielding
+            this.#_iterPromise.delete(promise);
+        }
+        return Promise.resolve(undefined);
     }
+
 
     get lastValue() {
         return this.#lastValue as E extends Events<S>

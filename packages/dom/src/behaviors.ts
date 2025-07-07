@@ -1,30 +1,23 @@
-import { attemptSync, debounce, assert } from '@logosdx/utils';
+import { attemptSync, debounce, assert, itemsToArray, isPlainObject, allKeysValid, isFunction, isOptional, noop } from '@logosdx/utils';
 import { HtmlEvents } from './events.ts';
+import { $ } from './index.ts';
 
-/**
- * Symbols used to mark elements as bound to a feature and to store teardown functions
- */
-export const BINDING_SYMBOL = Symbol('bindings');
+type BehaviorHandler = (el: Element) => Unbind | void;
 
-/**
- * Symbol used to store teardown functions
- */
-export const TEARDOWN_SYMBOL = Symbol('teardowns');
-
-/**
- * Interface for elements that are bound to a feature
- */
-interface BoundElement extends Element {
-
-    [BINDING_SYMBOL]?: Set<string>;
-    [TEARDOWN_SYMBOL]?: Map<string, () => void>;
-}
-
-type BehaviorHandler = (el: Element) => void;
-type BehaviorInit = () => void;
+type Unbind = () => void;
+type BehaviorCb = () => Unbind | void;
+type BehaviorInit = BehaviorCb | {
+    els: string | Element | Element[];
+    handler: BehaviorHandler;
+    shouldObserve?: boolean;
+    shouldDispatch?: boolean;
+    debounceMs?: number;
+};
 
 /**
  * Registry to track observed feature/selector combinations
+ *
+ * Enables efficient tracking of which features are being watched for dynamic DOM changes, so that behaviors can be bound automatically as new elements appear. This avoids manual re-initialization and ensures features are only observed once per selector/root.
  */
 interface ObservedFeature {
     feature: string;
@@ -32,16 +25,6 @@ interface ObservedFeature {
     eventDispatcher: () => void;
     root: Element;
 }
-
-/**
- * Registry of all observed features across different roots
- */
-const observedFeatures = new Map<string, ObservedFeature>();
-
-/**
- * Registry of MutationObservers per root element
- */
-const rootObservers = new Map<Element, MutationObserver>();
 
 /**
  * Error thrown when MutationObserver is not available in the environment
@@ -55,256 +38,536 @@ export class MutationObserverUnavailableError extends Error {
     }
 }
 
+/**
+ * HtmlBehaviors
+ *
+ * Centralizes all logic for declarative, safe, and automatic DOM behavior binding. Solves the problem of dynamic content in SPAs and component frameworks, where elements may appear/disappear at any time. Prevents duplicate bindings, memory leaks, and missed features by tracking state and using MutationObserver.
+ *
+ * Use static methods to register, bind, and observe behaviors. See method-level examples for usage patterns.
+ */
 export class HtmlBehaviors {
 
+    static #log(...args: any[]): void {
+
+        if (!this.#debug) return
+        console.debug('[HtmlBehaviors]', ...args);
+    }
+
+    static #ok(...args: any[]): void {
+
+        this.#log('✅', ...args);
+    }
+
+    static #error(...args: any[]): void {
+
+        this.#log('❌', ...args);
+    }
+
+    static #warn(...args: any[]): void {
+
+        this.#log('⚠️', ...args);
+    }
+
+    static #debug = false;
+
+    static debug(on: boolean): void {
+
+        this.#debug = on;
+
+        if (on) this.#ok('Debug mode enabled');
+    }
+
     /**
-     * Checks if an element has been bound to a specific feature
-     * @param el The element to check
-     * @param feature The feature name
-     * @returns true if the element is already bound to the feature
-     *
-     * @example
-     * if (html.behaviors.isBound(button, 'CopyToClipboard')) {
-     *     return; // Already bound, skip
-     * }
+     * Registry of bound elements to features
+     */
+    static #boundElements = new WeakMap<Element, Set<string>>();
+
+    static #unbinders = new WeakMap<Element, Map<string, Unbind>>();
+
+    /**
+     * Registry of all observed features across different roots
+     */
+    static #observedFeatures = new Map<string, ObservedFeature>();
+
+    /**
+     * Registry of MutationObservers per root element
+     */
+    static #rootObservers = new Map<Element, MutationObserver>();
+
+
+    /**
+     * Prevents duplicate event handlers or behavior logic from
+     * being attached to the same element/feature, which can cause
+     * bugs or memory leaks. Used internally to ensure idempotent
+     * binding.
      */
     static isBound<T extends Element>(el: T, feature: string): boolean {
 
-        const boundEl = el as BoundElement;
-        return boundEl[BINDING_SYMBOL]?.has(feature) ?? false;
+        const isBound = this.#boundElements.get(el)?.has(feature) ?? false;
+
+        this.#ok('isBound', feature, el, isBound);
+
+        return isBound;
     }
 
     /**
-     * Marks an element as bound to a specific feature
-     * @param el The element to mark
-     * @param feature The feature name
-     *
-     * @example
-     * html.behaviors.markBound(button, 'CopyToClipboard');
+     * Returns all features bound to an element
      */
-    static markBound<T extends Element>(el: T, feature: string): void {
+    static allBound(el: Element): string[] {
 
-        const boundEl = el as BoundElement;
-        boundEl[BINDING_SYMBOL] ??= new Set();
-        boundEl[BINDING_SYMBOL].add(feature);
+        return Array.from(this.#boundElements.get(el) ?? []);
     }
 
     /**
-     * Registers a prepare event listener for a behavior
+     * Ensures that future attempts to bind the same feature to this
+     * element are ignored, enforcing idempotency and preventing resource
+     * leaks.
+     */
+    static #markBound<T extends Element>(el: T, feature: string): void {
+
+        const boundFeatures = this.#boundElements.get(el) ?? new Set();
+        boundFeatures.add(feature);
+        this.#boundElements.set(el, boundFeatures);
+
+        this.#ok('markBound', feature, el);
+    }
+
+    /**
+     * Allows behaviors to be initialized only when needed, supporting
+     * lazy or on-demand setup. This pattern is crucial for performance
+     * in large apps and for features that may not always be present.
+     *
+     * Register a callback for a feature, then dispatch the feature when
+     * ready. See example.
+     *
      * @param feature The feature name (will listen to `prepare:${feature}`)
      * @param init The initialization function to run when the event is triggered
      * @returns A cleanup function to unregister the event listener
      *
      * @example
-     * const cleanup = html.behaviors.registerPrepare('copy', () => {
-     *     $('[copy]').forEach(el => {
-     *         if (html.behaviors.isBound(el, 'Copy')) return;
-     *         new CopyToClipboard(el);
-     *         html.behaviors.markBound(el, 'Copy');
-     *     });
+     * const cleanup = html.behaviors.on('copy', () => {
+     *     const copyEls = $('[copy]');
+     *     return html.behaviors.bind(copyEls, 'Copy', el => new CopyToClipboard(el));
      * });
-     *
-     * // Later, to unregister:
-     * cleanup();
+     * cleanup(); // Unregister and unbind all features
      */
-    static registerPrepare(feature: string, init: BehaviorInit): () => void {
+    static on(feature: string, init: BehaviorCb): Unbind {
 
         assert(typeof feature === 'string' && feature.length > 0, 'Feature name must be a non-empty string');
         assert(typeof init === 'function', 'Init must be a function');
 
-        return HtmlEvents.on(window, `prepare:${feature}`, init);
-    }
+        this.#ok('on', feature);
 
-    /**
-     * Dispatches prepare events for one or more features
-     * @param features The feature names to prepare
-     *
-     * @example
-     * html.behaviors.dispatchPrepare('copy', 'nav', 'modal');
-     */
-    static dispatchPrepare(...features: string[]): void {
+        const unbinds = new Set<Unbind>();
 
-        features.forEach(feature => {
+        const off = HtmlEvents.on(window, `init:${feature}`, () => {
 
-            HtmlEvents.emit(window, `prepare:${feature}`);
+            const unbind = init();
+            unbind && unbinds.add(unbind);
         });
-    }
 
-    /**
-     * Safely binds a behavior to an element with error handling and duplicate prevention
-     * @param el The element to bind the behavior to
-     * @param feature The feature name
-     * @param handler The behavior handler function
-     *
-     * @example
-     * $('[copy]').forEach(el => {
-     *     html.behaviors.bindBehavior(el, 'Copy', el => new CopyToClipboard(el));
-     * });
-     */
-    static bindBehavior<T extends Element>(el: T, feature: string, handler: BehaviorHandler): void {
-
-        if (this.isBound(el, feature)) {
-
-            return;
-        }
-
-        const [_result, err] = attemptSync(() => handler(el));
-
-        if (err) {
-
-            console.warn(`Failed to bind ${feature}:`, err);
-            return;
-        }
-
-        this.markBound(el, feature);
-    }
-
-    /**
-     * Registers multiple prepare event listeners from an object map
-     * @param registry Object mapping feature names to their initialization functions
-     * @returns A cleanup function to unregister all registered event listeners
-     *
-     * @example
-     * const cleanup = html.behaviors.createBehaviorRegistry({
-     *     copy: () => { ... },
-     *     nav: () => { ... },
-     *     modal: () => { ... },
-     * });
-     *
-     * // Later, to unregister all:
-     * cleanup();
-     */
-    static createBehaviorRegistry(registry: Record<string, BehaviorInit>): () => void {
-
-        const cleanupFunctions: (() => void)[] = [];
-
-        for (const [feature, init] of Object.entries(registry)) {
-
-            const cleanup = this.registerPrepare(feature, init);
-            cleanupFunctions.push(cleanup);
-        }
+        unbinds.add(off);
 
         return () => {
 
-            cleanupFunctions.forEach(cleanup => cleanup());
-        };
-    }
-
-    /**
-     * Sets up a teardown callback for a feature on an element
-     * @param el The element to attach the teardown to
-     * @param key The feature key for the teardown
-     * @param teardown The teardown function
-     *
-     * @example
-     * html.behaviors.setupLifecycle(modal, 'Modal', () => {
-     *     // cleanup modal observers, timers, etc.
-     * });
-     */
-    static setupLifecycle<T extends Element>(el: T, key: string, teardown: () => void): void {
-
-        const boundEl = el as BoundElement;
-        boundEl[TEARDOWN_SYMBOL] ??= new Map();
-        boundEl[TEARDOWN_SYMBOL].set(key, teardown);
-    }
-
-    /**
-     * Executes the teardown function for a feature on an element.
-     * Safely handles cases where no teardown function exists.
-     * @param el The element to teardown
-     * @param key The feature key to teardown
-     *
-     * @example
-     * html.behaviors.teardownFeature(modal, 'Modal');
-     */
-    static teardownFeature<T extends Element>(el: T, key: string): void {
-
-        const boundEl = el as BoundElement;
-        const teardownFn = boundEl[TEARDOWN_SYMBOL]?.get(key);
-
-        if (typeof teardownFn === 'function') {
-
-            teardownFn();
+            unbinds.forEach(unbind => unbind?.());
+            unbinds.clear();
         }
     }
 
     /**
-     * Queries for elements while ignoring hidden, template, or inert elements.
+     * Triggers all registered initialization logic for a feature, ensuring
+     * that behaviors are set up when the DOM is ready or when new content
+     * is added. Use this after dynamic DOM changes or on page load.
      *
-     * This solves the challenge of differentiating between elements that are
-     * present in the DOM for structural purposes (templates, hidden components)
-     * versus elements that are actively rendered and should receive behaviors.
-     * Many JavaScript libraries struggle with binding behaviors to template
-     * elements or hidden components, causing memory leaks and unexpected behavior.
-     *
-     * @param selector CSS selector string to match elements
-     * @param root Root element to search within (defaults to document)
-     * @returns Array of live elements matching the selector
+     * @param features The feature names to prepare
      *
      * @example
-     * const liveButtons = html.behaviors.queryLive('[data-action]');
-     * const liveButtonsInContainer = html.behaviors.queryLive('[data-action]', container);
+     * html.behaviors.dispatch('copy', 'nav', 'modal');
      */
-    static queryLive<T extends Element>(selector: string, root?: T): Element[] {
+    static dispatch(...features: string[]): void {
 
-        if (!root) {
+        assert(
+            features.every(feature => typeof feature === 'string' && feature.length > 0),
+            'Feature names must be non-empty strings'
+        );
 
-            root = document.body as unknown as T;
+        this.#ok('dispatching', features);
+
+        features.forEach(feature => {
+
+            HtmlEvents.emit(window, `init:${feature}`);
+        });
+    }
+
+    static #bindOne(el: Element, featureName: string, handler: BehaviorHandler) {
+
+        if (this.isBound(el as Element, featureName)) {
+
+            return;
         }
 
-        const elements = root.querySelectorAll(selector);
+        assert(typeof featureName === 'string' && featureName.length > 0, 'Feature name must be a non-empty string');
+        assert(typeof handler === 'function', 'Handler must be a function');
 
-        if (elements.length === 0) {
+        const [unbind, err] = attemptSync(() => handler(el as Element));
 
-            return [];
+        if (err) {
+
+            this.#error(`Failed to bind ${featureName}:`, err);
+            return;
         }
 
-        return (Array.from(elements)).filter(el => {
+        this.#markBound(el as Element, featureName);
+
+        if (isFunction(unbind)) {
+
+            const unbinders = this.#unbinders.get(el) ?? new Map();
+            unbinders.set(featureName, unbind);
+            this.#unbinders.set(el, unbinders);
+        }
+
+        return unbind ?? noop;
+    }
+
+    /**
+     * Guarantees that each element/feature pair is only bound once,
+     * and that errors in user-provided handlers do not break the app.
+     * This is the core method for attaching behaviors to elements,
+     * and is used by higher-level APIs.
+     *
+     * **NOTE:** The returned cleanup function must be called to
+     * unbind the behavior. You are responsible for implementing
+     * cleanup logic in you r handler.
+     *
+     * Call with an element, feature name, and handler. Can be used
+     * with single elements, arrays, or selectors. See example.
+     *
+     * @param el The element to bind the behavior to
+     * @param featureName The feature name
+     * @param handler The behavior handler function
+     *
+     * @returns A cleanup function to unbind the behavior
+     *
+     * @example
+     * // Bind to a single element:
+     * html.behaviors.bind(button, 'Copy', el => new CopyToClipboard(el));
+     *
+     * // Bind to multiple elements:
+     * html.behaviors.bind($('[copy]'), 'Copy', el => new CopyToClipboard(el));
+     *
+     * // Or bind to all elements matching a selector:
+     * html.behaviors.bind('[copy]', 'Copy', el => new CopyToClipboard(el));
+     *
+     * // Cleanup the binding:
+     * const cleanup = html.behaviors.bind(button, 'Copy', el => new CopyToClipboard(el));
+     * cleanup(); // Unbind the behavior
+     */
+    static bind<T extends Element>(
+        el: T | T[] | string,
+        featureName: string,
+        handler: BehaviorHandler
+    ) {
+
+        let els: T[] = [];
+
+        if (typeof el === 'string') {
+            els = $(el) as T[];
+        } else {
+            els = itemsToArray(el);
+        }
+
+        this.#ok('binding', featureName, el);
+
+        els = els.filter(el => {
 
             return !el.closest('[hidden],[data-template],[aria-hidden="true"]');
         });
+
+        if (els.length === 0) {
+
+            this.#warn('No elements found to bind to:', featureName);
+            return;
+        }
+
+        const unbinds = els.map(e => this.#bindOne(e, featureName, handler));
+
+        return () => unbinds.forEach(unbind => unbind?.());
     }
 
     /**
-     * Creates a debounced event dispatcher for a feature
-     * @param feature The feature name to dispatch events for
-     * @param debounceMs Debounce delay in milliseconds
-     * @returns Event dispatcher function
-     * @private
+     * Removes all event handlers and cleanup functions associated with a specific feature
+     * on an element. This prevents memory leaks and ensures clean teardown when behaviors
+     * are no longer needed, such as when elements are removed from the DOM or when
+     * features are dynamically disabled.
+     *
+     * @param el The element to unbind the behavior from
+     * @param featureName The feature name
      */
-    static #createEventDispatcher(feature: string, debounceMs: number): () => void {
+    static unbind(el: Element, featureName: string): void {
 
-        const dispatchEvent = () => {
+        const unbinders = this.#unbinders.get(el);
+        if (!unbinders) {
+            this.#warn('No unbinders found for:', el, featureName);
+            return;
+        }
 
-            HtmlEvents.emit(window, `prepare:${feature}`);
+        const featureUnbinders = unbinders.get(featureName);
+        if (!featureUnbinders) {
+            this.#warn('No unbinders found for:', el, featureName);
+            return;
+        }
+
+        const [, err] = attemptSync(() => featureUnbinders());
+
+        if (err) {
+            this.#error('unbind failed', featureName, el, err);
+        }
+        else {
+            this.#ok('unbound', featureName, el);
+        }
+
+        unbinders.delete(featureName);
+
+        if (unbinders.size === 0) {
+            this.#unbinders.delete(el);
+        }
+    }
+
+    /**
+     * Removes all behaviors bound to an element at once.
+     *
+     * This is essential for preventing memory leaks when elements are removed
+     * from the DOM or when components are destroyed. Without proper cleanup,
+     * event handlers and observers can accumulate over time, leading to
+     * performance degradation and unexpected behavior.
+     *
+     * @param el The element to unbind all behaviors from
+     *
+     * @example
+     * // Clean up when removing a component
+     * const modal = document.querySelector('.modal');
+     * HtmlBehaviors.unbindAll(modal);
+     * modal.remove();
+     *
+     * @example
+     * // Clean up in framework lifecycle hooks
+     * class MyComponent {
+     *     onDestroy() {
+     *         HtmlBehaviors.unbindAll(this.element);
+     *     }
+     * }
+     */
+    static unbindAll(el: Element): void {
+
+        const unbinders = this.#unbinders.get(el);
+        if (!unbinders) {
+            this.#warn('No unbinders found for:', el);
+            return;
+        }
+
+        this.#ok('unbinding all', el);
+
+        unbinders.forEach((_, featureName) => {
+
+            this.unbind(el, featureName);
+        });
+    }
+
+
+    /**
+     * Enables batch registration and observation of many features at
+     * once, reducing boilerplate and ensuring consistent setup.
+     * Pass a registry object mapping feature names to init functions
+     * or config objects. Optionally auto-observe and auto-prepare.
+     * Returns cleanup and dispatch helpers. See example.
+     *
+     * **NOTE:** `opts.shouldObserve` only automatically applies when
+     * `registry.someFeat.els` is a css selector string.
+     *
+     * @param registry Object mapping feature names to their initialization functions or objects with els, feature, and handler properties.
+     * @param opts Configuration options
+     * @param opts.shouldObserve Whether to observe the features immediately (default: true)
+     * @param opts.shouldDispatch Whether to dispatch the features immediately (default: true)
+     * @param opts.debounceMs MutationObserver debounce delay in milliseconds (default: 50)
+     *
+     * @returns A cleanup function to unregister all registered event listeners
+     *
+     * @example
+     * const { cleanup, dispatch } = html.behaviors.create({
+     *     copy: {
+     *         els: '[copy]',
+     *         feature: 'Copy',
+     *         handler: el => {
+     *             const copy = new CopyToClipboard(el);
+     *             return () => copy.destroy();
+     *         }
+     *     },
+     *     nav: {
+     *         els: '[nav]',
+     *         feature: 'Nav',
+     *         handler: el => {
+     *             const nav = new Nav(el);
+     *             return () => nav.destroy();
+     *         }
+     *     },
+     *     keyboard: () => html.events.on(
+     *         window,
+     *         'keydown',
+     *         (e) => observer.emit(e.key, e)
+     *     )
+     * });
+     * dispatch(); // Prepare all features
+     * cleanup(); // Unregister all
+     */
+    static create(
+        registry: Record<string, BehaviorInit>,
+        opts: {
+            shouldObserve?: boolean,
+            shouldDispatch?: boolean,
+            debounceMs?: number
+        } = {}
+    ) {
+
+        assert(isPlainObject(registry), 'Registry must be an object');
+        assert(isPlainObject(opts), 'Opts must be an object');
+        assert(
+            allKeysValid(registry, (value, key) => {
+
+                if (isFunction(value)) {
+
+                    return true;
+                }
+
+                if (isPlainObject(value)) {
+
+                    const {
+                        els,
+                        handler,
+                        shouldDispatch,
+                        shouldObserve,
+                        debounceMs
+                    } = value;
+
+                    const validBools = (
+                        isOptional(shouldDispatch, typeof shouldDispatch === 'boolean') &&
+                        isOptional(shouldObserve, typeof shouldObserve === 'boolean')
+                    );
+
+                    const validEls = (
+                        typeof els === 'string' ||
+                        Array.isArray(els) ||
+                        els instanceof Element
+                    );
+
+                    const validDebounceMs = (
+                        isOptional(
+                            debounceMs,
+                            (ms) => typeof ms === 'number' && ms >= 0
+                        )
+                    );
+
+                    const validHandler = isFunction(handler);
+
+                    const isValid = (
+
+                        validHandler &&
+                        validBools &&
+                        validEls &&
+                        validDebounceMs
+                    )
+
+                    if (!isValid) {
+
+                        this.#error('Invalid registry value:', {
+                            key,
+                            value,
+                            validBools,
+                            validEls,
+                            validDebounceMs,
+                            validHandler
+                        });
+                    }
+
+                    return isValid;
+                }
+
+                return false;
+            }),
+            'Invalid registry values'
+        );
+
+        const {
+            shouldObserve: _shouldObserve = true,
+            shouldDispatch: _shouldDispatch = true,
+            debounceMs: _debounceMs = 50
+        } = opts;
+
+        assert(typeof _debounceMs === 'number', 'Debounce ms must be a number');
+        assert(_debounceMs >= 0, 'Debounce ms must be greater than or equal to 0');
+        assert(typeof _shouldObserve === 'boolean', 'Should observe must be a boolean');
+        assert(typeof _shouldDispatch === 'boolean', 'Should dispatch must be a boolean');
+
+        const cleanupFunctions: Set<() => void> = new Set();
+        const features = Object.keys(registry);
+
+        this.#ok('creating', features);
+
+        for (const feature of features) {
+
+            const init = registry[feature]!;
+
+            if (typeof init === 'function') {
+
+                const cleanup = this.on(feature, init);
+                cleanupFunctions.add(cleanup);
+
+                continue;
+            }
+
+            const {
+                els,
+                handler,
+                shouldObserve = _shouldObserve,
+                shouldDispatch = _shouldDispatch,
+                debounceMs = _debounceMs,
+            } = init;
+
+            const bind = () => this.bind(els, feature, handler);
+
+            const cleanup = this.on(feature, bind);
+            cleanupFunctions.add(cleanup);
+
+            if (shouldObserve && typeof els === 'string') {
+
+                this.observe(feature, els, { debounceMs });
+            }
+
+            if (shouldDispatch) {
+
+                this.dispatch(feature);
+            }
+        }
+
+        const cleanup = () => {
+            cleanupFunctions.forEach((cleanup) => cleanup());
         };
 
-        return debounceMs > 0 ? debounce(dispatchEvent, { delay: debounceMs }) : dispatchEvent;
+        const dispatch = () => {
+            features.forEach(feature => this.dispatch(feature as string));
+        }
+
+        return {
+            cleanup,
+            dispatch
+        }
     }
 
     /**
-     * Creates and configures a MutationObserver for a root element
-     * @param root The root element to observe
-     * @returns The configured MutationObserver
-     * @private
-     */
-    static #createMutationObserver(root: Element): MutationObserver {
-
-        const observer = new MutationObserver(mutations => {
-
-            this.#handleMutations(mutations, root);
-        });
-
-        observer.observe(root, {
-            childList: true,
-            subtree: true
-        });
-
-        return observer;
-    }
-
-    /**
-     * Handles mutation events by checking for matching selectors and dispatching events
+     * Ensures that as new elements are added to the DOM, any relevant
+     * behaviors are initialized immediately. This is the core of
+     * automatic, dynamic behavior binding.
+     *
      * @param mutations Array of MutationRecord objects
      * @param root The root element being observed
      * @private
@@ -312,7 +575,7 @@ export class HtmlBehaviors {
     static #handleMutations(mutations: MutationRecord[], root: Element): void {
 
         // Collect all features that need to be checked for this root
-        const rootFeatures = Array.from(observedFeatures.values())
+        const rootFeatures = Array.from(this.#observedFeatures.values())
             .filter(obs => obs.root === root);
 
         for (const mutation of mutations) {
@@ -332,7 +595,9 @@ export class HtmlBehaviors {
     }
 
     /**
-     * Checks if a node matches any observed selectors and dispatches events
+     * Ensures that only relevant features are triggered for each new
+     * node, avoiding unnecessary work and duplicate dispatches.
+     *
      * @param node The DOM node to check
      * @param rootFeatures Array of observed features for the current root
      * @private
@@ -358,46 +623,16 @@ export class HtmlBehaviors {
     }
 
     /**
-     * Ensures MutationObserver is available in the current environment
-     * @throws {MutationObserverUnavailableError} When MutationObserver is not available
-     * @private
-     */
-    static #ensureMutationObserverAvailable(): void {
-
-        if (typeof MutationObserver === 'undefined') {
-
-            throw new MutationObserverUnavailableError();
-        }
-    }
-
-    /**
-     * Gets or creates a MutationObserver for the specified root element
-     * @param root The root element to get an observer for
-     * @returns The MutationObserver for the root
-     * @private
-     */
-    static #getOrCreateObserver(root: Element): MutationObserver {
-
-        if (!rootObservers.has(root)) {
-
-            const observer = this.#createMutationObserver(root);
-            rootObservers.set(root, observer);
-        }
-
-        return rootObservers.get(root)!;
-    }
-
-    /**
-     * Automatically observes DOM changes and dispatches prepare events when matching elements are added.
+     * Automatically observes DOM changes and dispatches prepare events
+     * when matching elements are added.
      *
-     * This addresses the fundamental challenge of dynamic content in modern web applications.
-     * As SPAs and component frameworks dynamically insert content, traditional static initialization
-     * fails to bind behaviors to new elements. Manual re-initialization is error-prone and leads
-     * to memory leaks. This system provides automatic, efficient behavior binding that scales
-     * with complex dynamic applications while preventing duplicate bindings and resource leaks.
+     * Solves the core problem of dynamic content in modern web apps—
+     * ensuring that behaviors are always bound to new elements as they
+     * appear, without manual intervention. Prevents missed features and
+     * memory leaks.
      *
-     * Uses a shared MutationObserver per root for optimal performance with many features.
-     * Requires MutationObserver support (not available in Node.js environments).
+     * Call with a feature name and selector. Optionally specify a root
+     * and debounce. See example.
      *
      * @param feature The feature name to dispatch prepare events for
      * @param selector CSS selector to watch for new elements
@@ -406,16 +641,13 @@ export class HtmlBehaviors {
      * @param options.debounceMs Debounce delay in milliseconds (defaults to 0)
      *
      * @example
-     * // Watch for any new [copy] elements
-     * html.behaviors.observePrepare('copy', '[copy]');
-     *
-     * // Watch only within a specific container with debouncing
-     * html.behaviors.observePrepare('modal', '[data-modal]', {
+     * html.behaviors.observe('copy', '[copy]');
+     * html.behaviors.observe('modal', '[data-modal]', {
      *     root: document.getElementById('app'),
      *     debounceMs: 100
      * });
      */
-    static observePrepare<T extends Element>(
+    static observe<T extends Element>(
         feature: string,
         selector: string,
         options: {
@@ -424,46 +656,81 @@ export class HtmlBehaviors {
         } = {}
     ): void {
 
+        if (typeof MutationObserver === 'undefined') {
+
+            throw new MutationObserverUnavailableError();
+        }
+
+        assert(typeof feature === 'string', 'Feature must be a string');
+        assert(typeof selector === 'string', 'Selector must be a string');
+        assert(isPlainObject(options), 'Options must be an object');
+
         const {
             root = document.body,
             debounceMs = 0
         } = options;
 
+        assert(typeof debounceMs === 'number', 'Debounce ms must be a number');
+        assert(debounceMs >= 0, 'Debounce ms must be greater than or equal to 0');
+        assert(root instanceof Element, 'Root must be an element');
+
         const observerKey = `${root.tagName}:${feature}:${selector}`;
 
-        this.#ensureMutationObserverAvailable();
-
         // Prevent duplicate feature/selector combinations
-        if (observedFeatures.has(observerKey)) {
+        if (this.#observedFeatures.has(observerKey)) {
 
             return;
         }
 
-        const eventDispatcher = this.#createEventDispatcher(feature, debounceMs);
+        const _dispatchEvent = () => {
+
+            HtmlEvents.emit(window, `init:${feature}`);
+        };
+
+        const eventDispatcher = debounceMs > 0 ?
+            debounce(_dispatchEvent, { delay: debounceMs })
+            : _dispatchEvent;
 
         // Store the observed feature
-        observedFeatures.set(observerKey, {
+        this.#observedFeatures.set(observerKey, {
             feature,
             selector,
             eventDispatcher,
             root
         });
 
-        this.#getOrCreateObserver(root);
+        if (!this.#rootObservers.has(root)) {
+
+            const observer = new MutationObserver(mutations => {
+
+                this.#handleMutations(mutations, root);
+            });
+
+            observer.observe(root, {
+                childList: true,
+                subtree: true
+            });
+
+            this.#rootObservers.set(root, observer);
+        }
     }
 
     /**
-     * Stops observing prepare events for a specific feature and selector combination.
-     * Automatically disconnects the MutationObserver if no more features are being observed for that root.
+     * Allows fine-grained cleanup of observers when features are no
+     * longer needed, preventing memory leaks and unnecessary DOM
+     * observation.
+     *
+     * Call with the same feature, selector, and root as used in observe().
+     *
      * @param feature The feature name to stop observing
      * @param selector The CSS selector to stop watching
      * @param root The root element that was being observed (defaults to document.body)
      *
      * @example
-     * html.behaviors.stopObserving('copy', '[copy]');
-     * html.behaviors.stopObserving('modal', '[data-modal]', document.getElementById('app'));
+     * html.behaviors.stop('copy', '[copy]');
+     * html.behaviors.stop('modal', '[data-modal]', document.getElementById('app'));
      */
-    static stopObserving<T extends Element>(feature: string, selector: string, root?: T): void {
+    static stop<T extends Element>(feature: string, selector: string, root?: T): void {
 
         if (!root) {
 
@@ -472,45 +739,45 @@ export class HtmlBehaviors {
 
         const observerKey = `${root.tagName}:${feature}:${selector}`;
 
-        if (observedFeatures.has(observerKey)) {
+        if (this.#observedFeatures.has(observerKey)) {
 
-            observedFeatures.delete(observerKey);
+            this.#observedFeatures.delete(observerKey);
 
             // Check if this root still has any observed features
-            const hasRemainingFeatures = Array.from(observedFeatures.values())
+            const hasRemainingFeatures = Array.from(this.#observedFeatures.values())
                 .some(obs => obs.root === root);
 
             // If no more features for this root, disconnect the observer
             if (!hasRemainingFeatures) {
 
-                const observer = rootObservers.get(root);
+                const observer = this.#rootObservers.get(root);
                 if (observer) {
 
                     observer.disconnect();
-                    rootObservers.delete(root);
+                    this.#rootObservers.delete(root);
                 }
             }
         }
     }
 
     /**
-     * Stops all active mutation observers and clears all observed features.
-     * Useful for cleanup when the application is shutting down or when you want to stop all automatic behavior binding.
+     * Ensures a clean shutdown or reset of all automatic behavior
+     * binding, which is important for single-page apps, tests, or when
+     * reloading large sections of the UI.
      *
      * @example
-     * // Stop all automatic behavior observation
-     * html.behaviors.stopAllObserving();
+     * html.behaviors.stopAll();
      */
-    static stopAllObserving(): void {
+    static stopAll(): void {
 
         // Disconnect all observers
-        for (const observer of rootObservers.values()) {
+        for (const observer of this.#rootObservers.values()) {
 
             observer.disconnect();
         }
 
         // Clear all registries
-        rootObservers.clear();
-        observedFeatures.clear();
+        this.#rootObservers.clear();
+        this.#observedFeatures.clear();
     }
 }

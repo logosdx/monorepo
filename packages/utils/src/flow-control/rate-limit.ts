@@ -50,6 +50,10 @@ export class RateLimitTokenBucket {
         return Math.ceil(this.refillIntervalMs / this.capacity);
     }
 
+    get nextAvailable() {
+        return new Date(Date.now() + this.waitTimeMs);
+    }
+
     /**
      * Waits for the next token to be available before
      * allowing the caller to proceed.
@@ -64,13 +68,13 @@ export class RateLimitTokenBucket {
      * });
      * console.log('Token acquired');
      */
-    async waitForToken(onRateLimit?: (error: RateLimitError) => void) {
+    async waitForToken(onRateLimit?: (error: RateLimitError) => void | Promise<void>) {
 
         if (this.consume()) return;
 
         while (!this.consume()) {
 
-            onRateLimit?.(new RateLimitError('Rate limit exceeded', this.capacity));
+            await onRateLimit?.(new RateLimitError('Rate limit exceeded', this.capacity));
             await wait(this.waitTimeMs);
         }
     }
@@ -108,19 +112,18 @@ export type RateLimitOptions<T extends AnyFunc> = {
     /** Whether to throw an error when limit is exceeded (default: true) */
     throws?: boolean,
     /** Callback invoked when rate limit is exceeded */
-    onLimitReached?: (error: RateLimitError, nextAvailable: Date, args: Parameters<T>) => void
+    onLimitReached?: (error: RateLimitError, nextAvailable: Date, args: Parameters<T>) => void | Promise<void>
 }
 
 /**
  * Rate limiter that restricts function calls to a specified number per time window.
  *
- * Implements a sliding window rate limiting algorithm that tracks call timestamps
- * and enforces limits by either throwing errors or returning undefined when exceeded.
+ * Implements a token bucket rate limiting algorithm that enforces limits by either throwing errors or waiting for a token before proceeding.
  *
  * @template T - The function type being rate limited
  * @param fn - Function to apply rate limiting to
  * @param opts - Rate limiting configuration options
- * @returns Rate-limited version of the original function
+ * @returns Rate-limited version of the original function (async)
  *
  * @example
  * // Throwing rate limiter
@@ -134,16 +137,13 @@ export type RateLimitOptions<T extends AnyFunc> = {
  * });
  *
  * for (let i = 0; i < 10; i++) {
- *     rateLimitedFn();
+ *     await rateLimitedFn();
  * }
  *
  * // will throw an error
- * rateLimitedFn();
+ * await rateLimitedFn();
  *
- * await wait(1001);
- *
- * rateLimitedFn(); // will call fn
- *
+ * // Waits for token if throws: false
  * const rateLimitedWithoutThrowing = rateLimit(fn, {
  *     maxCalls: 10,
  *     windowMs: 1000,
@@ -151,30 +151,28 @@ export type RateLimitOptions<T extends AnyFunc> = {
  * });
  *
  * for (let i = 0; i < 10; i++) {
- *     rateLimitedWithoutThrowing();
+ *     await rateLimitedWithoutThrowing();
  * }
  *
- * // will return undefined
- * rateLimitedWithoutThrowing();
- *
+ * // will wait for token, then call fn
+ * await rateLimitedWithoutThrowing();
  *
  */
 export function rateLimit<T extends AnyFunc>(
     fn: T,
     opts: RateLimitOptions<T> & { throws: false }
-): (...args: Parameters<T>) => ReturnType<T> | undefined;
+): (...args: Parameters<T>) => Promise<ReturnType<T>>;
 
 export function rateLimit<T extends AnyFunc>(
     fn: T,
     opts: RateLimitOptions<T> & { throws?: true }
-): (...args: Parameters<T>) => ReturnType<T>;
+): (...args: Parameters<T>) => Promise<ReturnType<T>>;
 
 export function rateLimit<T extends AnyFunc>(
     fn: T,
     opts: RateLimitOptions<T>
-): (...args: Parameters<T>) => ReturnType<T> | undefined {
+): (...args: Parameters<T>) => Promise<ReturnType<T>> {
 
-    const callTimestamps: number[] = [];
     const {
         maxCalls,
         windowMs = 1000,
@@ -190,39 +188,20 @@ export function rateLimit<T extends AnyFunc>(
     assertOptional(onLimitReached, isFunction(onLimitReached), 'onLimitReached must be a function');
     assertOptional(throws, typeof throws === 'boolean', 'throws must be a boolean');
 
-    const rateLimitedFunction = function(...args: Parameters<T>): ReturnType<T> | undefined {
+    const tokenBucket = new RateLimitTokenBucket(maxCalls, windowMs);
 
-        const now = Date.now();
-        const windowStart = now - windowMs;
+    const rateLimitedFunction = async function(...args: Parameters<T>): Promise<ReturnType<T>> {
 
-        // Remove timestamps outside current window
-        while (callTimestamps.length > 0 && callTimestamps[0]! <= windowStart) {
-
-            callTimestamps.shift();
-        }
-
-        // Check if rate limit exceeded
-        if (callTimestamps.length >= maxCalls) {
-
-            const rateLimitError = new RateLimitError(
-                `Rate limit exceeded: ${maxCalls} calls per ${windowMs}ms`,
-                maxCalls
-            );
-
-            const lastCall = callTimestamps[0]!;
-            const nextAvailable = new Date(lastCall + windowMs);
-
-            onLimitReached?.(rateLimitError, nextAvailable, args);
-
-            if (throws) {
-
-                throw rateLimitError;
+        await tokenBucket.waitForToken(
+            async (limitErr) => {
+                await onLimitReached?.(
+                    limitErr,
+                    tokenBucket.nextAvailable,
+                    args
+                );
+                if (throws) throw limitErr;
             }
-
-            return undefined;
-        }
-
-        callTimestamps.push(now);
+        );
 
         return fn(...args);
     };

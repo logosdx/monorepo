@@ -3,8 +3,6 @@ permalink: '/packages/fetch'
 aliases: ["Fetch", "@logosdx/fetch"]
 ---
 
-# @logosdx/fetch
-
 **A lightweight, type-safe wrapper for the Fetch API with production-grade resilience.**
 
 Modern applications need HTTP clients that handle real-world network conditions gracefully. `@logosdx/fetch` provides a thin layer over the native Fetch API, adding retry logic, request cancellation, and state management without the overhead of traditional HTTP libraries.
@@ -23,6 +21,18 @@ pnpm add @logosdx/fetch
 
 ```bash
 yarn add @logosdx/fetch
+```
+
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/fetch@latest/dist/browser/bundle.js"></script>
+```
+
+```html
+<script>
+	const { FetchEngine, isFetchError } = LogosDx.Fetch;
+</script>
 ```
 
 ## Quick Start

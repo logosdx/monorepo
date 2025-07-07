@@ -6,6 +6,7 @@ import Sinon from 'sinon';
 
 import * as Lib from '../../packages/dom/src/index.ts';
 import { CssPropNames, CssProps } from '../../packages/dom/src/index.ts';
+import { MutationObserverUnavailableError } from '../../packages/dom/src/behaviors.ts';
 
 import { sandbox } from './_helpers';
 
@@ -1182,99 +1183,140 @@ describe('@logosdx/dom', () => {
             document.body.appendChild(testDiv);
 
             // Clean up any existing behaviors
-            html.behaviors.stopAllObserving();
+            html.behaviors.stopAll();
         });
 
         afterEach(() => {
 
             // Clean up DOM and behaviors
             testDiv.remove();
-            html.behaviors.stopAllObserving();
+            html.behaviors.stopAll();
             sandbox.resetBehavior();
         });
 
-        describe('isBound/markBound', () => {
+        describe('bind', () => {
 
-            it('should initially return false for unbound elements', () => {
-
-                expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.false;
-            });
-
-            it('should return true after marking element as bound', () => {
-
-                html.behaviors.markBound(testButton, 'TestFeature');
-                expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.true;
-            });
-
-            it('should handle multiple features on same element', () => {
-
-                html.behaviors.markBound(testButton, 'Feature1');
-                html.behaviors.markBound(testButton, 'Feature2');
-
-                expect(html.behaviors.isBound(testButton, 'Feature1')).to.be.true;
-                expect(html.behaviors.isBound(testButton, 'Feature2')).to.be.true;
-                expect(html.behaviors.isBound(testButton, 'Feature3')).to.be.false;
-            });
-        });
-
-        describe('bindBehavior', () => {
-
-            it('should bind behavior and mark element as bound', () => {
+            it('should bind behavior and prevent duplicate bindings', () => {
 
                 const handler = sandbox.fake();
 
-                html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
+                html.behaviors.bind(testButton, 'TestFeature', handler);
 
                 expect(handler.calledOnce).to.be.true;
                 expect(handler.calledWith(testButton)).to.be.true;
-                expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.true;
             });
 
             it('should not bind if already bound', () => {
 
                 const handler = sandbox.fake();
 
-                html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
-                html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
+                html.behaviors.bind(testButton, 'TestFeature', handler);
+                html.behaviors.bind(testButton, 'TestFeature', handler);
 
                 expect(handler.calledOnce).to.be.true;
             });
 
-                         it('should handle errors in handler gracefully', () => {
+            it('should handle errors in handler gracefully', () => {
 
-                 const consoleWarn = sandbox.stub(console, 'warn');
-                 const handler = sandbox.fake.throws(new Error('Test error'));
+                const handler = sandbox.fake.throws(new Error('Test error'));
 
-                 html.behaviors.bindBehavior(testButton, 'TestFeature', handler);
+                // The bind method handles errors internally, so it shouldn't throw
+                expect(() => {
+                    html.behaviors.bind(testButton, 'TestFeature', handler);
+                }).to.not.throw();
 
-                 expect(handler.calledOnce).to.be.true;
-                 expect(consoleWarn.calledOnce).to.be.true;
-                 expect(consoleWarn.firstCall?.args[0]).to.include('Failed to bind TestFeature');
-                 expect(html.behaviors.isBound(testButton, 'TestFeature')).to.be.false;
-             });
+                expect(handler.calledOnce).to.be.true;
+            });
+
+            it('should bind to multiple elements', () => {
+
+                const button2 = document.createElement('button');
+                testDiv.appendChild(button2);
+
+                const handler = sandbox.fake();
+
+                html.behaviors.bind([testButton, button2], 'TestFeature', handler);
+
+                expect(handler.calledTwice).to.be.true;
+                expect(handler.firstCall.args[0]).to.equal(testButton);
+                expect(handler.secondCall.args[0]).to.equal(button2);
+            });
+
+            it('should bind using selector string', () => {
+
+                testButton.className = 'test-btn';
+                const button2 = document.createElement('button');
+                button2.className = 'test-btn';
+                testDiv.appendChild(button2);
+
+                const handler = sandbox.fake();
+
+                html.behaviors.bind('.test-btn', 'TestFeature', handler);
+
+                expect(handler.calledTwice).to.be.true;
+            });
+
+            it('should filter out hidden elements', () => {
+
+                testButton.className = 'live-btn';
+
+                const hiddenButton = document.createElement('button');
+                hiddenButton.className = 'live-btn';
+                hiddenButton.hidden = true;
+                testDiv.appendChild(hiddenButton);
+
+                const templateButton = document.createElement('button');
+                templateButton.className = 'live-btn';
+                const template = document.createElement('div');
+                template.setAttribute('data-template', '');
+                template.appendChild(templateButton);
+                testDiv.appendChild(template);
+
+                const handler = sandbox.fake();
+
+                html.behaviors.bind('.live-btn', 'TestFeature', handler);
+
+                // Should only bind to the visible button
+                expect(handler.calledOnce).to.be.true;
+                expect(handler.calledWith(testButton)).to.be.true;
+            });
+
+            it('should return cleanup function', () => {
+
+                const handler = sandbox.fake.returns(() => {
+                    // Teardown logic
+                });
+
+                const cleanup = html.behaviors.bind(testButton, 'TestFeature', handler);
+
+                expect(cleanup).to.be.a('function');
+
+                // Calling cleanup should work without errors
+                expect(() => cleanup?.()).to.not.throw();
+            });
         });
 
-        describe('registerPrepare/dispatchPrepare', () => {
+        describe('on/dispatch', () => {
 
-            it('should register and trigger prepare events', () => {
+            it('should register and trigger init events', () => {
 
                 const initHandler = sandbox.fake();
 
-                html.behaviors.registerPrepare('testFeature', initHandler);
-                html.behaviors.dispatchPrepare('testFeature');
+                html.behaviors.on('testFeature', initHandler);
+                html.behaviors.dispatch('testFeature');
 
                 expect(initHandler.calledOnce).to.be.true;
             });
 
-            it('should trigger multiple prepare events', () => {
+            it('should trigger multiple events', () => {
 
                 const handler1 = sandbox.fake();
                 const handler2 = sandbox.fake();
 
-                html.behaviors.registerPrepare('feature1', handler1);
-                html.behaviors.registerPrepare('feature2', handler2);
+                html.behaviors.on('feature1', handler1);
+                html.behaviors.on('feature2', handler2);
 
-                html.behaviors.dispatchPrepare('feature1', 'feature2');
+                html.behaviors.dispatch('feature1', 'feature2');
 
                 expect(handler1.calledOnce).to.be.true;
                 expect(handler2.calledOnce).to.be.true;
@@ -1284,15 +1326,46 @@ describe('@logosdx/dom', () => {
 
                 const handler = sandbox.fake();
 
-                html.behaviors.registerPrepare('testFeature', handler);
-                html.behaviors.dispatchPrepare('testFeature');
-                html.behaviors.dispatchPrepare('testFeature');
+                html.behaviors.on('testFeature', handler);
+                html.behaviors.dispatch('testFeature');
+                html.behaviors.dispatch('testFeature');
 
                 expect(handler.calledTwice).to.be.true;
             });
+
+            it('should return cleanup function', () => {
+
+                const handler = sandbox.fake();
+                const cleanup = html.behaviors.on('testFeature', handler);
+
+                html.behaviors.dispatch('testFeature');
+                expect(handler.calledOnce).to.be.true;
+
+                // Clean up
+                cleanup();
+
+                // Should not trigger after cleanup
+                html.behaviors.dispatch('testFeature');
+                expect(handler.calledOnce).to.be.true; // Still only once
+            });
+
+            it('should handle cleanup returned by init function', () => {
+
+                const innerCleanup = sandbox.fake();
+                const initHandler = sandbox.fake.returns(innerCleanup);
+
+                const cleanup = html.behaviors.on('testFeature', initHandler);
+                html.behaviors.dispatch('testFeature');
+
+                expect(initHandler.calledOnce).to.be.true;
+
+                // Cleanup should call the inner cleanup
+                cleanup();
+                expect(innerCleanup.calledOnce).to.be.true;
+            });
         });
 
-        describe('createBehaviorRegistry', () => {
+        describe('create', () => {
 
             it('should register multiple behaviors at once', () => {
 
@@ -1300,113 +1373,119 @@ describe('@logosdx/dom', () => {
                 const handler2 = sandbox.fake();
                 const handler3 = sandbox.fake();
 
-                html.behaviors.createBehaviorRegistry({
+                const { dispatch } = html.behaviors.create({
                     feature1: handler1,
                     feature2: handler2,
                     feature3: handler3
-                });
+                }, { shouldDispatch: false });
 
-                html.behaviors.dispatchPrepare('feature1', 'feature2', 'feature3');
+                dispatch();
 
                 expect(handler1.calledOnce).to.be.true;
                 expect(handler2.calledOnce).to.be.true;
                 expect(handler3.calledOnce).to.be.true;
             });
+
+            it('should support behavior config objects', () => {
+
+                const handler = sandbox.fake();
+                testButton.setAttribute('data-test', 'true');
+
+                html.behaviors.create({
+                    testFeature: {
+                        els: '[data-test]',
+                        handler: handler,
+                        shouldDispatch: true,
+                        shouldObserve: false
+                    }
+                });
+
+                expect(handler.calledOnce).to.be.true;
+                expect(handler.calledWith(testButton)).to.be.true;
+            });
+
+            it('should auto-dispatch when configured', () => {
+
+                const handler = sandbox.fake();
+                testButton.setAttribute('data-auto', 'true');
+
+                html.behaviors.create({
+                    autoFeature: {
+                        els: '[data-auto]',
+                        handler: handler,
+                        shouldDispatch: true
+                    }
+                }, { shouldDispatch: false });
+
+                expect(handler.calledOnce).to.be.true;
+            });
+
+            it('should return cleanup and dispatch functions', () => {
+
+                const handler = sandbox.fake();
+
+                const { cleanup, dispatch } = html.behaviors.create({
+                    testFeature: handler
+                }, { shouldDispatch: false });
+
+                expect(cleanup).to.be.a('function');
+                expect(dispatch).to.be.a('function');
+
+                dispatch();
+                expect(handler.calledOnce).to.be.true;
+
+                cleanup();
+                dispatch();
+                expect(handler.calledOnce).to.be.true; // Still only once after cleanup
+            });
         });
 
-        describe('setupLifecycle/teardownFeature', () => {
+        describe('unbind/unbindAll', () => {
 
-            it('should setup and execute teardown callbacks', () => {
+            it('should unbind specific feature', () => {
 
-                const teardownCallback = sandbox.fake();
+                const unbindCallback = sandbox.fake();
+                const handler = sandbox.fake.returns(unbindCallback);
 
-                html.behaviors.setupLifecycle(testButton, 'TestFeature', teardownCallback);
-                html.behaviors.teardownFeature(testButton, 'TestFeature');
+                html.behaviors.bind(testButton, 'TestFeature', handler);
+                expect(handler.calledOnce).to.be.true;
 
-                expect(teardownCallback.calledOnce).to.be.true;
+                html.behaviors.unbind(testButton, 'TestFeature');
+                expect(unbindCallback.calledOnce).to.be.true;
             });
 
-            it('should handle multiple teardown callbacks', () => {
-
-                const teardown1 = sandbox.fake();
-                const teardown2 = sandbox.fake();
-
-                html.behaviors.setupLifecycle(testButton, 'Feature1', teardown1);
-                html.behaviors.setupLifecycle(testButton, 'Feature2', teardown2);
-
-                html.behaviors.teardownFeature(testButton, 'Feature1');
-                html.behaviors.teardownFeature(testButton, 'Feature2');
-
-                expect(teardown1.calledOnce).to.be.true;
-                expect(teardown2.calledOnce).to.be.true;
-            });
-
-            it('should handle teardown of non-existent feature gracefully', () => {
+            it('should handle unbinding non-existent feature gracefully', () => {
 
                 expect(() => {
+                    html.behaviors.unbind(testButton, 'NonExistent');
+                }).to.not.throw();
+            });
 
-                    html.behaviors.teardownFeature(testButton, 'NonExistentFeature');
+            it('should unbind all features from element', () => {
+
+                const unbind1 = sandbox.fake();
+                const unbind2 = sandbox.fake();
+                const handler1 = sandbox.fake.returns(unbind1);
+                const handler2 = sandbox.fake.returns(unbind2);
+
+                html.behaviors.bind(testButton, 'Feature1', handler1);
+                html.behaviors.bind(testButton, 'Feature2', handler2);
+
+                html.behaviors.unbindAll(testButton);
+
+                expect(unbind1.calledOnce).to.be.true;
+                expect(unbind2.calledOnce).to.be.true;
+            });
+
+            it('should handle unbindAll on element with no behaviors', () => {
+
+                expect(() => {
+                    html.behaviors.unbindAll(testButton);
                 }).to.not.throw();
             });
         });
 
-        describe('queryLive', () => {
-
-            beforeEach(() => {
-
-                // Set up test DOM structure
-                testDiv.innerHTML = `
-                    <button class="live-btn">Live Button</button>
-                    <button class="live-btn" hidden>Hidden Button</button>
-                    <div data-template>
-                        <button class="live-btn">Template Button</button>
-                    </div>
-                    <div aria-hidden="true">
-                        <button class="live-btn">Aria Hidden Button</button>
-                    </div>
-                `;
-            });
-
-            it('should return only live elements', () => {
-
-                const liveButtons = html.behaviors.queryLive('.live-btn', testDiv);
-
-                expect(liveButtons).to.have.length(1);
-                expect(liveButtons[0]?.textContent).to.equal('Live Button');
-            });
-
-            it('should work with document as default root', () => {
-
-                // Add elements to document body
-                const liveBtn = document.createElement('button');
-                liveBtn.className = 'global-live-btn';
-                liveBtn.textContent = 'Global Live';
-                document.body.appendChild(liveBtn);
-
-                const hiddenBtn = document.createElement('button');
-                hiddenBtn.className = 'global-live-btn';
-                hiddenBtn.hidden = true;
-                document.body.appendChild(hiddenBtn);
-
-                const results = html.behaviors.queryLive('.global-live-btn');
-
-                expect(results).to.have.length(1);
-                expect(results[0]?.textContent).to.equal('Global Live');
-
-                // Cleanup
-                liveBtn.remove();
-                hiddenBtn.remove();
-            });
-
-            it('should return empty array when no elements found', () => {
-
-                const results = html.behaviors.queryLive('.non-existent');
-                expect(results).to.be.an('array');
-                expect(results).to.have.length(0);
-            });
-        });
-
-        describe('observePrepare', () => {
+        describe('observe', () => {
 
             let mockMutationObserver: Sinon.SinonStub;
             let mockObserverInstance: {
@@ -1456,8 +1535,8 @@ describe('@logosdx/dom', () => {
                 delete (global as any).MutationObserver;
 
                 expect(() => {
-                    html.behaviors.observePrepare('testFeature', '[data-test]');
-                }).to.throw('MutationObserver not available in this environment');
+                    html.behaviors.observe('testFeature', '[data-test]');
+                }).to.throw(MutationObserverUnavailableError);
 
                 // Restore for cleanup
                 (global as any).MutationObserver = originalMutationObserver;
@@ -1465,7 +1544,7 @@ describe('@logosdx/dom', () => {
 
             it('should create MutationObserver with correct configuration', () => {
 
-                html.behaviors.observePrepare('testFeature', '[data-test]', {
+                html.behaviors.observe('testFeature', '[data-test]', {
                     root: testDiv
                 });
 
@@ -1477,12 +1556,12 @@ describe('@logosdx/dom', () => {
                 })).to.be.true;
             });
 
-            it('should trigger prepare events when matching elements are added', () => {
+            it('should trigger dispatch events when matching elements are added', () => {
 
                 const prepareHandler = sandbox.fake();
-                html.behaviors.registerPrepare('autoFeature', prepareHandler);
+                html.behaviors.on('autoFeature', prepareHandler);
 
-                html.behaviors.observePrepare('autoFeature', '[data-auto]', {
+                html.behaviors.observe('autoFeature', '[data-auto]', {
                     root: testDiv
                 });
 
@@ -1499,12 +1578,12 @@ describe('@logosdx/dom', () => {
                 expect(prepareHandler.calledOnce).to.be.true;
             });
 
-                        it('should handle debounced event dispatching', async () => {
+            it('should handle debounced event dispatching', async () => {
 
                 const prepareHandler = sandbox.fake();
-                html.behaviors.registerPrepare('debouncedFeature', prepareHandler);
+                html.behaviors.on('debouncedFeature', prepareHandler);
 
-                html.behaviors.observePrepare('debouncedFeature', '[data-debounced]', {
+                html.behaviors.observe('debouncedFeature', '[data-debounced]', {
                     root: testDiv,
                     debounceMs: 50
                 });
@@ -1534,8 +1613,8 @@ describe('@logosdx/dom', () => {
 
             it('should reuse observers for same root element', () => {
 
-                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
-                html.behaviors.observePrepare('feature2', '[data-f2]', { root: testDiv });
+                html.behaviors.observe('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observe('feature2', '[data-f2]', { root: testDiv });
 
                 // Should only create one observer for the same root
                 expect(mockMutationObserver.calledOnce).to.be.true;
@@ -1547,8 +1626,8 @@ describe('@logosdx/dom', () => {
                 const root2 = document.createElement('div');
                 document.body.appendChild(root2);
 
-                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
-                html.behaviors.observePrepare('feature2', '[data-f2]', { root: root2 });
+                html.behaviors.observe('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observe('feature2', '[data-f2]', { root: root2 });
 
                 expect(mockMutationObserver.calledTwice).to.be.true;
                 expect(mockObserverInstance.observe.calledTwice).to.be.true;
@@ -1559,9 +1638,9 @@ describe('@logosdx/dom', () => {
             it('should handle child element matching', () => {
 
                 const prepareHandler = sandbox.fake();
-                html.behaviors.registerPrepare('childFeature', prepareHandler);
+                html.behaviors.on('childFeature', prepareHandler);
 
-                html.behaviors.observePrepare('childFeature', '[data-child]', {
+                html.behaviors.observe('childFeature', '[data-child]', {
                     root: testDiv
                 });
 
@@ -1583,9 +1662,9 @@ describe('@logosdx/dom', () => {
             it('should ignore non-element nodes', () => {
 
                 const prepareHandler = sandbox.fake();
-                html.behaviors.registerPrepare('textFeature', prepareHandler);
+                html.behaviors.on('textFeature', prepareHandler);
 
-                html.behaviors.observePrepare('textFeature', '[data-text]', {
+                html.behaviors.observe('textFeature', '[data-text]', {
                     root: testDiv
                 });
 
@@ -1603,9 +1682,9 @@ describe('@logosdx/dom', () => {
 
             it('should handle duplicate registration attempts', () => {
 
-                html.behaviors.observePrepare('duplicate', '[data-dup]');
-                html.behaviors.observePrepare('duplicate', '[data-dup]');
-                html.behaviors.observePrepare('duplicate', '[data-dup]');
+                html.behaviors.observe('duplicate', '[data-dup]');
+                html.behaviors.observe('duplicate', '[data-dup]');
+                html.behaviors.observe('duplicate', '[data-dup]');
 
                 // Should only create one observer
                 expect(mockMutationObserver.calledOnce).to.be.true;
@@ -1614,16 +1693,16 @@ describe('@logosdx/dom', () => {
             it('should validate parameters correctly', () => {
 
                 expect(() => {
-                    html.behaviors.registerPrepare('', () => {});
+                    html.behaviors.on('', () => {});
                 }).to.throw('Feature name must be a non-empty string');
 
                 expect(() => {
-                    html.behaviors.registerPrepare('test', null as any);
+                    html.behaviors.on('test', null as any);
                 }).to.throw('Init must be a function');
             });
         });
 
-        describe('stopObserving/stopAllObserving', () => {
+        describe('stop/stopAll', () => {
 
             let mockMutationObserver: Sinon.SinonStub;
             let mockObserverInstance: {
@@ -1653,14 +1732,14 @@ describe('@logosdx/dom', () => {
             it('should disconnect observer when no features remain for root', () => {
 
                 // Setup single feature
-                html.behaviors.observePrepare('stopTest', '[data-stop]', {
+                html.behaviors.observe('stopTest', '[data-stop]', {
                     root: testDiv
                 });
 
                 expect(mockObserverInstance.disconnect.called).to.be.false;
 
                 // Stop the only feature - should disconnect observer
-                html.behaviors.stopObserving('stopTest', '[data-stop]', testDiv);
+                html.behaviors.stop('stopTest', '[data-stop]', testDiv);
 
                 expect(mockObserverInstance.disconnect.calledOnce).to.be.true;
             });
@@ -1668,17 +1747,17 @@ describe('@logosdx/dom', () => {
             it('should not disconnect when other features remain for root', () => {
 
                 // Setup multiple features for same root
-                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
-                html.behaviors.observePrepare('feature2', '[data-f2]', { root: testDiv });
+                html.behaviors.observe('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observe('feature2', '[data-f2]', { root: testDiv });
 
                 // Stop one feature
-                html.behaviors.stopObserving('feature1', '[data-f1]', testDiv);
+                html.behaviors.stop('feature1', '[data-f1]', testDiv);
 
                 // Should not disconnect because feature2 still exists
                 expect(mockObserverInstance.disconnect.called).to.be.false;
 
                 // Stop remaining feature
-                html.behaviors.stopObserving('feature2', '[data-f2]', testDiv);
+                html.behaviors.stop('feature2', '[data-f2]', testDiv);
 
                 // Now should disconnect
                 expect(mockObserverInstance.disconnect.calledOnce).to.be.true;
@@ -1696,11 +1775,11 @@ describe('@logosdx/dom', () => {
                 mockMutationObserver.onFirstCall().returns(observer1Instance);
                 mockMutationObserver.onSecondCall().returns(observer2Instance);
 
-                html.behaviors.observePrepare('root1Feature', '[data-r1]', { root: testDiv });
-                html.behaviors.observePrepare('root2Feature', '[data-r2]', { root: root2 });
+                html.behaviors.observe('root1Feature', '[data-r1]', { root: testDiv });
+                html.behaviors.observe('root2Feature', '[data-r2]', { root: root2 });
 
                 // Stop feature on first root
-                html.behaviors.stopObserving('root1Feature', '[data-r1]', testDiv);
+                html.behaviors.stop('root1Feature', '[data-r1]', testDiv);
 
                 expect(observer1Instance.disconnect.calledOnce).to.be.true;
                 expect(observer2Instance.disconnect.called).to.be.false;
@@ -1719,10 +1798,10 @@ describe('@logosdx/dom', () => {
                 mockMutationObserver.onFirstCall().returns(observer1Instance);
                 mockMutationObserver.onSecondCall().returns(observer2Instance);
 
-                html.behaviors.observePrepare('feature1', '[data-f1]', { root: testDiv });
-                html.behaviors.observePrepare('feature2', '[data-f2]', { root: root2 });
+                html.behaviors.observe('feature1', '[data-f1]', { root: testDiv });
+                html.behaviors.observe('feature2', '[data-f2]', { root: root2 });
 
-                html.behaviors.stopAllObserving();
+                html.behaviors.stopAll();
 
                 expect(observer1Instance.disconnect.calledOnce).to.be.true;
                 expect(observer2Instance.disconnect.calledOnce).to.be.true;
@@ -1734,20 +1813,20 @@ describe('@logosdx/dom', () => {
 
                 expect(() => {
 
-                    html.behaviors.stopObserving('nonExistent', '[data-fake]');
+                    html.behaviors.stop('nonExistent', '[data-fake]');
                 }).to.not.throw();
             });
 
             it('should clear all registries when stopping all observing', () => {
 
-                html.behaviors.observePrepare('feature1', '[data-f1]');
-                html.behaviors.observePrepare('feature2', '[data-f2]');
+                html.behaviors.observe('feature1', '[data-f1]');
+                html.behaviors.observe('feature2', '[data-f2]');
 
-                html.behaviors.stopAllObserving();
+                html.behaviors.stopAll();
 
                 // Subsequent operations should work as if starting fresh
                 expect(() => {
-                    html.behaviors.observePrepare('newFeature', '[data-new]');
+                    html.behaviors.observe('newFeature', '[data-new]');
                 }).to.not.throw();
             });
         });
@@ -1758,23 +1837,22 @@ describe('@logosdx/dom', () => {
 
                 const initHandler = sandbox.fake();
                 const behaviorHandler = sandbox.fake();
-                const teardownHandler = sandbox.fake();
+                const teardownHandler = sandbox.fake.returns(() => {
+                    // Teardown logic
+                });
 
                 // Register behavior
-                html.behaviors.registerPrepare('integration', () => {
+                html.behaviors.on('integration', () => {
 
                     initHandler();
 
-                    html.behaviors.queryLive('[data-integration]', testDiv).forEach(el => {
+                    const els = $('[data-integration]', testDiv);
+                    els.forEach((el: Element) => {
 
-                        html.behaviors.bindBehavior(el, 'Integration', (element) => {
+                        html.behaviors.bind(el, 'Integration', (element) => {
 
                             behaviorHandler(element);
-
-                            html.behaviors.setupLifecycle(element, 'Integration', () => {
-
-                                teardownHandler();
-                            });
+                            return teardownHandler();
                         });
                     });
                 });
@@ -1785,16 +1863,15 @@ describe('@logosdx/dom', () => {
                 testDiv.appendChild(newEl);
 
                 // Trigger behavior manually
-                html.behaviors.dispatchPrepare('integration');
+                html.behaviors.dispatch('integration');
 
                 // Verify initialization happened
                 expect(initHandler.calledOnce).to.be.true;
                 expect(behaviorHandler.calledOnce).to.be.true;
                 expect(behaviorHandler.calledWith(newEl)).to.be.true;
-                expect(html.behaviors.isBound(newEl, 'Integration')).to.be.true;
 
                 // Test teardown
-                html.behaviors.teardownFeature(newEl, 'Integration');
+                html.behaviors.unbind(newEl, 'Integration');
                 expect(teardownHandler.calledOnce).to.be.true;
             });
 
@@ -1802,11 +1879,12 @@ describe('@logosdx/dom', () => {
 
                 const bindingHandler = sandbox.fake();
 
-                html.behaviors.registerPrepare('rapidTest', () => {
+                html.behaviors.on('rapidTest', () => {
 
-                    html.behaviors.queryLive('[data-rapid]', testDiv).forEach(el => {
+                    const els = $('[data-rapid]', testDiv);
+                    els.forEach((el: Element) => {
 
-                        html.behaviors.bindBehavior(el, 'Rapid', bindingHandler);
+                        html.behaviors.bind(el, 'Rapid', bindingHandler);
                     });
                 });
 
@@ -1816,13 +1894,12 @@ describe('@logosdx/dom', () => {
                 testDiv.appendChild(el);
 
                 // Trigger multiple prepare events manually
-                html.behaviors.dispatchPrepare('rapidTest');
-                html.behaviors.dispatchPrepare('rapidTest');
-                html.behaviors.dispatchPrepare('rapidTest');
+                html.behaviors.dispatch('rapidTest');
+                html.behaviors.dispatch('rapidTest');
+                html.behaviors.dispatch('rapidTest');
 
                 // Should only be bound once
                 expect(bindingHandler.calledOnce).to.be.true;
-                expect(html.behaviors.isBound(el, 'Rapid')).to.be.true;
             });
 
             it('should work with behavior registry and manual dispatch', () => {
@@ -1830,13 +1907,13 @@ describe('@logosdx/dom', () => {
                 const copyHandler = sandbox.fake();
                 const modalHandler = sandbox.fake();
 
-                html.behaviors.createBehaviorRegistry({
+                const { dispatch } = html.behaviors.create({
                     copyBehavior: copyHandler,
                     modalBehavior: modalHandler
-                });
+                }, { shouldDispatch: false });
 
                 // Trigger behaviors
-                html.behaviors.dispatchPrepare('copyBehavior', 'modalBehavior');
+                dispatch();
 
                 expect(copyHandler.calledOnce).to.be.true;
                 expect(modalHandler.calledOnce).to.be.true;
@@ -1862,16 +1939,17 @@ describe('@logosdx/dom', () => {
                     const behaviorHandler = sandbox.fake();
 
                     // Register automatic behavior
-                    html.behaviors.registerPrepare('autoTest', () => {
+                    html.behaviors.on('autoTest', () => {
                         initHandler();
 
-                        html.behaviors.queryLive('[data-auto-test]', testDiv).forEach(el => {
-                            html.behaviors.bindBehavior(el, 'AutoTest', behaviorHandler);
+                        const els = $('[data-auto-test]', testDiv);
+                        els.forEach((el: Element) => {
+                            html.behaviors.bind(el, 'AutoTest', behaviorHandler);
                         });
                     });
 
                     // Set up automatic observation
-                    html.behaviors.observePrepare('autoTest', '[data-auto-test]', {
+                    html.behaviors.observe('autoTest', '[data-auto-test]', {
                         root: testDiv
                     });
 
@@ -1882,7 +1960,7 @@ describe('@logosdx/dom', () => {
                     const newElement = document.createElement('button');
                     newElement.setAttribute('data-auto-test', 'true');
 
-                    // Actually add the element to the DOM so queryLive can find it
+                    // Actually add the element to the DOM so $ can find it
                     testDiv.appendChild(newElement);
 
                     // Trigger mutation observer with new element
@@ -1895,10 +1973,64 @@ describe('@logosdx/dom', () => {
                     // Verify automatic behavior binding occurred
                     expect(initHandler.calledOnce).to.be.true;
                     expect(behaviorHandler.calledOnce).to.be.true;
-                    expect(html.behaviors.isBound(newElement, 'AutoTest')).to.be.true;
 
                 } finally {
                     // Restore original MutationObserver
+                    (global as any).MutationObserver = originalMutationObserver;
+                }
+            });
+
+            it('should handle create with auto-observe and DOM mutations', () => {
+
+                // Mock MutationObserver for this test
+                const originalMutationObserver = (global as any).MutationObserver;
+                let mockCallback: Function | undefined;
+                const mockObserver = {
+                    observe: sandbox.stub(),
+                    disconnect: sandbox.stub()
+                };
+
+                (global as any).MutationObserver = sandbox.stub().callsFake((callback: Function) => {
+                    mockCallback = callback;
+                    return mockObserver;
+                });
+
+                try {
+                    const handler = sandbox.fake();
+
+                    // Create behavior with auto-observe
+                    html.behaviors.create({
+                        autoCreateTest: {
+                            els: '[data-create-test]',
+                            handler: handler,
+                            shouldObserve: true,
+                            shouldDispatch: false
+                        }
+                    }, { shouldObserve: true });
+
+                    // Verify observer was set up
+                    expect(mockObserver.observe.called).to.be.true;
+
+                    // Simulate adding new element
+                    const newElement = document.createElement('div');
+                    newElement.setAttribute('data-create-test', 'true');
+                    testDiv.appendChild(newElement);
+
+                    // Trigger mutation
+                    if (mockCallback) {
+                        mockCallback([{
+                            addedNodes: [newElement]
+                        }]);
+                    }
+
+                    // Manually dispatch since the mock won't trigger real events
+                    html.behaviors.dispatch('autoCreateTest');
+
+                    // Verify behavior was bound
+                    expect(handler.calledOnce).to.be.true;
+                    expect(handler.calledWith(newElement)).to.be.true;
+
+                } finally {
                     (global as any).MutationObserver = originalMutationObserver;
                 }
             });

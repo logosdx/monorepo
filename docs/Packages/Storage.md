@@ -11,6 +11,18 @@ yarn add @logosdx/storage
 pnpm add @logosdx/storage
 ```
 
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/storage@latest/dist/browser/bundle.js"></script>
+```
+
+```html
+<script>
+	const { StorageAdapter } = LogosDx.Storage;
+</script>
+```
+
 ## Example
 
 ```ts

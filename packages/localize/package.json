@@ -9,6 +9,7 @@
       "import": "./dist/esm/index.mjs"
     }
   },
+  "sideEffects": false,
   "browserNamespace": "LogosDx.Localize",
   "scripts": {
     "build": "node ../../scripts/build.mjs",

@@ -9,3 +9,4 @@ export {
 export { clone } from './clone.ts';
 export { equals } from './equals.ts';
 export { merge, mergeDefaults } from './merge.ts';
+export { PriorityQueue } from './priority-queue.ts';

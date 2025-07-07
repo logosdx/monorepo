@@ -12,6 +12,19 @@ yarn add @logosdx/localize
 pnpm add @logosdx/localize
 ```
 
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/localize@latest/dist/browser/bundle.js"></script>
+```
+
+```html
+<script>
+	const { LocaleManager } = LogosDx.Localize;
+</script>
+```
+
+
 ## Example
 
 ``` ts

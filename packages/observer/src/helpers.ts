@@ -62,6 +62,7 @@ export class EventPromise<T> extends Promise<T> {
 
     cleanup?: () => void
     reject?: (err: Error | string) => void
+    resolve?: (value: T) => void
 }
 
 

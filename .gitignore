@@ -6,3 +6,5 @@ docs/types
 typedoc
 tmp/*
 !tmp/.gitkeep
+packages/test
+tests/src/experiments

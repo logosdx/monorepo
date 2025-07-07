@@ -13,6 +13,18 @@ pnpm add @logosdx/kit
 pnpm add @logosdx/kit
 ```
 
+With jsdeliver:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/kit@latest/dist/browser/bundle.js"></script>
+```
+
+```html
+<script>
+	const { appKit, FetchEngine, ObserverEngine } = LogosDx.Kit;
+</script>
+```
+
 ## Example
 
 ```ts
