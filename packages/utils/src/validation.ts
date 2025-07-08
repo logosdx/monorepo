@@ -1,5 +1,5 @@
-import { Falsy, OneOrMany, PathNames, PathValue, Truthy } from './types';
-import { reach } from './misc';
+import type { Falsy, OneOrMany, PathNames, PathValue, Truthy } from './types.ts';
+import { reach } from './misc.ts';
 
 /**
  * Checks if the current environment is a browser.

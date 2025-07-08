@@ -1,5 +1,5 @@
-import { EventData } from "../helpers";
-import { Events } from "../types";
+import { type EventData } from '../helpers.ts';
+import { type Events } from '../types.ts';
 
 export enum QueueRejectionReason {
     full = 'Queue is full',

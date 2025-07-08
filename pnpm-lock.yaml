@@ -39,6 +39,12 @@ importers:
       type-coverage:
         specifier: ^2.29.7
         version: 2.29.7(typescript@5.8.3)
+      typedoc-plugin-mdn-links:
+        specifier: ^5.0.3
+        version: 5.0.3(typedoc@0.28.4(typescript@5.8.3))
+      typedoc-plugin-missing-exports:
+        specifier: ^4.0.0
+        version: 4.0.0(typedoc@0.28.4(typescript@5.8.3))
       vite:
         specifier: ^6.3.5
         version: 6.3.5(@types/node@22.15.21)(tsx@4.19.4)(yaml@2.8.0)
@@ -95,6 +101,12 @@ importers:
         version: link:../utils
 
   packages/storage:
+    dependencies:
+      '@logosdx/utils':
+        specifier: workspace:^
+        version: link:../utils
+
+  packages/test:
     dependencies:
       '@logosdx/utils':
         specifier: workspace:^
@@ -1873,6 +1885,16 @@ packages:
   type-detect@4.1.0:
     resolution: {integrity: sha512-Acylog8/luQ8L7il+geoSxhEkazvkslg7PSNKOX59mbB9cOveP5aq9h74Y7YU8yDpJwetzQQrfIwtf4Wp4LKcw==}
     engines: {node: '>=4'}
+
+  typedoc-plugin-mdn-links@5.0.3:
+    resolution: {integrity: sha512-5n7ue4Kv/NChKM/8KrcBEenvwUtXmAtsa/9YB+Jrri9Vr1hQqFKfDneANn76c0yH/0TSgmgNtCKMfvEbSRqq1g==}
+    peerDependencies:
+      typedoc: 0.27.x || 0.28.x
+
+  typedoc-plugin-missing-exports@4.0.0:
+    resolution: {integrity: sha512-Z4ei+853xppDEhcqzyeyRs4+R0kUuKQWnMK1EtSTEd5LFkgkdW5Bdn8vfo/rsCGbYVJxOWU99fxgM1mROw5Fug==}
+    peerDependencies:
+      typedoc: ^0.28.1
 
   typedoc@0.28.4:
     resolution: {integrity: sha512-xKvKpIywE1rnqqLgjkoq0F3wOqYaKO9nV6YkkSat6IxOWacUCc/7Es0hR3OPmkIqkPoEn7U3x+sYdG72rstZQA==}
@@ -3782,6 +3804,14 @@ snapshots:
   type-detect@4.0.8: {}
 
   type-detect@4.1.0: {}
+
+  typedoc-plugin-mdn-links@5.0.3(typedoc@0.28.4(typescript@5.8.3)):
+    dependencies:
+      typedoc: 0.28.4(typescript@5.8.3)
+
+  typedoc-plugin-missing-exports@4.0.0(typedoc@0.28.4(typescript@5.8.3)):
+    dependencies:
+      typedoc: 0.28.4(typescript@5.8.3)
 
   typedoc@0.28.4(typescript@5.8.3):
     dependencies:

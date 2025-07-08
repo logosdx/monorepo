@@ -1,4 +1,4 @@
-import { Func, PathNames, PathValue } from './types';
+import type { Func, PathNames, PathValue } from './types.ts';
 
 /**
  * A no-operation function that accepts any arguments and returns any value.

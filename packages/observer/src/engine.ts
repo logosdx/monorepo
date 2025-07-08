@@ -1,13 +1,13 @@
 import {
-    Func,
+    type Func,
     assert,
     definePrivateProps,
     clone,
-    MaybePromise
+    type MaybePromise
 } from '@logosdx/utils';
 
 import {
-    Events,
+    type Events,
 } from './types.ts';
 
 import {
