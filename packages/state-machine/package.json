@@ -1,0 +1,34 @@
+{
+  "name": "@logosdx/state-machine",
+  "version": "1.0.4",
+  "description": "A powerful, stream-based, strongly-typed state management library",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "sideEffects": false,
+  "browserNamespace": "LogosDx.StateMachine",
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [],
+  "keywords": [
+    "state manager",
+    "application state",
+    "meiosis"
+  ],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "@logosdx/utils": "workspace:^"
+  }
+}

@@ -1,0 +1,34 @@
+{
+    "compilerOptions": {
+        "emitDeclarationOnly": true,
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "outDir": "out",
+        "allowSyntheticDefaultImports": true,
+        "allowJs": false,
+        "declaration": true,
+        "esModuleInterop": false,
+        "lib": ["ESNext", "DOM"],
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "noImplicitThis": true,
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noUncheckedIndexedAccess": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "pretty": true,
+        "sourceMap": true,
+        "strict": true,
+        "target": "ESNext",
+        "skipLibCheck": true,
+        "exactOptionalPropertyTypes": true,
+    },
+    "exclude": [
+        "./docs/*",
+        "./examples/*",
+        "./internals/*",
+        "./scripts/*"
+    ]
+}

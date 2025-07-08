@@ -1,0 +1,252 @@
+---
+description:
+globs: *.ts
+alwaysApply: false
+---
+# TypeScript Patterns
+
+Comprehensive patterns for TypeScript code organization, classes, types, and symbols.
+
+## Code Style Conventions
+
+### Syntax & Formatting
+- Newline **after** function declaration and opening blocks
+- Prefer **vertical space** over horizontal when functions are long
+- Group functions: Declaration → Validation → Business Logic → Commit
+
+### Naming Philosophy
+- Use **meaningful names** that explain **what** the thing is
+  - ✅ `userExists`, `fetchInvoiceTotal`
+  - ❌ `x`, `data`, `handleIt`
+- Functions should **read like English**
+
+### Comments & JSDoc
+- JSDoc all **functions and classes**
+- Explain **WHY** something exists — not how or what
+- Always provide **usage examples**
+
+## Function Structure
+
+The comments below `// === whatever ===` are for context and not to be included. Only apply this block structure when necessary.
+
+```ts
+/**
+ * Updates the email address for a given user.
+ *
+ * @example
+ * const user = await updateUserEmail(userID, newEmail);
+ */
+async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<User> {
+
+    // === Declaration block ===
+    let retryCount = 0;
+
+    // === Validation block ===
+    if (!isValidEmail(newEmail)) {
+
+        throw new InvalidEmailError();
+    }
+
+    // === Business logic block ===
+    const [user, err] = await attempt(() => fetchUser(userID));
+
+    if (err || !user) {
+
+        throw new UserNotFoundError();
+    }
+
+    const modifiedUser = modifyUserEmail(user, newEmail);
+
+    // === Commit block ===
+    const [ok, saveErr] = await attempt(() => saveUser(modifiedUser));
+
+    if (saveErr) {
+
+        throw saveErr;
+    }
+
+    return modifiedUser;
+}
+```
+
+## Type Organization
+- **Dedicated `types.ts` files** for shared types across modules
+- **`export type`** for type-only exports (enables tree-shaking)
+- **Re-export from index**: `export type { Events } from './types.ts'`
+
+## Generic & Type Patterns
+```ts
+// Descriptive names with proper constraints
+export type Events<Shape> = keyof Shape;
+export interface EventCallback<Shape> {
+
+    (data: Shape): void;
+}
+export type EventData<Shape, E extends Events<Shape>> = Shape[E];
+
+// Interface for extensibility
+export interface BehaviorOptions {
+
+    debounceMs?: number;
+    root?: Element;
+}
+```
+
+## Class Design
+- **Static classes** → Stateless utilities (DOM, behaviors, helpers)
+- **Instance classes** → Stateful components with private state and lifecycle
+- **Always dogfood** `@logosdx/utils` for validation, error handling, flow control
+
+## Instance Class Patterns
+```ts
+export class DataProcessor {
+
+    #cache: Map<string, Data> = new Map();
+
+    constructor(config: Config) {
+
+        // Declare
+        let x: string = '';
+
+        // Validate
+        assert(isObject(config), 'Config required');
+
+        // Apply Business Logic
+        this.#config = clone(config);
+
+        // Commit
+        definePrivateProps(this, {
+            process: this.process,
+            cleanup: this.cleanup
+        });
+    }
+
+    // Debug method
+    $facts() { return { cacheSize: this.#cache.size }; }
+}
+```
+
+## Static Class Patterns
+```ts
+export class HtmlBehaviors {
+
+    static isBound(el: Element, feature: string): boolean { }
+    static markBound(el: Element, feature: string): void { }
+    static bindBehavior(el: Element, feature: string, handler: Function): void {
+
+        if (this.isBound(el, feature)) return;
+
+        const [, err] = attemptSync(() => handler(el));
+
+        if (err) console.warn(`Failed ${feature}:`, err);
+        else this.markBound(el, feature);
+    }
+}
+```
+
+## Symbol Usage
+- **When to use**: Private metadata on DOM elements, hidden internal state
+- **When NOT to use**: Public APIs, simple private data (use `#private` fields)
+- **Pattern**: Module-level constants with descriptive names
+
+```ts
+const BINDING_SYMBOL = Symbol('bindings');
+const TEARDOWN_SYMBOL = Symbol('teardowns');
+
+interface BoundElement extends Element {
+
+    [BINDING_SYMBOL]?: Set<string>;
+    [TEARDOWN_SYMBOL]?: Map<string, () => void>;
+}
+```
+
+## Quick Examples
+```ts
+// Type organization
+export type Events<Shape> = keyof Shape;
+
+export interface EventCallback<Shape> {
+
+    (data: Shape): void;
+}
+
+// Generic constraints
+export type EventData<Shape, E extends Events<Shape>> = Shape[E];
+
+// Interface for extensibility
+export interface BehaviorOptions {
+
+    debounceMs?: number;
+    root?: Element;
+}
+
+// Instance class. 4-block constructor when relevant.
+export class DataProcessor {
+
+    #cache: Map<string, Data> = new Map();
+
+    constructor(config: Config) {
+
+        // Declaration
+        let x: string = '';
+
+        // Validation
+        assert(isObject(config), 'Config required');
+
+        // Business Logic
+        this.#config = clone(config);
+
+        // Commit
+        definePrivateProps(this, {
+            process: this.process,
+            cleanup: this.cleanup
+        });
+    }
+
+    // Debug method
+    $facts() { return { cacheSize: this.#cache.size }; }
+}
+
+// Static utility class
+export class HtmlBehaviors {
+
+    static isBound(el: Element, feature: string): boolean { }
+    static markBound(el: Element, feature: string): void { }
+    static bindBehavior(el: Element, feature: string, handler: Function): void {
+
+        if (this.isBound(el, feature)) return;
+
+        const [, err] = attemptSync(() => handler(el));
+        if (err) console.warn(`Failed ${feature}:`, err);
+        else this.markBound(el, feature);
+    }
+}
+
+// Symbol patterns
+const BINDING_SYMBOL = Symbol('bindings');
+const TEARDOWN_SYMBOL = Symbol('teardowns');
+
+interface BoundElement extends Element {
+
+    [BINDING_SYMBOL]?: Set<string>;
+    [TEARDOWN_SYMBOL]?: Map<string, () => void>;
+}
+
+function markBound(el: Element, feature: string) {
+
+    const bound = el as BoundElement;
+    bound[BINDING_SYMBOL] ??= new Set();
+    bound[BINDING_SYMBOL].add(feature);
+}
+
+// Module augmentation
+declare module './engine.ts' {
+
+    export namespace ObserverEngine {
+
+        export interface Options<Ev> {
+
+            spy?: Spy<Ev>;
+        }
+    }
+}

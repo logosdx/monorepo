@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+.parcel-cache
+docs/types
+typedoc
+tmp/*
+!tmp/.gitkeep
+packages/test
+tests/src/experiments

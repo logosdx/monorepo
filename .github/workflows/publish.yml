@@ -1,0 +1,46 @@
+name: Publish
+on:
+  push:
+    branches:
+      - "release"
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: write
+      contents: write
+      pull-requests: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 22.x
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  docs:
+    needs: publish
+    uses: ./.github/workflows/docs.yml
+    secrets:
+      DOCS_SSH_KEY: ${{ secrets.DOCS_SSH_KEY }}

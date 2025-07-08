@@ -1,0 +1,34 @@
+{
+  "name": "@logosdx/storage",
+  "version": "1.0.4",
+  "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "sideEffects": false,
+  "browserNamespace": "LogosDx.Storage",
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [],
+  "keywords": [
+    "localStorage",
+    "app storage",
+    "sessionStorage"
+  ],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "@logosdx/utils": "workspace:^"
+  }
+}

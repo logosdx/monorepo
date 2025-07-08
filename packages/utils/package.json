@@ -1,0 +1,30 @@
+{
+  "name": "@logosdx/utils",
+  "version": "1.1.0",
+  "description": "A small, common set of JS and TS utilities for LogosDX",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "sideEffects": false,
+  "browserNamespace": "LogosDx.Utils",
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [],
+  "keywords": [
+    "utils",
+    "meta programming"
+  ],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause"
+}

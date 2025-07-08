@@ -1,0 +1,69 @@
+---
+description:
+globs: packages/**/*.ts
+alwaysApply: false
+---
+# Dogfooding Standards
+
+Always use @logosdx/utils throughout the monorepo to validate APIs and demonstrate best practices.
+
+## Core Principle
+- **Fail-prone operations** (I/O, network, async) → Use error monad `[result, error]`
+- **Business logic** → Return actual results directly
+- **Never use try-catch** → Always use `attempt`/`attemptSync`
+
+## Error Handling Patterns
+
+```ts
+import { attempt, attemptSync } from '@logosdx/utils'
+
+// ✅ Fail-prone operations (I/O, network, async)
+const [result, err] = await attempt(() => fetch('/api/users'))
+if (err) return handleError(err)
+
+// ✅ Business logic returns actual results
+function modifyUserEmail(user: User, newEmail: string): User {
+    if (!isValidEmail(newEmail)) throw new InvalidEmailError()
+    return { ...user, email: newEmail }
+}
+
+// ✅ Composition
+async function updateUserEmail(userId: string, newEmail: string): Promise<User> {
+    const [user, fetchErr] = await attempt(() => fetchUser(userId))
+    if (fetchErr) throw fetchErr
+
+    const modifiedUser = modifyUserEmail(user, newEmail)
+
+    const [, saveErr] = await attempt(() => saveUser(modifiedUser))
+    if (saveErr) throw saveErr
+
+    return modifiedUser
+}
+```
+
+## Required Utilities
+- **Error handling**: `attempt`, `attemptSync`
+- **Data ops**: `clone`, `equals`, `merge`, `reach`
+- **Flow control**: `debounce`, `throttle`, `rateLimit`, `retry`, `circuitBreaker`, `withTimeout`, `batch`
+- **Validation**: `assert`, `assertObject`, `isObject`, `isBrowser`
+- **Performance**: `memoize`, `memoizeSync`, `definePrivateProps`
+
+## Quick Examples
+```ts
+// Error handling
+const [result, err] = await attempt(() => fetch('/api'));
+if (err) return handleError(err);
+
+// Data operations
+const cloned = clone(complexState);
+if (!equals(oldState, newState)) triggerUpdate();
+
+// Flow control
+const debouncedSearch = debounce(search, 300);
+const resilient = retry(circuitBreaker(apiCall), { retries: 3 });
+
+// Business logic (direct return)
+function calculateTotal(items: CartItem[]): number {
+    return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+}
+```

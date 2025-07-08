@@ -1,0 +1,39 @@
+{
+  "name": "@logosdx/fetch",
+  "version": "1.0.4",
+  "description": "A full-feature wrapper around the Fetch API",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "sideEffects": false,
+  "browserNamespace": "LogosDx.Fetch",
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [],
+  "keywords": [
+    "fetch",
+    "axios",
+    "xhr requests",
+    "node-fetch",
+    "fetch-engine",
+    "fetch",
+    "fetch-api",
+    "ajax"
+  ],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "@logosdx/utils": "workspace:^"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@logosdx/PKGNAME",
+  "version": "0.0.1",
+  "description": "",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [
+      "dist/",
+      "docs/",
+      "readme.md",
+      "LICENSE"
+  ],
+  "keywords": [],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause",
+  "dependencies": {}
+}

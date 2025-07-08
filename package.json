@@ -1,0 +1,57 @@
+{
+  "name": "@logosdx/monorepo",
+  "license": "BSD-3-Clause",
+  "private": true,
+  "scripts": {
+    "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
+    "test": "cd tests; pnpm run test",
+    "test:only": "cd tests; pnpm run test:only",
+    "tdd": "cd tests; pnpm run tdd $@",
+    "tdd:only": "cd tests; pnpm run tdd:only $@",
+    "test:coverage": "cd tests; pnpm run test:coverage",
+    "clear": "rm -r packages/*/dist packages/*/node_modules tests/node_modules node_modules;",
+    "new": "sh ./scripts/new-pkg.zsh",
+    "release": "pnpm recursive run build --release && changeset publish",
+    "build": "pnpm recursive run build",
+    "dts": "node ./scripts/build.mjs",
+    "build:docs": "bash ./scripts/docs.zsh"
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.29.4",
+    "@swc/cli": "^0.7.7",
+    "@swc/core": "^1.11.29",
+    "@types/node": "^22.15.21",
+    "tslib": "^2.8.1",
+    "tsx": "^4.19.4",
+    "typedoc": "^0.28.4",
+    "typescript": "^5.8.2"
+  },
+  "files": [
+    "dist",
+    "src",
+    "readme.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "keywords": [],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "nodemonConfig": {
+    "watch": [
+      "packages"
+    ],
+    "ignore": [
+      "*.js",
+      "node_modules"
+    ]
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10",
+    "type-coverage": "^2.29.7",
+    "vite": "^6.3.5"
+  }
+}

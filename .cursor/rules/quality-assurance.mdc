@@ -1,0 +1,179 @@
+---
+description: When writing tests, documentation, JSDoc, or any code quality assurance work
+globs:
+alwaysApply: false
+---
+# Quality Assurance
+
+Comprehensive standards for testing and documenting code to ensure quality and maintainability.
+
+## Documentation Structure
+1. **Problem Statement** - Why it exists, what problems it solves
+2. **Core Philosophy** - Design principles with examples
+3. **Problem-Solving Examples** - Real scenarios, not toy examples
+4. **API Reference** - Link to TypeDoc
+5. **Advanced Patterns** - Composition examples
+
+## /docs Directory Requirements
+**Primary focus**: Answer "what is this?", "why does it exist?", and "when should I use this?"
+
+- **What is this?** - Clear, concise description of the package/utility
+- **Why does it exist?** - Problem statement with real-world context
+- **When should I use this?** - Use cases and scenarios where this is the right choice
+- **Brief functionality showcase** - Demonstrate key features with examples
+- **Link to TypeDoc** - "How to use" details belong in JSDoc and generated TypeDoc
+
+## Documentation Patterns
+- **Always contrast**: Show ❌ problematic vs ✅ good patterns
+- **Real-world context**: Shopping carts, user data, not `foo`/`bar`
+- **Show @logosdx/utils**: Demonstrate dogfooding in examples
+- **Include fallbacks**: Error handling and graceful degradation
+
+## JSDoc Standards
+- **Document WHY**, not just what the function does
+- **Always include @example** with realistic usage
+- **Document error conditions** and edge cases
+- **Internal APIs** get `@internal` tag
+
+## Test File Structure
+- **Mirror source structure**: `tests/src/` mirrors `packages/*/src/`
+- **Relative imports**: Use `../../../../packages/utils/src/index.ts` not `@logosdx/utils`
+- **Required for tests**: Relative imports validate actual implementation
+- **Use `mockHelpers`** pattern with `calledExactly` for consistent verification
+
+## Test Organization
+- **Group by functionality**: `describe('flow-control: memo', () => {})`
+- **Descriptive names**: `"should [behavior] when [condition]"`
+- **Test all paths**: Positive cases, error cases, edge cases
+- **Nest related tests** in sub-describes
+
+## Mock & Assertion Patterns
+- **Use `mock.fn()`** from `node:test`
+- **Use `calledExactly(mockFn, expectedCount, 'description')`** for verification
+- **Test both success and error paths**
+- **Verify error callback parameters** match expected types
+
+## Testing @logosdx/utils Usage
+- **Test `attempt`/`attemptSync`** error handling patterns
+- **Verify `assert`** throws correct error types
+- **Test utility composition** (debounce, retry, etc.)
+- **Validate dogfooding** implementation
+
+## Integration Testing
+- **Test full class lifecycles** with setup/teardown
+- **Verify proper cleanup** prevents memory leaks
+- **Test observer patterns** with component attachment/detachment
+- **Validate resource management** (timers, observers, caches)
+
+## Code Review Checklist
+
+When reviewing code, ensure:
+
+### ✅ Structure & Organization
+- [ ] Follows monorepo import patterns (package names in prod, relative in tests)
+- [ ] Proper file organization (types.ts, index.ts exports)
+- [ ] Logical grouping of functions and classes
+
+### ✅ TypeScript Standards
+- [ ] No `try-catch` blocks (use `attempt`/`attemptSync` for I/O)
+- [ ] Proper function structure (4-block pattern)
+- [ ] Meaningful names that read like English
+- [ ] JSDoc with examples and WHY explanations
+
+### ✅ Error Handling Patterns
+- [ ] Uses error monad (`[result, error]`) for fail-prone operations only
+- [ ] Business logic functions return actual results, not error tuples
+- [ ] Proper composition between error monad and direct returns
+- [ ] No `try-catch` blocks (use `attempt`/`attemptSync` for I/O)
+
+### ✅ Dogfooding
+- [ ] Uses `@logosdx/utils` for error handling
+- [ ] Uses `@logosdx/utils` for data operations
+- [ ] Uses `@logosdx/utils` for flow control
+- [ ] Demonstrates best practices in examples
+
+### ✅ Testing
+- [ ] Tests mirror source structure
+- [ ] Uses relative imports in tests
+- [ ] Tests all paths (success, error, edge cases)
+- [ ] Proper mock patterns with `calledExactly`
+
+### ✅ Documentation
+- [ ] Problem statement with real-world context
+- [ ] Shows ❌ vs ✅ patterns
+- [ ] Links to TypeDoc
+- [ ] Demonstrates dogfooding
+
+### ✅ Performance & Memory
+- [ ] Uses appropriate utilities (debounce, throttle, memo)
+- [ ] Proper cleanup in integration tests
+- [ ] No memory leaks in observer patterns
+
+## Common Issues to Flag
+
+### ❌ Anti-patterns
+- `try-catch` blocks instead of `attempt`/`attemptSync`
+- Error monad pattern used for pure business logic functions
+- Business logic functions returning `[result, error]` tuples
+- Relative imports in production code
+- Package imports in test files
+- Missing JSDoc or examples
+- Generic names like `data`, `handle`, `process`
+- No error handling in async operations
+- Missing validation blocks in functions
+
+### ✅ Best Practices to Encourage
+- Error monad for I/O, direct returns for business logic
+- Clear separation between fail-prone and deterministic operations
+- Comprehensive error handling with `@logosdx/utils`
+- Real-world examples in documentation
+- Proper test coverage with relative imports
+- Meaningful names and clear function structure
+- Dogfooding throughout the codebase
+- Performance considerations with appropriate utilities
+
+## Quick Examples
+```ts
+/**
+ * Throttles user actions to prevent spam and improve performance.
+ *
+ * @example
+ * const save = throttle(savePreferences, { delay: 1000 });
+ * save(user1, prefs1);
+ * save(user1, prefs2); // Replaces prefs1
+ */
+export function throttle<T extends Func>(fn: T): ThrottledFunction<T>
+
+// Problem-driven documentation format
+#### The Problem: [Specific Real Scenario]
+[Context about why this is challenging in production]
+
+```typescript
+// ❌ Fragile approach
+// Comment explaining what breaks
+
+// ✅ Resilient approach using @logosdx/utils
+// Show proper error handling and fallbacks
+```
+
+// Test file structure
+import { attempt } from '../../../../packages/utils/src/index.ts';
+
+// Mock verification
+const fn = mock.fn();
+calledExactly(fn, 1, 'called once');
+
+// Error testing
+const [result, err] = await attempt(() => riskyOperation());
+expect(err).to.be.instanceOf(Error);
+
+// Integration testing
+const observer = new ObserverEngine();
+const component = observer.observe({});
+component.cleanup(); // Test teardown
+```
+
+## Linking & Cross-References
+- **Cross-link packages**: `[@logosdx/observer](mdc:packages/observer)`
+- **Reference TypeDoc**: `[merge](mdc:https:/typedoc.logosdx.dev)`
+- **Link examples to API** methods for comprehensive coverage

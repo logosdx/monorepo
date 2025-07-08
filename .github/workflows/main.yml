@@ -1,0 +1,41 @@
+name: CI
+on:
+  pull_request:
+    branches:
+      - "**"
+  push:
+    branches:
+      - "master"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: write
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 22.x
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm recursive run build
+      - run: pnpm recursive run lint
+      - run: pnpm test:ci
+        working-directory: tests
+
+      - name: Create Release Pull Request
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: pnpm changeset version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

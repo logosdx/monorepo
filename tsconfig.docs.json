@@ -1,0 +1,32 @@
+{
+    "compilerOptions": {
+        "declarationDir": "docs/types",
+        "allowImportingTsExtensions": true,
+        "emitDeclarationOnly": true,
+        "outDir": "out",
+        "allowSyntheticDefaultImports": true,
+        "allowJs": true,
+        "declaration": true,
+        "esModuleInterop": true,
+        "lib": ["ESNext", "DOM"],
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "noImplicitThis": true,
+        "noUnusedParameters": true,
+        "pretty": true,
+        "sourceMap": true,
+        "strict": true,
+        "target": "ESNext",
+        "noUncheckedIndexedAccess": true,
+        "skipLibCheck": true,
+    },
+    "include": [
+        "packages/**/*.ts"
+    ],
+    "exclude": [
+        "dist",
+        "**/*.js",
+        "**/*.cjs",
+        "**/*.mjs",
+    ]
+}

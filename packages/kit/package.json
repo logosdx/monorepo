@@ -1,0 +1,52 @@
+{
+  "name": "@logosdx/kit",
+  "version": "1.0.4",
+  "description": "A collection of strongly-typed LogosDX libraries to kick-start your app",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "sideEffects": false,
+  "browserNamespace": "LogosDx.Kit",
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [],
+  "keywords": [
+    "web apps",
+    "boilerplate",
+    "ui kit",
+    "state manager",
+    "observer",
+    "event emitter",
+    "localization",
+    "localStorage",
+    "sessionStorage",
+    "app storage",
+    "utilities",
+    "fetch",
+    "axios",
+    "xhr requests",
+    "node-fetch",
+    "ajax"
+  ],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "@logosdx/fetch": "workspace:^",
+    "@logosdx/localize": "workspace:^",
+    "@logosdx/observer": "workspace:^",
+    "@logosdx/state-machine": "workspace:^",
+    "@logosdx/storage": "workspace:^",
+    "@logosdx/utils": "workspace:^"
+  }
+}
