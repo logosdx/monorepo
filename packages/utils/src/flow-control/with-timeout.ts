@@ -1,3 +1,4 @@
+import { wait } from '../misc.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
 import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 import { attempt } from './attempt.ts';
@@ -35,22 +36,68 @@ export interface WithTimeoutOptions {
     /**
      * Abort controller to cancel the operation
      */
-    abortController?: AbortController;
+    abortController?: AbortController | undefined;
 
     /**
      * Capture errors
      */
-    onError?: (error: Error, didTimeout: boolean) => void;
+    onError?: ((error: Error, didTimeout: boolean) => void) | undefined;
 
     /**
-     * On timeout
+     * On timeout callback
      */
-    onTimeout?: (error: TimeoutError, execPromise: Promise<any>) => void;
+    onTimeout?: ((error: TimeoutError) => void) | undefined;
 
     /**
      * Rethrow errors
      */
-    throws?: boolean;
+    throws?: boolean | undefined;
+}
+
+/**
+ * Tries to execute a function with a timeout. If the function exceeds the timeout,
+ * it will reject with a TimeoutError.
+ *
+ * @param func - The function to execute
+ * @param opts - Configuration options
+ * @param opts.timeout - Timeout in milliseconds after which the function will be rejected
+ * @param opts.abortController - Abort controller to cancel the operation
+ * @param opts.onError - Callback to handle errors
+ * @param opts.onTimeout - Callback to handle timeout
+ * @param opts.throws - Whether to throw an error when the function execution exceeds the specified timeout
+ * @returns The result of the function execution
+ * @throws {TimeoutError} When the function execution exceeds the specified timeout
+ */
+export const runWithTimeout = async <T extends AnyFunc>(
+    func: T,
+    opts: WithTimeoutOptions
+) => {
+
+    const timeoutError = wait<[null, TimeoutError]>(
+        opts.timeout,
+        [null, new TimeoutError('Function timed out')]
+    );
+
+    const [result, error] = await Promise.race([
+        attempt(func),
+        timeoutError
+    ]);
+
+    if (isTimeoutError(error)) {
+        opts.abortController?.abort();
+        opts.onError?.(error, true);
+        opts.onTimeout?.(error);
+        throw error;
+    }
+
+    timeoutError.clear();
+
+    if (error) {
+        opts.onError?.(error, false);
+        if (opts.throws) throw error;
+    }
+
+    return result;
 }
 
 /**
@@ -121,7 +168,7 @@ export interface WithTimeoutOptions {
  *   const users = await queryWithTimeout('SELECT * FROM users');
  *   return users;
  * } catch (error) {
- *   if (error instanceof TimeoutError) {
+ *   if (isTimeoutError(error)) {
  *     throw new Error('Database query timed out after 10 seconds');
  *   }
  *   throw error;
@@ -149,55 +196,7 @@ export const withTimeout = <T extends AnyFunc>(
 
     const withTimeoutFunction = async function(...args: Parameters<T>) {
 
-        let timeoutId: NodeJS.Timeout | null = null;
-
-        const timeoutPromise = new Promise((_, reject) => {
-
-            timeoutId = setTimeout(
-
-                () => {
-
-                    opts.abortController?.abort();
-
-                    execPromise.catch((error) => opts.onError?.(error, true));
-
-                    const error = new TimeoutError('Function timed out');
-
-                    opts.onError?.(error, true);
-                    opts.onTimeout?.(error, execPromise);
-
-                    reject(error);
-                },
-                opts.timeout
-            );
-        });
-
-        const exec = async () => {
-
-            const [result, error] = await attempt(() => fn(...args));
-
-            clearTimeout(timeoutId!);
-
-            if (error) {
-
-                opts.onError?.(error, false);
-
-                if (opts.throws) {
-                    throw error;
-                }
-            }
-
-            return result;
-        }
-
-        const execPromise = exec();
-
-        const result = await Promise.race([
-            execPromise,
-            timeoutPromise
-        ]);
-
-        return result;
+        return runWithTimeout(() => fn(...args), opts);
     } as T;
 
     markWrapped(withTimeoutFunction, 'withTimeout');

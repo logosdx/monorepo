@@ -162,7 +162,6 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
         calledExactly(onTimeout, 1, 'onTimeout called');
 
         expect(onTimeout.mock.calls[0]!.arguments[0]).to.be.an.instanceof(TimeoutError);
-        expect(onTimeout.mock.calls[0]!.arguments[1]).to.be.an.instanceof(Promise);
     });
 
     it('should throw non-timeout errors when throws is true', async () => {

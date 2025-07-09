@@ -4,14 +4,34 @@ import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 
 /**
  * Token bucket implementation of rate limiting
+ *
+ * @example
+ * const bucket = new RateLimitTokenBucket(10, 1000);
+ *
+ * bucket.consume();
+ * bucket.consume();
+ *
+ * const rateLimited = async () => {
+ *
+ *   // 0 ms if tokens are available
+ *   // 1000 / 10 = 100 ms if tokens are not available
+ *   await bucket.waitAndConsume();
+ *   return 'success';
+ * }
  */
 export class RateLimitTokenBucket {
     #tokens: number;
     #lastRefill: number;
-
+    #stats = {
+        totalRequests: 0,
+        rejectedRequests: 0,
+        totalWaitTime: 0,
+        waitCount: 0,
+        createdAt: Date.now()
+    };
     constructor(
         private capacity: number,
-        private refillIntervalMs: number // rateLimitWindow
+        private refillIntervalMs: number // time per token
     ) {
 
         this.#tokens = capacity;
@@ -22,37 +42,92 @@ export class RateLimitTokenBucket {
 
         const now = Date.now();
         const elapsed = now - this.#lastRefill;
-        const refillRate = this.capacity / this.refillIntervalMs;
+        const refillRate = 1 / this.refillIntervalMs;
 
-        this.#tokens = Math.min(
-            this.capacity,
-            this.#tokens + refillRate * elapsed
-        );
+        // Protect against clock adjustments or very long delays
+        if (elapsed < 0 || elapsed > this.refillIntervalMs * this.capacity * 2) {
 
-        this.#lastRefill = now;
+            this.#lastRefill = now;
+            this.#tokens = this.capacity;
+            return;
+        }
+
+        if (elapsed > 0) {
+
+            // Calculate how many tokens to add based on elapsed time and refill rate
+            const tokensToAdd = elapsed * refillRate;
+            this.#tokens = Math.min(this.capacity, this.#tokens + tokensToAdd);
+            this.#lastRefill = now;
+        }
     }
 
-    consume(): boolean {
+    reset() {
+        this.#tokens = this.capacity;
+        this.#lastRefill = Date.now();
+    }
+
+    get tokens() {
+        return Math.floor(this.#tokens);
+    }
+
+    consume(count: number = 1): boolean {
 
         this.#refill();
+        this.#stats.totalRequests++;
 
-        if (this.#tokens >= 1) {
+        if (this.#tokens >= count) {
 
-            this.#tokens -= 1;
+            this.#tokens -= count;
             return true;
         }
 
+        this.#stats.rejectedRequests++;
         return false;
     }
 
-    get waitTimeMs() {
+    getWaitTimeMs(count: number = 1) {
+
         this.#refill();
-        return Math.ceil(this.refillIntervalMs / this.capacity);
+        const deficit = count - this.#tokens;
+
+        if (deficit <= 0) return 0;
+
+        const refillRate = 1 / this.refillIntervalMs;
+        // Add a small buffer to ensure enough tokens are available after waiting
+        const waitTime = Math.ceil(deficit / refillRate) + 1;
+        return waitTime;
     }
 
-    get nextAvailable() {
-        return new Date(Date.now() + this.waitTimeMs);
+    getNextAvailable(count: number = 1) {
+        return new Date(Date.now() + this.getWaitTimeMs(count));
     }
+
+    /**
+     * Get a snapshot of current statistics and state.
+     *
+     * @returns Object containing usage statistics and current state
+     */
+    get snapshot() {
+        this.#refill();
+        const now = Date.now();
+        const uptime = now - this.#stats.createdAt;
+
+        return {
+            currentTokens: this.tokens,
+            capacity: this.capacity,
+            refillIntervalMs: this.refillIntervalMs,
+            totalRequests: this.#stats.totalRequests,
+            rejectedRequests: this.#stats.rejectedRequests,
+            successfulRequests: this.#stats.totalRequests - this.#stats.rejectedRequests,
+            rejectionRate: this.#stats.totalRequests > 0 ? this.#stats.rejectedRequests / this.#stats.totalRequests : 0,
+            totalWaitTime: this.#stats.totalWaitTime,
+            waitCount: this.#stats.waitCount,
+            averageWaitTime: this.#stats.waitCount > 0 ? this.#stats.totalWaitTime / this.#stats.waitCount : 0,
+            uptime,
+            createdAt: this.#stats.createdAt
+        };
+    }
+
 
     /**
      * Waits for the next token to be available before
@@ -68,15 +143,110 @@ export class RateLimitTokenBucket {
      * });
      * console.log('Token acquired');
      */
-    async waitForToken(onRateLimit?: (error: RateLimitError) => void | Promise<void>) {
+    async waitForToken(
+        count: number = 1,
+        opts: {
+            onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => void) | undefined,
+            abortController?: AbortController | undefined,
+            jitterMs?: number | undefined
+        } = {}
+    ) {
 
-        if (this.consume()) return;
+        const {
+            onRateLimit,
+            abortController,
+            jitterMs = 0
+        } = opts;
 
-        while (!this.consume()) {
+        // Check if tokens are already available without consuming them
+        this.#refill();
+        if (this.#tokens >= count) return;
 
-            await onRateLimit?.(new RateLimitError('Rate limit exceeded', this.capacity));
-            await wait(this.waitTimeMs);
+        const waitStart = Date.now();
+        this.#stats.waitCount++;
+
+        while (this.#tokens < count) {
+
+            if (abortController?.signal?.aborted) return;
+
+            await onRateLimit?.(
+                new RateLimitError('Rate limit exceeded', this.capacity),
+                this.getNextAvailable(count)
+            );
+
+            await wait(this.getWaitTimeMs(count) + Math.random() * jitterMs);
+            this.#refill();
         }
+
+        const waitEnd = Date.now();
+        this.#stats.totalWaitTime += waitEnd - waitStart;
+    }
+
+    /**
+     * Waits for tokens to be available and consumes them atomically.
+     *
+     * @param onRateLimit - Callback to invoke when the rate limit is exceeded
+     *
+     * @example
+     * const rateLimit = new RateLimitTokenBucket(10, 1000);
+     *
+     * await rateLimit.waitAndConsume(() => {
+     *     console.log('Rate limit exceeded');
+     * });
+     * console.log('Token acquired and consumed');
+     */
+    async waitAndConsume(
+        count: number = 1,
+        opts: {
+            onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => void) | undefined,
+            abortController?: AbortController | undefined,
+            jitterMs?: number | undefined
+        } = {}
+    ): Promise<boolean> {
+
+        const {
+            onRateLimit,
+            abortController,
+            jitterMs = 0
+        } = opts;
+
+        // Check if tokens are already available and consume them atomically
+        this.#refill();
+        this.#stats.totalRequests++;
+
+        if (this.#tokens >= count) {
+
+            this.#tokens -= count;
+            return true;
+        }
+
+        const waitStart = Date.now();
+        this.#stats.waitCount++;
+
+        while (this.#tokens < count) {
+
+            if (abortController?.signal?.aborted) {
+
+                this.#stats.rejectedRequests++;
+                return false;
+            }
+
+            await onRateLimit?.(
+                new RateLimitError('Rate limit exceeded', this.capacity),
+                this.getNextAvailable(count)
+            );
+
+            await wait(this.getWaitTimeMs(count) + Math.random() * jitterMs);
+            this.#refill();
+        }
+
+        // Consume tokens after wait
+        this.#tokens -= count;
+
+        const waitEnd = Date.now();
+        this.#stats.totalWaitTime += waitEnd - waitStart;
+
+        return true;
     }
 }
 
@@ -188,20 +358,24 @@ export function rateLimit<T extends AnyFunc>(
     assertOptional(onLimitReached, isFunction(onLimitReached), 'onLimitReached must be a function');
     assertOptional(throws, typeof throws === 'boolean', 'throws must be a boolean');
 
-    const tokenBucket = new RateLimitTokenBucket(maxCalls, windowMs);
+    const tokenBucket = new RateLimitTokenBucket(maxCalls, windowMs / maxCalls);
 
     const rateLimitedFunction = async function(...args: Parameters<T>): Promise<ReturnType<T>> {
 
-        await tokenBucket.waitForToken(
-            async (limitErr) => {
-                await onLimitReached?.(
-                    limitErr,
-                    tokenBucket.nextAvailable,
-                    args
-                );
-                if (throws) throw limitErr;
-            }
-        );
+        const onceReached = async (limitErr: RateLimitError) => {
+
+            await onLimitReached?.(
+                limitErr,
+                tokenBucket.getNextAvailable(1),
+                args
+            );
+
+            if (throws) throw limitErr;
+        }
+
+        await tokenBucket.waitAndConsume(1, {
+            onRateLimit: onceReached
+        });
 
         return fn(...args);
     };

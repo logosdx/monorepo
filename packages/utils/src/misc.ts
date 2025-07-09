@@ -402,7 +402,7 @@ if (typeof Promise.withResolvers !== 'function') {
  *
  * A promise that can be cleared using the `clear` method.
  */
-class TimeoutPromise extends Promise<void> {
+class TimeoutPromise<T = void> extends Promise<T> {
 
     clear!: () => void;
 }
@@ -445,11 +445,11 @@ class TimeoutPromise extends Promise<void> {
  *     }
  * }
  */
-export const wait = (ms: number, value: any = true) => {
+export const wait = <T>(ms: number, value: T = true as T) => {
 
     let timeout: NodeJS.Timeout | number;
 
-    const promise = new TimeoutPromise(
+    const promise = new TimeoutPromise<T>(
         resolve => {
 
             timeout = setTimeout(
