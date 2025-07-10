@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import Sinon from 'sinon';
-import { Mock } from 'node:test';
+import { Mock, mock } from 'node:test';
 
 const globalConsole = globalThis.console;
 const globalLog = console.log;
@@ -125,5 +125,38 @@ export const mockHelpers = (expect: Chai.ExpectStatic) => {
         calledExactly,
         calledMoreThan,
         calledAtLeast
+    }
+}
+
+
+export const nextTick = () => new Promise(resolve => process.nextTick(resolve));
+
+// You must tick the timers first then drain the event loop,
+// otherwise, the timers will only apply to the current event loop.
+// setTimeout pushes functions to the next event loop.
+// Any `wait()` or `setTimeout()` logic wont be run unless the next
+// event loop enqueues the function.
+export const runTimers = async (tickTime: number | number[] = 0, nTimes = 1) => {
+
+    for (let i = 0; i < nTimes; i++) {
+
+        if (Array.isArray(tickTime)) {
+
+            for (const t of tickTime) {
+
+                if (t > 0) {
+                    mock.timers.tick(t);
+                    await nextTick();
+                }
+            }
+
+            continue;
+        }
+
+        if (tickTime > 0) {
+            mock.timers.tick(tickTime);
+        }
+
+        await nextTick();
     }
 }

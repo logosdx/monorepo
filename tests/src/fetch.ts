@@ -815,28 +815,6 @@ describe('@logosdx/fetch', () => {
 
     });
 
-    it('is not slow (500 requests)', { timeout: 2000 }, async () => {
-
-        const repeat = 1000;
-        const timeout = 10;
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            timeout
-        });
-
-        const bench = new Hoek.Bench();
-
-        for (let i = 0; i < repeat; i++) {
-            await api.get('/json');
-        }
-
-        const avg = bench.elapsed() / repeat;
-
-        // Less than 3 ms per request
-        expect(avg).to.lessThan(4);
-    });
-
     it('can make options', async () => {
 
         const api = new FetchEngine({

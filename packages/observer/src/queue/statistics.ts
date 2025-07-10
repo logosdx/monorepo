@@ -18,7 +18,6 @@ export class QueueStats {
             `queue:${this.queueName}:processing`,
             () => {
                 this.#processing++;
-                this.#processed++
             }
         );
 
@@ -26,6 +25,7 @@ export class QueueStats {
             `queue:${this.queueName}:success`,
             ({ elapsed }) => {
 
+                this.#processed++
                 this.#success++;
                 this.#processing--;
                 this.#calculateAvg(elapsed);
@@ -35,6 +35,7 @@ export class QueueStats {
         this.observer.on(
             `queue:${this.queueName}:error`,
             () => {
+                this.#processed++
                 this.#error++;
                 this.#processing--;
             }

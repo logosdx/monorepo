@@ -6,8 +6,10 @@
 "@logosdx/observer": patch
 "@logosdx/state-machine": patch
 "@logosdx/storage": patch
-"@logosdx/test": patch
 "@logosdx/utils": patch
 ---
 
-Export bug from utils
+### Fixed
+
+- Export bug from utils.
+- Better naming for options

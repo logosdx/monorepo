@@ -47,12 +47,14 @@ export class RateLimitTokenBucket {
         // Protect against clock adjustments or very long delays
         if (elapsed < 0 || elapsed > this.refillIntervalMs * this.capacity * 2) {
 
+
             this.#lastRefill = now;
             this.#tokens = this.capacity;
             return;
         }
 
         if (elapsed > 0) {
+
 
             // Calculate how many tokens to add based on elapsed time and refill rate
             const tokensToAdd = elapsed * refillRate;
@@ -141,21 +143,24 @@ export class RateLimitTokenBucket {
      * await rateLimit.waitForToken(() => {
      *     console.log('Rate limit exceeded');
      * });
-     * console.log('Token acquired');
+     * console.log('Token available');
+     *
+     * rateLimit.consume();
+     * console.log('Token consumed');
      */
     async waitForToken(
         count: number = 1,
         opts: {
             onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => void) | undefined,
             abortController?: AbortController | undefined,
-            jitterMs?: number | undefined
+            jitterFactor?: number | undefined
         } = {}
     ) {
 
         const {
             onRateLimit,
             abortController,
-            jitterMs = 0
+            jitterFactor = 0
         } = opts;
 
         // Check if tokens are already available without consuming them
@@ -174,7 +179,7 @@ export class RateLimitTokenBucket {
                 this.getNextAvailable(count)
             );
 
-            await wait(this.getWaitTimeMs(count) + Math.random() * jitterMs);
+            await wait(this.getWaitTimeMs(count) + Math.random() * jitterFactor);
             this.#refill();
         }
 
@@ -200,14 +205,14 @@ export class RateLimitTokenBucket {
         opts: {
             onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => void) | undefined,
             abortController?: AbortController | undefined,
-            jitterMs?: number | undefined
+            jitterFactor?: number | undefined
         } = {}
     ): Promise<boolean> {
 
         const {
             onRateLimit,
             abortController,
-            jitterMs = 0
+            jitterFactor = 0
         } = opts;
 
         // Check if tokens are already available and consume them atomically
@@ -236,7 +241,7 @@ export class RateLimitTokenBucket {
                 this.getNextAvailable(count)
             );
 
-            await wait(this.getWaitTimeMs(count) + Math.random() * jitterMs);
+            await wait(this.getWaitTimeMs(count) + Math.random() * jitterFactor);
             this.#refill();
         }
 

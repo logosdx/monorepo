@@ -51,7 +51,7 @@ export interface RetryOptions {
      *
      * @default 0
      */
-    jitter?: number,
+    jitterFactor?: number,
 
     /**
      * Function to determine if the function should be retried
@@ -139,7 +139,7 @@ export const retry = async <T extends AnyFunc>(
         delay = 0,
         retries = 3,
         backoff = 1,
-        jitter = 0,
+        jitterFactor = 0,
         shouldRetry = () => true,
         signal
     } = opts;
@@ -160,7 +160,7 @@ export const retry = async <T extends AnyFunc>(
 
         if (error && shouldRetry(error)) {
 
-            await wait(delay * backoff * (1 + jitter * Math.random()));
+            await wait(delay * backoff * (1 + jitterFactor * Math.random()));
             attempts++;
 
             signal?.throwIfAborted();

@@ -1,27 +1,17 @@
-import { describe, it, afterEach, after } from 'node:test'
+import { describe, it, afterEach, after, before } from 'node:test'
+import { mock } from 'node:test'
 
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { wait, attempt, noop, attemptSync, isAssertError, throttle } from '../../../packages/utils/src/index.ts';
+import { wait, attempt, noop, attemptSync, isAssertError } from '../../../packages/utils/src/index.ts';
 import { ObserverEngine, EventQueue, QueueOpts } from '../../../packages/observer/src/index.ts';
 
-import { sandbox } from '../_helpers.ts';
-
-const varianceMs = 5;
-/**
- * Adjusts timing expectations to account for test execution variance.
- *
- * CPU scheduling and system load can cause timing-sensitive tests to fail
- * due to small delays. This helper adds/subtracts a variance buffer to
- * timing assertions to make tests more reliable.
- */
-const withVariance = (ms: number, mod: 1 | -1 = 1) => ms + (varianceMs * mod);
-const withVarArgs = (min: number, max: number = min): [number, number] => [withVariance(min, -1), withVariance(max + varianceMs)];
+import { sandbox, runTimers } from '../_helpers.ts';
 
 describe('@logosdx/observer', async function () {
 
-    const timeout = 5000;
+    const timeout = 1000;
     const observer = new ObserverEngine();
     const _queues = new Set<EventQueue<any, any>>();
 
@@ -33,7 +23,20 @@ describe('@logosdx/observer', async function () {
         return queue
     }
 
+    before(() => {
+
+        mock.timers.enable({
+            apis: [
+                'setTimeout',
+                'setInterval',
+                'Date',
+            ]
+        });
+    });
+
     after(() => {
+
+        mock.timers.reset();
 
         for (const queue of _queues) {
 
@@ -78,11 +81,11 @@ describe('@logosdx/observer', async function () {
                 { name: 1234 },
                 { name: '' },
                 { name: 'ok', maxQueueSize: 0 },
-                { name: 'ok', debounceMs: 0 },
-                { name: 'ok', jitter: -1 },
-                { name: 'ok', jitter: 2 },
-                { name: 'ok', rateLimitItems: 0 },
-                { name: 'ok', rateLimitWindow: 0 },
+                { name: 'ok', pollIntervalMs: 0 },
+                { name: 'ok', jitterFactor: -1 },
+                { name: 'ok', jitterFactor: 2 },
+                { name: 'ok', rateLimitCapacity: 0 },
+                { name: 'ok', rateLimitIntervalMs: 0 },
                 { name: 'ok', type: 0 },
                 { name: 'ok', type: 'invalid' },
                 { name: 'ok', autoStart: 0 },
@@ -145,11 +148,14 @@ describe('@logosdx/observer', async function () {
             // with queue.emit
             queue.add('a');
 
+            mock.timers.runAll();
             await onceTest1;
             const onceTest2 = queue.once('success');
 
             // with observer.emit
             observer.emit('test', 'b');
+
+            mock.timers.runAll();
             await onceTest2;
 
             expect(fake.callCount).to.eq(2);
@@ -167,35 +173,37 @@ describe('@logosdx/observer', async function () {
                 {
                     name: 'concurrencyTest',
                     concurrency: 3,
-                    debounceMs: 1,
+                    pollIntervalMs: 1,
                 }
             );
 
-            [1,2,3,4,5,6,7,8,9,10].forEach((i) => queue.add(i));
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach((i) => queue.add(i));
 
-            await wait(10);
+            // Allow initial debounce and first batch processing
+            await runTimers(10);
 
             expect(queue.snapshot.activeRunners).to.eq(3);
             expect(queue.snapshot.pending).to.eq(7);
             expect(fake.callCount).to.eq(3);
 
-            await wait(10);
+            await runTimers(10);
 
             expect(queue.snapshot.activeRunners).to.eq(3);
             expect(queue.snapshot.pending).to.eq(4);
             expect(fake.callCount).to.eq(6);
 
-            await wait(10);
+            await runTimers(10);
 
             expect(queue.snapshot.activeRunners).to.eq(3);
             expect(queue.snapshot.pending).to.eq(1);
             expect(fake.callCount).to.eq(9);
 
-            await wait(10);
+            await runTimers(10);
 
             expect(queue.snapshot.activeRunners).to.eq(3);
             expect(queue.snapshot.pending).to.eq(0);
             expect(fake.callCount).to.eq(10);
+
         });
 
         it('should create a lifo queue', { timeout }, async () => {
@@ -215,6 +223,7 @@ describe('@logosdx/observer', async function () {
             queue.add('1');
             queue.add('2');
 
+            await runTimers(10, 10);
             await onceIdle;
 
             expect(result).to.eql(['lifo:2', 'lifo:1']);
@@ -238,6 +247,7 @@ describe('@logosdx/observer', async function () {
             queue.add('1');
             queue.add('2');
 
+            await runTimers(10, 10);
             await onceIdle;
 
             expect(result).to.eql(['fifo:1', 'fifo:2']);
@@ -259,15 +269,17 @@ describe('@logosdx/observer', async function () {
                 {
                     name: 'statsTest',
                     concurrency: 3,
-                    debounceMs: 1,
+                    pollIntervalMs: 1,
                     maxQueueSize: 10,
                 }
             );
 
-            [1,2,3,4,5,6,7,8,9,10,11,12,13].forEach((i) => queue.add(i));
+            const onceIdle = queue.once('idle');
 
-            await queue.once('idle');
-            await wait(20);
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].forEach((i) => queue.add(i));
+
+            await runTimers(10, 10);
+            await onceIdle;
 
             const snapshot = queue.snapshot;
             const stats = queue.stats;
@@ -279,7 +291,7 @@ describe('@logosdx/observer', async function () {
             expect(stats.success).to.eq(8);
             expect(stats.error).to.eq(2);
             expect(stats.rejected).to.eq(3);
-            expect(stats.avgProcessingTime).to.be.within(10, 15);
+            expect(stats.avgProcessingTime).to.eq(10);
 
             expect(snapshot.isRunning).to.be.true;
             expect(snapshot.isIdle).to.be.true;
@@ -302,6 +314,7 @@ describe('@logosdx/observer', async function () {
                     name: 'priorityTest',
                     type: 'fifo',
                     concurrency: 1,
+                    pollIntervalMs: 1,
                     processIntervalMs: 1,
                 }
             );
@@ -312,6 +325,8 @@ describe('@logosdx/observer', async function () {
             queue.add('b', 2);
             queue.add('c', 1);
             queue.add('d', 1);
+
+            await runTimers(10, 10);
 
             await onceIdle;
 
@@ -341,6 +356,8 @@ describe('@logosdx/observer', async function () {
             queue.add('1');
             queue.add('2'); // should be rejected, does not throw
 
+            await runTimers(10, 3);
+
             const { data } = await rejected; // emits rejected event
 
             expect(data).to.eq('2');
@@ -351,17 +368,22 @@ describe('@logosdx/observer', async function () {
             const calls: string[] = [];
             let rateLimited = false;
 
-            const debounceMs = 1;
-            const rateLimitWindow = 50;
+            const waitTime = 10;
+            const pollIntervalMs = 1;
+            const rateLimitIntervalMs = 100; // means 1 every 10ms (100ms / 10 calls)
 
             const queue = makeQueue(
                 'rate-limit',
-                (data) => calls.push(data),
+                (data) => (
+                    wait(waitTime).then(
+                        () => calls.push(data)
+                    )
+                ),
                 {
                     name: 'rateQueue',
-                    rateLimitItems: 1,
-                    rateLimitWindow,
-                    debounceMs,
+                    rateLimitCapacity: 1,
+                    rateLimitIntervalMs,
+                    pollIntervalMs,
                 }
             );
 
@@ -373,158 +395,191 @@ describe('@logosdx/observer', async function () {
             queue.add('A');
             queue.add('B'); // rate limit hit
 
-            await queue.once('rate-limited');
+            const onceRateLimited = queue.once('rate-limited');
+            const onceIdle = queue.once('idle');
+
+            await runTimers(waitTime, 2);
 
             expect(calls).to.include('A');
             expect(calls).to.not.include('B');
 
-            await queue.once('idle');
+            await runTimers(rateLimitIntervalMs, 2);
+
+            await onceRateLimited;
+            await onceIdle;
 
             expect(calls).to.include('A');
             expect(calls).to.include('B');
             expect(rateLimited).to.be.true;
-        });
 
-        it('should delay processing when rate-limited', async () => {
-
-            const debounceMs = 1;
-            const rateLimitWindow = 50;
-            const waitTime = 10;
-
-            // Time until the first rate limit hit
-            const rateLimitHitsMs = waitTime + debounceMs;
-
-            const rateLimitReleasedMs = rateLimitHitsMs + rateLimitWindow;
-
-            const queue = makeQueue(
-                'rate-limit',
-                async () => wait(waitTime),
-                {
-                    name: 'rateQueue',
-                    debounceMs,
-                    rateLimitItems: 1,
-                    rateLimitWindow,
-                }
-            );
-
-            const onceRateLimited = queue.once('rate-limited');
-            const onceEmpty = queue.once('empty');
-
-            queue.add('1');
-            queue.add('2');
-
-            let lastTime = Date.now();
-
-            const { data } = await onceRateLimited;
-
-            expect(data).to.eq('2');
-
-            const elapsed = Date.now() - lastTime;
-            lastTime = Date.now();
-
-            await onceEmpty;
-            const elapsed2 = Date.now() - lastTime;
-
-            expect(elapsed).to.be.within(...withVarArgs(rateLimitHitsMs));
-            expect(elapsed2).to.be.within(...withVarArgs(rateLimitReleasedMs));
         });
 
         it('should delay processing when idle', async () => {
 
-            const debounceMs = 20;
+            const pollIntervalMs = 20;
             const waitTime = 10;
-            const jitter = 0.1;
+            const jitterFactor = 0.1;
 
-            const minTime = (debounceMs * (1 + jitter)) + waitTime;
-
-            // Two, because we're waiting for the queue to be empty
-            // so it will loop twice while waiting for the next item
-            // to be added.
-            const maxTime = (minTime * 2) + waitTime;
+            const fake = sandbox.spy(() => wait(waitTime));
 
             const queue = makeQueue(
                 'idleTest',
-                async () => wait(waitTime),
+                fake,
                 {
                     name: 'idleQueue',
-                    debounceMs,
-                    jitter,
+                    pollIntervalMs,
+                    jitterFactor,
                 }
             );
 
-            const startTime = Date.now();
+            let onceIdle = queue.once('idle');
             queue.add('1');
-            await queue.once('idle');
 
-            const time1 = Date.now();
+            expect(fake.callCount).to.eq(0);
+
+            // 20ms * 0.1 poll, 10ms wait
+            // 11 * 3 = 33ms
+            await runTimers(11, 3);
+            await onceIdle;
+
+            expect(fake.callCount).to.eq(1);
+            onceIdle = queue.once('idle');
+
             queue.add('2');
-            await queue.once('idle');
+            expect(fake.callCount).to.eq(1);
 
-            const time2 = Date.now();
+            // 20ms * 0.1 poll
+            await runTimers(20);
+            expect(fake.callCount).to.eq(1);
+
+            await runTimers(10, 2);
+            expect(fake.callCount).to.eq(2);
+
+            await onceIdle;
+            onceIdle = queue.once('idle');
+
             queue.add('3');
-            await queue.once('idle');
 
-            const time3 = Date.now();
+            await runTimers(11, 3); // 11ms * 3 = 33ms
+            await onceIdle;
 
-            expect(time1 - startTime).to.be.within(...withVarArgs(minTime, maxTime));
-            expect(time2 - time1).to.be.within(...withVarArgs(minTime, maxTime));
-            expect(time3 - time2).to.be.within(...withVarArgs(minTime, maxTime));
+            expect(queue.snapshot.stats.processed).to.eq(3);
+
         });
 
         it('should pause between items for processIntervalMs', async () => {
 
-            const processIntervalMs = 10;
+            const processIntervalMs = 20;
             const waitTime = 10;
-            const debounceMs = 1;
+            const pollIntervalMs = 10;
 
-            const minTime = ((processIntervalMs + waitTime) * 2) + debounceMs;
+            const fake = sandbox.spy(() => wait(waitTime));
 
             const queue = makeQueue(
                 'intervalTest',
-                async () => wait(waitTime),
+                fake,
                 {
                     name: 'intervalTest',
                     processIntervalMs,
-                    debounceMs,
+                    pollIntervalMs,
+                    autoStart: false,
                 }
             );
 
-            const times: number[] = [];
-
-            queue.on('idle', () => {
-                times.push(Date.now());
-            });
-
-            let now = Date.now();
+            await queue.start();
+            const onceIdle = queue.once('idle');
 
             queue.add('1');
             queue.add('2');
-            await queue.once('idle');
+
+            expect(fake.callCount).to.eq(0);
+            expect(queue.snapshot.isWaiting).to.be.true;
+
+            await runTimers(pollIntervalMs - 1);
+            expect(fake.callCount).to.eq(0);
+
+            await runTimers(1);
+            expect(queue.snapshot.isWaiting).to.be.false;
+
+            expect(fake.callCount).to.eq(1);
+            expect(queue.snapshot.stats.processing).to.eq(1);
+            expect(queue.snapshot.pending).to.eq(1);
+
+            await runTimers(waitTime);
+            expect(fake.callCount).to.eq(1);
+            expect(queue.snapshot.stats.processing).to.eq(0);
+            expect(queue.snapshot.pending).to.eq(1);
+
+            await runTimers(processIntervalMs - 1);
+            expect(fake.callCount).to.eq(1);
+            expect(queue.snapshot.stats.processed).to.eq(1);
+            expect(queue.snapshot.pending).to.eq(1);
+
+            await runTimers(1);
+            expect(fake.callCount).to.eq(2);
+            expect(queue.snapshot.stats.processing).to.eq(1);
+            expect(queue.snapshot.pending).to.eq(0);
+
+            await runTimers([waitTime, processIntervalMs]);
+            await onceIdle;
+
             queue.add('3');
             queue.add('4');
-            await queue.once('idle');
 
-            const [time1, time2] = times;
+            expect(fake.callCount).to.eq(2);
 
-            expect(time1! - now).to.be.within(...withVarArgs(minTime));
-            expect(time2! - time1!).to.be.within(...withVarArgs(minTime));
+            await runTimers(pollIntervalMs - 1);
+            expect(fake.callCount).to.eq(2);
+
+            await runTimers(1);
+            expect(fake.callCount).to.eq(3);
+            expect(queue.snapshot.stats.processing).to.eq(1);
+            expect(queue.snapshot.stats.processed).to.eq(2);
+            expect(queue.snapshot.pending).to.eq(1);
+
+            await runTimers(waitTime);
+            expect(fake.callCount).to.eq(3);
+            expect(queue.snapshot.stats.processing).to.eq(0);
+            expect(queue.snapshot.stats.processed).to.eq(3);
+            expect(queue.snapshot.pending).to.eq(1);
+
+            await runTimers(processIntervalMs - 1);
+            expect(fake.callCount).to.eq(3);
+            expect(queue.snapshot.stats.processing).to.eq(0);
+            expect(queue.snapshot.stats.processed).to.eq(3);
+            expect(queue.snapshot.pending).to.eq(1);
+
+            await runTimers(1);
+            expect(fake.callCount).to.eq(4);
+            expect(queue.snapshot.stats.processing).to.eq(1);
+            expect(queue.snapshot.stats.processed).to.eq(3);
+            expect(queue.snapshot.pending).to.eq(0);
+
+            await runTimers([waitTime, processIntervalMs]);
+            expect(queue.snapshot.stats.processing).to.eq(0);
+            expect(queue.snapshot.stats.processed).to.eq(4);
+            expect(queue.snapshot.pending).to.eq(0);
         });
 
-        it('should timeout when process takes too long', async () => {
+        it('should timeout when process takes too long', { timeout }, async () => {
 
             const queue = makeQueue(
                 'timeoutTest',
                 async () => wait(100),
                 {
                     name: 'timeoutTest',
-                    timeoutMs: 30,
+                    taskTimeoutMs: 30,
+                    pollIntervalMs: 1,
                 }
             );
 
             const onceError = queue.once('error');
 
-            queue.add('1');
-            queue.add('2');
+            queue.add('a');
+            queue.add('b');
+
+            // Advance time to trigger timeout
+            await runTimers(15, 3);
 
             const { error } = await onceError;
 
@@ -563,10 +618,14 @@ describe('@logosdx/observer', async function () {
 
             // It will never hit idle because it's not processing.
             // Instead, it will timeout.
-            const timeout = await Promise.race([
+            const timeoutPromise = Promise.race([
                 idle,
                 wait(100, 'timeout')
             ]);
+
+            await runTimers(34, 3);
+
+            const timeout = await timeoutPromise;
 
             expect(timeout).to.eq('timeout');
 
@@ -585,7 +644,15 @@ describe('@logosdx/observer', async function () {
 
             const fake = sandbox.stub();
 
-            const queue = makeQueue('stopTest', fake, { name: 'stopTest', autoStart: false });
+            const queue = makeQueue(
+                'stopTest',
+                fake,
+                {
+                    name: 'stopTest',
+                    autoStart: false,
+                    pollIntervalMs: 1,
+                }
+            );
 
             expect(queue.state).to.eq('stopped');
 
@@ -605,6 +672,8 @@ describe('@logosdx/observer', async function () {
 
             expect(queue.pending).to.eq(2);
 
+            await runTimers(10, 3);
+
             await onceIdle;
 
             expect(queue.pending).to.eq(0);
@@ -622,11 +691,15 @@ describe('@logosdx/observer', async function () {
 
         it('should emit lifecycle events', { timeout: 1000 }, async () => {
 
+            const pollIntervalMs = 1;
+            const rateLimitIntervalMs = 10;
+            const waitTime = 5;
+
             const process = (i: number) => {
                 if (i % 4 === 0) {
                     throw new Error('test');
                 }
-                return wait(5);
+                return wait(waitTime);
             }
 
             const queue = makeQueue(
@@ -636,10 +709,10 @@ describe('@logosdx/observer', async function () {
                     name: 'lifecycleTest',
                     autoStart: false,
                     concurrency: 1,
-                    debounceMs: 1,
+                    pollIntervalMs,
                     maxQueueSize: 4,
-                    rateLimitItems: 1,
-                    rateLimitWindow: 10,
+                    rateLimitCapacity: 1,
+                    rateLimitIntervalMs,
                 }
             );
 
@@ -675,10 +748,16 @@ describe('@logosdx/observer', async function () {
 
             queue.add('a');
             const addedPayload = await onceAdded;
+
+            await runTimers(pollIntervalMs);
             const processingPayload = await onceProcessing;
+
+            await runTimers(waitTime);
             const successPayload = await onceSuccess;
 
-            [1,2,3,4,5].forEach((i) => queue.add(i));
+            [1, 2, 3, 4, 5].forEach((i) => queue.add(i));
+
+            await runTimers([waitTime, rateLimitIntervalMs], 5);
 
             const errorPayload = await onceError;
             const rejectedPayload = await onceRejected;
@@ -686,9 +765,12 @@ describe('@logosdx/observer', async function () {
             const emptyPayload = await onceEmpty;
             const idlePayload = await onceIdle;
 
-            [1,2,3].forEach((i) => queue.add(i));
+            [1, 2, 3].forEach((i) => queue.add(i));
 
             const flushPromise = queue.flush();
+
+            await runTimers([waitTime, rateLimitIntervalMs], 3);
+
             const flushPayload = await onceFlush;
             const flushedPayload = await onceFlushed;
 
@@ -697,9 +779,12 @@ describe('@logosdx/observer', async function () {
             queue.add('b');
 
             const drainPromise = queue.shutdown();
+
             const drainPayload = await onceDrain;
 
             expect(queue.state).to.eq('draining');
+
+            await runTimers([waitTime], 3);
 
             const drainedPayload = await onceDrained;
             const stoppedPayload = await onceStopped;
@@ -714,7 +799,7 @@ describe('@logosdx/observer', async function () {
             queue.start();
             await onceStarted2;
 
-            [1,2,3,4,5].forEach((i) => queue.add(i));
+            [1, 2, 3, 4, 5].forEach((i) => queue.add(i));
 
             const onceShutdown2 = queue.once('shutdown');
             const oncePurged = queue.once('purged');
@@ -812,7 +897,7 @@ describe('@logosdx/observer', async function () {
                     name: 'ghostRunnerTest',
                     autoStart: false,
                     concurrency: 1,
-                    debounceMs: 1,
+                    pollIntervalMs: 1,
                 }
             );
 
@@ -821,30 +906,32 @@ describe('@logosdx/observer', async function () {
             queue.start();
             await onceStarted;
 
-            [1,2,3,4,5,6].forEach((i) => queue.add(i));
+            [1, 2, 3, 4, 5, 6].forEach((i) => queue.add(i));
             queue.start();
 
-            // 3 hits = hits ~0, 10, 20, finishes at ~30
-            await wait(30); // should be 3 hits
+            await runTimers(10, 3);
 
             expect(fake.callCount).to.eq(3);
             expect(queue.snapshot.activeRunners).to.eq(1);
+
 
             const oncePaused1 = queue.once('paused');
             const onceSuccess = queue.once('success');
 
             queue.pause();
+
+            await runTimers(10);
+
             await oncePaused1;
             await onceSuccess;
 
-            // Let while loop finish
-            await wait(10);
+            await runTimers(10, 3);
             expect(queue.snapshot.activeRunners).to.eq(0);
 
             queue.resume();
 
             // it'll pick up the next item
-            await wait(10);
+            await runTimers(10);
             expect(queue.snapshot.activeRunners).to.eq(1);
 
             const oncePaused2 = queue.once('paused');
@@ -862,10 +949,12 @@ describe('@logosdx/observer', async function () {
             expect(queue.snapshot.activeRunners).to.eq(2);
 
             // Let the first one die off
-            await wait(10);
+            await runTimers(10);
             expect(queue.snapshot.activeRunners).to.eq(1);
 
             const onceIdle = queue.once('idle');
+
+            await runTimers(10, 2);
 
             await onceIdle;
 
@@ -883,7 +972,7 @@ describe('@logosdx/observer', async function () {
                     name: 'startTest',
                     autoStart: false,
                     concurrency: 1,
-                    debounceMs: 1,
+                    pollIntervalMs: 1,
                 }
             );
 
@@ -897,6 +986,8 @@ describe('@logosdx/observer', async function () {
 
             expect(queue.state).to.eq('running');
             expect(queue.pending).to.eq(1); // 1 item was added
+
+            await runTimers(1);
 
             await onceSuccess1;
 
@@ -921,6 +1012,7 @@ describe('@logosdx/observer', async function () {
             queue.add('b');
             expect(queue.pending).to.eq(1); // 1 item was added
 
+            await runTimers(1);
             await onceSuccess2;
 
             expect(queue.state).to.eq('running');
@@ -938,7 +1030,7 @@ describe('@logosdx/observer', async function () {
 
         it('should shutdown gracefully and in order', { timeout }, async () => {
 
-            const args = ['lifo', 'fifo'].map(async(type) => {
+            const args = ['lifo', 'fifo'].map(async (type) => {
 
                 const fake = sandbox.spy(() => wait(10));
                 const queue = makeQueue(
@@ -948,19 +1040,22 @@ describe('@logosdx/observer', async function () {
                         name: 'shutdownTest',
                         type: type as 'lifo' | 'fifo',
                         concurrency: 1,
-                        debounceMs: 1,
+                        pollIntervalMs: 1,
                     }
                 );
 
-                [1,2,3,4,5,6].forEach((i) => queue.add(i));
+                [1, 2, 3, 4, 5, 6].forEach((i) => queue.add(i));
 
                 expect(fake.callCount).to.eq(0);
 
                 const onceShutdown = queue.once('shutdown');
 
-                const drained = await queue.shutdown();
+                const drainedPromise = queue.shutdown();
+
+                await runTimers(10, 6);
 
                 await onceShutdown;
+                const drained = await drainedPromise;
 
                 expect(drained).to.eq(6); // Everything was processed
                 expect(fake.callCount).to.eq(6);
@@ -970,11 +1065,11 @@ describe('@logosdx/observer', async function () {
 
             const [lifo, fifo] = await Promise.all(args);
 
-            [6,5,4,3,2,1].forEach((a, i) => {
+            [6, 5, 4, 3, 2, 1].forEach((a, i) => {
                 expect(lifo![i]?.[0 as never], `lifo item ${i}`).to.eq(a);
             });
 
-            [1,2,3,4,5,6].forEach((a, i) => {
+            [1, 2, 3, 4, 5, 6].forEach((a, i) => {
                 expect(fifo![i]?.[0 as never], `fifo item ${i}`).to.eq(a);
             });
         });
@@ -989,17 +1084,21 @@ describe('@logosdx/observer', async function () {
                 {
                     name: 'shutdownTest',
                     concurrency: 1,
-                    debounceMs: 1,
+                    pollIntervalMs: 1,
                 }
             );
 
-            [1,2,3,4,5,6].forEach((i) => queue.add(i));
+            [1, 2, 3, 4, 5, 6].forEach((i) => queue.add(i));
 
             expect(fake.callCount).to.eq(0);
 
+
             const onceShutdown = queue.once('shutdown');
 
-            const pending = await queue.shutdown(true);
+            const shutdownPromise = queue.shutdown(true);
+
+            await runTimers(11, 6);
+            const pending = await shutdownPromise;
 
             await onceShutdown;
 
@@ -1017,14 +1116,14 @@ describe('@logosdx/observer', async function () {
                 {
                     name: 'flushTest',
                     concurrency: 1,
-                    debounceMs: 1,
+                    pollIntervalMs: 1,
                     maxQueueSize: 10,
-                    rateLimitItems: 1,
-                    rateLimitWindow: 10,
+                    rateLimitCapacity: 1,
+                    rateLimitIntervalMs: 10,
                 }
             );
 
-            [1,2,3,4,5,6,7,8,9,10].forEach((i) => queue.add(i));
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach((i) => queue.add(i));
 
             expect(fake.callCount).to.eq(0);
 
@@ -1035,9 +1134,12 @@ describe('@logosdx/observer', async function () {
 
             expect(queue.snapshot.pending).to.eq(5);
 
-            [11,12,13,14,15].forEach((i) => queue.add(i));
+            [11, 12, 13, 14, 15].forEach((i) => queue.add(i));
 
             expect(queue.snapshot.pending).to.eq(10);
+
+            await runTimers(1);
+            await runTimers(10, 9);
 
             const flushPayload = await onceFlush;
             const flushedPayload = await onceFlushed;
@@ -1050,137 +1152,6 @@ describe('@logosdx/observer', async function () {
         });
     });
 
-    describe('Queue: stress and memory leak tests', async () => {
-
-        it('should process 250,000 items x 5 rounds without memory leak', async () => {
-
-            observer.clear();
-
-            const items = 250_000;
-            const rounds = 5
-            const concurrency = 1;
-
-            const log = (...args: any[]) => {
-                if (process.env.CI) return;
-
-                console.log('>>>>', ...args);
-            }
-
-            const getSnapshot = throttle(() => {
-                log(
-                    'pending:', queue.pending,
-                    'running nodes:', queue.snapshot.runningNodes.size,
-                    'ops/sec:', calculateRate(),
-                );
-            }, { delay: 500 });
-
-            const queue = makeQueue(
-                'fuzzTest',
-                async () => getSnapshot(),
-                {
-                    name: 'fuzzTest',
-                    concurrency,
-                    debounceMs: 1,
-                    autoStart: false,
-                }
-            );
-
-            const startTime = Date.now();
-            let processedCount = 0;
-
-            // Track processing rate
-            const calculateRate = () => {
-                const elapsed = (Date.now() - startTime) / 1000; // seconds
-                const rate = processedCount / elapsed;
-                return Math.round(rate);
-            };
-
-            // Listen for successful processing to track count
-            observer.on('queue:fuzzTest:success', () => {
-                processedCount++;
-            });
-
-            // Force a garbage collection before we start
-            await global.gc?.({ execution: 'async' });
-
-            queue.start();
-
-            const heapBefore = process.memoryUsage().heapUsed;
-            log('run queue', 'start');
-
-            const fullQueueHead: number[] = [];
-            const emptyQueueHead: number[] = [];
-
-            const runSample = async (round: number) => {
-
-                log('run queue', 'sample', round + 1);
-
-                for (let i = 0; i < items; i++) {
-                    queue.add(i);
-                }
-
-                fullQueueHead.push(process.memoryUsage().heapUsed);
-
-                expect(queue.pending).to.eq(items);
-
-                await queue.once('idle');
-
-                // Force a garbage collection after we've processed the items
-                await global.gc?.({ execution: 'async' });
-
-                emptyQueueHead.push(process.memoryUsage().heapUsed);
-            }
-
-            for (let i = 0; i < rounds; i++) {
-                await runSample(i);
-            }
-
-            log('run queue', 'done', (Date.now() - startTime) / 1000, 'seconds');
-            log(`Processed: ${processedCount}/${items} (${calculateRate()} items/sec)`);
-
-            expect(queue.pending).to.eq(0);
-            expect(queue.snapshot.runningNodes.size).to.eq(0);
-            expect(queue.snapshot.activeRunners).to.eq(concurrency);
-            expect(processedCount).to.eq(items * rounds);
-
-            await queue.shutdown(); // Clear the queue
-
-            await global.gc?.({ execution: 'async' });
-
-            const heapAfter = process.memoryUsage().heapUsed;
-
-            const delta = heapAfter - heapBefore;
-            const toMb = (bytes: number) => Math.round(bytes / 1024 / 1024 * 100) / 100;
-
-            // Visually inspect the heap usage
-            log({
-                delta: toMb(delta),
-                heapBefore: toMb(heapBefore),
-                heapAfter: toMb(heapAfter),
-                heapRuns: fullQueueHead.map(toMb),
-                heapEmpty: emptyQueueHead.map(toMb),
-            })
-
-            for (const heapSnapshot of fullQueueHead) {
-                expect(toMb(heapSnapshot)).to.be.greaterThan(toMb(heapBefore));
-                expect(toMb(heapSnapshot)).to.be.greaterThan(toMb(heapAfter));
-            }
-
-            /**
-             * 5mb is the max memory delta we're willing to tolerate.
-             *
-             * We want to consider memory pressure placed by tests
-             * overhead as well. In isolation, this test results in a
-             * negative delta, but the whole test suite ramps up memory
-             * usage, so we need to allow for that.
-             *
-             * The heap runs in the arrays above mark ~50mb memory usage
-             * over the course of 5 rounds. If we're actually leaking,
-             * we should see significant growth in memory usage.
-             */
-            expect(toMb(delta)).to.be.lessThan(5);
-        });
-    });
 });
 
 

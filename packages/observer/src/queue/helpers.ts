@@ -6,11 +6,21 @@ export enum QueueRejectionReason {
     notRunning = 'Queue is not running',
 }
 
-export type QueueItem<S, E extends Events<S> | RegExp = Events<S>> = {
-    data: EventData<S, E>,
-    _taskId: string,
-    priority?: number
-};
+export type QueueEventData<S, E extends Events<S> | RegExp = Events<S>> = {
+    data?: EventData<S, E>,
+    _taskId?: string,
+    priority?: number,
+    reason?: QueueRejectionReason,
+    startedAt?: number,
+    rateLimited?: boolean,
+    elapsed?: number,
+    error?: Error,
+    force?: boolean,
+    pending?: number,
+    flushed?: number,
+    drained?: number,
+    count?: number,
+}
 
 export type QueueEventNames = (
   | `added`
@@ -37,16 +47,16 @@ export type QueueEventNames = (
 );
 
 export type QueueEvents<S extends Record<string, any>, E extends Events<S> | RegExp = Events<S>> = {
-    added: QueueItem<S, E>;
+    added: QueueEventData<S, E>;
     start: void;
     started: void;
     stopped: void;
-    processing: QueueItem<S, E> & { startedAt: number, rateLimited: boolean };
-    success: QueueItem<S, E> & { startedAt: number, elapsed: number, rateLimited: boolean };
-    error: QueueItem<S, E> & { error: Error, rateLimited: boolean };
-    timeout: QueueItem<S, E> & { error: Error, rateLimited: boolean };
-    rejected: QueueItem<S, E> & { reason: QueueRejectionReason };
-    'rate-limited': QueueItem<S, E> & { rateLimited: boolean };
+    processing: QueueEventData<S, E> & { startedAt: number, rateLimited: boolean };
+    success: QueueEventData<S, E> & { startedAt: number, elapsed: number, rateLimited: boolean };
+    error: QueueEventData<S, E> & { error: Error, rateLimited: boolean };
+    timeout: QueueEventData<S, E> & { error: Error, rateLimited: boolean };
+    rejected: QueueEventData<S, E> & { reason: QueueRejectionReason };
+    'rate-limited': QueueEventData<S, E> & { rateLimited: boolean };
     empty: void;
     idle: void;
     drain: { pending: number };

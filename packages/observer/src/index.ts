@@ -3,7 +3,9 @@ export type { Events } from './types.ts';
 export {
     makeEventTracer,
     EventError,
+    EventPromise,
     isEventError,
+    type EventData,
 } from './helpers.ts';
 
 export {
@@ -17,6 +19,7 @@ export {
     type QueueEventNames,
     type QueueState,
     type QueueItem,
+
 } from './queue/index.ts';
 
 export { ObserverEngine } from './engine.ts';

@@ -9,7 +9,7 @@ import {
 // @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { mockHelpers } from '../../_helpers';
+import { mockHelpers, runTimers, nextTick } from '../../_helpers';
 
 import {
     attempt,
@@ -25,7 +25,7 @@ describe('@logosdx/utils', () => {
 
     describe('RateLimitTokenBucket', () => {
         before(() => {
-            mock.timers.enable({ apis: ['Date'] });
+            mock.timers.enable({ apis: ['Date', 'setTimeout'] });
         });
 
         after(() => {
@@ -263,7 +263,7 @@ describe('@logosdx/utils', () => {
             mock.timers.enable({ apis: ['Date'] });
         });
 
-        it('should apply jitter to wait time', async () => {
+        it('should apply jitterFactor to wait time', async () => {
             // Use real timers for this async test
             mock.timers.reset();
 
@@ -273,11 +273,11 @@ describe('@logosdx/utils', () => {
             for (let i = 0; i < 10; i++) {
                 bucket.consume(); // exhaust tokens
                 const start = Date.now();
-                await bucket.waitForToken(1, { jitterMs: 10 });
+                await bucket.waitForToken(1, { jitterFactor: 10 });
                 times.push(Date.now() - start);
             }
 
-            // Times should vary due to jitter
+            // Times should vary due to jitterFactor
             const min = Math.min(...times);
             const max = Math.max(...times);
             expect(max - min).to.be.greaterThan(3); // Should have variation

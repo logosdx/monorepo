@@ -5,23 +5,26 @@ import {
     isFunction,
     isPlainObject,
     wait,
-    RateLimitTokenBucket,
     noop,
     generateId,
     TimeoutError,
     isTimeoutError,
+    RateLimitTokenBucket,
     PriorityQueue,
 } from '@logosdx/utils';
 
-import { type Events } from '../types.ts';
-import { EventPromise, type EventData } from '../helpers.ts';
-import { type ObserverEngine } from '../engine.ts';
-import { EventGenerator } from '../generator.ts';
+import {
+    type Events,
+    EventPromise,
+    type EventData,
+    ObserverEngine,
+    EventGenerator
+} from '../index.ts';
 
 import { QueueStateManager } from './state.ts';
 import { QueueStats } from './statistics.ts';
 import {
-    type QueueItem,
+    type QueueEventData,
     type QueueEventNames,
     type QueueEvents,
     QueueRejectionReason,
@@ -52,22 +55,22 @@ export interface QueueOpts {
     concurrency?: number;
 
     /**
-     * The debounce time in milliseconds before the queue will
+     * The poll interval in milliseconds before the queue will
      * check for new items after idle.
      *
      * @default 100
      */
-    debounceMs?: number;
+    pollIntervalMs?: number;
 
     /**
-     * The jitter time in milliseconds to displace
+     * The jitter percentage to displace
      * the next process time. This stops all concurrent
      * processes from happening at the same time.
      *
      * @range [0, 1]
      * @default 1
      */
-    jitter?: number;
+    jitterFactor?: number;
 
     /**
      * The interval in milliseconds before picking up the next item
@@ -85,7 +88,7 @@ export interface QueueOpts {
      *
      * @default 0
      */
-    timeoutMs?: number;
+    taskTimeoutMs?: number;
 
     /**
      * The maximum size of the queue
@@ -99,14 +102,14 @@ export interface QueueOpts {
      *
      * @default 999_999_999
      */
-    rateLimitItems?: number;
+    rateLimitCapacity?: number;
 
     /**
      * The rate limit window in milliseconds
      *
      * @default 1000
      */
-    rateLimitWindow?: number;
+    rateLimitIntervalMs?: number;
 
     /**
      * Automatically start the queue
@@ -126,7 +129,7 @@ export interface QueueOpts {
 
 export class EventQueue<S extends Record<string, any>, E extends Events<S> | RegExp = Events<S>> {
 
-    #queue: PriorityQueue<QueueItem<S, E>>;
+    #queue: PriorityQueue<QueueEventData<S, E>>;
     #priorites: Map<EventData<S, E>, number> = new Map();
     #off: ObserverEngine.Cleanup = noop;
 
@@ -135,6 +138,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
     #rateLimiter: RateLimitTokenBucket;
     #idle = true;
+    #waiting = false;
     #listening = false;
     #debugging: boolean | 'info' | 'verbose' = false;
     #generation = 0;
@@ -144,25 +148,25 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
     constructor(
         private opts: QueueOpts & {
-            observer: ObserverEngine<S>,
             event: E | RegExp,
             process: (data: EventData<S, E>) => Promise<void>
+            observer?: ObserverEngine<S>,
         }
     ) {
 
         const {
-            observer,
+            observer = new ObserverEngine<S>(),
             event,
             process,
             name,
             type = 'fifo',
 
             concurrency = 1,
-            debounceMs = 100,
-            jitter = 0,
-            rateLimitWindow = 1000,
+            pollIntervalMs = 100,
+            jitterFactor = 0,
+            rateLimitIntervalMs = 1000,
             processIntervalMs = 0,
-            timeoutMs = 0,
+            taskTimeoutMs = 0,
 
             autoStart = true,
             debug = false,
@@ -170,7 +174,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
         let {
             maxQueueSize = 999_999_999,
-            rateLimitItems = 999_999_999,
+            rateLimitCapacity = 999_999_999,
         } = this.opts;
 
         assert(isPlainObject(this.opts), 'Options is required to be an object');
@@ -189,15 +193,15 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
         assert(name && typeof name === 'string' && name.length > 0, 'Name is required');
 
         assert(concurrency > 0, 'Concurrency must be greater than 0');
-        assert(debounceMs > 0, 'DebounceMs must be a number greater than 0');
-        assert(jitter >= 0 && jitter <= 1, 'Jitter must be a number greater than or equal to 0 and less than or equal to 1');
+        assert(pollIntervalMs > 0, 'pollIntervalMs must be a number greater than 0');
+        assert(jitterFactor >= 0 && jitterFactor <= 1, 'Jitter must be a number greater than or equal to 0 and less than or equal to 1');
 
         assert(maxQueueSize > 0, 'MaxQueueSize must be a number greater than 0');
-        assert(rateLimitWindow > 0, 'RateLimitWindow must be a number greater than 0');
-        assert(rateLimitItems > 0, 'RateLimitItems must be a number greater than 0');
+        assert(rateLimitIntervalMs > 0, 'rateLimitIntervalMs must be a number greater than 0');
+        assert(rateLimitCapacity > 0, 'rateLimitCapacity must be a number greater than 0');
 
         assert(processIntervalMs >= 0, 'processIntervalMs must be a number greater than or equal to 0');
-        assert(timeoutMs >= 0, 'TimeoutMs must be a number greater than or equal to 0');
+        assert(taskTimeoutMs >= 0, 'taskTimeoutMs must be a number greater than or equal to 0');
 
         assert(type === 'fifo' || type === 'lifo', 'Type must be either "fifo" or "lifo"');
         assert(typeof autoStart === 'boolean', 'AutoStart must be a boolean');
@@ -206,18 +210,19 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
             maxQueueSize = 999_999_999;
         }
 
-        if (rateLimitItems === Infinity) {
-            rateLimitItems = 999_999_999;
+        if (rateLimitCapacity === Infinity) {
+            rateLimitCapacity = 999_999_999;
         }
 
         Object.assign(this.opts, {
+            observer,
             type,
             concurrency,
             maxQueueSize,
-            debounceMs,
-            jitter,
+            pollIntervalMs,
+            jitterFactor,
             processIntervalMs,
-            timeoutMs,
+            taskTimeoutMs,
         });
 
         this.#debugging = debug;
@@ -225,11 +230,11 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
         this.#stats = new QueueStats(observer, name);
 
         this.#rateLimiter = new RateLimitTokenBucket(
-            rateLimitItems!,
-            rateLimitWindow!
+            rateLimitCapacity!,
+            rateLimitIntervalMs!
         );
 
-        this.#queue = new PriorityQueue<QueueItem<S, E>>({
+        this.#queue = new PriorityQueue<QueueEventData<S, E>>({
             lifo: type === 'lifo'
         });
 
@@ -244,11 +249,11 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
         this.#listening = true;
 
-        const off = this.opts.observer.on(
+        const off = this.opts.observer!.on(
             this.opts.event as Events<S>,
             (data) => {
 
-                const item: QueueItem<S, E> = {
+                const item: QueueEventData<S, E> = {
                     data,
                     _taskId: generateId(),
                     priority: this.#priorites.get(data) ?? 0
@@ -280,12 +285,12 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
     #emit<K extends QueueEventNames>(
         event: K | string,
-        payload?: unknown
+        payload?: QueueEventData<S, E>
     ) {
 
         if (this.#debugging) {
 
-            const args: any[] = [`[${this.name}] ${event}`, (payload as any)?._taskId ?? ''];
+            const args: any[] = [`[${this.name}] ${event}`, payload?._taskId ?? '', payload?.data ?? '' ];
 
             if (this.#debugging === 'verbose') {
                 args[1] = payload;
@@ -294,7 +299,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
             console.log(...args);
         }
 
-        this.opts.observer.emit(
+        this.opts.observer!.emit(
             `queue:${this.name}:${event}`,
             payload as never
         );
@@ -318,7 +323,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
      */
     async #workerLoop(generation: number, instance: number): Promise<void> {
 
-        const { debounceMs, jitter } = this.opts;
+        const { pollIntervalMs, jitterFactor } = this.opts;
         this.#activeRunners++;
 
         while (
@@ -336,8 +341,14 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
                     this.#emit('idle');
                 }
 
-                const waitTime = debounceMs! * (1 + Math.random() * jitter!);
-                await wait(waitTime);
+                this.#waiting = true;
+
+                await wait(
+                    pollIntervalMs! *
+                    (1 + Math.random() * jitterFactor!)
+                );
+
+                this.#waiting = false;
 
                 continue;
             }
@@ -365,7 +376,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
      * Processes the next item in the queue, if the queue is not
      * in a state that prevents it from processing the item.
      */
-    async #processNext(item: QueueItem<S, E>): Promise<void> {
+    async #processNext(item: QueueEventData<S, E>): Promise<void> {
 
         if (!this.#state.is('running', 'draining')) {
 
@@ -378,12 +389,16 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
         if (!this.#state.is('draining')) {
 
-            await this.#rateLimiter.waitForToken(
-                () => {
-                    this.#emit('rate-limited', item);
-                    rateLimited = true;
+            // console.log('waiting for token', new Date().toISOString());
+            await this.#rateLimiter.waitAndConsume(
+                1, {
+                    onRateLimit: () => {
+                        this.#emit('rate-limited', item);
+                        rateLimited = true;
+                    }
                 }
             );
+            // console.log('token acquired', new Date().toISOString());
         }
 
         const startedAt = Date.now();
@@ -393,13 +408,13 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
         const [,err] = await attempt(
             async () => {
 
-                if (this.opts.timeoutMs! === 0) {
+                if (this.opts.taskTimeoutMs! === 0) {
                     return this.opts.process(item.data as EventData<S, E>)
                 }
 
                 const result = await Promise.race([
                     this.opts.process(item.data as EventData<S, E>),
-                    wait(this.opts.timeoutMs!, new TimeoutError('Task timed out'))
+                    wait(this.opts.taskTimeoutMs!, new TimeoutError('Task timed out'))
                 ]);
 
                 if (isTimeoutError(result)) {
@@ -616,7 +631,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
             this.#priorites.set(data, priority);
         }
 
-        this.opts.observer.emit(this.opts.event, data);
+        this.opts.observer!.emit(this.opts.event, data);
 
         return true;
     }
@@ -688,6 +703,14 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
     }
 
     /**
+     * Whether the queue is waiting for the
+     * the
+     */
+    get isWaiting() {
+        return this.#waiting;
+    }
+
+    /**
      * Whether the queue is idle
      */
     get isIdle() {
@@ -754,9 +777,11 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
             state: this.state,
             pending: this.pending,
             stats: this.stats,
+            rateLimiter: this.#rateLimiter.snapshot,
             activeRunners: this.#activeRunners,
             runningNodes: this.#runningNodes,
             isIdle: this.isIdle,
+            isWaiting: this.isWaiting,
             isRunning: this.isRunning,
             isPaused: this.isPaused,
             isStopped: this.isStopped,

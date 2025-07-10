@@ -31,7 +31,7 @@ import {
 import {
     EventQueue,
     type QueueOpts,
-} from './queue/queue.ts';
+} from './index.ts';
 
 export class ObserverEngine<
     Shape extends Record<string, any> = Record<string, any>

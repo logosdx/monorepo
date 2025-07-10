@@ -226,7 +226,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
         const start = Date.now();
 
         const [, error] = await attempt(() =>
-            retry(fn, { retries: 3, delay: 10, jitter: 0.5 })
+            retry(fn, { retries: 3, delay: 10, jitterFactor: 0.5 })
         );
 
         const elapsed = Date.now() - start;
@@ -235,7 +235,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
         expect(error!.message).to.equal('Max retries reached');
         calledExactly(fn, 3, 'retry with jitter');
 
-        // With jitter of 0.5 (+1) and delay of 10: 10ms * ~1.5 + 10ms * ~1.5 + 10ms * ~1.5 = 37.5ms average
+        // With jitterFactor of 0.5 (+1) and delay of 10: 10ms * ~1.5 + 10ms * ~1.5 + 10ms * ~1.5 = 37.5ms average
         expect(elapsed).to.be.greaterThan(31.5);
         expect(elapsed).to.be.lessThan(45);
     });
