@@ -1,5 +1,14 @@
 # @logosdx/utils
 
+## 2.0.1
+
+### Patch Changes
+
+- 43b3457: ### Fixed
+
+  - Export bug from utils.
+  - Better naming for options
+
 ## 2.0.0
 
 ### Major Changes

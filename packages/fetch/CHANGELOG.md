@@ -1,5 +1,17 @@
 # @logosdx/fetch
 
+## 1.1.1
+
+### Patch Changes
+
+- 43b3457: ### Fixed
+
+  - Export bug from utils.
+  - Better naming for options
+
+- Updated dependencies [43b3457]
+  - @logosdx/utils@2.0.1
+
 ## 1.1.0
 
 ### Minor Changes
