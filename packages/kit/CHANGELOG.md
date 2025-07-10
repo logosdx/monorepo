@@ -1,5 +1,22 @@
 # @logosdx/kit
 
+## 1.0.6
+
+### Patch Changes
+
+- 43b3457: ### Fixed
+
+  - Export bug from utils.
+  - Better naming for options
+
+- Updated dependencies [43b3457]
+  - @logosdx/fetch@1.1.1
+  - @logosdx/localize@1.0.6
+  - @logosdx/observer@2.0.1
+  - @logosdx/state-machine@1.0.6
+  - @logosdx/storage@1.0.6
+  - @logosdx/utils@2.0.1
+
 ## 1.0.5
 
 ### Patch Changes
