@@ -5,8 +5,8 @@ import {
 } from '../index.ts';
 
 import {
-    AnyConstructor,
-    MergeTypes,
+    type AnyConstructor,
+    type MergeTypes,
     isDangerousKey,
     getSafeKeys,
     mergeHandlers,

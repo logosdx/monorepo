@@ -1,4 +1,4 @@
-import { MaybePromise } from '@logosdx/utils';
+import { type MaybePromise } from '@logosdx/utils';
 import { FetchError } from './helpers.ts';
 
 export type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';

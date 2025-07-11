@@ -3,10 +3,10 @@ import {
     circuitBreaker,
     makeRetryable,
     withTimeout,
-    RateLimitOptions,
-    CircuitBreakerOptions,
-    RetryOptions,
-    WithTimeoutOptions,
+    type RateLimitOptions,
+    type CircuitBreakerOptions,
+    type RetryOptions,
+    type WithTimeoutOptions,
 } from './index.ts';
 
 import { AnyAsyncFunc } from './_helpers.ts';

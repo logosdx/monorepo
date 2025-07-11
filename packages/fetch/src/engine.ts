@@ -1,5 +1,5 @@
 import {
-    Func,
+    type Func,
     assert,
     assertOptional,
     clone,
@@ -10,18 +10,18 @@ import {
 } from '@logosdx/utils';
 
 import {
-    _InternalHttpMethods,
-    HttpMethodOpts,
-    HttpMethods,
-    MethodHeaders,
-    RetryConfig
+    type _InternalHttpMethods,
+    type HttpMethodOpts,
+    type HttpMethods,
+    type MethodHeaders,
+    type RetryConfig
 } from './types.ts';
 
 import {
-    FetchError,
-    FetchEvent,
-    FetchEventName,
+    type FetchEventName,
     FetchEventNames,
+    FetchEvent,
+    FetchError,
     fetchTypes,
     validateOptions,
     DEFAULT_RETRY_CONFIG

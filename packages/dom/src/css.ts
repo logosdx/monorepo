@@ -1,6 +1,6 @@
 import {
-    OneOrMany,
-    NonFunctionProps
+    type OneOrMany,
+    type NonFunctionProps
 } from '@logosdx/utils';
 
 

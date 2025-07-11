@@ -1,5 +1,5 @@
 import { assert, isFunction, isPlainObject } from '../index.ts';
-import { AnyFunc, markWrapped, assertNotWrapped } from './_helpers.ts';
+import { type AnyFunc, markWrapped, assertNotWrapped } from './_helpers.ts';
 
 export interface DebounceOptions {
     delay: number;

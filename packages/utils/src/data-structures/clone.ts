@@ -3,7 +3,7 @@ import {
 } from '../index.ts';
 
 import {
-    AnyConstructor,
+    type AnyConstructor,
     isDangerousKey,
     cloneHandlers,
 } from './helpers.ts';

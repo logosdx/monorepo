@@ -1,4 +1,4 @@
-import { Func, NullableObject, definePublicProps } from "@logosdx/utils";
+import { type Func, type NullableObject, definePublicProps } from "@logosdx/utils";
 
 
 class StorageError extends Error {};
@@ -48,7 +48,7 @@ const makeEvent = <V, K extends keyof V = keyof V>(
     return ev;
 }
 
-export type L10nListener<V, K extends keyof V = keyof V> = (e: StorageEvent<V, K>) => void;
+export type StorageEventListener<V, K extends keyof V = keyof V> = (e: StorageEvent<V, K>) => void;
 
 
 export class StorageAdapter<Values> extends EventTarget {
@@ -77,7 +77,7 @@ export class StorageAdapter<Values> extends EventTarget {
 
     on(
         ev: keyof typeof StorageEventNames,
-        listener: L10nListener<Values>,
+        listener: StorageEventListener<Values>,
         once = false
     ) {
 

@@ -1,5 +1,5 @@
 import { attempt, attemptSync } from './attempt.ts';
-import { AnyAsyncFunc, AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { type AnyAsyncFunc, type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
 import { noop } from '../misc.ts';
 

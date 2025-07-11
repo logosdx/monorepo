@@ -7,7 +7,7 @@ import {
     allKeysValid
 } from '@logosdx/utils';
 import type { FetchEngine } from './engine.ts';
-import { HttpMethods, RetryConfig } from './types.ts';
+import { type HttpMethods, type RetryConfig } from './types.ts';
 
 export interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     data: T | null;

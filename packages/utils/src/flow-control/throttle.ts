@@ -1,5 +1,5 @@
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
-import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 
 /**
  * Error thrown when a throttled function is called too frequently

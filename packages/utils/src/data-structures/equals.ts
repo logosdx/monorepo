@@ -9,7 +9,7 @@ import {
 } from '../index.ts';
 
 import {
-    AnyConstructor,
+    type AnyConstructor,
     isDangerousKey,
     getSafeKeys,
     equalityHandlers,

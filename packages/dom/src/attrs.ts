@@ -1,6 +1,6 @@
 import {
-    StringProps,
-    OneOrMany
+    type StringProps,
+    type OneOrMany
 } from '@logosdx/utils';
 
 type HasAttrObj<T extends string> = Record<T, boolean>;

@@ -1,6 +1,6 @@
 import { wait } from '../misc.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
-import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 
 /**
  * Token bucket implementation of rate limiting

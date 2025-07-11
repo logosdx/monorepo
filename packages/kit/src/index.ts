@@ -1,10 +1,10 @@
 import { LocaleManager } from '@logosdx/localize';
 import { ObserverEngine } from '@logosdx/observer';
-import { ReducerFunction, StateMachine, StateMachineOptions } from '@logosdx/state-machine';
-import { StorageImplementation } from '@logosdx/storage';
+import { type ReducerFunction, StateMachine, StateMachineOptions } from '@logosdx/state-machine';
+import { type StorageImplementation } from '@logosdx/storage';
 import { StorageAdapter } from '@logosdx/storage';
 import { FetchEngine } from '@logosdx/fetch';
-import { assert, isObject, NotUndefined } from '@logosdx/utils';
+import { assert, isObject, type NotUndefined } from '@logosdx/utils';
 
 export * from '@logosdx/fetch';
 export * from '@logosdx/localize';

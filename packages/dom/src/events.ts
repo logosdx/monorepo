@@ -1,6 +1,6 @@
 import {
-    Func,
-    OneOrMany,
+    type Func,
+    type OneOrMany,
     itemsToArray
 } from '@logosdx/utils';
 

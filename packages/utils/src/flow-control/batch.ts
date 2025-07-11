@@ -1,8 +1,9 @@
 import {
     attempt,
     chunk,
-    MaybePromise,
-    Func, AsyncFunc,
+    type MaybePromise,
+    type Func,
+    type AsyncFunc,
     isFunction,
     assert,
     assertOptional
