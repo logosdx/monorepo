@@ -1,5 +1,13 @@
 # @logosdx/fetch
 
+## 1.1.2
+
+### Patch Changes
+
+- eecc5d4: Export type so they aren't compiled into ESM files
+- Updated dependencies [eecc5d4]
+  - @logosdx/utils@2.0.2
+
 ## 1.1.1
 
 ### Patch Changes

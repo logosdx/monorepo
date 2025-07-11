@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/utils",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A small, common set of JS and TS utilities for LogosDX",
   "exports": {
     ".": {

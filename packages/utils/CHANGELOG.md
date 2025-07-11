@@ -1,5 +1,11 @@
 # @logosdx/utils
 
+## 2.0.2
+
+### Patch Changes
+
+- eecc5d4: Export type so they aren't compiled into ESM files
+
 ## 2.0.1
 
 ### Patch Changes

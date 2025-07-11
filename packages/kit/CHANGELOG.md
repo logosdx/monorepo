@@ -1,5 +1,18 @@
 # @logosdx/kit
 
+## 1.0.7
+
+### Patch Changes
+
+- eecc5d4: Export type so they aren't compiled into ESM files
+- Updated dependencies [eecc5d4]
+  - @logosdx/fetch@1.1.2
+  - @logosdx/localize@1.0.7
+  - @logosdx/observer@2.0.2
+  - @logosdx/state-machine@1.0.7
+  - @logosdx/storage@1.0.7
+  - @logosdx/utils@2.0.2
+
 ## 1.0.6
 
 ### Patch Changes
