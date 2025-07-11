@@ -1,5 +1,13 @@
 # @logosdx/observer
 
+## 2.0.2
+
+### Patch Changes
+
+- eecc5d4: Export type so they aren't compiled into ESM files
+- Updated dependencies [eecc5d4]
+  - @logosdx/utils@2.0.2
+
 ## 2.0.1
 
 ### Patch Changes
