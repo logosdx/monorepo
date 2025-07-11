@@ -1,5 +1,11 @@
 # @logosdx/utils
 
+## 2.0.3
+
+### Patch Changes
+
+- cbd0e23: Fix MergeTypes type export
+
 ## 2.0.2
 
 ### Patch Changes
