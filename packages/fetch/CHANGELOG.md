@@ -1,5 +1,12 @@
 # @logosdx/fetch
 
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [cbd0e23]
+  - @logosdx/utils@2.0.3
+
 ## 1.1.2
 
 ### Patch Changes
