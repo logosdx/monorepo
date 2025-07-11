@@ -181,7 +181,7 @@ type MergePropertyValues<Target, Source> =
  * Smart merge type that properly handles nested object merging with support for Arrays, Maps, and Sets
  *
  * @example
- * type Result = mergeTypes<
+ * type Result = MergeTypes<
  *   { a: number; nested: { x: string } },
  *   { b: string; nested: { y: number } }
  * >;

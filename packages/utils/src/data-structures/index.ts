@@ -1,5 +1,5 @@
 export {
-    MergeTypes as mergeTypes,
+    type MergeTypes,
     addHandlerFor,
     getSafeEntries,
     getSafeKeys,
