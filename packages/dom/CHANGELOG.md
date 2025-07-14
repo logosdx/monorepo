@@ -1,5 +1,11 @@
 # @logosdx/dom
 
+## 2.0.4
+
+### Patch Changes
+
+- 1b815f4: Fix types for appendIn, appendAfter, and appendBefore
+
 ## 2.0.3
 
 ### Patch Changes
