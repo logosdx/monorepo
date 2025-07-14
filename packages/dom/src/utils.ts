@@ -2,6 +2,10 @@ import { type Func, type MaybePromise, assert } from '@logosdx/utils';
 import { html } from './index.ts';
 import { EvListener } from './events.ts';
 
+const elOrText = (el: Element | Node | string) => {
+    return typeof el === 'string' ? document.createTextNode(el) : el;
+}
+
 /**
  * Appends children to the parent element.
  * Uses a while loop to efficiently append multiple children.
@@ -11,13 +15,13 @@ import { EvListener } from './events.ts';
  * @example
  * appendIn(container, child1, child2, child3);
  */
-export const appendIn = (parent: Element, ...children: (Element | Node)[]) => {
+export const appendIn = <T extends Node>(parent: T, ...children: (Element | Node | string)[]) => {
 
     while (children.length) {
 
         // https://stackoverflow.com/questions/54496398/typescript-type-string-undefined-is-not-assignable-to-type-string
         const child = children.shift()!;
-        parent.appendChild(child);
+        parent.appendChild(elOrText(child));
     }
 };
 
@@ -31,13 +35,16 @@ export const appendIn = (parent: Element, ...children: (Element | Node)[]) => {
  * appendAfter(reference, newElement1, newElement2);
  * // Result: reference -> newElement1 -> newElement2
  */
-export const appendAfter = (target: Element, ...elements: Element[]) => {
+export const appendAfter = <T extends Element>(target: T, ...elements: (Element | Node | string)[]) => {
+
+    let next = target;
 
     while (elements.length) {
 
-        const el = elements.shift()!;
-        target.after(el);
-        target = el;
+        const el = elOrText(elements.shift()!);
+        next.after(el);
+
+        next = el as T;
     }
 };
 
@@ -51,13 +58,15 @@ export const appendAfter = (target: Element, ...elements: Element[]) => {
  * appendBefore(reference, newElement1, newElement2);
  * // Result: newElement2 -> newElement1 -> reference
  */
-export const appendBefore = (target: Element, ...elements: Element[]) => {
+export const appendBefore = <T extends Element>(target: T, ...elements: (Element | Node | string)[]) => {
+
+    let next = target;
 
     while (elements.length) {
 
-        const el = elements.shift()!;
-        target.before(el);
-        target = el;
+        const el = elOrText(elements.shift()!);
+        next.before(el);
+        next = el as T;
     }
 };
 
