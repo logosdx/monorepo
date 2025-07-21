@@ -1,161 +1,74 @@
-# Claude Code Review Guidelines
+# CLAUDE.md
 
-This document provides comprehensive instructions for code reviews and feedback on the @logosdx monorepo. Follow these standards to ensure code quality, consistency, and maintainability.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 🏗️ Repository Structure & Organization
+## 🚀 Commands
 
-### Monorepo Architecture
+```bash
+# Build/Test
+pnpm run build
+pnpm run test
+pnpm run tdd                    # Watch mode
+pnpm run test:only              # Run marked tests (it.only)
+pnpm run test:coverage
 
-- **Source code**: `packages/*/src/` - Each package has its own source directory
-- **Tests**: `tests/src/` - Mirrors source structure for validation
-- **Scripts**: `scripts/` - Build, release, and utility scripts
-- **LLM Context**: `llm-helpers/` - Helper functions for use with AI agents
+# Workflow
+pnpm run new                    # Create package
+pnpm run watch                  # Dev mode
+pnpm run build:docs
+pnpm run release               # Changesets
 
-### Package Organization
+# Individual tests (from tests/)
+pnpm run test -- --grep "name"
+pnpm run tdd                   # Watch specific tests
+```
 
-- **Independent packages**: Each package builds and publishes separately
-- **Cross-package imports**: Use package names (`@logosdx/utils`) not relative paths
-- **Test imports**: Use relative paths (`../../packages/utils/src/index.ts`) to validate actual implementation
+## 🏗️ Architecture
 
+**Structure**: pnpm monorepo, packages build independently, test together
+- `packages/`: @logosdx packages (utils, observer, fetch, dom, kit)
+- `tests/`: Mirrors package structure, uses relative imports
+- `llm-helpers/`: AI context guides (utils.md, observer.md, fetch.md, dom.md)
+
+**Imports**:
 ```ts
-// ✅ Cross-package imports (production code)
+// ✅ Production: package names
 import { attempt } from '@logosdx/utils';
-import { ObserverEngine } from '@logosdx/observer';
 
-// ✅ Test imports (relative paths)
+// ✅ Tests: relative paths (validates implementation, bypasses build)
 import { attempt } from '../../../../packages/utils/src/index.ts';
-import { ObserverEngine } from '../../../../packages/observer/src/engine.ts';
-
-// ❌ Wrong import pattern in tests
-import { attempt } from '@logosdx/utils'; // Won't validate actual implementation
 ```
 
-## 🧠 TypeScript Development Standards
+## 🧠 Core Principles
 
-### Code Style Conventions
+**Error Handling**: Use `attempt`/`attemptSync` for I/O, return direct results for business logic. No try-catch.
 
-#### Syntax & Formatting
+**Dogfooding**: Always use `@logosdx/utils` throughout monorepo.
 
-- Newline **after** function declaration:
+**Function Structure**: Declaration → Validation → Business Logic → Commit
 
-  ```ts
-  function doSomething() {
+**Style**: Meaningful names, JSDoc with WHY + examples, newlines after function/block open.
 
-      // logic
-  }
-  ```
+### Syntax & Formatting
 
-- Newline **after** opening blocks:
-
-  ```ts
-  if (condition) {
-
-      // logic
-  }
-  ```
-
-- Prefer **vertical space** over horizontal when functions are long
-- Group functions in this order:
-  1. Declaration block
-  2. Validation block
-  3. Business logic block
-  4. Commit block
-
-#### Naming Philosophy
-
-- Use **meaningful names** that explain **what** the thing is
-  - ✅ `userExists`, `fetchInvoiceTotal`
-  - ❌ `x`, `data`, `handleIt`
-- Functions and variables should **read like English**
-
-### Comments & JSDoc
-
-- JSDoc all **functions and classes**
-- Comments and docs must explain **WHY** something exists — not how or what
-- **Ambiguous validation logic must be commented** explicitly
-- Always provide **usage examples**:
-
-  ```ts
-  /**
-   * Throttles notifications per user to prevent spam.
-   *
-   * @example
-   * const limiter = new ThrottleEngine({ maxPerMinute: 3 });
-   */
-  ```
-
-## 🚫 Error Handling Standards
-
-### Core Principle: Use Go-style error monad for fail-prone operations
-
-Use utilities from `@logosdx/utils` for operations that can fail (async, I/O, network) — these provide safe, legible, consistent control flow.
-
+- Newline after function declaration and opening blocks:
 ```ts
-import { attempt, attemptSync } from '@logosdx/utils'
+function doSomething() {
 
-// ✅ For fail-prone operations (async, I/O, network)
-const [result, err] = await attempt(() => fetch('/api/users'))
-if (err) return handleError(err)
-
-const [fileContent, readErr] = attemptSync(() => readFileSync('config.json'))
-if (readErr) throw readErr
-
-// ✅ Business logic functions return actual results
-function modifyUserEmail(user: User, newEmail: string): User {
-    // Validation
-    if (!isValidEmail(newEmail)) {
-        throw new InvalidEmailError()
-    }
-
-    // Business logic
-    user.email = newEmail
-    return user
+    // logic
 }
 
-// ✅ Composition: Use error monad for I/O, return results for business logic
-async function updateUserEmail(userId: string, newEmail: string): Promise<User> {
-    // Fail-prone operation (I/O)
-    const [user, fetchErr] = await attempt(() => fetchUser(userId))
-    if (fetchErr) throw fetchErr
+if (condition) {
 
-    // Business logic (returns actual result)
-    const modifiedUser = modifyUserEmail(user, newEmail)
-
-    // Fail-prone operation (I/O)
-    const [, saveErr] = await attempt(() => saveUser(modifiedUser))
-    if (saveErr) throw saveErr
-
-    return modifiedUser
+    // logic
 }
 ```
+- Prefer vertical space over horizontal for long functions
+- Group functions: Declaration → Validation → Business Logic → Commit
 
-### When to Use Error Monad vs Direct Returns
-
-#### ✅ Use Error Monad (`[result, error]`) for
-
-- **Async operations**: `fetch()`, database queries, file I/O
-- **External API calls**: Third-party services, network requests
-- **System operations**: File system, process spawning
-- **Unpredictable failures**: Network timeouts, disk full, permissions
-
-#### ✅ Use Direct Returns for
-
-- **Business logic**: Data transformations, calculations, validations
-- **Pure functions**: Mathematical operations, string manipulation
-- **Deterministic operations**: Type checking, object manipulation
-- **Internal utilities**: Helper functions, data processing
-
-### Function Structure Examples
+### Function Structure Example
 
 ```ts
-/**
- * Updates the email address for a given user.
- *
- * Ensures email format is valid and user exists before applying update.
- *
- * @example
- * const user = await updateUserEmail(userID, newEmail);
- */
 async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<User> {
 
     // === Declaration block ===
@@ -163,377 +76,152 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 
     // === Validation block ===
     if (!isValidEmail(newEmail)) {
-
-        // This guards against malformed input from external systems
         throw new InvalidEmailError();
     }
 
     // === Business logic block ===
-    // Fail-prone operation (I/O) - use error monad
     const [user, err] = await attempt(() => fetchUser(userID));
+    if (err) throw err;
 
-    if (err || !user) {
-
-        throw new UserNotFoundError();
-    }
-
-    // Business logic - return actual result
     const modifiedUser = modifyUserEmail(user, newEmail);
 
     // === Commit block ===
-    // Fail-prone operation (I/O) - use error monad
-    const [ok, saveErr] = await attempt(() => saveUser(modifiedUser));
-
-    if (saveErr) {
-
-        throw saveErr;
-    }
-
-    return modifiedUser;
-}
-
-/**
- * Modifies a user's email address.
- *
- * Pure business logic function - returns actual result.
- *
- * @example
- * const modifiedUser = modifyUserEmail(user, 'new@example.com');
- */
-function modifyUserEmail(user: User, newEmail: EmailAddress): User {
-
-    // === Validation block ===
-    if (!isValidEmail(newEmail)) {
-
-        throw new InvalidEmailError();
-    }
-
-    // === Business logic block ===
-    const modifiedUser = { ...user, email: newEmail };
+    const [, saveErr] = await attempt(() => saveUser(modifiedUser));
+    if (saveErr) throw saveErr;
 
     return modifiedUser;
 }
 ```
 
-## 🧪 Testing Standards
-
-### Test File Structure
-
-- **Mirror source structure**: `tests/src/` mirrors `packages/*/src/`
-- **Relative imports**: Use `../../../../packages/utils/src/index.ts` not `@logosdx/utils`
-- **Required for tests**: Relative imports validate actual implementation
-- **Use `mockHelpers`** pattern with `calledExactly` for consistent verification
-
-### Test Organization
-
-- **Group by functionality**: `describe('flow-control: memo', () => {})`
-- **Descriptive names**: `"should [behavior] when [condition]"`
-- **Test all paths**: Positive cases, error cases, edge cases
-- **Nest related tests** in sub-describes
-
-### Mock & Assertion Patterns
+## 📋 Key Patterns
 
 ```ts
-// Use `mock.fn()` from `node:test`
-const fn = mock.fn();
-calledExactly(fn, 1, 'called once');
+// Error monad for I/O
+const [result, err] = await attempt(() => fetch('/api'));
+if (err) return handleError(err);
 
-// Test both success and error paths
+// Direct returns for business logic
+function processData(input: Data): ProcessedData {
+    if (!isValid(input)) throw new ValidationError();
+    return transform(input);
+}
+
+// Class patterns
+export class Engine {
+    #state = new Map();
+    constructor(config: Config) {
+        assert(isObject(config), 'Config required');
+        this.#config = clone(config);
+    }
+}
+
+// Static utilities
+export class Utils {
+    static process(el: Element) {
+        const [, err] = attemptSync(() => handler(el));
+        if (err) console.warn('Failed:', err);
+    }
+}
+```
+
+## 🧪 Testing
+
+- Mirror source in `tests/src/`
+- Use relative imports to validate implementation
+- Test all paths (success, error, edge cases)
+- `describe('module: feature', () => {})` naming
+- Use `mock.fn()` and `calledExactly(fn, count, msg)`
+
+```ts
 const [result, err] = await attempt(() => riskyOperation());
 expect(err).to.be.instanceOf(Error);
-
-// Integration testing
-const observer = new ObserverEngine();
-const component = observer.observe({});
-component.cleanup(); // Test teardown
 ```
 
 ### Required Test Coverage
 
-Each exported function must have:
+Each exported function must test:
 
-- ✅ Unit tests
-- ✅ Error-path tests
-- ✅ Integration test (if interacting with DB or IO)
+- ✅ Happy path (expected usage)
+- ✅ Error paths (network failures, invalid responses)
+- ✅ Bad inputs (null, undefined, wrong types, malformed data)
+- ✅ Edge cases and unintended usage patterns
 
-## 📦 TypeScript Patterns
+## 📦 TypeScript
 
-### Type Organization
-
-- **Dedicated `types.ts` files** for shared types across modules
-- **`export type`** for type-only exports (enables tree-shaking)
-- **Re-export from index**: `export type { Events } from './types.ts'`
-- **Group logically** by domain/feature
-
-### Generic & Type Patterns
+**Types**: Dedicated `types.ts`, `export type`, re-export from index
+**Classes**: Static for stateless utils, Instance for stateful components
+**Symbols**: DOM metadata only, not public APIs
 
 ```ts
-// Descriptive names
-export type Events<Shape> = keyof Shape;
-export interface EventCallback<Shape> {
-    (data: Shape): void;
-}
-
-// Proper constraints
-export type EventData<Shape, E extends Events<Shape>> = Shape[E];
-
-// Interface for extensibility
-export interface BehaviorOptions {
-    debounceMs?: number;
-    root?: Element;
+export type Events<T> = keyof T;
+export interface Options {
+    timeout?: number;
 }
 ```
 
-### Class Design
-
-- **Static classes** → Stateless utilities (DOM, behaviors, helpers)
-- **Instance classes** → Stateful components with private state and lifecycle
-- **Always dogfood** `@logosdx/utils` for validation, error handling, flow control
-
-### Instance Class Patterns
-
-```ts
-export class DataProcessor {
-    #cache: Map<string, Data> = new Map();
-
-    constructor(config: Config) {
-        // === Declaration ===
-        let x: string = '';
-
-        // === Validation ===
-        assert(isObject(config), 'Config required');
-
-        // === Business Logic ===
-        this.#config = clone(config);
-
-        // === Commit ===
-        definePrivateProps(this, {
-            process: this.process,
-            cleanup: this.cleanup
-        });
-    }
-
-    // Debug method
-    $facts() { return { cacheSize: this.#cache.size }; }
-}
-```
-
-### Static Class Patterns
-
-```ts
-export class HtmlBehaviors {
-    static isBound(el: Element, feature: string): boolean { }
-    static markBound(el: Element, feature: string): void { }
-    static bindBehavior(el: Element, feature: string, handler: Function): void {
-        if (this.isBound(el, feature)) return;
-
-        const [, err] = attemptSync(() => handler(el));
-        if (err) console.warn(`Failed ${feature}:`, err);
-        else this.markBound(el, feature);
-    }
-}
-```
-
-### Symbol Usage
-
-- **When to use**: Private metadata on DOM elements, hidden internal state
-- **When NOT to use**: Public APIs, simple private data (use `#private` fields)
-- **Pattern**: Module-level constants with descriptive names
-- **TypeScript**: Always type symbol properties with interfaces
-
-```ts
-const BINDING_SYMBOL = Symbol('bindings');
-const TEARDOWN_SYMBOL = Symbol('teardowns');
-
-interface BoundElement extends Element {
-    [BINDING_SYMBOL]?: Set<string>;
-    [TEARDOWN_SYMBOL]?: Map<string, () => void>;
-}
-```
-
-## 🐕 Dogfooding Standards
-
-### Core Principle
-
-Always use `@logosdx/utils` throughout the monorepo to validate APIs and demonstrate best practices.
-
-### Required Usage Patterns
+## 🐕 Utils Usage
 
 ```ts
 // Error handling
-const [result, err] = await attempt(() => fetch('/api'));
-if (err) return handleError(err);
+const [data, err] = await attempt(() => api.get('/users'));
 
-// Data operations
-const cloned = clone(complexState);
-if (!equals(oldState, newState)) triggerUpdate();
+// Data ops
+const copy = clone(state);
+const same = equals(a, b);
+const merged = merge(obj1, obj2);
 
 // Flow control
-const debouncedSearch = debounce(search, 300);
-const resilient = retry(circuitBreaker(apiCall), { retries: 3 });
+const debounced = debounce(handler, 300);
+const resilient = retry(circuitBreaker(fn), { retries: 3 });
 
 // Validation
 assert(isObject(config), 'Config required');
 ```
 
-### Data Operations
+## ✅ Checklist
 
-- `clone()` for safe copying (handles Maps, Sets, classes)
-- `equals()` for reliable comparisons
-- `merge()` for intelligent object merging
-- `reach()` for safe nested property access
+**Required**:
+- [ ] No try-catch (use attempt/attemptSync)
+- [ ] @logosdx/utils for all error handling, data ops, flow control
+- [ ] Relative imports in tests
+- [ ] JSDoc with examples explaining WHY
+- [ ] 4-block function structure
+- [ ] Meaningful names that read like English
 
-### Flow Control & Performance
-
-- `debounce()` for user input, search, resize handlers
-- `throttle()` for scroll, animation callbacks
-- `rateLimit()` for API call limiting
-- `retry()` + `circuitBreaker()` + `withTimeout()` for resilient network calls
-- `batch()` for concurrent array processing
-
-### Memory & Performance
-
-- `memoize()` / `memoizeSync()` for expensive computations
-- `definePrivateProps()` for non-enumerable class methods
-- Use modern data structures (Map, Set) with utils that support them
-
-## 📚 Documentation Standards
-
-### Documentation Structure
-
-1. **Problem Statement** - Why it exists, what problems it solves
-2. **Core Philosophy** - Design principles with examples
-3. **Problem-Solving Examples** - Real scenarios, not toy examples
-4. **API Reference** - Link to TypeDoc
-5. **Advanced Patterns** - Composition examples
-
-### /docs Directory Requirements
-
-**Primary focus**: Answer "what is this?", "why does it exist?", and "when should I use this?"
-
-- **What is this?** - Clear, concise description of the package/utility
-- **Why does it exist?** - Problem statement with real-world context
-- **When should I use this?** - Use cases and scenarios where this is the right choice
-- **Brief functionality showcase** - Demonstrate key features with examples
-- **Link to TypeDoc** - "How to use" details belong in JSDoc and generated TypeDoc
-
-### Documentation Patterns
-
-- **Always contrast**: Show ❌ problematic vs ✅ good patterns
-- **Real-world context**: Shopping carts, user data, not `foo`/`bar`
-- **Show @logosdx/utils**: Demonstrate dogfooding in examples
-- **Include fallbacks**: Error handling and graceful degradation
-
-### Problem-driven Documentation Format
-
-```markdown
-#### The Problem: [Specific Real Scenario]
-[Context about why this is challenging in production]
-
-```typescript
-// ❌ Fragile approach
-// Comment explaining what breaks
-
-// ✅ Resilient approach using @logosdx/utils
-// Show proper error handling and fallbacks
-```
-
-```
-
-## 🔄 Development Workflow
-
-### Build & Release
-- **Individual builds**: Each package builds independently with its own config
-- **Coordinated releases**: Use changeset for version management and releases
-- **Type generation**: Shared TypeScript configs for consistent type generation
-- **Documentation**: TypeDoc generation for each package
-
-### Quick Commands
-```bash
-# Create new package
-pnpm run new
-
-# Run tests
-pnpm run test
-pnpm run tdd
-
-# Build everything
-pnpm run build
-
-# Generate docs
-pnpm run build:docs
-```
+**Anti-patterns**:
+- try-catch blocks
+- Error monad for pure business logic
+- Missing error handling in async ops
+- Package imports in tests (breaks validation)
 
 ## 🎯 Code Review Checklist
 
-When reviewing code, ensure:
-
 ### ✅ Structure & Organization
-
 - [ ] Follows monorepo import patterns (package names in prod, relative in tests)
 - [ ] Proper file organization (types.ts, index.ts exports)
 - [ ] Logical grouping of functions and classes
+- [ ] Keep up the `./llm-helpers` docs up to date
 
 ### ✅ TypeScript Standards
-
 - [ ] No `try-catch` blocks (use `attempt`/`attemptSync`)
 - [ ] Proper function structure (4-block pattern)
 - [ ] Meaningful names that read like English
 - [ ] JSDoc with examples and WHY explanations
 
 ### ✅ Dogfooding
-
 - [ ] Uses `@logosdx/utils` for error handling
 - [ ] Uses `@logosdx/utils` for data operations
 - [ ] Uses `@logosdx/utils` for flow control
 - [ ] Demonstrates best practices in examples
 
 ### ✅ Testing
-
 - [ ] Tests mirror source structure
 - [ ] Uses relative imports in tests
-- [ ] Tests all paths (success, error, edge cases)
+- [ ] Tests all paths (happy, error, bad inputs, edge cases)
 - [ ] Proper mock patterns with `calledExactly`
 
-### ✅ Documentation
-
-- [ ] Problem statement with real-world context
-- [ ] Shows ❌ vs ✅ patterns
-- [ ] Links to TypeDoc
-- [ ] Demonstrates dogfooding
-
-### ✅ Performance & Memory
-
-- [ ] Uses appropriate utilities (debounce, throttle, memo)
-- [ ] Proper cleanup in integration tests
-- [ ] No memory leaks in observer patterns
-
 ### ✅ Error Handling Patterns
-
 - [ ] Uses error monad (`[result, error]`) for fail-prone operations only
 - [ ] Business logic functions return actual results, not error tuples
 - [ ] Proper composition between error monad and direct returns
 - [ ] No `try-catch` blocks (use `attempt`/`attemptSync` for I/O)
-
-## 🚨 Common Issues to Flag
-
-### ❌ Anti-patterns
-
-- `try-catch` blocks instead of `attempt`/`attemptSync`
-- Error monad pattern used for pure business logic functions
-- Business logic functions returning `[result, error]` tuples
-- Missing error handling in async operations
-- Inconsistent error handling patterns
-
-### ✅ Best Practices to Encourage
-
-- Error monad for I/O, direct returns for business logic
-- Clear separation between fail-prone and deterministic operations
-- Proper composition of error handling and business logic
-- Meaningful names and clear function structure
-- Dogfooding throughout the codebase
-- Performance considerations with appropriate utilities
-
----
-
-**Remember**: The goal is clean, readable, testable, and deterministic code that demonstrates the power and reliability of the @logosdx ecosystem.
