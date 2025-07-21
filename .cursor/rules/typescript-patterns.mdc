@@ -1,5 +1,5 @@
 ---
-description:
+description: TypeScript patterns for code organization, classes, types, and symbols as it relates to this project.
 globs: *.ts
 alwaysApply: false
 ---

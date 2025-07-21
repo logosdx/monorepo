@@ -1,7 +1,6 @@
 ---
-description:
-globs:
-alwaysApply: true
+description: Use this rule to understand the intent and structure of the project.
+alwaysApply: false
 ---
 # Intent & Structure
 

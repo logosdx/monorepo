@@ -1,5 +1,5 @@
 ---
-description:
+description: Dogfooding– using the library to build the library.
 globs: packages/**/*.ts
 alwaysApply: false
 ---

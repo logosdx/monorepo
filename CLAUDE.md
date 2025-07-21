@@ -7,9 +7,9 @@ This document provides comprehensive instructions for code reviews and feedback 
 ### Monorepo Architecture
 
 - **Source code**: `packages/*/src/` - Each package has its own source directory
-- **Documentation**: `docs/` - Centralized documentation for all packages
 - **Tests**: `tests/src/` - Mirrors source structure for validation
 - **Scripts**: `scripts/` - Build, release, and utility scripts
+- **LLM Context**: `llm-helpers/` - Helper functions for use with AI agents
 
 ### Package Organization
 
