@@ -316,155 +316,6 @@ export const reach = <T extends object, P extends PathNames<T>>(
 }
 
 /**
- * Creates a deferred promise that can be resolved or rejected externally.
- *
- * Provides a promise with externally accessible resolve and reject methods.
- * Useful for creating promises that need to be controlled from outside
- * their creation context.
- *
- * @example
- * const deferred = new Deferred<string>();
- *
- * // Set up the promise consumer
- * deferred.promise.then(result => {
- *     console.log('Got result:', result);
- * });
- *
- * // Resolve from elsewhere
- * setTimeout(() => {
- *     deferred.resolve('Hello world!');
- * }, 1000);
- *
- * @example
- * class AsyncQueue<T> {
- *     private pending = new Map<string, Deferred<T>>();
- *
- *     async waitFor(id: string): Promise<T> {
- *         if (!this.pending.has(id)) {
- *             this.pending.set(id, new Deferred<T>());
- *         }
- *         return this.pending.get(id)!.promise;
- *     }
- *
- *     complete(id: string, result: T) {
- *         const deferred = this.pending.get(id);
- *         if (deferred) {
- *             deferred.resolve(result);
- *             this.pending.delete(id);
- *         }
- *     }
- * }
- *
- * @example
- * // Coordinate multiple async operations
- * const coordinateWork = () => {
- *     const coordinator = new Deferred<void>();
- *     let completed = 0;
- *
- *     const checkComplete = () => {
- *         if (++completed === 3) {
- *             coordinator.resolve();
- *         }
- *     };
- *
- *     doWork1().then(checkComplete);
- *     doWork2().then(checkComplete);
- *     doWork3().then(checkComplete);
- *
- *     return coordinator.promise;
- * };
- */
-export class Deferred<T> {
-
-    public promise: Promise<T>;
-    public resolve!: (value: T | PromiseLike<T>) => void;
-    public reject!: (reason?: Error | string) => void;
-
-    constructor() {
-
-        this.promise = new Promise<T>((resolve, reject) => {
-            this.resolve = resolve;
-            this.reject = reject;
-        });
-    }
-}
-
-if (typeof Promise.withResolvers !== 'function') {
-
-    Promise.withResolvers = <T>() => {
-
-        return new Deferred<T>();
-    }
-}
-
-/**
- * A promise that can be cleared.
- *
- * A promise that can be cleared using the `clear` method.
- */
-class TimeoutPromise<T = void> extends Promise<T> {
-
-    clear!: () => void;
-}
-
-/**
- * Waits for the specified number of milliseconds before
- * resolving with the optional value.
- *
- * Can be cleared using the `clear` method.
- *
- * @param ms milliseconds to wait
- * @param value value to resolve with
- * @returns TimeoutPromise that resolves after the delay
- *
- * @example
- * await wait(1000); // Wait 1 second
- * console.log('One second has passed');
- *
- * const timeout = wait(1000);
- * timeout.clear(); // Clears the timeout
- *
- * const someVal = await wait(100, 'some value');
- * console.log(someVal); // 'some value'
- *
- * // Add delay between operations
- * for (const item of items) {
- *     await processItem(item);
- *     await wait(100); // Throttle processing
- * }
- *
- * // Retry with backoff
- * async function retryOperation(fn: () => Promise<any>, attempts = 3) {
- *     for (let i = 0; i < attempts; i++) {
- *         try {
- *             return await fn();
- *         } catch (error) {
- *             if (i === attempts - 1) throw error;
- *             await wait(1000 * Math.pow(2, i)); // Exponential backoff
- *         }
- *     }
- * }
- */
-export const wait = <T>(ms: number, value: T = true as T) => {
-
-    let timeout: NodeJS.Timeout | number;
-
-    const promise = new TimeoutPromise<T>(
-        resolve => {
-
-            timeout = setTimeout(
-                () => resolve(value),
-                ms
-            );
-        }
-    );
-
-    promise.clear = () => clearTimeout(timeout);
-
-    return promise;
-};
-
-/**
  * Splits an array into smaller arrays of the specified size.
  *
  * Divides a large array into multiple smaller arrays (chunks) of the given size.
@@ -526,3 +377,23 @@ export const chunk = <T>(array: T[], size: number) => {
  * @returns random ID string
  */
 export const generateId = () => '_' + Math.random().toString(36).slice(2, 9);
+
+/**
+ * Repeats something N times and returns an array of the results.
+ *
+ * @param fn function to repeat
+ * @param n number of times to repeat
+ * @returns array of results
+ *
+ * @example
+ * nTimes(() => createEl('span'), 3) // [span, span, span]
+ * nTimes(() => Math.random(), 5) // [0.123, 0.456, 0.789, 0.123, 0.456]
+ * nTimes((i) => (i + 1) * 2, 3) // [2, 4, 6]
+ */
+export const nTimes = <T>(fn: (iteration: number) => T, n: number) => {
+
+    if (typeof n !== 'number') throw new Error('n must be a number');
+    if (typeof fn !== 'function') throw new Error('fn must be a function');
+
+    return Array.from({ length: n }, (_, i) => fn(i));
+};

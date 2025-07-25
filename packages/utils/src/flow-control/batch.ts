@@ -6,7 +6,8 @@ import {
     type AsyncFunc,
     isFunction,
     assert,
-    assertOptional
+    assertOptional,
+    nextLoop
 } from '../index.ts';
 
 type BatchFunction<A extends unknown[] = unknown[], R = unknown> = (
@@ -156,6 +157,7 @@ export const batch = async <T, R>(
         });
 
         await batchExec(chunk ?? []);
+        await nextLoop();
 
         await onChunkEnd?.({
             index: chunkIndex,
