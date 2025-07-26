@@ -1,4 +1,5 @@
-import { AnyAsyncFunc } from './_helpers.ts';
+import { assert, isFunction } from '../validation.ts';
+import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
 import { attempt } from './attempt.ts';
 
 /**
@@ -149,9 +150,18 @@ export const wait = <T>(ms: number, value: T = true as T) => {
 
     return promise;
 };
+type ExtractParameters<T> = T extends (...args: infer P) => any ? P : never;
+type ExtractReturn<T> = T extends (...args: any[]) => infer R ? R : never;
+type ParamsOfParams<T> = { [K in keyof T]: ExtractParameters<T[K]> };
+type ReturnsOfReturns<T> = { [K in keyof T]: ExtractReturn<T[K]> };
+
+interface MakeInSeriesFunc<T extends readonly ((...args: any[]) => any)[]> {
+    (...args: ParamsOfParams<T>): ReturnsOfReturns<T>;
+}
 
 /**
  * Runs functions in series, waiting for each to complete before running the next.
+ * This is a synchronous operation.
  *
  * @param fns functions to run in series
  * @returns array of results from each function execution
@@ -167,10 +177,13 @@ export const wait = <T>(ms: number, value: T = true as T) => {
  *
  * runInSeries([cleanupStart, cleanupStop, cleanupError, cleanupCleanup]);
  */
-export const runInSeries = <T extends Iterable<Function>>(fns: T) => Array.from(fns, fn => fn());
+export const runInSeries = <T extends Iterable<AnyFunc>>(fns: T) => Array.from(fns, fn => fn()) as ReturnsOfReturns<T>;
+
 
 /**
- * Creates a function that runs functions in series.
+ * Creates a function that runs functions in series. This is a synchronous operation.
+ * Use `as const` to ensure the array is treated as a tuple if the functions have
+ * different parameter types.
  *
  * @param fns functions to run in series
  * @returns function that runs functions in series
@@ -180,14 +193,22 @@ export const runInSeries = <T extends Iterable<Function>>(fns: T) => Array.from(
  * const saveData = (data: any) => database.save(data);
  * const sendNotification = (message: string) => emailService.send(message);
  *
- * const inSeries = makeInSeries([logStep, saveData, sendNotification]);
+ * const inSeries = makeInSeries([logStep, saveData, sendNotification] as const);
  * inSeries(['processing'], [userData], ['User created']);
  */
-export const makeInSeries = <T extends readonly ((...args: any[]) => any)[]>(fns: T) => {
+export const makeInSeries = <T extends readonly ((...args: any[]) => any)[]>(
+    fns: T
+): MakeInSeriesFunc<T> => {
 
-    return (...args: { [K in keyof T]: Parameters<T[K]> }) => fns.map(
-        (fn, index) => fn(...(args[index] || []))
-    );
+    assert(Array.isArray(fns), 'fns must be an array');
+    assert(fns.every(fn => isFunction(fn)), 'fns must be an array of functions');
+
+    return (...args: ParamsOfParams<T>): ReturnsOfReturns<T> => {
+
+        return fns.map(
+            (fn, index) => fn(...(args[index] || []))
+        ) as ReturnsOfReturns<T>;
+    }
 }
 
 /**
@@ -204,6 +225,14 @@ export const makeInSeries = <T extends readonly ((...args: any[]) => any)[]>(fns
  * // ...
  */
 export const nextLoop = () => new Promise(setImmediate);
+
+/**
+ * A promise that resolves after the next tick.
+ *
+ * @returns Promise that resolves after the next tick
+ */
+export const nextTick = () => new Promise(typeof process !== 'undefined' ? process.nextTick : setImmediate);
+
 
 /**
  * A polyfill for the `setImmediate` function that is not available in all browsers.

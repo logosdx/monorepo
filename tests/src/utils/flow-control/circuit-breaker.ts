@@ -4,7 +4,6 @@ import {
     mock,
 } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';

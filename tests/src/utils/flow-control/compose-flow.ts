@@ -4,7 +4,6 @@ import {
     mock,
 } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
@@ -12,9 +11,8 @@ import { mockHelpers } from '../../_helpers';
 import {
     composeFlow,
     attempt,
-} from '../../../../packages/utils/src/flow-control/index.ts';
-
-import { wait } from '../../../../packages/utils/src/misc.ts';
+    wait,
+} from '../../../../packages/utils/src/index.ts';
 
 describe('@logosdx/utils', () => {
 
