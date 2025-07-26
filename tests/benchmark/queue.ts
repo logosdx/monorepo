@@ -1,9 +1,8 @@
 import { describe, it, after, afterEach } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { wait, attempt, throttle } from '../../packages/utils/src/index.ts';
+import { attempt, throttle } from '../../packages/utils/src/index.ts';
 import { ObserverEngine, EventQueue } from '../../packages/observer/src/index.ts';
 
 describe('Queue: stress and memory leak tests', async () => {

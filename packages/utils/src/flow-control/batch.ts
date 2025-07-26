@@ -6,7 +6,7 @@ import {
     type AsyncFunc,
     isFunction,
     assert,
-    assertOptional
+    assertOptional,
 } from '../index.ts';
 
 type BatchFunction<A extends unknown[] = unknown[], R = unknown> = (
@@ -133,9 +133,11 @@ export const batch = async <T, R>(
         };
     };
 
-    const batchExec = async (argsList: T[]): Promise<void> => {
+    const batchExec = async (argsList: T[], chunkOffset: number): Promise<void> => {
 
-        const all = await Promise.all(argsList.map(processOne));
+        const all = await Promise.all(
+            argsList.map((item, index) => processOne(item, chunkOffset + index))
+        );
 
         results.push(...all);
     };
@@ -155,7 +157,7 @@ export const batch = async <T, R>(
             completionPercent: ((chunkIndex + 1) / totalChunks) * 100
         });
 
-        await batchExec(chunk ?? []);
+        await batchExec(chunk ?? [], chunkIndex * concurrency);
 
         await onChunkEnd?.({
             index: chunkIndex,

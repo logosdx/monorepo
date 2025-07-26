@@ -8,3 +8,4 @@ export * from './circuit-breaker.ts';
 export * from './with-timeout.ts';
 export * from './retry.ts';
 export * from './compose-flow.ts';
+export * from './misc.ts';

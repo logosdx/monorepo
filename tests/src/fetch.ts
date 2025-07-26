@@ -715,7 +715,7 @@ describe('@logosdx/fetch', () => {
         await attempt(() => api.get('/bad-content-type', { onError }));
 
         const [[dropReq]] = onError.args as [[FetchError]];
-        expect(dropReq.status).to.equal(999);
+        expect(dropReq.status).to.equal(204);
     });
 
     it('can abort requests', async () => {

@@ -26,11 +26,13 @@ pnpm run tdd                   # Watch specific tests
 ## 🏗️ Architecture
 
 **Structure**: pnpm monorepo, packages build independently, test together
+
 - `packages/`: @logosdx packages (utils, observer, fetch, dom, kit)
 - `tests/`: Mirrors package structure, uses relative imports
 - `llm-helpers/`: AI context guides (utils.md, observer.md, fetch.md, dom.md)
 
 **Imports**:
+
 ```ts
 // ✅ Production: package names
 import { attempt } from '@logosdx/utils';
@@ -52,19 +54,25 @@ import { attempt } from '../../../../packages/utils/src/index.ts';
 ### Syntax & Formatting
 
 - Newline after function declaration and opening blocks:
-```ts
-function doSomething() {
 
-    // logic
-}
+    ```ts
+    function doSomething() {
 
-if (condition) {
+        // logic
+    }
 
-    // logic
-}
-```
-- Prefer vertical space over horizontal for long functions
-- Group functions: Declaration → Validation → Business Logic → Commit
+    if (condition) {
+
+        // logic
+    }
+    ```
+
+- Prefer vertical space over horizontal for long functions. Max 100 characters per line.
+- Functions should follow this 4-block structure in order when it includes all of the following elements:
+  1. Declaration: Declare everything that is needed to execute the function.
+  2. Validation: Validate the input parameters (always a good idea).
+  3. Business Logic: The main logic of the function.
+  4. Commit: Anything that will affect the state of the application.
 
 ### Function Structure Example
 
@@ -84,6 +92,10 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
     if (err) throw err;
 
     const modifiedUser = modifyUserEmail(user, newEmail);
+
+    if (someCondition(modifiedUser)) {
+        somethingElse(modifiedUser);
+    }
 
     // === Commit block ===
     const [, saveErr] = await attempt(() => saveUser(modifiedUser));
@@ -181,6 +193,7 @@ assert(isObject(config), 'Config required');
 ## ✅ Checklist
 
 **Required**:
+
 - [ ] No try-catch (use attempt/attemptSync)
 - [ ] @logosdx/utils for all error handling, data ops, flow control
 - [ ] Relative imports in tests
@@ -189,6 +202,7 @@ assert(isObject(config), 'Config required');
 - [ ] Meaningful names that read like English
 
 **Anti-patterns**:
+
 - try-catch blocks
 - Error monad for pure business logic
 - Missing error handling in async ops
@@ -197,30 +211,35 @@ assert(isObject(config), 'Config required');
 ## 🎯 Code Review Checklist
 
 ### ✅ Structure & Organization
+
 - [ ] Follows monorepo import patterns (package names in prod, relative in tests)
 - [ ] Proper file organization (types.ts, index.ts exports)
 - [ ] Logical grouping of functions and classes
 - [ ] Keep up the `./llm-helpers` docs up to date
 
 ### ✅ TypeScript Standards
+
 - [ ] No `try-catch` blocks (use `attempt`/`attemptSync`)
 - [ ] Proper function structure (4-block pattern)
 - [ ] Meaningful names that read like English
 - [ ] JSDoc with examples and WHY explanations
 
 ### ✅ Dogfooding
+
 - [ ] Uses `@logosdx/utils` for error handling
 - [ ] Uses `@logosdx/utils` for data operations
 - [ ] Uses `@logosdx/utils` for flow control
 - [ ] Demonstrates best practices in examples
 
 ### ✅ Testing
+
 - [ ] Tests mirror source structure
 - [ ] Uses relative imports in tests
 - [ ] Tests all paths (happy, error, bad inputs, edge cases)
 - [ ] Proper mock patterns with `calledExactly`
 
 ### ✅ Error Handling Patterns
+
 - [ ] Uses error monad (`[result, error]`) for fail-prone operations only
 - [ ] Business logic functions return actual results, not error tuples
 - [ ] Proper composition between error monad and direct returns

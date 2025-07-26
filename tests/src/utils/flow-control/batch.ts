@@ -1,10 +1,10 @@
 import {
+    before,
     describe,
     it,
     mock,
 } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
@@ -12,6 +12,8 @@ import { mockHelpers } from '../../_helpers';
 import {
     attempt,
     batch,
+    nextTick,
+    nextLoop,
     wait,
 } from '../../../../packages/utils/src/index.ts';
 
@@ -24,7 +26,6 @@ describe('@logosdx/utils - flow-control: batch', () => {
         const func = async (n: number) => {
 
             await wait(10);
-
             return n;
         }
 

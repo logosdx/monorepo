@@ -623,7 +623,7 @@ export class FetchEngine<
 
             err = new FetchError(err.message);
 
-            err.status = 999;
+            err.status = status ||999;
             err.message = err.message || 'Parse error';
         }
 
@@ -1968,10 +1968,21 @@ export class FetchEngine<
                 this.addEventListener(_e, listener as Func, { once });
             }
 
-            return;
+            return () => {
+
+                for (const _e in FetchEventNames) {
+
+                    this.removeEventListener(_e, listener as Func);
+                }
+            };
         }
 
         this.addEventListener(ev, listener as Func, { once });
+
+        return () => {
+
+            this.removeEventListener(ev, listener as Func);
+        };
     }
 
     /**

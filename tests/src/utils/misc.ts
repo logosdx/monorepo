@@ -16,6 +16,7 @@ import {
     Deferred,
     wait,
     chunk,
+    nTimes,
 } from '../../../packages/utils/src/index.ts';
 
 describe('@logosdx/utils', () => {
@@ -163,6 +164,86 @@ describe('@logosdx/utils', () => {
             expect(chunk([1, 2, 3, 4], 2)).to.deep.equal([[1, 2], [3, 4]]);
             expect(chunk([1, 2, 3], 5)).to.deep.equal([[1, 2, 3]]);
             expect(chunk([], 2)).to.deep.equal([]);
+        });
+
+        it('should nTimes with function that takes iteration index', () => {
+
+            const result = nTimes((i) => (i + 1) * 2, 3);
+
+            expect(result).to.deep.equal([2, 4, 6]);
+        });
+
+        it('should nTimes with function that ignores iteration index', () => {
+
+            const result = nTimes(() => Math.random(), 3);
+
+            expect(result).to.have.length(3);
+            expect(result.every(x => typeof x === 'number')).to.be.true;
+        });
+
+        it('should nTimes with zero iterations', () => {
+
+            const result = nTimes(() => 'test', 0);
+
+            expect(result).to.deep.equal([]);
+        });
+
+        it('should nTimes with single iteration', () => {
+
+            const result = nTimes(() => 'single', 1);
+
+            expect(result).to.deep.equal(['single']);
+        });
+
+        it('should nTimes with large number of iterations', () => {
+
+            const result = nTimes((i) => i, 1000);
+
+            expect(result).to.have.length(1000);
+            expect(result[0]).to.equal(0);
+            expect(result[999]).to.equal(999);
+        });
+
+        it('should nTimes with complex objects', () => {
+
+            const result = nTimes((i) => ({ id: i, name: `item-${i}` }), 3);
+
+            expect(result).to.deep.equal([
+                { id: 0, name: 'item-0' },
+                { id: 1, name: 'item-1' },
+                { id: 2, name: 'item-2' }
+            ]);
+        });
+
+        it('should nTimes with arrays', () => {
+
+            const result = nTimes((i) => [i, i * 2], 3);
+
+            expect(result).to.deep.equal([
+                [0, 0],
+                [1, 2],
+                [2, 4]
+            ]);
+        });
+
+        it('should validate nTimes parameters', () => {
+
+            expect(() => nTimes('not a function' as any, 3)).to.throw('fn must be a function');
+            expect(() => nTimes(() => 'ok', 'not a number' as any)).to.throw('n must be a number');
+        });
+
+        it('should nTimes with negative number (should still work)', () => {
+
+            const result = nTimes(() => 'test', -2);
+
+            expect(result).to.deep.equal([]);
+        });
+
+        it('should nTimes with decimal number (should floor)', () => {
+
+            const result = nTimes((i) => i, 2.7);
+
+            expect(result).to.deep.equal([0, 1]);
         });
 
     });
