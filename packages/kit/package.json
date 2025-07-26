@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/kit",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "A collection of strongly-typed LogosDX libraries to kick-start your app",
   "exports": {
     ".": {
