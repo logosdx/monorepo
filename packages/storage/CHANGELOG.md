@@ -1,5 +1,12 @@
 # @logosdx/storage
 
+## 1.0.10
+
+### Patch Changes
+
+- Updated dependencies [2c6c8cc]
+  - @logosdx/utils@2.1.1
+
 ## 1.0.9
 
 ### Patch Changes
