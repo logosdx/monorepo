@@ -6,7 +6,6 @@ import {
     afterEach,
 } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import * as fc from 'fast-check';
@@ -156,6 +155,23 @@ describe('@logosdx/utils', () => {
             expect(clonedStub.arr).not.to.equal(stub.arr);
             expect(clonedStub.map).not.to.equal(stub.map);
             expect(clonedStub.set).not.to.equal(stub.set);
+        });
+
+        it('clones errors', () => {
+
+            const error = new Error('test');
+            const clonedError = clone(error);
+            expect(clonedError).not.to.equal(error);
+            expect(clonedError.message).to.equal(error.message);
+            expect(clonedError.stack).to.equal(error.stack);
+        });
+
+        it('clones dates', () => {
+
+            const date = new Date();
+            const clonedDate = clone(date);
+            expect(clonedDate).not.to.equal(date);
+            expect(clonedDate.getTime()).to.equal(date.getTime());
         });
     });
 
@@ -1321,5 +1337,4 @@ describe('@logosdx/utils', () => {
             expect(({} as any).polluted).to.be.undefined;
         });
     });
-
 });

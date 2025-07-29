@@ -12,8 +12,6 @@ import { mockHelpers } from '../../_helpers';
 import {
     attempt,
     batch,
-    nextTick,
-    nextLoop,
     wait,
 } from '../../../../packages/utils/src/index.ts';
 
@@ -41,7 +39,6 @@ describe('@logosdx/utils - flow-control: batch', () => {
         );
 
         const promise1 = batch(fn, {
-
             items,
             concurrency: 40,
             onStart,

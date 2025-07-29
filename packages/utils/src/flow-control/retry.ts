@@ -154,7 +154,7 @@ export const retry = async <T extends AnyFunc>(
 
         signal?.throwIfAborted();
 
-        if (result) {
+        if (error === null) {
             return result;
         }
 

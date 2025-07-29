@@ -106,12 +106,6 @@ importers:
         specifier: workspace:^
         version: link:../utils
 
-  packages/test:
-    dependencies:
-      '@logosdx/utils':
-        specifier: workspace:^
-        version: link:../utils
-
   packages/utils: {}
 
   tests:

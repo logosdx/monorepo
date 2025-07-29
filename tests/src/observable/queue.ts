@@ -1,7 +1,6 @@
 import { describe, it, afterEach, after, before } from 'node:test'
 import { mock } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { wait, attempt, noop, attemptSync, isAssertError } from '../../../packages/utils/src/index.ts';

@@ -4,7 +4,6 @@ import {
     mock,
 } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
@@ -286,6 +285,32 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     });
 
+    it('should not retry if the function returns falsy', async () => {
+
+        const fnNull = mock.fn(() => null);
+        const fnUndefined = mock.fn(() => undefined);
+        const fnFalse = mock.fn(() => false);
+        const fnZero = mock.fn(() => 0);
+        const fnEmptyString = mock.fn(() => '');
+
+        const resultNull = await retry(fnNull, { retries: 3, delay: 10 });
+        const resultUndefined = await retry(fnUndefined, { retries: 3, delay: 10 });
+        const resultFalse = await retry(fnFalse, { retries: 3, delay: 10 });
+        const resultZero = await retry(fnZero, { retries: 3, delay: 10 });
+        const resultEmptyString = await retry(fnEmptyString, { retries: 3, delay: 10 });
+
+        expect(resultNull).to.be.null;
+        expect(resultUndefined).to.be.undefined;
+        expect(resultFalse).to.be.false;
+        expect(resultZero).to.equal(0);
+        expect(resultEmptyString).to.equal('');
+
+        calledExactly(fnNull, 1, 'retry not retry null');
+        calledExactly(fnUndefined, 1, 'retry not retry undefined');
+        calledExactly(fnFalse, 1, 'retry not retry false');
+        calledExactly(fnZero, 1, 'retry not retry zero');
+        calledExactly(fnEmptyString, 1, 'retry not retry empty string');
+    });
     describe('makeRetryable', () => {
 
         it('should create a retryable function', async () => {

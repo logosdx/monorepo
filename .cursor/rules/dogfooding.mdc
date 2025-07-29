@@ -8,7 +8,7 @@ alwaysApply: false
 Always use @logosdx/utils throughout the monorepo to validate APIs and demonstrate best practices.
 
 ## Core Principle
-- **Fail-prone operations** (I/O, network, async) → Use error monad `[result, error]`
+- **Fail-prone operations** (I/O, network, async) → Use error tuple `[result, error]`
 - **Business logic** → Return actual results directly
 - **Never use try-catch** → Always use `attempt`/`attemptSync`
 

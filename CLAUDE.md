@@ -108,7 +108,7 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 ## 📋 Key Patterns
 
 ```ts
-// Error monad for I/O
+// Error tuple for I/O
 const [result, err] = await attempt(() => fetch('/api'));
 if (err) return handleError(err);
 
@@ -204,7 +204,7 @@ assert(isObject(config), 'Config required');
 **Anti-patterns**:
 
 - try-catch blocks
-- Error monad for pure business logic
+- Error tuple for pure business logic
 - Missing error handling in async ops
 - Package imports in tests (breaks validation)
 
@@ -240,7 +240,7 @@ assert(isObject(config), 'Config required');
 
 ### ✅ Error Handling Patterns
 
-- [ ] Uses error monad (`[result, error]`) for fail-prone operations only
+- [ ] Uses error tuple (`[result, error]`) for fail-prone operations only
 - [ ] Business logic functions return actual results, not error tuples
-- [ ] Proper composition between error monad and direct returns
+- [ ] Proper composition between error tuple and direct returns
 - [ ] No `try-catch` blocks (use `attempt`/`attemptSync` for I/O)

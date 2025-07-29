@@ -3,7 +3,7 @@ import { assert, isFunction } from '../validation.ts';
 type ResultTuple<T> = [T, null] | [null, Error];
 
 /**
- * Error monad, go-style.
+ * Error tuple, go-style.
  *
  * @param fn async function to run
  *
@@ -33,7 +33,7 @@ export const attempt = async <T extends () => Promise<any>>(fn: T): Promise<Resu
 }
 
 /**
- * Synchronous error monad, go-style.
+ * Synchronous error tuple, go-style.
  *
  * @example
  *

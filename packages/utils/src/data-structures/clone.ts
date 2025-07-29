@@ -83,43 +83,36 @@ export const prepareCloneHandlers = () => {
         return new DataView(clonedBuffer, view.byteOffset, view.byteLength);
     });
 
-    // Add support for Error objects
-    const ERROR_TYPES = [
-        Error, TypeError, ReferenceError, SyntaxError,
-        RangeError, EvalError, URIError
-    ];
+    cloneHandlers.set(Error, (error: Error, seen: WeakMap<any, any>) => {
 
-    ERROR_TYPES.forEach(ErrorConstructor => {
+        const cloned = typeof structuredClone === 'function'
+            ? structuredClone(error)
+            : new (error.constructor as ErrorConstructor)(error.message);
 
-        cloneHandlers.set(ErrorConstructor, (error: Error, seen: WeakMap<any, any>) => {
+        if (error.name) {
+            cloned.name = error.name;
+        }
 
-            const cloned = new (error.constructor as ErrorConstructor)(error.message);
+        if (error.stack) {
+            cloned.stack = error.stack;
+        }
 
-            if (error.name) {
-                cloned.name = error.name;
+        // Copy any additional enumerable own properties
+        const keys = Object.keys(error);
+        for (const key of keys) {
+
+            if (
+                key !== 'name' &&
+                key !== 'message' &&
+                key !== 'stack' &&
+                !isDangerousKey(key)
+            ) {
+
+                (cloned as any)[key] = clone((error as any)[key], seen);
             }
+        }
 
-            if (error.stack) {
-                cloned.stack = error.stack;
-            }
-
-            // Copy any additional enumerable own properties
-            const keys = Object.keys(error);
-            for (const key of keys) {
-
-                if (
-                    key !== 'name' &&
-                    key !== 'message' &&
-                    key !== 'stack' &&
-                    !isDangerousKey(key)
-                ) {
-
-                    (cloned as any)[key] = clone((error as any)[key], seen);
-                }
-            }
-
-            return cloned;
-        });
+        return cloned;
     });
 
     cloneHandlers.set(Date, (date: Date) => {
@@ -136,6 +129,24 @@ export const prepareCloneHandlers = () => {
 
 let cloneHandlersInitialized = false;
 
+const useRawHandler = new Set([
+    ArrayBuffer,
+    DataView,
+    Int8Array,
+    Uint8Array,
+    Uint8ClampedArray,
+    Int16Array,
+    Uint16Array,
+    Int32Array,
+    Uint32Array,
+    Float32Array,
+    Float64Array,
+    BigInt64Array,
+    BigUint64Array,
+    Error,
+    Date,
+    RegExp,
+])
 
 /**
  * Deep clones Objects, Arrays, Maps and Sets with circular reference protection
@@ -165,12 +176,22 @@ export const clone = <T>(original: T, seen = new WeakMap()): T => {
         return seen.get(original as any);
     }
 
+    if (original instanceof Error) {
+        const cloneType = cloneHandlers.get(Error)!;
+
+        return cloneType(original, seen);
+    }
+
     // Get the actual constructor from the prototype chain to avoid prototype pollution
     const actualConstructor = Object.getPrototypeOf(original)?.constructor || original!.constructor;
     const cloneType = cloneHandlers.get(actualConstructor as AnyConstructor);
 
     if (!cloneType) {
         return original;
+    }
+
+    if (useRawHandler.has(actualConstructor)) {
+        return cloneType(original, seen);
     }
 
     // Create type-appropriate placeholder and add to seen map BEFORE cloning
@@ -187,8 +208,9 @@ export const clone = <T>(original: T, seen = new WeakMap()): T => {
         (placeholder as any).push(...cloned);
 
         return placeholder;
+    }
 
-    } else if (original instanceof Map) {
+    if (original instanceof Map) {
 
         placeholder = new Map() as any as T;
         seen.set(original as any, placeholder);
@@ -202,8 +224,9 @@ export const clone = <T>(original: T, seen = new WeakMap()): T => {
         }
 
         return placeholder;
+    }
 
-    } else if (original instanceof Set) {
+    if (original instanceof Set) {
 
         placeholder = new Set() as any as T;
         seen.set(original as any, placeholder);
@@ -217,59 +240,16 @@ export const clone = <T>(original: T, seen = new WeakMap()): T => {
         }
 
         return placeholder;
-
-    } else if (original instanceof Error) {
-
-        const ErrorConstructor = original.constructor as any;
-        placeholder = new ErrorConstructor(original.message) as T;
-        seen.set(original as any, placeholder);
-
-        const cloned = cloneType(original, seen);
-
-        // Copy all properties from cloned error to placeholder
-        Object.assign(placeholder as any, cloned);
-
-        return placeholder;
-
-    } else if (
-        original instanceof Int8Array ||
-        original instanceof Uint8Array ||
-        original instanceof Uint8ClampedArray ||
-        original instanceof Int16Array ||
-        original instanceof Uint16Array ||
-        original instanceof Int32Array ||
-        original instanceof Uint32Array ||
-        original instanceof Float32Array ||
-        original instanceof Float64Array ||
-        original instanceof BigInt64Array ||
-        original instanceof BigUint64Array
-    ) {
-
-        // For TypedArrays, we can't create empty placeholders
-        // Just clone directly since they don't support circular references internally
-        return cloneType(original, seen);
-
-    } else if (original instanceof ArrayBuffer) {
-
-        // ArrayBuffers can't have circular references internally
-        return cloneType(original, seen);
-
-    } else if (original instanceof DataView) {
-
-        // DataViews can't have circular references internally
-        return cloneType(original, seen);
-
-    } else {
-
-        // Handle regular objects and other types
-        placeholder = {} as T;
-        seen.set(original as any, placeholder);
-
-        const cloned = cloneType(original, seen);
-
-        // Copy all properties from cloned object to placeholder
-        Object.assign(placeholder as any, cloned);
-
-        return placeholder;
     }
+
+    // Handle regular objects and other types
+    placeholder = {} as T;
+    seen.set(original as any, placeholder);
+
+    const cloned = cloneType(original, seen);
+
+    // Copy all properties from cloned object to placeholder
+    Object.assign(placeholder as any, cloned);
+
+    return placeholder;
 };

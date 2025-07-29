@@ -9,7 +9,7 @@ A comprehensive utility library providing Go-style error handling, advanced flow
 
 ## Core Philosophy
 
-**Never use try-catch.** Always use error monad pattern for fail-prone operations.
+**Never use try-catch.** Always use error tuple pattern for fail-prone operations.
 
 ```ts
 import { attempt, attemptSync } from '@logosdx/utils'
@@ -27,7 +27,7 @@ function calculateTotal(items: CartItem[]): number {
 ## Error Handling
 
 ### `attempt` & `attemptSync`
-Go-style error monad for safe async/sync operations.
+Go-style error tuple for safe async/sync operations.
 
 ```ts
 type ResultTuple<T> = [T, null] | [null, Error]

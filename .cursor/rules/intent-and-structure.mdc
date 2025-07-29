@@ -20,9 +20,9 @@ PNPM monorepo structure and organizational patterns for the @logosdx ecosystem.
 - **Test imports**: Use relative paths (`../../packages/utils/src/index.ts`) to validate actual implementation
 
 ## Error Handling Philosophy
-- **Fail-prone operations** (I/O, network, async) → Use Go-style error monad `[result, error]`
+- **Fail-prone operations** (I/O, network, async) → Use Go-style error tuple `[result, error]`
 - **Business logic functions** → Return actual results directly
-- **Composition** → Combine error monad for I/O with direct returns for business logic
+- **Composition** → Combine error tuple for I/O with direct returns for business logic
 
 ## Build & Release
 - **Individual builds**: Each package builds independently with its own config

@@ -20,7 +20,7 @@ These tools exist to make code predictable, testable, and maintainable. No hype,
 Essential functions for data, flow control, and validation. Replaces scattered helpers with typed, composable alternatives.
 
 - Data: `clone`, `equals`, `merge`, `PriorityQueue`.
-- Flow: `attempt` (error monad), `retry`, `throttle`, `memo`, `circuitBreaker`.
+- Flow: `attempt` (error tuple), `retry`, `throttle`, `memo`, `circuitBreaker`.
 - Misc: `assert`, `wait`, `chunk`.
 
 ```ts
