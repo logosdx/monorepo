@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/localize",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "A small, strongly-typed, full feature localization utility",
   "exports": {
     ".": {
