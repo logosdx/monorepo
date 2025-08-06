@@ -3,7 +3,8 @@ import {
     assert,
     definePrivateProps,
     clone,
-    type MaybePromise
+    type MaybePromise,
+    isFunction
 } from '@logosdx/utils';
 
 import {
@@ -180,7 +181,7 @@ export class ObserverEngine<
      *
      * @param on Whether to enable or disable debugging
      */
-    debug(on = true) {
+    debug(on: boolean = true) {
 
         const original = this.#spy;
 
@@ -213,6 +214,19 @@ export class ObserverEngine<
         }
 
         this.#spy = this.#__spy!;
+    }
+
+    /**
+     * Sets the spy function for the observable instance.
+     * @param spy The spy function to set
+     * @param force Whether to force the spy function to be set even if one is already set
+     */
+    spy(spy: ObserverEngine.Spy<Shape>, force: boolean = false) {
+
+        assert(isFunction(spy), 'spy must be a function', TypeError);
+        assert(force || this.#spy === undefined, 'you already have a spy function set', TypeError);
+
+        this.#spy = spy;
     }
 
     /**
