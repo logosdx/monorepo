@@ -10,17 +10,20 @@ Comprehensive patterns for TypeScript code organization, classes, types, and sym
 ## Code Style Conventions
 
 ### Syntax & Formatting
+
 - Newline **after** function declaration and opening blocks
 - Prefer **vertical space** over horizontal when functions are long
 - Group functions: Declaration → Validation → Business Logic → Commit
 
 ### Naming Philosophy
+
 - Use **meaningful names** that explain **what** the thing is
   - ✅ `userExists`, `fetchInvoiceTotal`
   - ❌ `x`, `data`, `handleIt`
 - Functions should **read like English**
 
 ### Comments & JSDoc
+
 - JSDoc all **functions and classes**
 - Explain **WHY** something exists — not how or what
 - Always provide **usage examples**
@@ -54,6 +57,10 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 
         throw new UserNotFoundError();
     }
+    else if (user.email === newEmail) { // notice that else is not on the same line as the closing if
+
+        return user;
+    }
 
     const modifiedUser = modifyUserEmail(user, newEmail);
 
@@ -70,11 +77,13 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 ```
 
 ## Type Organization
+
 - **Dedicated `types.ts` files** for shared types across modules
 - **`export type`** for type-only exports (enables tree-shaking)
 - **Re-export from index**: `export type { Events } from './types.ts'`
 
 ## Generic & Type Patterns
+
 ```ts
 // Descriptive names with proper constraints
 export type Events<Shape> = keyof Shape;
@@ -93,11 +102,13 @@ export interface BehaviorOptions {
 ```
 
 ## Class Design
+
 - **Static classes** → Stateless utilities (DOM, behaviors, helpers)
 - **Instance classes** → Stateful components with private state and lifecycle
 - **Always dogfood** `@logosdx/utils` for validation, error handling, flow control
 
 ## Instance Class Patterns
+
 ```ts
 export class DataProcessor {
 
@@ -127,6 +138,7 @@ export class DataProcessor {
 ```
 
 ## Static Class Patterns
+
 ```ts
 export class HtmlBehaviors {
 
@@ -145,6 +157,7 @@ export class HtmlBehaviors {
 ```
 
 ## Symbol Usage
+
 - **When to use**: Private metadata on DOM elements, hidden internal state
 - **When NOT to use**: Public APIs, simple private data (use `#private` fields)
 - **Pattern**: Module-level constants with descriptive names
@@ -161,6 +174,7 @@ interface BoundElement extends Element {
 ```
 
 ## Quick Examples
+
 ```ts
 // Type organization
 export type Events<Shape> = keyof Shape;
