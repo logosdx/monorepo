@@ -37,54 +37,71 @@ function step() {
     echo "----------------"
 }
 
+DEPLOY_TYPEDOC=0
+DEPLOY_MAIN=0
+
+if [[ "$1" == "--typedoc" ]]; then
+    DEPLOY_TYPEDOC=1
+fi
+
+if [[ "$1" == "--main" ]]; then
+    DEPLOY_MAIN=1
+fi
+
 set -e
 
 pnpm install
-pnpm build
 
 step 'Making docs'
 
-pnpm typedoc
-pnpm docs:build
+if [[ $DEPLOY_TYPEDOC -eq 1 ]]; then
 
-cd typedoc
+    pnpm build
+    pnpm typedoc
 
-if [[ ! $(pwd) =~ "typedoc" ]]; then
-    echo "You must run this script from the root of the project"
-    exit 1
+    cd typedoc
+
+    if [[ ! $(pwd) =~ "typedoc" ]]; then
+        echo "You must run this script from the root of the project"
+        exit 1
+    fi
+
+    echo "typedoc.logosdx.dev" > CNAME
+
+    step 'Initializing git for typedoc'
+    git init
+    git remote add origin git@github.com:logosdx/typedoc.logosdx.dev.git
+    git checkout -b master
+
+    step 'Adding files to typedoc'
+    git add .
+    echo -e "$MSG" > commit-msg.txt
+    git commit -F commit-msg.txt
+
+    step 'Pushing to github for typedoc'
+    git push origin master --force
+
+    step 'Cleaning up typedoc'
+    cd ..
+    rm -rf typedoc
 fi
 
-echo "typedoc.logosdx.dev" > CNAME
+if [[ $DEPLOY_MAIN -eq 1 ]]; then
 
-step 'Initializing git for typedoc'
-git init
-git remote add origin git@github.com:logosdx/typedoc.logosdx.dev.git
-git checkout -b master
+    pnpm docs:build
 
-step 'Adding files to typedoc'
-git add .
-echo -e "$MSG" > commit-msg.txt
-git commit -F commit-msg.txt
+    cd docs/.vitepress/dist
 
-step 'Pushing to github for typedoc'
-git push origin master --force
+    step 'Initializing git for main site'
+    git init
+    git remote add origin git@github.com:logosdx/logosdx.dev.git
+    git checkout -b master
 
-step 'Cleaning up typedoc'
-cd ..
-rm -rf typedoc
+    step 'Adding files to main site'
+    git add .
+    echo -e "$MSG" > commit-msg.txt
+    git commit -F commit-msg.txt
 
-cd docs/.vitepress/dist
-
-step 'Initializing git for main site'
-git init
-git remote add origin git@github.com:logosdx/logosdx.dev.git
-git checkout -b master
-
-step 'Adding files to main site'
-git add .
-echo -e "$MSG" > commit-msg.txt
-git commit -F commit-msg.txt
-
-step 'Pushing to github for main site'
-git push origin master --force
-
+    step 'Pushing to github for main site'
+    git push origin master --force
+fi

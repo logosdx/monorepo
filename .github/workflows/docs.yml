@@ -31,12 +31,16 @@ jobs:
           cache: "pnpm"
 
       - run: pnpm install --frozen-lockfile
+
       - uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DOCS_SSH_KEY }}
+          ssh-private-key: |
+            ${{ secrets.DOCS_SSH_KEY }}
+            ${{ secrets.SITE_SSH_KEY }}
 
       - name: Update docs
         run: |
           git config --global user.email "<runner@github.com>"
           git config --global user.name "GitHub Actions"
-          bash ./scripts/docs.zsh
+          bash ./scripts/docs.zsh --typedoc
+          bash ./scripts/docs.zsh --main
