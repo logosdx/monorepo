@@ -42,8 +42,11 @@ set -e
 pnpm install
 pnpm build
 
-step 'Making typedocs'
+step 'Making docs'
+
 pnpm typedoc
+pnpm docs:build
+
 cd typedoc
 
 if [[ ! $(pwd) =~ "typedoc" ]]; then
@@ -53,19 +56,35 @@ fi
 
 echo "typedoc.logosdx.dev" > CNAME
 
-step 'Initializing git'
+step 'Initializing git for typedoc'
 git init
 git remote add origin git@github.com:logosdx/typedoc.logosdx.dev.git
 git checkout -b master
 
-# step 'Adding files'
+step 'Adding files to typedoc'
 git add .
 echo -e "$MSG" > commit-msg.txt
 git commit -F commit-msg.txt
 
-# step 'Pushing to github'
+step 'Pushing to github for typedoc'
 git push origin master --force
 
-step 'Cleaning up'
+step 'Cleaning up typedoc'
 cd ..
 rm -rf typedoc
+
+cd docs/.vitepress/dist
+
+step 'Initializing git for main site'
+git init
+git remote add origin git@github.com:logosdx/logosdx.dev.git
+git checkout -b master
+
+step 'Adding files to main site'
+git add .
+echo -e "$MSG" > commit-msg.txt
+git commit -F commit-msg.txt
+
+step 'Pushing to github for main site'
+git push origin master --force
+

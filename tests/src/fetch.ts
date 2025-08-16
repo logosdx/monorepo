@@ -11,7 +11,6 @@ import {
     afterEach
 } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import Hapi, { Lifecycle } from '@hapi/hapi';

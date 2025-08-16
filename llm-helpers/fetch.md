@@ -3,9 +3,9 @@ description: Usage patterns for the @logosdx/fetch package.
 globs: *.ts
 ---
 
-# @logosdx/fetch - HTTP Client Context
+# @logosdx/fetch
 
-Resilient HTTP client with retry logic, request/response interception, and comprehensive error handling for production applications.
+HTTP client with retry logic, request/response interception, and comprehensive error handling for production applications.
 
 ## Core API
 

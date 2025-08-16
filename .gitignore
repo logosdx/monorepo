@@ -8,3 +8,4 @@ tmp/*
 !tmp/.gitkeep
 packages/test
 tests/src/experiments
+docs/.vitepress/cache/*

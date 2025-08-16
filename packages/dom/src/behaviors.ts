@@ -780,4 +780,23 @@ export class HtmlBehaviors {
         this.#rootObservers.clear();
         this.#observedFeatures.clear();
     }
+
+
+    static $_bindFns() {
+
+        this.bind = this.bind.bind(this);
+        this.unbind = this.unbind.bind(this);
+        this.unbindAll = this.unbindAll.bind(this);
+        this.observe = this.observe.bind(this);
+        this.stop = this.stop.bind(this);
+        this.stopAll = this.stopAll.bind(this);
+        this.create = this.create.bind(this);
+        this.on = this.on.bind(this);
+        this.isBound = this.isBound.bind(this);
+        this.allBound = this.allBound.bind(this);
+        this.debug = this.debug.bind(this);
+        this.dispatch = this.dispatch.bind(this);
+    }
 }
+
+HtmlBehaviors.$_bindFns();
