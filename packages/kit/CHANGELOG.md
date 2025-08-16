@@ -1,5 +1,12 @@
 # @logosdx/kit
 
+## 1.0.11
+
+### Patch Changes
+
+- Updated dependencies [c6a8fd2]
+  - @logosdx/observer@2.0.6
+
 ## 1.0.10
 
 ### Patch Changes
