@@ -1,5 +1,11 @@
 # @logosdx/observer
 
+## 2.0.6
+
+### Patch Changes
+
+- c6a8fd2: Expose the ability to overwrite the spy function
+
 ## 2.0.5
 
 ### Patch Changes
