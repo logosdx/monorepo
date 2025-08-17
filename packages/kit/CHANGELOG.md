@@ -1,5 +1,12 @@
 # @logosdx/kit
 
+## 1.0.12
+
+### Patch Changes
+
+- Updated dependencies [cd91503]
+  - @logosdx/fetch@1.2.0
+
 ## 1.0.11
 
 ### Patch Changes
