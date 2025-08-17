@@ -7,7 +7,7 @@ description: Focused TypeScript utilities for building JS apps on any runtime
 hero:
   name: "Logos DX"
   text: "Focused TypeScript utilities for building JS apps on any runtime"
-  tagline: Stop Debugging The Same Problems
+  tagline: A rational developer experience
   image:
     src: ./images/insignia.png
     alt: Logos DX

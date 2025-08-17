@@ -1,11 +1,11 @@
 ---
 title: Utils
-description: Go-style error handling and flow control utilities for safer, more predictable JavaScript
+description: Production utilities that compose. Resilience built in.
 ---
 
 # Utils
 
-Go-style error handling and flow control utilities for safer, more predictable JavaScript applications.
+Building resilient applications requires more than basic utilities. @logosdx/utils provides everything you need: retry failed operations with backoff, protect services with circuit breakers, control flow with rate limiting and debouncing, optimize performance with memoization, safely clone and merge complex objects, and handle errors with Go-style tuples instead of exceptions. Every utility is designed to compose - stack retry on circuit breaker on timeout. Full TypeScript support catches errors at compile time. It's the foundation for applications that don't break in production.
 
 [[toc]]
 

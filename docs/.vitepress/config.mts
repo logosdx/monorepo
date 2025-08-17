@@ -13,10 +13,16 @@ const packages: DefaultTheme.SidebarItem[] = [
   link: `/packages/${link}`,
 }));
 
+const metadata = {
+  title: 'Logos DX',
+  description: 'Focused TypeScript utilities for building JS apps in any runtime',
+  image: 'https://logosdx.dev/images/screenshot-site.png',
+}
+
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  title: "Logos DX",
-  description: "Focused TypeScript utilities for building JS apps in any runtime",
+  title: 'Logos DX',
+  description: 'Focused TypeScript utilities for building JS apps in any runtime',
 
   // https://vitepress.dev/reference/default-theme-config
   themeConfig: {
@@ -62,8 +68,38 @@ export default defineConfig({
   head: [
     ['link', { rel: 'icon', href: '/images/app-icon-red.png' }],
     ['link', { rel: 'icon', href: '/images/app-icon-white.png', media: '(prefers-color-scheme: dark)' }],
+
+    ['meta', { property: 'og:title', content: metadata.title }],
+    ['meta', { property: 'og:description', content: metadata.description }],
+    ['meta', { property: 'og:image', content: metadata.image }],
+    ['meta', { property: 'og:url', content: 'https://logosdx.dev' }],
+    ['meta', { property: 'og:type', content: 'website' }],
+
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: metadata.title }],
+    ['meta', { name: 'twitter:description', content: metadata.description }],
+    ['meta', { name: 'twitter:image', content: metadata.image }],
+
+
+    ['link', { rel: 'mask-icon', href: '/images/app-icon-red.png', color: '#ffffff' }],
+    ['link', { rel: 'apple-touch-icon', href: '/images/app-icon-red.png', sizes: '180x180' }],
+
+    [
+      'script',
+      { async: '', src: 'https://www.googletagmanager.com/gtag/js?id=G-H547DPM1VY' }
+    ],
+    [
+      'script',
+      {},
+      `window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-H547DPM1VY');`
+    ],
+
     ['link', { rel: 'stylesheet', href: 'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.0.0/css/fontawesome.min.css' }],
     ['script', { src: 'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.0.0/js/all.min.js' }],
+
   ],
 
 });

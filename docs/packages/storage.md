@@ -1,11 +1,11 @@
 ---
 title: Storage
-description: Type-safe storage with event system and Storage API compatibility
+description: One API for your many key-value stores.
 ---
 
 # Storage
 
-Type-safe storage with event system and Storage API compatibility
+Key-value stores are everywhere - `localStorage`, `sessionStorage`, Redis, `AsyncStorage` - but they only store strings. `@logosdx/storage` wraps any key-value store that implements getItem/setItem, automatically handling JSON serialization so you work with real objects, not strings. Full TypeScript support prevents key typos, reactive events notify on changes, and namespacing prevents key collisions. Whether you're storing user preferences in localStorage or session data in Redis, it's the same type-safe API. Key-value storage without the string manipulation.
 
 [[toc]]
 

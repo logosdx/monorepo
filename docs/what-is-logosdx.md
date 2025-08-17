@@ -1,11 +1,27 @@
+# What is LogosDX?
 
-## What is LogosDX?
+**Logos** */lōgōs/ n.*<br />
+&nbsp;&nbsp;&nbsp;&nbsp;**¹** From the ancient Greek meaning "divine reason" and "rational principle."<br />
+&nbsp;&nbsp;&nbsp;&nbsp;**²** Represents the fundamental order that governs the universe.<br />
+&nbsp;&nbsp;&nbsp;&nbsp;**³** The stoics believed it was the rational law underlying all things.<br />
 
-LogosDX is a small set of TypeScript-first utilities for building predictable applications across runtimes (browsers, Node.js, Deno, Bun, workers). It focuses on developer experience, debugging-friendliness, and runtime reliability. Birthed from the need to build cross-runtime, reliable applications, LogosDX is a collection of utilities that are designed to be used in a variety of different contexts. They are meant to be foundational building blocks for applications and libraries.
+**DX** */d-eks/ n.*<br />
+&nbsp;&nbsp;&nbsp;&nbsp;**¹** Stands for "developer experience."<br />
+
+**LogosDX** */lōgōs d-eks/ n.*<br />
+&nbsp;&nbsp;&nbsp;&nbsp;**¹** A rational developer experience.
+
+---
+
+In the ancient Greek conception of **Logos** - the divine reason that brings order to chaos - we found inspiration for these utilities. After years of rebuilding the same retry logic across projects, copying storage wrappers between codebases, and watching our own teams rediscover patterns we'd already solved, LogosDX emerged from the recognition that certain principles appear in every reliable system.
+
+These aren't just utility packages. They're the distilled patterns we kept reaching for: explicit error handling that makes failure paths visible, storage abstractions that work everywhere, events that understand patterns, HTTP clients that handle failure gracefully. The utilities we wished existed when we were building cross-platform applications that needed to work reliably in production.
+
+The rational principles that create order from development complexity.
 
 **Why is this different?**
 
-1. **Explicit error handling control flow**: Utilities like `attempt`/`attemptSync` return `[value, error]` tuples. No mandatory try/catch, no invisible throw paths. Reduced nested logic. This makes tests, retries, and fallbacks straightforward and more legible.
+1. **Explicit error handling control flow**: Utilities like `attempt`/`attemptSync` return `[value, error]` tuples, which eliminates the need for try/catch— no more invisible error paths due to nested logic. This makes tests, retries, and fallbacks straightforward and more legible.
 
 2. **Resilience is a primary concern**: `retry`, `withTimeout`, `circuitBreaker`, and `rateLimit` are available as primitives. The `FetchEngine` adds timeouts, retries, backoff, and gives you abstractions to handle common patterns (e.g., honor `Retry-After`) on top of the standard Fetch API.
 
@@ -16,10 +32,15 @@ LogosDX is a small set of TypeScript-first utilities for building predictable ap
 5. **Tight dependency policy**: Only `@logosdx/*` dependencies. This reduces supply-chain churn and makes upgrades predictable.
 
 
-## Our goal
+## Our goals
 
-Offer small, reliable building blocks that make code easier to reason about and easier to keep running in production.
-
+- TypeScript-first.
+- Resilience built in.
+- Tree-shakable.
+- Runtime agnostic.
+- Small and fast.
+- Debuggable, testable, and well-documented.
+- Zero external dependencies.
 
 ## Use Cases
 

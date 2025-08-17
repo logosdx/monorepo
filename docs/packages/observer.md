@@ -1,11 +1,11 @@
 ---
 title: Observer
-description: Event emitter with async generators and advanced queue processing
+description: Events that understand patterns. Queues that manage themselves.
 ---
 
 # Observer
 
-Event emitter with async generators and advanced queue processing for reactive programming
+Event systems get complex fast — you need pattern matching, async processing, and queue management. `@logosdx/observer` delivers all three in one package. Match events with regex patterns like `/^user:/`, consume them as async iterables, or process them through rate-limited queues with built-in retries. Every event is type-safe, every listener is trackable, and the built-in spy functionality shows you exactly what's happening. It's the event system that scales with your application.
 
 [[toc]]
 

@@ -1,11 +1,11 @@
 ---
 title: Localize
-description: Type-safe localization and internationalization with dynamic language switching
+description: Localization utilities for everything from languages to customer-specific strings
 ---
 
 # Localize
 
-Type-safe localization and internationalization with dynamic language switching
+Not every app needs a heavyweight i18n framework. `@logosdx/localize` is a minimal localization utility with TypeScript-validated keys - no more typos in translation paths. Organize translations in nested objects, access with dot notation, interpolate variables with placeholders. When translations are missing, it falls back to your default language. Fire events when language changes so you can update your UI however you want. It's just the core i18n features with type safety, nothing more.
 
 [[toc]]
 

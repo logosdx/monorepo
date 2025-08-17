@@ -1,11 +1,11 @@
 ---
 title: Fetch
-description: HTTP client with retry logic and event system
+description: HTTP that handles failure. Automatically.
 ---
 
 # Fetch
 
-HTTP client with type-safe headers/params, automatic retries, and comprehensive event system for building resilient applications.
+Your API calls fail and `fetch` just throws. `@logosdx/fetch` transforms the basic Fetch API into a production-ready HTTP client. Automatic retries with exponential backoff, configurable timeouts, request cancellation, and comprehensive lifecycle events. Smart retry strategy for transient failures (network errors, 429s, 500s). Configure once with base URLs and headers, then make type-safe requests that handle network failures gracefully. It's `fetch`, but built for the real world.
 
 [[toc]]
 

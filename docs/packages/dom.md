@@ -1,12 +1,11 @@
 ---
 title: DOM
-description: DOM manipulation and event handling utilities with behavior management
+description: For those who like to raw-dawg the DOM
 ---
 
 # DOM
 
-
-DOM manipulation and event handling utilities with automatic cleanup and type-safe interfaces.
+Not every site needs React. `@logosdx/dom` is for developers building simple sites with minimal JavaScript - landing pages, marketing sites, enhanced static content. Work directly with the DOM using clean APIs for selection, styling, events, and attributes. The behavior system lets you attach JavaScript to HTML declaratively. Everything returns cleanup functions so you never leak memory. Cross-browser utilities that just work. It's vanilla JavaScript with the rough edges smoothed out - perfect for when you want to keep things simple.
 
 [[toc]]
 
