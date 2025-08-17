@@ -94,6 +94,8 @@ export enum FetchEventNames {
     'fetch-state-set' = 'fetch-state-set',
     'fetch-state-reset' = 'fetch-state-reset',
     'fetch-url-change' = 'fetch-url-change',
+    'fetch-modify-options-change' = 'fetch-modify-options-change',
+    'fetch-modify-method-options-change' = 'fetch-modify-method-options-change',
     'fetch-retry' = 'fetch-retry',
 };
 

@@ -27,6 +27,20 @@ if (err) {
     console.error('Request failed:', err.status, err.message);
     return;
 }
+
+// Global instance (simplified usage)
+import fetch, { get, post, setState, addHeader } from '@logosdx/fetch';
+
+// Global instance auto-uses current domain as base URL
+const [users, err] = await attempt(() => fetch.get('/api/users'));
+
+// Or use destructured methods
+addHeader('Authorization', 'Bearer token');
+setState('userId', '123');
+const [user, err] = await attempt(() => get('/api/users/123'));
+
+// Smart URL handling - absolute URLs bypass base URL
+const [external, err] = await attempt(() => get('https://api.external.com/data'));
 ```
 
 ## HTTP Methods
@@ -53,6 +67,10 @@ api.request<Response, RequestData>(method, path, options & { payload?: RequestDa
 // Request cancellation
 const request = api.get('/users');
 setTimeout(() => request.abort('User cancelled'), 2000);
+
+// Dynamic request modification
+api.changeModifyOptions(fn?: (opts: RequestOpts, state: S) => RequestOpts)
+api.changeModifyMethodOptions(method: HttpMethods, fn?: (opts: RequestOpts, state: S) => RequestOpts)
 ```
 
 ## Configuration
@@ -87,12 +105,13 @@ interface FetchEngine.Options<H, P, S> {
         shouldRetry?: (error: FetchError, attempt: number) => boolean | number;
     };
 
-    // Request modification
+    // Request modification (initial setup)
     modifyOptions?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
     modifyMethodOptions?: {
         GET?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
         // ... other methods
     };
+    // Note: Use changeModifyOptions() and changeModifyMethodOptions() for runtime changes
 
     // Validation
     validate?: {
@@ -164,6 +183,22 @@ api.hasParam('api_key'); // boolean
 // Access current configuration
 const { default: globalHeaders, get: getHeaders } = api.headers;
 const { default: globalParams, get: getParams } = api.params;
+
+// With global instance and destructured methods
+import { addHeader, addParam, rmHeader, hasHeader, changeModifyOptions, changeModifyMethodOptions } from '@logosdx/fetch';
+addHeader('X-API-Key', 'key123');
+addParam('version', 'v1');
+
+// Dynamic request modification
+changeModifyOptions((opts, state) => {
+    opts.headers['X-Request-ID'] = crypto.randomUUID();
+    return opts;
+});
+
+changeModifyMethodOptions('POST', (opts, state) => {
+    opts.headers['Content-Type'] = 'application/json';
+    return opts;
+});
 ```
 
 ## State Management
@@ -234,6 +269,24 @@ const api = new FetchEngine({
 // Environment switching
 api.changeBaseUrl('https://api.staging.com');
 
+// Dynamic request modification
+api.changeModifyOptions((opts, state) => {
+    if (state.authToken) {
+        opts.headers.Authorization = `Bearer ${state.authToken}`;
+    }
+    opts.headers['X-Request-ID'] = crypto.randomUUID();
+    return opts;
+});
+
+api.changeModifyMethodOptions('POST', (opts, state) => {
+    opts.headers['Content-Type'] = 'application/json';
+    return opts;
+});
+
+// Clear modifiers
+api.changeModifyOptions(undefined);
+api.changeModifyMethodOptions('POST', undefined);
+
 // Per-request options
 const [data, err] = await attempt(() =>
     api.get('/users', {
@@ -264,20 +317,20 @@ declare module '@logosdx/fetch' {
             version?: string;
             format?: 'json' | 'xml';
         }
+
+        interface InstanceState {
+            authToken?: string;
+            userId?: string;
+            sessionId?: string;
+        }
     }
 }
 
-// Custom state interface
-interface AppState {
-    authToken?: string;
-    userId?: string;
-    sessionId?: string;
-}
-
+// Now both custom instances and global instance use the same types
 const api = new FetchEngine<
     FetchEngine.InstanceHeaders,
     FetchEngine.InstanceParams,
-    AppState
+    FetchEngine.InstanceState
 >({
     baseUrl: 'https://api.example.com',
     validate: {
@@ -293,6 +346,10 @@ const api = new FetchEngine<
         }
     }
 });
+
+// Global instance automatically gets the extended types
+import { setState, getState } from '@logosdx/fetch';
+setState('authToken', 'token123'); // ✅ Typed
 ```
 
 ## Production Patterns
@@ -334,7 +391,14 @@ api.on('fetch-retry', (event) => {
 
 // Dynamic state management
 api.setState('authToken', await getAuthToken());
-api.addHeader('Authorization', `Bearer ${api.getState().authToken}`);
+
+// Use changeModifyOptions for dynamic auth token injection
+api.changeModifyOptions((opts, state) => {
+    if (state.authToken) {
+        opts.headers.Authorization = `Bearer ${state.authToken}`;
+    }
+    return opts;
+});
 
 // Environment switching
 if (process.env.NODE_ENV === 'development') {

@@ -21,8 +21,10 @@ import Joi from 'joi';
 import {
     FetchError,
     FetchEvent,
-    FetchEngine
+    FetchEngine,
 } from '../../packages/fetch/src/index.ts';
+
+import logosFetch from '../../packages/fetch/src/index.ts';
 
 import { attempt } from '../../packages/utils/src/index.ts';
 
@@ -94,6 +96,39 @@ describe('@logosdx/fetch', () => {
 
     beforeEach(() => callStub.reset());
 
+    it('can be imported as a default export', async () => {
+
+        expect(logosFetch).to.exist;
+        expect(logosFetch.get).to.exist;
+        expect(logosFetch.post).to.exist;
+        expect(logosFetch.put).to.exist;
+        expect(logosFetch.delete).to.exist;
+        expect(logosFetch.patch).to.exist;
+        expect(logosFetch.options).to.exist;
+        expect(logosFetch.request).to.exist;
+        expect(logosFetch.removeHeader).to.exist;
+        expect(logosFetch.removeParam).to.exist;
+        expect(logosFetch.addHeader).to.exist;
+        expect(logosFetch.addParam).to.exist;
+        expect(logosFetch.setState).to.exist;
+        expect(logosFetch.resetState).to.exist;
+        expect(logosFetch.getState).to.exist;
+        expect(logosFetch.changeBaseUrl).to.exist;
+        expect(logosFetch.changeModifyOptions).to.exist;
+        expect(logosFetch.changeModifyMethodOptions).to.exist;
+        expect(logosFetch.on).to.exist;
+        expect(logosFetch.off).to.exist;
+        expect(logosFetch.hasHeader).to.exist;
+
+        await logosFetch.get(server.info.uri + '/json');
+        expect(callStub.args.length).to.equal(1);
+
+        const req = callStub.args.pop()!.pop()!;
+        const called = req.url.href.toLowerCase();
+        const expected = server.info.uri.toLowerCase() + '/json';
+
+        expect(called).to.equal(expected);
+    });
 
     it('requires a proper config', () => {
 
@@ -1802,6 +1837,111 @@ describe('@logosdx/fetch', () => {
         expect(req1.isFinished).to.be.false;
         expect(req2.isFinished).to.be.false;
 
+    });
+
+    it('can change modifyOptions function', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        let modifyCallCount = 0;
+
+        const modifyOptions = (opts: any, state: any) => {
+
+            modifyCallCount++;
+            opts.headers = { ...opts.headers, 'x-modified': 'true' };
+            return opts;
+        };
+
+        const onModifyOptionsChange = sandbox.stub();
+
+        api.on('fetch-modify-options-change', onModifyOptionsChange);
+
+        // Set modifyOptions function
+        api.changeModifyOptions(modifyOptions);
+
+        expect(onModifyOptionsChange.calledOnce).to.be.true;
+        expect(onModifyOptionsChange.firstCall.args[0].data).to.equal(modifyOptions);
+
+        // Make a request to verify the modifier is applied
+        await api.get('/json');
+
+        expect(modifyCallCount).to.equal(1);
+
+        // Clear modifyOptions function
+        api.changeModifyOptions(undefined);
+
+        expect(onModifyOptionsChange.calledTwice).to.be.true;
+        expect(onModifyOptionsChange.secondCall.args[0].data).to.be.undefined;
+
+        // Make another request to verify the modifier is no longer applied
+        await api.get('/json');
+
+        expect(modifyCallCount).to.equal(1); // Should still be 1
+    });
+
+    it('can change modifyMethodOptions function', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        let postModifyCallCount = 0;
+        let getModifyCallCount = 0;
+
+        const postModifyOptions = (opts: any, state: any) => {
+
+            postModifyCallCount++;
+            opts.headers = { ...opts.headers, 'x-post-modified': 'true' };
+            return opts;
+        };
+
+        const getModifyOptions = (opts: any, state: any) => {
+
+            getModifyCallCount++;
+            opts.headers = { ...opts.headers, 'x-get-modified': 'true' };
+            return opts;
+        };
+
+        const onModifyMethodOptionsChange = sandbox.stub();
+
+        api.on('fetch-modify-method-options-change', onModifyMethodOptionsChange);
+
+        // Set POST modifyOptions function
+        api.changeModifyMethodOptions('POST', postModifyOptions);
+
+        expect(onModifyMethodOptionsChange.calledOnce).to.be.true;
+        expect(onModifyMethodOptionsChange.firstCall.args[0].data.method).to.equal('POST');
+        expect(onModifyMethodOptionsChange.firstCall.args[0].data.fn).to.equal(postModifyOptions);
+
+        // Set GET modifyOptions function
+        api.changeModifyMethodOptions('GET', getModifyOptions);
+
+        expect(onModifyMethodOptionsChange.calledTwice).to.be.true;
+        expect(onModifyMethodOptionsChange.secondCall.args[0].data.method).to.equal('GET');
+        expect(onModifyMethodOptionsChange.secondCall.args[0].data.fn).to.equal(getModifyOptions);
+
+        // Make a GET request to verify only GET modifier is applied
+        await api.get('/json');
+
+        expect(getModifyCallCount).to.equal(1);
+        expect(postModifyCallCount).to.equal(0);
+
+        // Make a POST request to verify only POST modifier is applied
+        await api.post('/json', {});
+
+        expect(getModifyCallCount).to.equal(1);
+        expect(postModifyCallCount).to.equal(1);
+
+        // Clear POST modifyOptions function
+        api.changeModifyMethodOptions('POST', undefined);
+
+        expect(onModifyMethodOptionsChange.callCount).to.equal(3);
+        expect(onModifyMethodOptionsChange.thirdCall.args[0].data.method).to.equal('POST');
+        expect(onModifyMethodOptionsChange.thirdCall.args[0].data.fn).to.be.undefined;
+
+        // Make another POST request to verify the modifier is no longer applied
+        await api.post('/json', {});
+
+        expect(postModifyCallCount).to.equal(1); // Should still be 1
+        expect(getModifyCallCount).to.equal(1); // Should still be 1
     });
 
 });

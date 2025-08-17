@@ -76,7 +76,7 @@ import {
 export class FetchEngine<
     H = FetchEngine.InstanceHeaders,
     P = FetchEngine.InstanceParams,
-    S = {},
+    S = FetchEngine.InstanceState,
 > extends EventTarget {
 
     /**
@@ -546,6 +546,19 @@ export class FetchEngine<
      * const url = this.#makeUrl('/users?page=1', { limit: 10 }, 'GET');
      */
     #makeUrl(path: string, _params?: P, method?: HttpMethods) {
+
+        if (path.startsWith('http')) {
+
+            const url = new URL(path);
+            const params = this.#makeParams(_params!, method);
+
+            Object.entries(params).forEach(([key, value]) => {
+
+                url.searchParams.set(key, value as string);
+            });
+
+            return url.toString();
+        }
 
         path = path?.replace(/^\/{1,}/, '');
         const url = this.#baseUrl.toString().replace(/\/$/, '');
@@ -1926,6 +1939,87 @@ export class FetchEngine<
     }
 
     /**
+     * Updates the modifyOptions function for this FetchEngine instance.
+     *
+     * Changes the global options modification function that is applied to all
+     * requests before they are sent. Pass undefined to clear the function.
+     * Dispatches a modify options change event when updated.
+     *
+     * @param fn - New modifyOptions function or undefined to clear
+     *
+     * @example
+     * // Set a global request modifier
+     * api.changeModifyOptions((opts, state) => {
+     *     opts.headers = { ...opts.headers, 'X-Request-ID': crypto.randomUUID() };
+     *     return opts;
+     * });
+     *
+     * // Clear the modifier
+     * api.changeModifyOptions(undefined);
+     */
+    changeModifyOptions(fn?: FetchEngine.ModifyOptionsFn<H, P, S>) {
+
+        this.#modifyOptions = fn;
+
+        this.dispatchEvent(
+            new FetchEvent(FetchEventNames['fetch-modify-options-change'], {
+                state: this.#state,
+                data: fn
+            })
+        );
+    }
+
+    /**
+     * Updates the modifyOptions function for a specific HTTP method.
+     *
+     * Changes the method-specific options modification function that is applied
+     * to requests of the specified HTTP method before they are sent. Pass undefined
+     * to clear the function for that method. Dispatches a modify method options
+     * change event when updated.
+     *
+     * @param method - HTTP method to modify options for
+     * @param fn - New modifyOptions function or undefined to clear
+     *
+     * @example
+     * // Set a POST-specific request modifier
+     * api.changeModifyMethodOptions('POST', (opts, state) => {
+     *     opts.headers = { ...opts.headers, 'Content-Type': 'application/json' };
+     *     return opts;
+     * });
+     *
+     * // Clear the POST modifier
+     * api.changeModifyMethodOptions('POST', undefined);
+     */
+    changeModifyMethodOptions(method: HttpMethods, fn?: FetchEngine.ModifyOptionsFn<H, P, S>) {
+
+        const normalizedMethod = method.toUpperCase() as _InternalHttpMethods;
+
+        if (!this.#modifyMethodOptions) {
+
+            this.#modifyMethodOptions = {};
+        }
+
+        if (fn === undefined) {
+
+            delete this.#modifyMethodOptions[normalizedMethod];
+        }
+        else {
+
+            this.#modifyMethodOptions[normalizedMethod] = fn;
+        }
+
+        this.dispatchEvent(
+            new FetchEvent(FetchEventNames['fetch-modify-method-options-change'], {
+                state: this.#state,
+                data: {
+                    method: normalizedMethod,
+                    fn
+                }
+            })
+        );
+    }
+
+    /**
      * Registers event listeners for FetchEngine lifecycle events.
      *
      * Listens for various events like request start, completion, errors,
@@ -2019,4 +2113,6 @@ export class FetchEngine<
 
         this.removeEventListener(ev, listener);
     }
+
+
 }

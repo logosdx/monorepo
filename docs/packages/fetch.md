@@ -58,6 +58,47 @@ if (err) {
 }
 ```
 
+### Global Instance (Simplified Usage)
+
+```typescript
+// Use the default global instance
+import fetch from '@logosdx/fetch'
+import { attempt } from '@logosdx/utils'
+
+// Automatically uses current domain as base URL
+const [users, err] = await attempt(() => fetch.get<User[]>('/api/users'));
+
+// Or destructure methods for convenience
+import { get, post, setState, addHeader, changeModifyOptions, changeModifyMethodOptions } from '@logosdx/fetch'
+
+// Configure globally
+addHeader('Authorization', 'Bearer token123');
+setState('userId', '456');
+
+// Set global request modifier
+changeModifyOptions((opts, state) => {
+    opts.headers['X-Client-Version'] = '2.1.0';
+    return opts;
+});
+
+// Set method-specific modifier
+changeModifyMethodOptions('POST', (opts, state) => {
+    opts.headers['X-CSRF-Token'] = state.csrfToken || '';
+    return opts;
+});
+
+// Make requests
+const [user, err] = await attempt(() => get<User>('/api/users/456'));
+const [newUser, err] = await attempt(() =>
+    post<User, CreateUserData>('/api/users', userData)
+);
+
+// Smart URL handling - absolute URLs bypass base URL
+const [external, err] = await attempt(() =>
+    get('https://api.external.com/data')
+);
+```
+
 ## Core Concepts
 
 FetchEngine provides type-safe headers and parameters with intelligent retry logic. The event system enables comprehensive monitoring and debugging across all JavaScript environments. Built-in error handling patterns work seamlessly with @logosdx/utils attempt/attemptSync functions.
@@ -76,7 +117,7 @@ Creates a new HTTP client instance with type-safe headers, parameters, and state
 
 - `H` - Interface for typed headers (optional)
 - `P` - Interface for typed parameters (optional)
-- `S` - Interface for typed state (optional)
+- `S` - Interface for typed state (defaults to `InstanceState`)
 
 **Example:**
 
@@ -236,6 +277,11 @@ const [user, err] = await attempt(() => api.get<User>('/users/123', {
     headers: { 'X-Include': 'profile' },
     params: { include: 'permissions' }
 }));
+
+// Smart URL handling - absolute URLs bypass base URL
+const [external, err] = await attempt(() =>
+    api.get<ApiData>('https://api.external.com/data')
+);
 
 const [user, err] = await attempt(() => api.delete<User>('/users/123'));
 ```
@@ -561,6 +607,64 @@ observer.on('environment-changed', ({ env }) => {
 });
 ```
 
+### `changeModifyOptions(fn?)`
+
+```typescript
+changeModifyOptions(fn?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>): void
+```
+
+Updates the global modifyOptions function for this FetchEngine instance. Changes the global options modification function that is applied to all requests before they are sent. Pass undefined to clear the function. Dispatches a 'fetch-modify-options-change' event when updated.
+
+**Example:**
+
+```typescript
+// Set a global request modifier
+api.changeModifyOptions((opts, state) => {
+    opts.headers = { ...opts.headers, 'X-Request-ID': crypto.randomUUID() };
+    return opts;
+});
+
+// Add authentication based on state
+api.changeModifyOptions((opts, state) => {
+    if (state.authToken) {
+        opts.headers.Authorization = `Bearer ${state.authToken}`;
+    }
+    return opts;
+});
+
+// Clear the modifier
+api.changeModifyOptions(undefined);
+```
+
+### `changeModifyMethodOptions(method, fn?)`
+
+```typescript
+changeModifyMethodOptions(method: HttpMethods, fn?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>): void
+```
+
+Updates the modifyOptions function for a specific HTTP method. Changes the method-specific options modification function that is applied to requests of the specified HTTP method before they are sent. Pass undefined to clear the function for that method. Dispatches a 'fetch-modify-method-options-change' event when updated.
+
+**Example:**
+
+```typescript
+// Set a POST-specific request modifier
+api.changeModifyMethodOptions('POST', (opts, state) => {
+    opts.headers = { ...opts.headers, 'Content-Type': 'application/json' };
+    return opts;
+});
+
+// Add CSRF token to state-changing methods
+api.changeModifyMethodOptions('POST', (opts, state) => {
+    if (state.csrfToken) {
+        opts.headers['X-CSRF-Token'] = state.csrfToken;
+    }
+    return opts;
+});
+
+// Clear the POST modifier
+api.changeModifyMethodOptions('POST', undefined);
+```
+
 ## Retry Configuration
 
 ```typescript
@@ -639,7 +743,9 @@ enum FetchEventNames {
     'fetch-state-set' = 'fetch-state-set',
     'fetch-state-reset' = 'fetch-state-reset',
     'fetch-url-change' = 'fetch-url-change',
-    'fetch-retry' = 'fetch-retry'
+    'fetch-retry' = 'fetch-retry',
+    'fetch-modify-options-change' = 'fetch-modify-options-change',
+    'fetch-modify-method-options-change' = 'fetch-modify-method-options-change'
 }
 ```
 
@@ -667,6 +773,16 @@ const cleanup = api.on('fetch-error', (event) => {
 // Listen to all events
 api.on('*', (event) => {
     console.log(`Event: ${event.type}`, event);
+});
+
+// Listen to modify options changes
+api.on('fetch-modify-options-change', (event) => {
+    console.log('Global modifier changed:', event.data ? 'set' : 'cleared');
+});
+
+// Listen to method-specific modify options changes
+api.on('fetch-modify-method-options-change', (event) => {
+    console.log(`${event.data.method} modifier:`, event.data.fn ? 'set' : 'cleared');
 });
 
 // Clean up listener
@@ -825,6 +941,14 @@ declare module '@logosdx/fetch' {
         }
     }
 }
+
+// Now both custom instances and the global instance are typed
+import fetch, { get, post } from '@logosdx/fetch';
+
+// All methods are properly typed with your custom interfaces
+fetch.addHeader('X-API-Key', 'key123'); // ✅ Typed
+fetch.setState('authToken', 'token'); // ✅ Typed
+const [data] = await attempt(() => get('/api/data')); // ✅ Typed
 ```
 
 ## Advanced Configuration Examples

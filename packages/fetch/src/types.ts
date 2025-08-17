@@ -74,7 +74,20 @@ declare module './engine.ts' {
             'Content-Type'?: string;
         }
 
+        /**
+         * Override this interface with the params you intend
+         * to use and set throughout your app. These are the
+         * universal params that will be set on all requests.
+         */
         export interface InstanceParams {
+        }
+
+        /**
+         * Override this interface with the state you intend
+         * to use and set throughout your app. These are the
+         * universal state that will be set on all requests.
+         */
+        export interface InstanceState {
         }
 
         /**
@@ -88,6 +101,11 @@ declare module './engine.ts' {
          */
         export type Params<T = InstanceParams> = DictOrT<T>;
 
+        /**
+         * Function type for modifying request options before they are sent.
+         * Used by modifyOptions and modifyMethodOptions configuration.
+         */
+        export type ModifyOptionsFn<H = InstanceHeaders, P = InstanceParams, S = InstanceState> = (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
 
         export type HeaderKeys = keyof Headers;
 
@@ -187,7 +205,7 @@ declare module './engine.ts' {
         export type Options<
             H = Headers,
             P = Params,
-            S = {},
+            S = InstanceState,
         > = (
 
             Omit<
@@ -247,7 +265,7 @@ declare module './engine.ts' {
                  *     return opts;
                  * }
                  */
-                modifyOptions?: ((opts: RequestOpts<H, P>, state: S) => RequestOpts<H>) | undefined
+                modifyOptions?: ModifyOptionsFn<H, P, S> | undefined
 
                 /**
                  * Object that can be used to modify the options for requests of a specific method
@@ -262,7 +280,7 @@ declare module './engine.ts' {
                  *     }
                  * }
                  */
-                modifyMethodOptions?: HttpMethodOpts<Options<H, P, S>['modifyOptions']> | undefined,
+                modifyMethodOptions?: HttpMethodOpts<ModifyOptionsFn<H, P, S>> | undefined,
 
                 /**
                  * Validators for when setting headers and state

@@ -92,6 +92,8 @@ if [[ $DEPLOY_MAIN -eq 1 ]]; then
 
     cd docs/.vitepress/dist
 
+    echo "logosdx.dev" > CNAME
+
     step 'Initializing git for main site'
     git init
     git remote add origin git@github.com:logosdx/logosdx.dev.git
