@@ -5,10 +5,10 @@
 &nbsp;&nbsp;&nbsp;&nbsp;**²** Represents the fundamental order that governs the universe.<br />
 &nbsp;&nbsp;&nbsp;&nbsp;**³** The stoics believed it was the rational law underlying all things.<br />
 
-**DX** */d-eks/ n.*<br />
+**DX** */di-eks/ n.*<br />
 &nbsp;&nbsp;&nbsp;&nbsp;**¹** Stands for "developer experience."<br />
 
-**LogosDX** */lōgōs d-eks/ n.*<br />
+**LogosDX** */lōgōs di-eks/ n.*<br />
 &nbsp;&nbsp;&nbsp;&nbsp;**¹** A rational developer experience.
 
 ---

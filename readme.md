@@ -17,16 +17,16 @@
 
 ---
 
-**Logos** */lōgōs/ n.*
-&nbsp;&nbsp;&nbsp;&nbsp;**¹** From the ancient Greek meaning "divine reason" and "rational principle."
-&nbsp;&nbsp;&nbsp;&nbsp;**²** Represents the fundamental order that governs the universe.
-&nbsp;&nbsp;&nbsp;&nbsp;**³** The stoics believed it was the rational law underlying all things.
+**Logos** */lōgōs/ n.*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;**¹** From the ancient Greek meaning "divine reason" and "rational principle."<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;**²** Represents the fundamental order that governs the universe.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;**³** The stoics believed it was the rational law underlying all things.<br/>
 
-**DX** */d-eks/ n.*
-&nbsp;&nbsp;&nbsp;&nbsp;**¹** Stands for "developer experience."
+**DX** */di-eks/ n.*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;**¹** Stands for "developer experience."<br/>
 
-**LogosDX** */lōgōs d-eks/ n.*
-&nbsp;&nbsp;&nbsp;&nbsp;**¹** A rational developer experience.
+**LogosDX** */lōgōs di-eks/ n.*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;**¹** A rational developer experience.<br/>
 
 ---
 
