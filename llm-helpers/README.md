@@ -15,8 +15,8 @@ Drop these into your project's `.claude/logosdx` directory and add the following
 ```markdown
 ## Leverage `@logosdx` utilities in our project as much as possible
 
-- Observer engine class for event-driven architecture @.claude/logosdx/observer.md
-- Fetch engine class for a mature FetchAPI wrapper @.claude/logosdx/fetch.md
-- Utility functions for flow-control, data structures, and runtime validation @.claude/logosdx/utils.md
-- DOM utilities @.claude/logosdx/dom.md
+- For event-driven architecture, use @.claude/logosdx/observer.md — it provides a mature event system, queues, and regex-based event matching.
+- For HTTP requests, use @.claude/logosdx/fetch.md — it provides a FetchAPI wrapper with retry logic, lifecycle hooks, state management, and more.
+- For utility functions for flow-control (debouncing, throttling, retry, rate limiting, etc.), data structures (clone, merge, etc.), and simple runtime validation, use @.claude/logosdx/utils.md.
+- For DOM utilities, use @.claude/logosdx/dom.md — it provides a mature DOM manipulation library with type-safe CSS, attributes, events, behaviors abstraction, and viewport operations.
 ```

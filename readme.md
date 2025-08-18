@@ -39,14 +39,35 @@
 - `@logosdx/localize`: Localization utilities for everything from languages to customer-specific strings.
 - `@logosdx/dom`: For those who like to raw-dawg the DOM.
 
-## Under-construction Packages
+## Under-construction
 
 - `@logosdx/state-machine`: State management as streams, not stores.
 - `@logosdx/kit`: Bootstrap your app. Type-safe from day one. All the packages in one place.
 
-## Future Packages
+## Roadmap
 
-- `@logosdx/react`: *(Coming soon)* — All of the above, but for React. Use it in Next.js, React Native, or anywhere else.
+- `@logosdx/react`: All of the above, but for React. Use it in Next.js, React Native, or anywhere else.
+
+## LLM Helpers
+
+> [!TIP]
+> Don't let AI do your work for you. It's not a replacement for human intelligence. It's a tool to help you.
+
+We have LLM helpers available for you to use in Cursor, VSCode, and Claude Code.
+
+For more information, see the [LLM Helpers](./llm-helpers/README.md) directory.
+
+**Add them to your `.cursor/rules` or `.claude` directory.**
+
+```bash
+# For Claude
+curl -L "https://codeload.github.com/logosdx/monorepo/tar.gz/refs/heads/master" \
+| tar -xz -C .claude --strip-components=2 "monorepo-master/llm-helpers/*.md"
+
+# For Cursor
+curl -L "https://codeload.github.com/logosdx/monorepo/tar.gz/refs/heads/master" \
+| tar -xz -C .cursor/rules --strip-components=2 "monorepo-master/llm-helpers/*.md"
+```
 
 ## Philosophy
 
