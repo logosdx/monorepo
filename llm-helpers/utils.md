@@ -526,7 +526,10 @@ const resilientApi = retry(
 // Safe deep operations
 const safeUpdate = (state: State, updates: Partial<State>) => {
   const cloned = clone(state)
-  const merged = merge(cloned, updates)
+  const merged = merge(cloned, updates, {
+    mergeArrays: false,
+    mergeSets: false
+  })
 
   if (!equals(state, merged)) {
     return merged

@@ -780,9 +780,8 @@ Deep merge objects while preserving types and handling edge cases.
 function merge<T, U>(target: T, source: U, options?: MergeOptions): T & U
 
 interface MergeOptions {
-    arrays?: 'replace' | 'concat'      // How to handle arrays
-    maps?: 'replace' | 'merge'         // How to handle Maps
-    sets?: 'replace' | 'union'         // How to handle Sets
+    mergeArrays?: boolean;
+    mergeSets?: boolean;
 }
 ```
 
@@ -822,18 +821,16 @@ const updates = {
 }
 
 const newState = merge(currentState, updates, {
-    maps: 'merge',      // Merge Map entries: both u1 and u2
-    sets: 'union',      // Union Sets: read and write permissions
-    arrays: 'concat'    // Concatenate arrays: login and logout history
+    mergeArrays: true,
+    mergeSets: true
 })
 
 // Customer profile merging
 const mergeCustomerProfiles = (existing: CustomerProfile, updates: Partial<CustomerProfile>) => {
 
     return merge(existing, updates, {
-        arrays: 'replace',  // Replace history completely
-        sets: 'union',      // Add new preferences to existing ones
-        maps: 'merge'       // Merge metadata maps
+        mergeArrays: false,
+        mergeSets: false
     })
 }
 ```
