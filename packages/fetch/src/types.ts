@@ -11,7 +11,7 @@ export type DictOrT<T> = Record<string, string> & Partial<T>;
 export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
 
 // Add RetryConfig type
-export type RetryConfig = {
+export interface RetryConfig {
 
     /**
      * Maximum number of retry attempts.
@@ -22,11 +22,10 @@ export type RetryConfig = {
 
     /**
      * Base delay between retries in ms.
-     * Can be a number or a function that takes the error and attempt number and returns a delay in ms
      *
      * @default 1000
      */
-    baseDelay?: number | ((error: FetchError, attempt: number) => number) | undefined;
+    baseDelay?: number;
 
     /**
      * Maximum delay between retries in ms
@@ -57,7 +56,7 @@ export type RetryConfig = {
      * @default (error, attempt) => attempt < maxAttempts
      */
     shouldRetry?: (error: FetchError, attempt: number) => MaybePromise<boolean | number> | undefined;
-};
+}
 
 declare module './engine.ts' {
     export namespace FetchEngine {
@@ -197,9 +196,10 @@ declare module './engine.ts' {
             formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn | undefined
 
             /**
-             * The retry configuration for the fetch request
+             * The retry configuration for the fetch request. If false, or undefined,
+             * no retries will be made.
              */
-            retryConfig?: RetryConfig | undefined
+            retryConfig?: RetryConfig | false | undefined
         };
 
         export type Options<

@@ -159,7 +159,7 @@ const api = new FetchEngine<AppHeaders, AppParams, AppState>({
 | `methodHeaders`       | `{ [key in HttpMethods]?: Headers<H> }`                                                       | The headers to be set on requests of a specific method                              |
 | `params`              | `Params<P>`                                                                                   | The parameters to be set on all requests                                            |
 | `methodParams`        | `{ [key in HttpMethods]?: Params<P> }`                                                        | The parameters to be set on requests of a specific method                           |
-| `retryConfig`         | `RetryConfig`                                                                                 | The retry configuration for the fetch request                                       |
+| `retryConfig`         | `RetryConfig \| false`                                                                        | The retry configuration for the fetch request. Set to `false` to disable retries    |
 | `modifyOptions`       | `(opts: RequestOpts<H, P>, state: S) => RequestOpts<H>`                                       | A function that can be used to modify the options for all requests                  |
 | `modifyMethodOptions` | `{ [key in HttpMethods]?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H> }`            | A function that can be used to modify the options for requests of a specific method |
 | `validate`            | Validate Config (see below)                                                                   | Validators for when setting headers and state                                       |
@@ -179,12 +179,12 @@ const api = new FetchEngine<AppHeaders, AppParams, AppState>({
 
 | Option                  | Type                                                         | Description                                                             |
 | ----------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `baseDelay`             | `number \| ((error: FetchError, attempt: number) => number)` | The base delay between retry attempts in milliseconds                   |
+| `baseDelay`             | `number`                                                     | The base delay between retry attempts in milliseconds (default: 1000)    |
 | `maxAttempts`           | `number`                                                     | The maximum number of retry attempts                                    |
 | `maxDelay`              | `number`                                                     | The maximum delay between retry attempts in milliseconds                |
 | `useExponentialBackoff` | `boolean`                                                    | Whether to use exponential backoff for retry attempts                   |
 | `retryableStatusCodes`  | `number[]`                                                   | The status codes that should trigger a retry                            |
-| `shouldRetry`           | `(error: FetchError, attempt: number) => boolean \| number`  | A function that can be used to determine if a request should be retried |
+| `shouldRetry`           | `(error: FetchError, attempt: number) => boolean \| number`  | A function to determine if a request should be retried. Return `false` to stop, `true` to retry with default delay, or a number for custom delay in ms |
 
 **Type Definition**
 
@@ -212,7 +212,7 @@ interface FetchEngine.Options<H, P, S> {
         HEAD?: Params<P>;
         OPTIONS?: Params<P>;
     };
-    retryConfig?: RetryConfig;
+    retryConfig?: RetryConfig | false;
     modifyOptions?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
     modifyMethodOptions?: {
         GET?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
@@ -669,17 +669,14 @@ api.changeModifyMethodOptions('POST', undefined);
 
 ```typescript
 interface RetryConfig {
-
-    // Retry delay can be calculated based on the error and attempt number
-    // default: 1000
-    baseDelay?: number | ((error: FetchError, attempt: number) => number);
-
     maxAttempts?: number; // default: 3
+    baseDelay?: number; // default: 1000 (in milliseconds)
     maxDelay?: number; // default: 10000
     useExponentialBackoff?: boolean; // default: true
     retryableStatusCodes?: number[]; // default: [408, 429, 500, 502, 503, 504]
 
-    // Retry can return a number to specify a custom delay in milliseconds
+    // shouldRetry can return a boolean or a custom delay in milliseconds
+    // When returning a number, it specifies the exact delay before the next retry
     // default: () => true
     shouldRetry?: (error: FetchError, attempt: number) => boolean | number;
 }
@@ -689,19 +686,27 @@ interface RetryConfig {
 
 The `shouldRetry` function will be awaited and can return:
 
-- `boolean` - Whether to retry with default delay
-- `number` - Retry with custom delay in milliseconds
+- `true` - Retry with default exponential backoff (uses `baseDelay`)
 - `false` - Don't retry
+- `number` - Retry with this exact delay in milliseconds (overrides exponential backoff)
 
-**Example:**
+**Examples:**
 
 ```typescript
+// Disable retries completely
+const noRetryApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retryConfig: false  // No retries at all
+});
+
+// Custom retry logic with shouldRetry
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     retryConfig: {
         maxAttempts: 5,
+        baseDelay: 1000, // Used for exponential backoff when shouldRetry returns true
         shouldRetry: (error, attempt) => {
-            // Custom delay for rate limits
+            // Custom delay for rate limits (overrides exponential backoff)
             if (error.status === 429) {
                 const retryAfter = error.headers?.['retry-after'];
                 return retryAfter ? parseInt(retryAfter) * 1000 : 5000;
@@ -712,12 +717,12 @@ const api = new FetchEngine({
                 return false;
             }
 
-            // Exponential backoff for server errors
+            // Custom delay for server errors (overrides exponential backoff)
             if (error.status >= 500) {
                 return Math.min(1000 * Math.pow(2, attempt - 1), 30000);
             }
 
-            return true;
+            return true; // Use default exponential backoff with baseDelay
         }
     }
 });
@@ -906,7 +911,7 @@ interface RequestOpts<H = any, P = any> {
     params: Params<P>;
     payload?: any;
     timeout?: number;
-    retryConfig?: RetryConfig;
+    retryConfig?: RetryConfig | false;
 }
 ```
 
@@ -1063,8 +1068,9 @@ const isDev = process.env.NODE_ENV === 'development';
 const api = new FetchEngine({
     baseUrl: 'http://localhost:3001/api',
     timeout: isDev ? 30000 : 10000, // Longer timeout in dev
-    retryConfig: {
-        maxAttempts: isDev ? 1 : 3 // No retries in dev
+    retryConfig: isDev ? false : { // No retries in dev, 3 retries in prod
+        maxAttempts: 3,
+        baseDelay: 1000
     }
 });
 

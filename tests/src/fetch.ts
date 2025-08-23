@@ -690,9 +690,6 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl,
-            retryConfig: {
-                maxAttempts: 0
-            }
         });
 
         const errRes = {
@@ -700,14 +697,13 @@ describe('@logosdx/fetch', () => {
             statusCode: 400
         };
 
-        try {
-            await api.get('/fail', {
+        await attempt(
+            () => api.get('/fail', {
                 onAfterReq: didAfter,
                 onBeforeReq: didBefore,
                 onError: didError
-            });
-        }
-        catch (e) {}
+            })
+        );
 
         expect(didError.calledOnce).to.eq(true);
         expect(didBefore.calledOnce).to.eq(true);
@@ -1346,9 +1342,6 @@ describe('@logosdx/fetch', () => {
                     headers: true
                 }
             },
-            retryConfig: {
-                maxAttempts: 0,
-            }
         });
 
         const succeed = [
@@ -1734,39 +1727,6 @@ describe('@logosdx/fetch', () => {
         const end = Date.now();
 
         expect(end - start).to.be.greaterThan(149);
-    });
-
-    it('retries with custom baseDelay', async () => {
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            retryConfig: {
-                maxAttempts: 3,
-                useExponentialBackoff: false,
-                retryableStatusCodes: [400],
-                baseDelay: (_, attempt) => {
-                    if (attempt === 1) {
-                        return 100;
-                    }
-                    return 10;
-                },
-            },
-        });
-
-        const onError = sandbox.stub();
-
-        api.on('fetch-retry', onError);
-
-        await attempt(() => api.get('/validate?name=&age=17'))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
-
-        const [[c1], [c2], [c3]] = onError.args as [[FetchEvent], [FetchEvent], [FetchEvent]];
-
-        expect(c1.delay).to.eq(100);
-        expect(c2.delay).to.eq(10);
-        expect(c3.delay).to.eq(10);
     });
 
     it('can configure a retry per request', async () => {

@@ -95,15 +95,15 @@ interface FetchEngine.Options<H, P, S> {
         // ... other methods
     };
 
-    // Retry configuration
+    // Retry configuration (set to false to disable retries)
     retryConfig?: {
         maxAttempts?: number; // default: 3
-        baseDelay?: number | ((error: FetchError, attempt: number) => number); // default: 1000
+        baseDelay?: number; // default: 1000 (in milliseconds)
         maxDelay?: number; // default: 10000
         useExponentialBackoff?: boolean; // default: true
         retryableStatusCodes?: number[]; // default: [408, 429, 500, 502, 503, 504]
         shouldRetry?: (error: FetchError, attempt: number) => boolean | number;
-    };
+    } | false;
 
     // Request modification (initial setup)
     modifyOptions?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
@@ -256,6 +256,41 @@ api.off('fetch-error', errorHandler); // remove listener
 ## Advanced Features
 
 ```typescript
+// Disable retries completely
+const noRetryApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retryConfig: false  // No retries at all
+});
+
+// Custom retry logic with shouldRetry controlling delays
+const customRetryApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retryConfig: {
+        maxAttempts: 5,
+        baseDelay: 1000,  // Base delay for exponential backoff
+        shouldRetry: (error, attempt) => {
+            // Return custom delay in milliseconds for rate limits
+            if (error.status === 429) {
+                const retryAfter = error.headers?.['retry-after'];
+                return retryAfter ? parseInt(retryAfter) * 1000 : 5000;
+            }
+
+            // Don't retry client errors
+            if (error.status >= 400 && error.status < 500) {
+                return false;
+            }
+
+            // Return custom delay for server errors
+            if (error.status >= 500) {
+                // Custom delay calculation overrides exponential backoff
+                return Math.min(2000 * attempt, 10000);
+            }
+
+            return true;  // Use default exponential backoff
+        }
+    }
+});
+
 // Custom type determination
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
@@ -363,6 +398,7 @@ const api = new FetchEngine({
     retryConfig: {
         maxAttempts: 3,
         baseDelay: 1000,
+        useExponentialBackoff: true,
         shouldRetry: (error) => error.status >= 500 && !error.aborted
     },
     validate: {

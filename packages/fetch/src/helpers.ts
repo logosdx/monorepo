@@ -127,6 +127,7 @@ export const validateOptions = <H, P, S>(
         validate,
         determineType,
         formatHeaders,
+        retryConfig,
     } = opts;
 
     assert(baseUrl, 'baseUrl is required');
@@ -251,7 +252,7 @@ export const validateOptions = <H, P, S>(
             break;
 
         case 'boolean':
-            assert( formatHeaders === false, formatHeadersMsg);
+            assert(formatHeaders === false, formatHeadersMsg);
             break;
 
         case 'function':
@@ -270,6 +271,29 @@ export const validateOptions = <H, P, S>(
                 false,
                 formatHeadersMsg
             );
+    }
+
+    if (retryConfig) {
+
+        const optionalNumbers = [
+            'maxAttempts',
+            'baseDelay',
+            'maxDelay',
+        ] as const;
+
+        for (const key of optionalNumbers) {
+
+            const value = retryConfig[key];
+
+            if (typeof value !== 'number') continue;
+
+            assertOptional(
+                value,
+                Number.isInteger(value) && value > 0,
+                `retryConfig.${key} must be a positive number, got ${value}`
+            );
+        }
+
     }
 }
 

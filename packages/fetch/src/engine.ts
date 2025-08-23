@@ -391,7 +391,11 @@ export class FetchEngine<
         this.#type = defaultType || 'json';
         this.#retryConfig = {
             ...DEFAULT_RETRY_CONFIG,
-            ...retryConfig
+            ...(
+                retryConfig ? retryConfig : {
+                    maxAttempts: 0
+                }
+            )
         };
 
         const {
@@ -443,23 +447,13 @@ export class FetchEngine<
      * });
      * // Returns 4000ms for 3rd attempt
      */
-    #calculateRetryDelay(attemptNo: number, retryConfig: Required<RetryConfig>, error?: FetchError): number {
+    #calculateRetryDelay(attemptNo: number, retryConfig: Required<RetryConfig>): number {
 
         const { baseDelay, maxDelay, useExponentialBackoff } = retryConfig;
 
-        // Get base delay value, handling both function and number cases
-        let baseDelayValue: number;
-        if (typeof baseDelay === 'function' && error) {
-            baseDelayValue = baseDelay(error, attemptNo);
-        } else if (typeof baseDelay === 'number') {
-            baseDelayValue = baseDelay;
-        } else {
-            baseDelayValue = 1000; // Default fallback
-        }
+        if (!useExponentialBackoff) return Math.min(baseDelay, maxDelay!);
 
-        if (!useExponentialBackoff) return Math.min(baseDelayValue, maxDelay!);
-
-        const delay = baseDelayValue * Math.pow(2, attemptNo - 1);
+        const delay = baseDelay * Math.pow(2, attemptNo - 1);
 
         return Math.min(delay, maxDelay!);
     }
@@ -968,7 +962,7 @@ export class FetchEngine<
                 const delay = (
                     typeof shouldRetry === 'number' ?
                     shouldRetry :
-                    this.#calculateRetryDelay(_attempt, mergedRetryConfig, fetchError)
+                    this.#calculateRetryDelay(_attempt, mergedRetryConfig)
                 );
 
                 this.dispatchEvent(
