@@ -39,7 +39,7 @@ pnpm add @logosdx/fetch
 ## Quick Start
 
 ```typescript
-import { FetchEngine } from '@logosdx/fetch'
+import { FetchEngine, FetchResponse } from '@logosdx/fetch'
 import { attempt } from '@logosdx/utils'
 
 // Create HTTP client
@@ -49,13 +49,16 @@ const api = new FetchEngine({
     timeout: 5000
 });
 
-// Make requests with error handling
-const [users, err] = await attempt(() => api.get<User[]>('/users'));
+// Make requests with error handling - returns FetchResponse object
+const [response, err] = await attempt(() => api.get<User[]>('/users'));
 if (err) {
     console.error('Failed to fetch users:', err.message);
-} else {
-    console.log('Users:', users);
+    return;
 }
+console.log('Users:', response.data);
+console.log('Status:', response.status);
+console.log('Headers:', response.headers.get('content-type'));
+
 ```
 
 ### Global Instance (Simplified Usage)
@@ -65,8 +68,15 @@ if (err) {
 import fetch from '@logosdx/fetch'
 import { attempt } from '@logosdx/utils'
 
-// Automatically uses current domain as base URL
-const [users, err] = await attempt(() => fetch.get<User[]>('/api/users'));
+// Automatically uses current domain as base URL - returns FetchResponse
+const [response, err] = await attempt(() => fetch.get<User[]>('/api/users'));
+if (!err) {
+    console.log('Users:', response.data);
+    console.log('Status:', response.status);
+}
+
+// Backward compatibility - destructure just the data
+const { data: users } = await fetch.get<User[]>('/api/users');
 
 // Or destructure methods for convenience
 import { get, post, setState, addHeader, changeModifyOptions, changeModifyMethodOptions } from '@logosdx/fetch'
@@ -87,9 +97,14 @@ changeModifyMethodOptions('POST', (opts, state) => {
     return opts;
 });
 
-// Make requests
-const [user, err] = await attempt(() => get<User>('/api/users/456'));
-const [newUser, err] = await attempt(() =>
+// Make requests - returns FetchResponse objects
+const [userResponse, err] = await attempt(() => get<User>('/api/users/456'));
+if (!err) {
+    const { data: user } = userResponse; // Destructure for backward compatibility
+    console.log('User:', user);
+}
+
+const [newUserResponse, err2] = await attempt(() =>
     post<User, CreateUserData>('/api/users', userData)
 );
 
@@ -101,7 +116,7 @@ const [external, err] = await attempt(() =>
 
 ## Core Concepts
 
-FetchEngine provides type-safe headers and parameters with intelligent retry logic. The event system enables comprehensive monitoring and debugging across all JavaScript environments. Built-in error handling patterns work seamlessly with @logosdx/utils attempt/attemptSync functions.
+FetchEngine provides type-safe headers and parameters with intelligent retry logic. All HTTP methods return a `FetchResponse<T, H, P>` object containing parsed data, response metadata, and request context. The event system enables comprehensive monitoring and debugging across all JavaScript environments. Built-in error handling patterns work seamlessly with @logosdx/utils attempt/attemptSync functions.
 
 ## FetchEngine Class
 
@@ -239,7 +254,7 @@ interface FetchEngine.Options<H, P, S> {
 
 ### Request Methods
 
-All request methods return an `AbortablePromise<T>` that can be cancelled and provides status information.
+All request methods return an `AbortablePromise<FetchResponse<T, H, P>>` that can be cancelled and provides status information. The response object contains the parsed data along with headers, status, request details, and typed configuration matching your custom headers and params interfaces.
 
 **Parameters:**
 
@@ -254,36 +269,44 @@ All request methods return an `AbortablePromise<T>` that can be cancelled and pr
 **GET**
 
 ```typescript
-api.get<T>(path: string, options?: RequestOptions): AbortablePromise<T>
+api.get<T>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
 ```
 
 **DELETE**
 
 ```typescript
-api.delete<T>(path: string, options?: RequestOptions): AbortablePromise<T>
+api.delete<T>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
 ```
 
 **OPTIONS**
 
 ```typescript
-api.options<T>(path: string, options?: RequestOptions): AbortablePromise<T>
+api.options<T>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
 ```
 
 **Example:**
 
 ```typescript
-const [users, err] = await attempt(() => api.get<User[]>('/users'));
-const [user, err] = await attempt(() => api.get<User>('/users/123', {
+const [response, err] = await attempt(() => api.get<User[]>('/users'));
+if (!err) {
+    console.log('Users:', response.data);
+    console.log('Total:', response.headers.get('x-total-count'));
+}
+
+const [userResponse, err2] = await attempt(() => api.get<User>('/users/123', {
     headers: { 'X-Include': 'profile' },
     params: { include: 'permissions' }
 }));
 
+// Backward compatibility - destructure just the data
+const { data: users } = await api.get<User[]>('/users');
+
 // Smart URL handling - absolute URLs bypass base URL
-const [external, err] = await attempt(() =>
+const [externalResponse, err3] = await attempt(() =>
     api.get<ApiData>('https://api.external.com/data')
 );
 
-const [user, err] = await attempt(() => api.delete<User>('/users/123'));
+const [deleteResponse, err4] = await attempt(() => api.delete<User>('/users/123'));
 ```
 
 #### With a payload
@@ -291,19 +314,19 @@ const [user, err] = await attempt(() => api.delete<User>('/users/123'));
 **POST**
 
 ```typescript
-api.post<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<T>
+api.post<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
 ```
 
 **PUT**
 
 ```typescript
-api.put<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<T>
+api.put<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
 ```
 
 **PATCH**
 
 ```typescript
-api.patch<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<T>
+api.patch<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
 ```
 
 **Example:**
@@ -337,6 +360,52 @@ const [updatedUser, err] = await attempt(() =>
 
 ### Generic Request Method
 
+
+### FetchResponse Object
+
+Every HTTP request returns an enhanced response object with typed configuration:
+
+```typescript
+interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+    data: T;                  // Parsed response body
+    headers: Headers;         // Response headers
+    status: number;           // HTTP status code
+    request: Request;         // Original request object
+    config: FetchConfig<H, P>; // Typed configuration used for request
+}
+
+interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+    baseUrl?: string;
+    timeout?: number;
+    headers?: H;              // Typed headers from your custom interface
+    params?: P;               // Typed params from your custom interface
+    retryConfig?: RetryConfig | false;
+    method?: string;
+    determineType?: any;
+    formatHeaders?: any;
+}
+```
+
+**Usage Examples:**
+
+```typescript
+// Access full response details
+const response = await api.get<User[]>('/users');
+console.log('Data:', response.data);           // Parsed users array
+console.log('Status:', response.status);       // HTTP status code
+console.log('Headers:', response.headers);     // Access to all headers
+console.log('Config:', response.config);       // Request configuration used
+
+// Backward compatibility - destructure just the data
+const { data: users } = await api.get<User[]>('/users');
+
+// Access specific response metadata
+const contentType = response.headers.get('content-type');
+const rateLimit = response.headers.get('x-rate-limit-remaining');
+const requestUrl = response.request.url;
+const usedTimeout = response.config.timeout;
+```
+
 #### `request<T, D>(method, path, options?)`
 
 ```typescript
@@ -344,7 +413,7 @@ request<T, D = any>(
     method: HttpMethods,
     path: string,
     options?: RequestOptions & { payload?: D }
-): AbortablePromise<T>
+): AbortablePromise<FetchResponse<T, H, P>>
 ```
 
 **Example:**
@@ -879,7 +948,7 @@ isFetchError(error: unknown): error is FetchError
 **Example:**
 
 ```typescript
-const [data, err] = await attempt(() => api.get('/users'));
+const [response, err] = await attempt(() => api.get('/users'));
 
 if (err) {
     if (isFetchError(err)) {
@@ -953,7 +1022,16 @@ import fetch, { get, post } from '@logosdx/fetch';
 // All methods are properly typed with your custom interfaces
 fetch.addHeader('X-API-Key', 'key123'); // ✅ Typed
 fetch.setState('authToken', 'token'); // ✅ Typed
-const [data] = await attempt(() => get('/api/data')); // ✅ Typed
+
+// Response is properly typed with FetchResponse including typed config
+const [response] = await attempt(() => get<User>('/api/data')); // ✅ Typed
+if (response) {
+    response.data;    // ✅ Typed as User
+    response.status;  // ✅ Typed as number
+    response.headers; // ✅ Typed as Headers
+    response.config.headers; // ✅ Typed as InstanceHeaders
+    response.config.params;  // ✅ Typed as InstanceParams
+}
 ```
 
 ## Advanced Configuration Examples

@@ -14,7 +14,9 @@ import {
     type HttpMethodOpts,
     type HttpMethods,
     type MethodHeaders,
-    type RetryConfig
+    type RetryConfig,
+    type FetchResponse,
+    type FetchConfig
 } from './types.ts';
 
 import {
@@ -708,7 +710,18 @@ export class FetchEngine<
     }
 
     /**
-     * Makes an API call using fetch with retry logic
+     * Makes an API call using fetch with retry logic and returns enhanced response object.
+     *
+     * Performs the actual HTTP request and returns a comprehensive FetchResponse
+     * object containing the parsed data, response headers, status code, request
+     * details, and configuration used. This provides full context about the
+     * request and response for better debugging and conditional logic.
+     *
+     * @param _method - HTTP method for the request
+     * @param path - Request path relative to base URL
+     * @param options - Request options including payload and controller
+     * @returns FetchResponse object with data, headers, status, request, and config
+     * @internal
      */
     async #makeCall <Res>(
         _method: HttpMethods,
@@ -721,7 +734,7 @@ export class FetchEngine<
                 attempt?: number
             }
         )
-    ) {
+    ): Promise<FetchResponse<Res, H, P>> {
 
         const {
             payload,
@@ -817,7 +830,8 @@ export class FetchEngine<
                 onError
             });
 
-            return;
+            // #handleError throws, so this should never be reached
+            throw resErr;
         }
 
         this.dispatchEvent(
@@ -868,7 +882,8 @@ export class FetchEngine<
                 onError
             });
 
-            return;
+            // #handleError throws, so this should never be reached
+            throw parseErr;
         }
 
         if (response.ok === false) {
@@ -887,7 +902,8 @@ export class FetchEngine<
                 onError
             });
 
-            return;
+            // #handleError throws, so this should never be reached
+            throw new FetchError(response.statusText);
         }
 
         this.dispatchEvent(
@@ -905,7 +921,31 @@ export class FetchEngine<
             )
         );
 
-        return data as Res
+        // Build the configuration object for the response
+        const mergedParams = this.#makeParams(params as FetchEngine.Params<P>, method);
+
+        const config: FetchConfig<H, P> = {
+            baseUrl: this.#baseUrl.toString(),
+            timeout,
+            method,
+            headers: opts.headers as H,
+            params: mergedParams as P,
+            retryConfig: this.#retryConfig,
+            determineType: this.#options.determineType,
+            formatHeaders: this.#options.formatHeaders
+        };
+
+        // Create the Request object for the response
+        const request = new Request(url, opts as RequestInit);
+
+        // Return the enhanced response object
+        return {
+            data: data!,
+            headers: response.headers,
+            status: response.status,
+            request,
+            config
+        }
     }
 
     async #attemptCall<Res>(
@@ -919,13 +959,14 @@ export class FetchEngine<
                 cancelTimeout?: NodeJS.Timeout,
             }
         )
-    ) {
+    ): Promise<FetchResponse<Res, H, P>> {
         const mergedRetryConfig = {
             ...this.#retryConfig,
             ...options.retryConfig
         };
 
         if (mergedRetryConfig.maxAttempts === 0) {
+
             return this.#makeCall<Res>(_method, path, options);
         }
 
@@ -984,7 +1025,8 @@ export class FetchEngine<
             throw fetchError;
         }
 
-        return null;
+        // This should never be reached - all paths should either return or throw
+        throw new FetchError('Unexpected end of retry logic');
     }
 
     /**
@@ -1071,23 +1113,31 @@ export class FetchEngine<
      * Makes an HTTP request with comprehensive error handling and retry logic.
      *
      * Executes HTTP requests with automatic retry on failure, timeout handling,
-     * and abort controller support. Returns a promise that can be aborted
-     * and provides status tracking for request lifecycle management.
+     * and abort controller support. Returns an enhanced response object containing
+     * parsed data, HTTP metadata, request details, and configuration used.
      *
      * @param method - HTTP method (GET, POST, PUT, DELETE, etc.)
      * @param path - Request path relative to base URL
      * @param options - Request options including payload, timeout, and callbacks
-     * @returns AbortablePromise that resolves to response data or rejects with error
+     * @returns AbortablePromise that resolves to FetchResponse object with data and metadata
      *
      * @example
-     * // Basic request with error handling
-     * const [user, err] = await attempt(() =>
+     * // Access response data and metadata
+     * const [response, err] = await attempt(() =>
      *     api.request('GET', '/users/123')
      * );
      * if (err) {
      *     console.error('Request failed:', err.status, err.message);
      *     return;
      * }
+     *
+     * console.log('User data:', response.data);
+     * console.log('Status:', response.status);
+     * console.log('Headers:', response.headers.get('content-type'));
+     *
+     * @example
+     * // Destructure just the data for backward compatibility
+     * const { data: user } = await api.request('GET', '/users/123');
      *
      * @example
      * // Request with payload and timeout
@@ -1108,7 +1158,7 @@ export class FetchEngine<
             FetchEngine.CallOptions<H, P> &
             ({ payload: Data | null } | {})
          ) = { payload: null }
-    ): FetchEngine.AbortablePromise<Res> {
+    ): FetchEngine.AbortablePromise<FetchResponse<Res, H, P>> {
 
         // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
         const controller = options.abortController ?? new AbortController();
@@ -1147,7 +1197,7 @@ export class FetchEngine<
 
             return res!;
 
-        }) as FetchEngine.AbortablePromise<Res>;
+        }) as FetchEngine.AbortablePromise<FetchResponse<Res, H, P>>;
 
         Object.defineProperty(call, 'isAborted', {
             get: () => controller.signal.aborted,
@@ -1187,16 +1237,27 @@ export class FetchEngine<
      * Makes a GET request to retrieve data.
      *
      * Convenience method for GET requests, the most common HTTP method
-     * for retrieving data from APIs.
+     * for retrieving data from APIs. Returns an enhanced response object
+     * containing parsed data, headers, status, and request context.
      *
      * @param path - Request path relative to base URL
      * @param options - Request options
-     * @returns AbortablePromise that resolves to response data
+     * @returns AbortablePromise that resolves to FetchResponse object
      *
      * @example
-     * const [users, err] = await attempt(() =>
+     * // Access full response details
+     * const [response, err] = await attempt(() =>
      *     api.get('/users?page=1&limit=10')
      * );
+     * if (err) return;
+     *
+     * console.log('Users:', response.data);
+     * console.log('Status:', response.status);
+     * console.log('Content-Type:', response.headers.get('content-type'));
+     *
+     * @example
+     * // Destructure just the data
+     * const { data: users } = await api.get('/users');
      */
     get <Res = any>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
 
@@ -1228,20 +1289,30 @@ export class FetchEngine<
      * Makes a POST request to create a new resource.
      *
      * Convenience method for POST requests, typically used to create
-     * new resources on the server.
+     * new resources on the server. Returns an enhanced response object
+     * containing parsed data, headers, status, and request context.
      *
      * @param path - Request path relative to base URL
      * @param payload - Data to send in the request body
      * @param options - Request options
-     * @returns AbortablePromise that resolves to response data
+     * @returns AbortablePromise that resolves to FetchResponse object
      *
      * @example
-     * const [newUser, err] = await attempt(() =>
+     * // Access full response details
+     * const [response, err] = await attempt(() =>
      *     api.post('/users', {
      *         name: 'John Doe',
      *         email: 'john@example.com'
      *     })
      * );
+     * if (err) return;
+     *
+     * console.log('Created user:', response.data);
+     * console.log('Location header:', response.headers.get('location'));
+     *
+     * @example
+     * // Destructure just the data
+     * const { data: newUser } = await api.post('/users', userData);
      */
     post <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 

@@ -1,5 +1,6 @@
 import { type MaybePromise } from '@logosdx/utils';
 import { FetchError } from './helpers.ts';
+import { type FetchEngine } from './engine.ts';
 
 export type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
 export type HttpMethods = _InternalHttpMethods | string;
@@ -9,6 +10,117 @@ export type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
 export type RawRequestOptions = Omit<RequestInit, 'headers'>
 export type DictOrT<T> = Record<string, string> & Partial<T>;
 export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
+
+/**
+ * Configuration object used for a fetch request, combining instance-level
+ * and request-specific settings.
+ *
+ * Provides complete context about how a request was configured, including
+ * retry settings, timeout, headers, and other options that influenced
+ * the request behavior.
+ *
+ * @example
+ * // Configuration contains merged settings from instance and request
+ * const config: FetchConfig = {
+ *     baseUrl: 'https://api.example.com',
+ *     timeout: 5000,
+ *     retryConfig: { maxAttempts: 3 },
+ *     headers: { 'Authorization': 'Bearer token' }
+ * };
+ */
+export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+    baseUrl?: string;
+    timeout?: number | undefined;
+    headers?: H;
+    params?: P;
+    retryConfig?: RetryConfig | false | undefined;
+    method?: string;
+    determineType?: any;
+    formatHeaders?: any;
+}
+
+/**
+ * Enhanced response object that provides comprehensive information about
+ * a fetch request and its result.
+ *
+ * Replaces the previous pattern of returning just parsed data with a rich
+ * response object containing the data, metadata, and request context.
+ * Designed to be easily destructurable while providing full access to
+ * HTTP response details.
+ *
+ * @template T - Type of the parsed response data
+ *
+ * @example
+ * // Destructure just the data (backward compatibility pattern)
+ * const { data: user } = await api.get<User>('/users/123');
+ *
+ * @example
+ * // Access full response details
+ * const response = await api.get<User[]>('/users');
+ * console.log('Status:', response.status);
+ * console.log('Headers:', response.headers.get('content-type'));
+ * console.log('Data:', response.data);
+ * console.log('Request config:', response.config);
+ *
+ * @example
+ * // Use with error handling
+ * const [response, err] = await attempt(() => api.get('/users'));
+ * if (err) {
+ *     console.error('Request failed:', err);
+ *     return;
+ * }
+ *
+ * if (response.status === 200) {
+ *     console.log('Success:', response.data);
+ * }
+ */
+export interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+    /**
+     * Parsed response body data.
+     *
+     * The response content parsed according to the content-type header
+     * or the configured determineType function. For JSON responses,
+     * this will be the parsed JavaScript object. For text responses,
+     * this will be a string.
+     */
+    data: T;
+
+    /**
+     * HTTP response headers.
+     *
+     * The Headers object from the fetch Response, providing access to
+     * all response headers using the standard Headers API methods
+     * like get(), has(), entries(), etc.
+     */
+    headers: Headers;
+
+    /**
+     * HTTP status code.
+     *
+     * The numeric HTTP status code (200, 404, 500, etc.) returned
+     * by the server. Useful for conditional logic based on response
+     * status without needing to catch errors.
+     */
+    status: number;
+
+    /**
+     * Original request object.
+     *
+     * The Request object that was sent to the server, containing
+     * the final URL, headers, method, and body after all modifications
+     * and merging of instance and request-specific options.
+     */
+    request: Request;
+
+    /**
+     * Configuration used for the request.
+     *
+     * The merged configuration object that was used to make this request,
+     * including instance-level settings and request-specific overrides.
+     * Useful for debugging and understanding how the request was configured.
+     */
+    config: FetchConfig<H, P>;
+}
 
 // Add RetryConfig type
 export interface RetryConfig {

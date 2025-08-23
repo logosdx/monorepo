@@ -10,7 +10,7 @@ HTTP client with retry logic, request/response interception, and comprehensive e
 ## Core API
 
 ```typescript
-import { FetchEngine, FetchError, FetchEvent, FetchEventNames, isFetchError } from '@logosdx/fetch';
+import { FetchEngine, FetchError, FetchEvent, FetchEventNames, FetchResponse, isFetchError } from '@logosdx/fetch';
 import { attempt } from '@logosdx/utils';
 
 // Basic setup
@@ -22,7 +22,7 @@ const api = new FetchEngine({
 });
 
 // Error handling pattern
-const [user, err] = await attempt(() => api.get('/users/123'));
+const [{ data: user }, err] = await attempt(() => api.get('/users/123'));
 if (err) {
     console.error('Request failed:', err.status, err.message);
     return;
@@ -32,37 +32,58 @@ if (err) {
 import fetch, { get, post, setState, addHeader } from '@logosdx/fetch';
 
 // Global instance auto-uses current domain as base URL
-const [users, err] = await attempt(() => fetch.get('/api/users'));
+const [{ data: users }, err] = await attempt(() => fetch.get('/api/users'));
 
 // Or use destructured methods
 addHeader('Authorization', 'Bearer token');
 setState('userId', '123');
-const [user, err] = await attempt(() => get('/api/users/123'));
+const [{ data: user }, err] = await attempt(() => get('/api/users/123'));
 
 // Smart URL handling - absolute URLs bypass base URL
-const [external, err] = await attempt(() => get('https://api.external.com/data'));
+const [{ data: external }, err] = await attempt(() => get('https://api.external.com/data'));
 ```
 
 ## HTTP Methods
 
 ```typescript
-// All methods return AbortablePromise<T>
+// All methods return AbortablePromise<FetchResponse<T>>
 interface AbortablePromise<T> extends Promise<T> {
     isFinished: boolean;
     isAborted: boolean;
     abort(reason?: string): void;
 }
 
-// HTTP convenience methods
-api.get<User>(path, options?)
-api.post<User, CreateUserData>(path, payload?, options?)
-api.put<User, UpdateUserData>(path, payload?, options?)
-api.patch<User, Partial<User>>(path, payload?, options?)
-api.delete<void>(path, payload?, options?)
-api.options<any>(path, options?)
+// Enhanced response object with typed headers and params
+interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+    data: T;                // Parsed response body
+    headers: Headers;       // Response headers
+    status: number;         // HTTP status code
+    request: Request;       // Original request object
+    config: FetchConfig<H, P>;  // Typed configuration used for request
+}
+
+// Configuration object with typed headers and params
+interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+    baseUrl?: string;
+    timeout?: number;
+    headers?: H;            // Typed headers from your custom interface
+    params?: P;             // Typed params from your custom interface
+    retryConfig?: RetryConfig | false;
+    method?: string;
+    determineType?: any;
+    formatHeaders?: any;
+}
+
+// HTTP convenience methods - all return FetchResponse with typed config
+api.get<User>(path, options?): AbortablePromise<FetchResponse<User, H, P>>
+api.post<User, CreateUserData>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P>>
+api.put<User, UpdateUserData>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P>>
+api.patch<User, Partial<User>>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P>>
+api.delete<void>(path, payload?, options?): AbortablePromise<FetchResponse<void, H, P>>
+api.options<any>(path, options?): AbortablePromise<FetchResponse<any, H, P>>
 
 // Generic request method
-api.request<Response, RequestData>(method, path, options & { payload?: RequestData })
+api.request<Response, RequestData>(method, path, options & { payload?: RequestData }): AbortablePromise<FetchResponse<Response, H, P>>
 
 // Request cancellation
 const request = api.get('/users');
@@ -147,9 +168,11 @@ interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     headers?: H;
 }
 
-// Error checking
+// Error checking - FetchError is thrown on failure
 if (isFetchError(error)) {
     console.log('Fetch error:', error.status, error.step);
+    console.log('Failed URL:', error.url);
+    console.log('Response data (if any):', error.data);
 }
 
 // Lifecycle events
@@ -216,7 +239,7 @@ const state = api.getState(); // deep clone
 api.resetState(); // clear all state
 
 // Use state in request modification
-const api = new FetchEngine({
+const api = new FetchEngine<MyHeaders, MyParams, MyState>({
     baseUrl: 'https://api.example.com',
     modifyOptions: (opts, state) => {
         if (state.authToken) {
@@ -225,6 +248,16 @@ const api = new FetchEngine({
         return opts;
     }
 });
+
+// Access response metadata with typed config
+const response = await api.get('/users');
+if (response.status === 200) {
+    console.log('Success! Users:', response.data);
+    console.log('Request URL:', response.request.url);
+    console.log('Config used:', response.config);
+    // response.config.headers is typed as MyHeaders
+    // response.config.params is typed as MyParams
+}
 ```
 
 ## Event System
@@ -323,7 +356,7 @@ api.changeModifyOptions(undefined);
 api.changeModifyMethodOptions('POST', undefined);
 
 // Per-request options
-const [data, err] = await attempt(() =>
+const [response, err] = await attempt(() =>
     api.get('/users', {
         timeout: 10000,
         headers: { 'X-Request-ID': '123' },
@@ -334,6 +367,11 @@ const [data, err] = await attempt(() =>
         retryConfig: { maxAttempts: 5 }
     })
 );
+
+if (!err) {
+    console.log('Users:', response.data);
+    console.log('Rate limit remaining:', response.headers.get('x-rate-limit-remaining'));
+}
 ```
 
 ## TypeScript Patterns
@@ -383,8 +421,17 @@ const api = new FetchEngine<
 });
 
 // Global instance automatically gets the extended types
-import { setState, getState } from '@logosdx/fetch';
+import { setState, getState, get, put, post, patch, del, options } from '@logosdx/fetch';
 setState('authToken', 'token123'); // ✅ Typed
+
+// Response is properly typed with FetchResponse including typed config
+const response = await get<User>('/api/user');
+response.data; // ✅ Typed as User
+response.status; // ✅ Typed as number
+response.headers; // ✅ Typed as Headers
+response.request; // ✅ Typed as Request
+response.config.headers; // ✅ Typed as InstanceHeaders
+response.config.params; // ✅ Typed as InstanceParams
 ```
 
 ## Production Patterns
@@ -447,6 +494,6 @@ const timeoutId = setTimeout(() => {
     if (!request.isFinished) request.abort('Timeout');
 }, 30000);
 
-const [result, err] = await attempt(() => request);
+const [response, err] = await attempt(() => request);
 clearTimeout(timeoutId);
 ```

@@ -6,21 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build/Test
-pnpm run build
-pnpm run test
-pnpm run tdd                    # Watch mode
-pnpm run test:only              # Run marked tests (it.only)
-pnpm run test:coverage
+pnpm build
+pnpm test
+pnpm tdd                    # Watch mode
+pnpm test:only              # Run marked tests (it.only)
+pnpm test:coverage
 
 # Workflow
-pnpm run new                    # Create package
-pnpm run watch                  # Dev mode
-pnpm run build:docs
-pnpm run release               # Changesets
+pnpm new                    # Create package
+pnpm watch                  # Dev mode
+pnpm build:docs
+pnpm release               # Changesets
 
 # Individual tests (from tests/)
-pnpm run test -- --grep "name"
-pnpm run tdd                   # Watch specific tests
+pnpm test filepart         # Run test whose filename contains "filepart"
+pnpm tdd                   # Watch specific tests
 ```
 
 ## 🏗️ Architecture
@@ -43,13 +43,11 @@ import { attempt } from '../../../../packages/utils/src/index.ts';
 
 ## 🧠 Core Principles
 
-**Error Handling**: Use `attempt`/`attemptSync` for I/O, return direct results for business logic. No try-catch.
-
+**Safety**: Do not try something that might fail, except for I/O and network operations.
+**Error Handling**: We prefer `attempt`/`attemptSync` instead of try-catch.
 **Dogfooding**: Always use `@logosdx/utils` throughout monorepo.
-
 **Function Structure**: Declaration → Validation → Business Logic → Commit
-
-**Style**: Meaningful names, JSDoc with WHY + examples, newlines after function/block open.
+**Style**: Meaningful names, JSDoc that explain WHY with examples, newlines after block open.
 
 ### Syntax & Formatting
 
@@ -65,12 +63,26 @@ import { attempt } from '../../../../packages/utils/src/index.ts';
 
         // logic
     }
+    else {
+
+        // logic
+    }
+
+    for (const item of items) {
+
+        // logic
+    }
+
+    while (condition) {
+
+        // logic
+    }
     ```
 
 - Prefer vertical space over horizontal for long functions. Max 100 characters per line.
 - Functions should follow this 4-block structure in order when it includes all of the following elements:
   1. Declaration: Declare everything that is needed to execute the function.
-  2. Validation: Validate the input parameters (always a good idea).
+  2. Validation: Validate the input parameters (prevents failures).
   3. Business Logic: The main logic of the function.
   4. Commit: Anything that will affect the state of the application.
 
@@ -105,6 +117,9 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 }
 ```
 
+> [!NOTE]
+> The `// ===` comments are only there for placement instructions. They should not be part of the code.
+
 ## 📋 Key Patterns
 
 ```ts
@@ -121,9 +136,19 @@ function processData(input: Data): ProcessedData {
 // Class patterns
 export class Engine {
     #state = new Map();
-    constructor(config: Config) {
+    constructor(config: Engine.Config) {
         assert(isObject(config), 'Config required');
         this.#config = clone(config);
+    }
+}
+
+// Namespaced options
+export namespace Engine {
+
+    export interface Config {
+        baseUrl: string;
+        headers?: Headers;
+        params?: Params;
     }
 }
 
@@ -138,7 +163,6 @@ export class Utils {
 
 ## 🧪 Testing
 
-- Mirror source in `tests/src/`
 - Use relative imports to validate implementation
 - Test all paths (success, error, edge cases)
 - `describe('module: feature', () => {})` naming

@@ -7,6 +7,11 @@ export {
     isFetchError
 } from './helpers.ts';
 
+export type {
+    FetchResponse,
+    FetchConfig
+} from './types.ts';
+
 export {
     FetchEngine
 } from './engine.ts';

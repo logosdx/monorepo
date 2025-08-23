@@ -283,12 +283,397 @@ describe('@logosdx/fetch', () => {
             defaultType: 'json'
         });
 
-        expect(await api.get('/json')).to.contain(expectation);
-        expect(await api.post('/json')).to.contain(expectation);
-        expect(await api.patch('/json')).to.contain(expectation);
-        expect(await api.put('/json')).to.contain(expectation);
-        expect(await api.delete('/json')).to.contain(expectation);
-        expect(await api.options('/json')).to.contain(expectation);
+        expect((await api.get('/json')).data).to.contain(expectation);
+        expect((await api.post('/json')).data).to.contain(expectation);
+        expect((await api.patch('/json')).data).to.contain(expectation);
+        expect((await api.put('/json')).data).to.contain(expectation);
+        expect((await api.delete('/json')).data).to.contain(expectation);
+        expect((await api.options('/json')).data).to.contain(expectation);
+    });
+
+    it('returns a FetchResponse object', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            defaultType: 'json',
+            timeout: 5000,
+            headers: {
+                'X-Custom': 'test-header'
+            }
+        });
+
+        const response = await api.get('/json');
+
+        expect(response.data).to.exist;
+        expect(response.data).to.contain({ ok: true });
+        expect(response.data).to.be.an('object');
+
+        expect(response.headers).to.exist;
+        expect(response.headers).to.be.instanceOf(Headers);
+        expect(response.headers.get('content-type')).to.contain('application/json');
+
+        // Headers should have standard API methods
+        expect(response.headers.has('content-type')).to.be.true;
+        expect(response.headers.get('non-existent')).to.be.null;
+
+        expect(response.status).to.exist;
+        expect(response.status).to.be.a('number');
+        expect(response.status).to.eq(200);
+
+        expect(response.request).to.exist;
+        expect(response.request).to.be.instanceOf(Request);
+        expect(response.request.url).to.eq(testUrl + '/json');
+        expect(response.request.method).to.eq('GET');
+
+        // Verify request headers include our custom header
+        expect(response.request.headers.get('X-Custom')).to.eq('test-header');
+
+        expect(response.config).to.exist;
+        expect(response.config).to.be.an('object');
+        expect(response.config.baseUrl).to.contain(testUrl);
+        expect(response.config.timeout).to.eq(5000);
+        expect(response.config.headers).to.exist;
+        // Headers might be structured differently in config
+        expect(response.config.headers).to.be.an('object');
+
+        // Ensure all expected properties exist and have correct types
+        const responseKeys = Object.keys(response).sort();
+        expect(responseKeys).to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+    });
+
+    it('returns FetchResponse objects for all HTTP methods', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            defaultType: 'json'
+        });
+
+        const payload = { test: 'data' };
+        const expectedData = { ok: true };
+
+        // === Test each HTTP method returns proper FetchResponse ===
+        const methods = [
+            { name: 'GET', fn: () => api.get('/json') },
+            { name: 'POST', fn: () => api.post('/json', payload) },
+            { name: 'PUT', fn: () => api.put('/json', payload) },
+            { name: 'PATCH', fn: () => api.patch('/json', payload) },
+            { name: 'DELETE', fn: () => api.delete('/json', payload) },
+            { name: 'OPTIONS', fn: () => api.options('/json') }
+        ];
+
+        for (const { name, fn } of methods) {
+
+            const response = await fn();
+
+            // Validate FetchResponse structure for each method
+            expect(response.data, `${name}: data should exist`).to.exist;
+            expect(response.data, `${name}: data should contain expected`).to.contain(expectedData);
+
+            expect(response.headers, `${name}: headers should exist`).to.exist;
+            expect(response.headers, `${name}: headers should be Headers instance`).to.be.instanceOf(Headers);
+
+            expect(response.status, `${name}: status should exist`).to.exist;
+            expect(response.status, `${name}: status should be number`).to.be.a('number');
+            expect(response.status, `${name}: status should be 200`).to.eq(200);
+
+            expect(response.request, `${name}: request should exist`).to.exist;
+            expect(response.request, `${name}: request should be Request instance`).to.be.instanceOf(Request);
+            expect(response.request.method, `${name}: request method should match`).to.eq(name);
+
+            expect(response.config, `${name}: config should exist`).to.exist;
+            expect(response.config, `${name}: config should be object`).to.be.an('object');
+            expect(response.config.baseUrl, `${name}: config baseUrl should match`).to.contain(testUrl);
+
+            // Validate structure consistency
+            const responseKeys = Object.keys(response).sort();
+            expect(responseKeys, `${name}: should have all FetchResponse properties`).to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+        }
+    });
+
+    it('maintains FetchResponse structure in error scenarios', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            defaultType: 'json'
+        });
+
+        // === Test error responses still return proper structure ===
+        const [, error] = await attempt(() => api.get('/fail'));
+
+        expect(error).to.exist;
+        expect(error).to.be.instanceOf(FetchError);
+
+        // Even on error, we should have gotten a response object before the error was thrown
+        const errorResponse = (error as FetchError).data;
+        expect(errorResponse).to.exist;
+
+        // === Test empty responses maintain structure ===
+        const emptyResponse = await api.get('/empty');
+
+        expect(emptyResponse.data).to.be.null;
+        expect(emptyResponse.headers).to.exist;
+        expect(emptyResponse.headers).to.be.instanceOf(Headers);
+        expect(emptyResponse.status).to.exist;
+        expect(emptyResponse.status).to.be.a('number');
+        expect(emptyResponse.request).to.exist;
+        expect(emptyResponse.request).to.be.instanceOf(Request);
+        expect(emptyResponse.config).to.exist;
+        expect(emptyResponse.config).to.be.an('object');
+
+        // === Test 204 No Content responses maintain structure ===
+        const noContentResponse = await api.get('/empty2');
+
+        expect(noContentResponse.data).to.be.null;
+        expect(noContentResponse.status).to.eq(204);
+        expect(noContentResponse.headers).to.exist;
+        expect(noContentResponse.headers).to.be.instanceOf(Headers);
+        expect(noContentResponse.request).to.exist;
+        expect(noContentResponse.request).to.be.instanceOf(Request);
+        expect(noContentResponse.config).to.exist;
+        expect(noContentResponse.config).to.be.an('object');
+
+        // === Ensure all responses have consistent structure ===
+        const responses = [emptyResponse, noContentResponse];
+
+        for (const response of responses) {
+
+            const responseKeys = Object.keys(response).sort();
+            expect(responseKeys, 'All responses should have consistent FetchResponse structure').to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+        }
+    });
+
+    it('supports TypeScript generics for proper typing', async () => {
+
+        interface TestUser {
+            id: number;
+            name: string;
+            email: string;
+        }
+
+        interface TestApiResponse {
+            ok: boolean;
+            timestamp: string;
+        }
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            defaultType: 'json'
+        });
+
+        // === Test basic generic typing ===
+        const basicResponse = await api.get<TestApiResponse>('/json');
+
+        expect(basicResponse.data).to.exist;
+        expect(basicResponse.data).to.be.an('object');
+        expect(basicResponse.data).to.have.property('ok');
+
+        // TypeScript should enforce type structure
+        const isValidType = typeof basicResponse.data.ok === 'boolean';
+        expect(isValidType, 'Generic type should enforce boolean for ok property').to.be.true;
+
+        // === Test generic typing with payload ===
+        const postPayload: Partial<TestUser> = {
+            name: 'Test User',
+            email: 'test@example.com'
+        };
+
+        const postResponse = await api.post<TestApiResponse, Partial<TestUser>>('/json', postPayload);
+
+        expect(postResponse.data).to.exist;
+        expect(postResponse.data).to.be.an('object');
+        expect(postResponse.data).to.have.property('ok');
+
+        // === Test that response maintains FetchResponse structure with generics ===
+        expect(postResponse.headers).to.be.instanceOf(Headers);
+        expect(postResponse.status).to.be.a('number');
+        expect(postResponse.request).to.be.instanceOf(Request);
+        expect(postResponse.config).to.be.an('object');
+
+        // === Test generic inference with different types ===
+        const numberResponse = await api.get<number>('/json');
+        const stringResponse = await api.get<string>('/json');
+        const arrayResponse = await api.get<any[]>('/json');
+
+        // These should all maintain the FetchResponse structure
+        const responses = [numberResponse, stringResponse, arrayResponse];
+
+        for (const response of responses) {
+
+            const responseKeys = Object.keys(response).sort();
+            expect(responseKeys, 'Generic responses should maintain FetchResponse structure').to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+            expect(response.data).to.exist;
+            expect(response.headers).to.be.instanceOf(Headers);
+            expect(response.status).to.be.a('number');
+            expect(response.request).to.be.instanceOf(Request);
+            expect(response.config).to.be.an('object');
+        }
+
+        // === Test default generic type (any) ===
+        const defaultResponse = await api.get('/json');
+
+        expect(defaultResponse.data).to.exist;
+        expect(defaultResponse.headers).to.be.instanceOf(Headers);
+        expect(defaultResponse.status).to.be.a('number');
+        expect(defaultResponse.request).to.be.instanceOf(Request);
+        expect(defaultResponse.config).to.be.an('object');
+    });
+
+    it('supports destructuring patterns for backward compatibility', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            defaultType: 'json'
+        });
+
+        // === Test basic destructuring of data property ===
+        const { data } = await api.get('/json');
+
+        expect(data).to.exist;
+        expect(data).to.contain({ ok: true });
+
+        // === Test destructuring with renaming ===
+        const { data: responseData } = await api.get('/json');
+
+        expect(responseData).to.exist;
+        expect(responseData).to.contain({ ok: true });
+
+        // === Test destructuring multiple properties ===
+        const { data: userData, status, headers } = await api.get('/json');
+
+        expect(userData).to.exist;
+        expect(userData).to.contain({ ok: true });
+        expect(status).to.exist;
+        expect(status).to.eq(200);
+        expect(headers).to.exist;
+        expect(headers).to.be.instanceOf(Headers);
+
+        // === Test destructuring with generics ===
+        const { data: typedData, status: typedStatus } = await api.get<{ ok: boolean }>('/json');
+
+        expect(typedData).to.exist;
+        expect(typedData).to.have.property('ok');
+        expect(typedData.ok).to.be.a('boolean');
+        expect(typedStatus).to.eq(200);
+
+        // === Test destructuring all properties ===
+        const { data: allData, headers: allHeaders, status: allStatus, request, config } = await api.get('/json');
+
+        expect(allData).to.exist;
+        expect(allHeaders).to.be.instanceOf(Headers);
+        expect(allStatus).to.be.a('number');
+        expect(request).to.be.instanceOf(Request);
+        expect(config).to.be.an('object');
+
+        // === Test destructuring works with error handling ===
+        const [response, error] = await attempt(async () => {
+
+            const { data: errorData } = await api.get('/json');
+            return errorData;
+        });
+
+        expect(error).to.not.exist;
+        expect(response).to.exist;
+        expect(response).to.contain({ ok: true });
+
+        // === Test destructuring in function parameters (common pattern) ===
+        const processResponse = ({ data: processedData, status: processedStatus }: { data: any, status: number }) => {
+
+            return {
+                processed: processedData,
+                statusCode: processedStatus
+            };
+        };
+
+        const apiResponse = await api.get('/json');
+        const processed = processResponse(apiResponse);
+
+        expect(processed.processed).to.exist;
+        expect(processed.processed).to.contain({ ok: true });
+        expect(processed.statusCode).to.eq(200);
+
+        // === Test array destructuring for multiple requests ===
+        const responses = await Promise.all([
+            api.get('/json'),
+            api.post('/json', { test: true }),
+            api.put('/json', { test: true })
+        ]);
+
+        const [getResponse, postResponse, putResponse] = responses;
+
+        // Destructure each response
+        const { data: getData } = getResponse;
+        const { data: postData } = postResponse;
+        const { data: putData } = putResponse;
+
+        expect(getData).to.contain({ ok: true });
+        expect(postData).to.contain({ ok: true });
+        expect(putData).to.contain({ ok: true });
+
+        // === Test rest operator with destructuring ===
+        const { data: restData, ...restMetadata } = await api.get('/json');
+
+        expect(restData).to.exist;
+        expect(restData).to.contain({ ok: true });
+
+        expect(restMetadata).to.have.property('status');
+        expect(restMetadata).to.have.property('headers');
+        expect(restMetadata).to.have.property('request');
+        expect(restMetadata).to.have.property('config');
+
+        expect(restMetadata.status).to.eq(200);
+        expect(restMetadata.headers).to.be.instanceOf(Headers);
+        expect(restMetadata.request).to.be.instanceOf(Request);
+        expect(restMetadata.config).to.be.an('object');
+    });
+
+    it('provides typed config in FetchResponse', async () => {
+
+        interface MyHeaders {
+            'x-custom-header': string;
+            'authorization'?: string;
+        }
+
+        interface MyParams {
+            version: string;
+            format: 'json' | 'xml';
+        }
+
+        const api = new FetchEngine<MyHeaders, MyParams>({
+            baseUrl: testUrl,
+            defaultType: 'json',
+            headers: {
+                'x-custom-header': 'test-value'
+            },
+            params: {
+                version: 'v1',
+                format: 'json'
+            }
+        });
+
+        const response = await api.get('/json');
+
+        expect(response.config).to.exist;
+        expect(response.config).to.be.an('object');
+        expect(response.config.headers).to.exist;
+        expect(response.config.params).to.exist;
+
+        // The config should contain our typed headers and params (may be lowercased)
+        expect(response.config.headers).to.have.property('x-custom-header');
+        expect(response.config.params).to.have.property('version');
+        expect(response.config.params).to.have.property('format');
+
+        // Verify the values match what we configured
+        expect(response.config.headers?.['x-custom-header']).to.eq('test-value');
+        expect(response.config.params?.version).to.eq('v1');
+        expect(response.config.params?.format).to.eq('json');
+
+        expect(response.config.baseUrl).to.contain(testUrl);
+        expect(response.config.method).to.eq('GET');
+
+        const postResponse = await api.post('/json', { test: 'data' });
+        expect(postResponse.config.headers).to.have.property('x-custom-header');
+        expect(postResponse.config.params?.version).to.eq('v1');
+        expect(postResponse.config.method).to.eq('POST');
     });
 
     it('sets default headers', async () => {
@@ -304,7 +689,7 @@ describe('@logosdx/fetch', () => {
             }
         });
 
-        expect(await api.get('/json')).to.contain(expectation);
+        expect((await api.get('/json')).data).to.contain(expectation);
 
         const req = callStub!.args!.pop()!.pop()!;
 
@@ -1153,8 +1538,8 @@ describe('@logosdx/fetch', () => {
         const res1 = await api.get('/empty');
         const res2 = await api.get('/empty2');
 
-        expect(res1).to.be.null;
-        expect(res2).to.be.null;
+        expect(res1.data).to.be.null;
+        expect(res2.data).to.be.null;
     });
 
     it('handles typings', () => {
@@ -1262,7 +1647,7 @@ describe('@logosdx/fetch', () => {
                 }
             );
 
-            res.ok === true;
+            res.data.ok === true;
         }
     });
 
