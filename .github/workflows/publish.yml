@@ -44,3 +44,4 @@ jobs:
     uses: ./.github/workflows/docs.yml
     secrets:
       DOCS_SSH_KEY: ${{ secrets.DOCS_SSH_KEY }}
+      SITE_SSH_KEY: ${{ secrets.SITE_SSH_KEY }}

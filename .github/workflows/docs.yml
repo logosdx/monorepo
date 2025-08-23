@@ -5,6 +5,9 @@ on:
       DOCS_SSH_KEY:
         required: true
         description: "SSH key for docs repository"
+      SITE_SSH_KEY:
+        required: true
+        description: "SSH key for site repository"
   workflow_dispatch:
 
 jobs:
