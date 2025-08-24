@@ -27,9 +27,66 @@ pnpm tdd                   # Watch specific tests
 
 **Structure**: pnpm monorepo, packages build independently, test together
 
-- `packages/`: @logosdx packages (utils, observer, fetch, dom, kit)
-- `tests/`: Mirrors package structure, uses relative imports
-- `llm-helpers/`: AI context guides (utils.md, observer.md, fetch.md, dom.md)
+### Repository Structure Overview
+
+```
+monorepo/
+├── packages/                    # 8 @logosdx packages in layered architecture
+│   ├── utils/                  # Foundation layer (all packages depend on this)
+│   ├── dom/                    # Browser utilities (depends on utils)
+│   ├── fetch/                  # HTTP client (depends on utils)
+│   ├── observer/               # Event system (depends on utils)
+│   ├── localize/               # i18n system (depends on utils)
+│   ├── state-machine/          # State management (depends on utils)
+│   ├── storage/                # Persistence layer (depends on utils)
+│   └── kit/                    # Orchestrator (depends on all above)
+│
+├── tests/                       # Comprehensive test suite
+│   ├── src/                    # Test files mirroring package structure
+│   ├── benchmark/              # Performance tests (250k ops, memory monitoring)
+│   └── package.json            # Test dependencies (chai, sinon, jsdom, fast-check)
+│
+├── docs/                       # VitePress documentation + TypeDoc integration
+│   ├── packages/               # Individual package documentation
+│   ├── public/images/          # Brand assets and static files
+│   └── *.md                    # Getting started, philosophy, cheat sheets
+│
+├── llm-helpers/                # AI context guides for each package
+├── scripts/                    # Build, documentation, and workflow scripts
+├── internals/                  # Internal utilities and templates
+├── typedoc/                    # Generated API documentation
+└── CLAUDE.md                   # This file - development guidance
+```
+
+### Package Dependency Architecture
+
+```
+@logosdx/kit (orchestrator - depends on all)
+    ├── @logosdx/fetch ──────────┐
+    ├── @logosdx/localize ───────┤
+    ├── @logosdx/observer ───────┤──── @logosdx/utils (foundation)
+    ├── @logosdx/state-machine ──┤
+    ├── @logosdx/storage ────────┤
+    └── @logosdx/dom ────────────┘
+```
+
+**Key Architectural Principles:**
+- **Foundation Layer**: `@logosdx/utils` provides core utilities used by all packages
+- **Specialized Layers**: Each package focuses on specific domain (HTTP, DOM, events, etc.)
+- **Orchestration Layer**: `@logosdx/kit` provides unified API and conditional instantiation
+- **Zero Circular Dependencies**: Clean dependency tree with utils as foundation
+- **Event-Driven Integration**: Most packages integrate with observer system
+
+### Folder-Specific Purposes
+
+| Folder | Purpose | Key Files | Memory File |
+|--------|---------|-----------|-------------|
+| `packages/` | Production code packages | `src/index.ts`, `package.json`, `tsconfig.json` | `/packages/CLAUDE.md` |
+| `tests/` | Validation test suite with relative imports | `src/`, `_helpers.ts`, `benchmark/` | `/tests/CLAUDE.md` |
+| `docs/` | VitePress documentation with TypeDoc integration | `*.md`, `packages/*.md`, `public/` | `/docs/CLAUDE.md` |
+| `llm-helpers/` | AI context guides | `utils.md`, `fetch.md`, `observer.md`, `dom.md` | - |
+| `scripts/` | Build and deployment | `build.mjs`, `docs.zsh`, `new-pkg.zsh` | - |
+| `typedoc/` | Generated API documentation | Auto-generated HTML files | - |
 
 **Imports**:
 
@@ -195,42 +252,25 @@ export interface Options {
 }
 ```
 
-## 🐕 Utils Usage
-
-```ts
-// Error handling
-const [data, err] = await attempt(() => api.get('/users'));
-
-// Data ops
-const copy = clone(state);
-const same = equals(a, b);
-const merged = merge(obj1, obj2);
-
-// Flow control
-const debounced = debounce(handler, 300);
-const resilient = retry(circuitBreaker(fn), { retries: 3 });
-
-// Validation
-assert(isObject(config), 'Config required');
-```
-
 ## ✅ Checklist
 
 **Required**:
 
-- [ ] No try-catch (use attempt/attemptSync)
-- [ ] @logosdx/utils for all error handling, data ops, flow control
+- [ ] Prefer attempt/attemptSync over try-catch
+- [ ] Validate anything that will be used in business logic
+- [ ] Do not try-catch (or attempt()) business logic, only I/O operations
+- [ ] Use @logosdx/utils for all error handling, data ops, flow control
 - [ ] Relative imports in tests
 - [ ] JSDoc with examples explaining WHY
 - [ ] 4-block function structure
-- [ ] Meaningful names that read like English
+- [ ] Meaningful names that read in clear English
 
 **Anti-patterns**:
 
-- try-catch blocks
-- Error tuple for pure business logic
-- Missing error handling in async ops
-- Package imports in tests (breaks validation)
+- [ ] Error tuple for pure business logic
+- [ ] Missing error handling in async ops
+- [ ] Package imports in tests (breaks validation)
+- [ ] Writing or documenting "backwards compatibility" unless explicitly asked for
 
 ## 🎯 Code Review Checklist
 
@@ -240,6 +280,7 @@ assert(isObject(config), 'Config required');
 - [ ] Proper file organization (types.ts, index.ts exports)
 - [ ] Logical grouping of functions and classes
 - [ ] Keep up the `./llm-helpers` docs up to date
+- [ ] Doesn't keep legacy code around
 
 ### ✅ TypeScript Standards
 
@@ -250,21 +291,11 @@ assert(isObject(config), 'Config required');
 
 ### ✅ Dogfooding
 
-- [ ] Uses `@logosdx/utils` for error handling
-- [ ] Uses `@logosdx/utils` for data operations
-- [ ] Uses `@logosdx/utils` for flow control
+- [ ] Uses `@logosdx/utils` for error handling, data operations, flow control
 - [ ] Demonstrates best practices in examples
 
 ### ✅ Testing
 
-- [ ] Tests mirror source structure
 - [ ] Uses relative imports in tests
 - [ ] Tests all paths (happy, error, bad inputs, edge cases)
-- [ ] Proper mock patterns with `calledExactly`
-
-### ✅ Error Handling Patterns
-
-- [ ] Uses error tuple (`[result, error]`) for fail-prone operations only
-- [ ] Business logic functions return actual results, not error tuples
-- [ ] Proper composition between error tuple and direct returns
-- [ ] No `try-catch` blocks (use `attempt`/`attemptSync` for I/O)
+- [ ] Tests somewhat mirror source structure
