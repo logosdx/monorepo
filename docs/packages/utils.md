@@ -1051,17 +1051,23 @@ const onRateUpdate = () => {
 
 ### `debounce()`
 
-Delay function execution until calls stop for a specified period.
+Delay function execution until calls stop for a specified period. Enhanced with `flush()`, `cancel()`, and `maxWait` options.
 
 ```ts
 function debounce<T extends (...args: any[]) => any>(
     fn: T,
     options: DebounceOptions
-): (...args: Parameters<T>) => void
+): DebouncedFunction<T>
 
 interface DebounceOptions {
     delay: number                      // Delay in milliseconds
-    onDebounce?: (...args: any[]) => void
+    maxWait?: number                   // Maximum wait time before execution
+}
+
+interface DebouncedFunction<T extends (...args: any[]) => any> {
+    (...args: Parameters<T>): void
+    flush(): ReturnType<T> | undefined  // Execute immediately and return result
+    cancel(): void                      // Stop pending execution
 }
 ```
 
@@ -1089,16 +1095,30 @@ const searchCustomers = debounce(
 
         updateSearchResults(results)
         showToast(`Found ${results.length} customers`)
+        return results
     },
     {
-        delay: 300,  // Wait 300ms after user stops typing
-        onDebounce: (query) => {
-
-            console.log(`Search debounced for query: "${query}"`)
-            showSearchSpinner()
-        }
+        delay: 300,      // Wait 300ms after user stops typing
+        maxWait: 1500    // Force execution after 1.5s maximum
     }
 )
+
+// Enhanced interface usage
+const performSearch = async (query: string) => {
+
+    searchCustomers(query)
+
+    // Execute immediately if needed
+    const results = searchCustomers.flush()
+    if (results) {
+        console.log('Immediate results:', results)
+    }
+
+    // Cancel pending search
+    if (shouldCancelSearch) {
+        searchCustomers.cancel()
+    }
+}
 
 // Auto-save form data
 const autoSaveForm = debounce(
@@ -1152,18 +1172,23 @@ const SearchInput = () => {
 
 ### `throttle()`
 
-Limit function execution frequency to a maximum rate.
+Limit function execution frequency to a maximum rate. Enhanced with `cancel()` capability to clear throttle state.
 
 ```ts
 function throttle<T extends (...args: any[]) => any>(
     fn: T,
     options: ThrottleOptions
-): T
+): ThrottledFunction<T>
 
 interface ThrottleOptions {
     delay: number                      // Minimum delay between calls
     throws?: boolean                   // Throw error when throttled (default: true)
     onThrottle?: (...args: any[]) => void
+}
+
+interface ThrottledFunction<T extends (...args: any[]) => any> {
+    (...args: Parameters<T>): ReturnType<T>
+    cancel(): void                     // Clear throttle state and allow immediate execution
 }
 ```
 
@@ -1247,6 +1272,18 @@ const submitLoanApplication = throttle(
         }
     }
 )
+
+// Enhanced interface usage
+const handleFormSubmit = (application: LoanApplication) => {
+
+    submitLoanApplication(application)
+
+    // Reset throttle if user cancels
+    if (userCanceled) {
+        submitLoanApplication.cancel()
+        showToast('Submission canceled - you can submit again now')
+    }
+}
 ```
 
 ## Validation & Type Guards

@@ -18,6 +18,14 @@ export const isThrottleError = (error: unknown): error is ThrottleError => {
 }
 
 /**
+ * Enhanced function interface with cancel capability
+ */
+export interface ThrottledFunction<T extends AnyFunc> {
+    (...args: Parameters<T>): ReturnType<T>;
+    cancel(): void;
+}
+
+/**
  * Options for configuring throttle behavior
  */
 export interface ThrottleOptions {
@@ -37,7 +45,7 @@ export interface ThrottleOptions {
  *
  * @param fn - The function to throttle
  * @param opts - Throttle configuration options
- * @returns A throttled version of the input function
+ * @returns A throttled function with cancel capability
  *
  * @throws {Error} When `fn` is not a function
  * @throws {Error} When `delay` is not a positive number
@@ -58,14 +66,16 @@ export interface ThrottleOptions {
  * throttledFn(); // returns cached result
  * await wait(500);
  * throttledFn(); // returns cached result
- * await wait(500);
- * throttledFn(); // calls fn again
+ *
+ * // Cancel clears the throttle state
+ * throttledFn.cancel();
+ * throttledFn(); // calls fn immediately (state reset)
  * ```
  */
 export const throttle = <T extends AnyFunc>(
     fn: T,
     opts: ThrottleOptions
-): T => {
+): ThrottledFunction<T> => {
 
     const {
         delay,
@@ -73,11 +83,10 @@ export const throttle = <T extends AnyFunc>(
         throws = false
     } = opts;
 
-    // State variables
     let lastCalled: number | null = null;
     let lastResult: ReturnType<T> | null = null;
+    let lastError: unknown = null;
 
-    // Validate input parameters
     assert(isFunction(fn), 'fn must be a function');
     assertNotWrapped(fn, 'throttle');
     assert(isPlainObject(opts), 'opts must be an object');
@@ -97,24 +106,48 @@ export const throttle = <T extends AnyFunc>(
 
         if (!isThrottled) {
 
-            // Execute the function and cache the result
-            lastResult = fn(...args);
-            lastCalled = now;
+            try {
+
+                lastResult = fn(...args);
+                lastError = null;
+                lastCalled = now;
+            }
+            catch (error) {
+
+                lastError = error;
+                lastResult = null;
+                lastCalled = now;
+                throw error;
+            }
         }
         else {
 
-            // Handle throttled call
             onThrottle?.(args);
 
             if (throws) {
                 throw new ThrottleError('Throttled');
+            }
+
+            if (lastError !== null) {
+                throw lastError;
             }
         }
 
         return lastResult!;
     };
 
-    markWrapped(callback, 'throttle');
+    // Add cancel method to clear throttle state
+    const cancel = () => {
 
-    return callback as T;
+        lastCalled = null;
+        lastResult = null;
+        lastError = null;
+    };
+
+    // Create enhanced function with cancel method
+    const throttledFunction = Object.assign(callback, { cancel });
+
+    markWrapped(throttledFunction, 'throttle');
+
+    return throttledFunction;
 };

@@ -48,12 +48,37 @@ if (parseErr) return defaultValue
 ### Timing & Rate Control
 
 ```ts
-// Debounce - delay execution until calls stop
-const debounce: <T extends AnyFunc>(fn: T, options: DebounceOptions) => (...args: Parameters<T>) => void
-const debouncedSearch = debounce(searchUsers, { delay: 300 })
+// Enhanced Debounce - delay execution until calls stop with flush, cancel, and maxWait
+interface DebouncedFunction<T extends AnyFunc> {
+  (...args: Parameters<T>): void;
+  flush(): ReturnType<T> | undefined;  // Execute immediately and return result
+  cancel(): void;                      // Stop pending execution
+}
 
-// Throttle - limit execution frequency
-const throttle: <T extends AnyFunc>(fn: T, options: ThrottleOptions) => T
+const debounce: <T extends AnyFunc>(fn: T, options: DebounceOptions) => DebouncedFunction<T>
+
+interface DebounceOptions {
+  delay: number;
+  maxWait?: number;  // Maximum time to wait before execution
+}
+
+const debouncedSearch = debounce(searchUsers, { 
+  delay: 300,
+  maxWait: 1000  // Execute after 1s max even if still getting calls
+})
+
+// Call flush() to execute immediately
+const result = debouncedSearch.flush()
+// Call cancel() to prevent execution
+debouncedSearch.cancel()
+
+// Enhanced Throttle - limit execution frequency with cancel capability
+interface ThrottledFunction<T extends AnyFunc> {
+  (...args: Parameters<T>): ReturnType<T>;
+  cancel(): void;  // Clear throttle state and allow immediate execution
+}
+
+const throttle: <T extends AnyFunc>(fn: T, options: ThrottleOptions) => ThrottledFunction<T>
 
 class ThrottleError extends Error {}
 const isThrottleError: (error: unknown) => error is ThrottleError
@@ -63,6 +88,9 @@ const throttledScroll = throttle(updatePosition, {
   throws: false,
   onThrottle: (args) => console.log('throttled', args)
 })
+
+// Call cancel() to reset throttle state
+throttledScroll.cancel()
 
 // Rate limiting - control call frequency per time window
 const rateLimit: <T extends AnyFunc>(fn: T, options: RateLimitOptions<T>) => T
