@@ -126,7 +126,6 @@ export const validateOptions = <H, P, S>(
         timeout,
         validate,
         determineType,
-        formatHeaders,
         retryConfig,
     } = opts;
 
@@ -244,34 +243,6 @@ export const validateOptions = <H, P, S>(
         'determineType must be a function'
     );
 
-    const formatHeadersMsg = 'formatHeaders must be false, lowercase, uppercase, or a function';
-
-    switch (typeof formatHeaders) {
-
-        case 'undefined':
-            break;
-
-        case 'boolean':
-            assert(formatHeaders === false, formatHeadersMsg);
-            break;
-
-        case 'function':
-            break;
-
-        case 'string':
-            assert(
-                formatHeaders === 'lowercase' ||
-                formatHeaders === 'uppercase',
-                formatHeadersMsg
-            );
-            break;
-
-        default:
-            assert(
-                false,
-                formatHeadersMsg
-            );
-    }
 
     if (retryConfig) {
 

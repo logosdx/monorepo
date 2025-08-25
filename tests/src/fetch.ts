@@ -211,11 +211,6 @@ describe('@logosdx/fetch', () => {
         test(/determineType must be a function/i);
 
         opts.determineType = () => {};
-        opts.formatHeaders = 'not a function';
-        test(/formatHeaders must be/i);
-
-        opts.formatHeaders = true;
-        test(/formatHeaders must be/i);
     });
 
     it('accepts a proper config', () => {
@@ -261,7 +256,6 @@ describe('@logosdx/fetch', () => {
                 }
             },
             determineType: () => 'json',
-            formatHeaders: (h) => h,
         });
 
         expect(api.get).to.exist;
@@ -1354,8 +1348,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine<any>({
             baseUrl: testUrl,
-            headers,
-            formatHeaders: false
+            headers
         });
 
         api.on('*', listener);

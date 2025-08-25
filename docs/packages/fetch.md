@@ -179,7 +179,6 @@ const api = new FetchEngine<AppHeaders, AppParams, AppState>({
 | `modifyMethodOptions` | `{ [key in HttpMethods]?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H> }`            | A function that can be used to modify the options for requests of a specific method |
 | `validate`            | Validate Config (see below)                                                                   | Validators for when setting headers and state                                       |
 | `determineType`       | `(response: Response) => 'json' \| 'text' \| 'blob' \| 'arrayBuffer' \| 'formData' \| Symbol` | The function to determine the type of response expected from the server. May return `FetchEngine.useDefault` to use built-in detection |
-| `formatHeaders`       | `boolean \| 'lowercase' \| 'uppercase' \| ((headers: Headers) => Headers)`                    | The function to format headers before they are sent                                 |
 
 **Validate Config**
 
@@ -248,7 +247,6 @@ interface FetchEngine.Options<H, P, S> {
         };
     };
     determineType?: (response: Response) => 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | Symbol;
-    formatHeaders?: boolean | 'lowercase' | 'uppercase' | ((headers: Headers) => Headers);
 }
 ```
 
@@ -382,7 +380,6 @@ interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceP
     retryConfig?: RetryConfig | false;
     method?: string;
     determineType?: any;
-    formatHeaders?: any;
 }
 ```
 
@@ -446,7 +443,6 @@ const [result, err] = await attempt(() =>
 | `params`          | `Params<P>`       | The parameters to be set on the request                                 |
 | `timeout`         | `number`          | The timeout for the request in milliseconds                             |
 | `determineType`   | `DetermineTypeFn` | The function to determine the type of response expected from the server |
-| `formatHeaders`   | `FormatHeadersFn \| 'lowercase' \| 'uppercase' \| false` | Format headers for this request before sending                          |
 | `retryConfig`     | `RetryConfig`     | Retry configuration overrides for this request                          |
 | `onBeforeReq`     | `(opts) => void \| Promise<void>` | Lifecycle hook called before the request is made                  |
 | `onAfterReq`      | `(response, opts) => void \| Promise<void>` | Lifecycle hook called after the request completes         |
@@ -469,7 +465,6 @@ type RequestOpts<T = InstanceHeaders, P = InstanceParams> = {
     params?: Params<P>,
     timeout?: number
     determineType?: DetermineTypeFn,
-    formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn
     retryConfig?: RetryConfig
 };
 

@@ -36,7 +36,6 @@ export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.In
     retryConfig?: RetryConfig | false | undefined;
     method?: string;
     determineType?: any;
-    formatHeaders?: any;
 }
 
 /**
@@ -239,26 +238,6 @@ declare module './engine.ts' {
             (response: Response): Type | Symbol
         }
 
-        /**
-         * Function that can be used to format headers before they are
-         * sent to the server. This can be used to format headers in
-         * a specific way before they are sent to the server.
-         *
-         * @example
-         *
-         * const formatHeaders: FormatHeadersFn = (headers) => {
-         *
-         *     return Object.keys(headers).reduce((acc, key) => {
-         *
-         *         acc[key.toLowerCase()] = headers[key];
-         *         return acc;
-         *     }, {});
-         * }
-         *
-         */
-        export interface FormatHeadersFn {
-            (headers: Headers): Headers;
-        }
 
         /**
          * Lifecycle hooks that can be used to handle various
@@ -302,10 +281,6 @@ declare module './engine.ts' {
              */
             determineType?: DetermineTypeFn | undefined,
 
-            /**
-             * The format to be used to format headers before they are sent
-             */
-            formatHeaders?: boolean | 'lowercase' | 'uppercase' | FormatHeadersFn | undefined
 
             /**
              * The retry configuration for the fetch request. If false, or undefined,

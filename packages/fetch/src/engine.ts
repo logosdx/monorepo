@@ -292,74 +292,6 @@ export class FetchEngine<
         return { type: this.#type, isJson: this.#type === 'json' };
     }
 
-    /**
-     * Formats headers according to the configured format option.
-     *
-     * Applies header formatting rules such as lowercase, uppercase,
-     * or custom formatting functions to ensure consistent header casing
-     * across different environments and APIs.
-     *
-     * @param headers - Headers to format
-     * @returns Formatted headers
-     * @internal
-     *
-     * @example
-     * // Configure header formatting
-     * const api = new FetchEngine({
-     *     baseUrl: 'https://api.example.com',
-     *     formatHeaders: 'lowercase', // or 'uppercase', false, or custom function
-     *     headers: {
-     *         'Content-Type': 'application/json',
-     *         'Authorization': 'Bearer token'
-     *     }
-     * });
-     * // Headers will be formatted to lowercase: content-type, authorization
-     */
-    #formatHeaders(headers: FetchEngine.Headers<H>) {
-
-        const opts = this.#options.formatHeaders ?? 'lowercase';
-
-        if (opts === false) {
-
-            return headers as FetchEngine.Headers<H>;
-        }
-
-        if (typeof opts === 'function') {
-
-            return opts(headers) as FetchEngine.Headers<H>;
-        }
-
-        const formatWith = (
-            headers: FetchEngine.Headers<H>,
-            callback: (key: string) => string
-        ) => {
-
-            return Object.fromEntries(
-                Object.keys(headers).map(
-                    (key) => ([callback(key), headers[key]])
-                )
-            ) as FetchEngine.Headers<H>;
-        }
-
-        if (opts === 'lowercase') {
-
-            return formatWith(
-                headers,
-                (key: string) => key.toLowerCase()
-            ) as FetchEngine.Headers<H>;
-        }
-
-        if (opts === 'uppercase') {
-
-            return formatWith(
-                headers,
-                (key: string) => key.toUpperCase()
-            ) as FetchEngine.Headers<H>;
-        }
-
-        // Fallback return for any other case
-        return headers as FetchEngine.Headers<H>;
-    }
 
     /**
      * Initializes a new FetchEngine instance with the provided configuration.
@@ -485,11 +417,11 @@ export class FetchEngine<
 
         const key = method?.toUpperCase() as keyof typeof methodHeaders;
 
-        return this.#formatHeaders({
+        return {
             ...this.#headers,
             ...(methodHeaders[key] || {}),
             ...override
-        });
+        };
     }
 
     /**
@@ -932,7 +864,6 @@ export class FetchEngine<
             params: mergedParams as P,
             retryConfig: this.#retryConfig,
             determineType: this.#options.determineType,
-            formatHeaders: this.#options.formatHeaders
         };
 
         // Create the Request object for the response
@@ -1474,11 +1405,11 @@ export class FetchEngine<
 
         if (method) {
 
-            this.#methodHeaders[method] = this.#formatHeaders(updated)!;
+            this.#methodHeaders[method] = updated;
         }
         else {
 
-            this.#headers = this.#formatHeaders(updated)!;
+            this.#headers = updated;
         }
 
         this.dispatchEvent(
@@ -1564,11 +1495,11 @@ export class FetchEngine<
 
         if (method) {
 
-            this.#methodHeaders[method] = this.#formatHeaders(updated)!;
+            this.#methodHeaders[method] = updated;
         }
         else {
 
-            this.#headers = this.#formatHeaders(updated)!;
+            this.#headers = updated;
         }
 
         this.dispatchEvent(

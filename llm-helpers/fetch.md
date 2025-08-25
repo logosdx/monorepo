@@ -71,7 +71,6 @@ interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceP
     retryConfig?: RetryConfig | false;
     method?: string;
     determineType?: any;
-    formatHeaders?: any;
 }
 
 // HTTP convenience methods - all return FetchResponse with typed config
@@ -148,8 +147,6 @@ interface FetchEngine.Options<H, P, S> {
     // Response type determination
     determineType?: (response: Response) => 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | Symbol;
 
-    // Header formatting
-    formatHeaders?: boolean | 'lowercase' | 'uppercase' | ((headers: Headers) => Headers);
 }
 ```
 
