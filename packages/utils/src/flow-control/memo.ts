@@ -120,7 +120,7 @@ type CacheStats = {
  *
  * @template T - The original function type
  */
-type EnhancedMemoizedFunction<T extends AnyFunc> = T & {
+export type EnhancedMemoizedFunction<T extends AnyFunc> = T & {
     /** Cache management interface */
     cache: {
         /** Clears all cached items and stops background cleanup */
