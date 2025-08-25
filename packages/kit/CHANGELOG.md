@@ -1,5 +1,18 @@
 # @logosdx/kit
 
+## 1.0.15
+
+### Patch Changes
+
+- Updated dependencies [9e6afcd]
+- Updated dependencies [e1c0ba2]
+  - @logosdx/utils@2.1.2
+  - @logosdx/fetch@3.0.1
+  - @logosdx/localize@1.0.11
+  - @logosdx/observer@2.0.7
+  - @logosdx/state-machine@1.0.11
+  - @logosdx/storage@1.0.11
+
 ## 1.0.14
 
 ### Patch Changes

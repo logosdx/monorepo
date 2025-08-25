@@ -1,5 +1,13 @@
 # @logosdx/fetch
 
+## 3.0.1
+
+### Patch Changes
+
+- e1c0ba2: Remove formatHeaders feature as modern browsers handle header casing automatically. HTTP/2 standardizes headers to lowercase, making manual header formatting unnecessary. This simplifies the codebase while maintaining all existing functionality.
+- Updated dependencies [9e6afcd]
+  - @logosdx/utils@2.1.2
+
 ## 3.0.0
 
 ### Major Changes

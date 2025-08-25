@@ -1,5 +1,11 @@
 # @logosdx/utils
 
+## 2.1.2
+
+### Patch Changes
+
+- 9e6afcd: Export EnhancedMemoizedFunction
+
 ## 2.1.1
 
 ### Patch Changes
