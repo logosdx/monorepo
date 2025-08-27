@@ -72,7 +72,7 @@ import { attempt } from '@logosdx/utils'
 
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    retryConfig: { maxAttempts: 3, baseDelay: 250 },
+    retry: { maxAttempts: 3, baseDelay: 250 },
     timeoutMs: 5_000,
     defaultType: 'json',
     headers: {

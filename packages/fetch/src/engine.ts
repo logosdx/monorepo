@@ -61,7 +61,7 @@ import {
  * // Advanced setup with retry and validation
  * const api = new FetchEngine({
  *     baseUrl: 'https://api.example.com',
- *     retryConfig: {
+ *     retry: {
  *         maxAttempts: 3,
  *         baseDelay: 1000,
  *         shouldRetry: (error) => error.status >= 500
@@ -142,7 +142,7 @@ export class FetchEngine<
      */
     #state: S = {} as S;
 
-    #retryConfig: Required<RetryConfig>;
+    #retry: Required<retry>;
 
     /**
      * Removes a header from the `FetchEngine` instance
@@ -307,7 +307,7 @@ export class FetchEngine<
      *     baseUrl: 'https://api.example.com',
      *     defaultType: 'json',
      *     headers: { 'Authorization': 'Bearer token' },
-     *     retryConfig: {
+     *     retry: {
      *         maxAttempts: 3,
      *         baseDelay: 1000
      *     }
@@ -319,14 +319,19 @@ export class FetchEngine<
 
         validateOptions(_opts);
 
-        const { baseUrl, defaultType, retryConfig, ...opts } = _opts;
+        const { baseUrl, defaultType, ...opts } = _opts;
+        let { retry } = _opts;
+
+        if (retry === true) {
+            retry = {}
+        }
 
         this.#baseUrl = new URL(baseUrl);
         this.#type = defaultType || 'json';
-        this.#retryConfig = {
+        this.#retry = {
             ...DEFAULT_RETRY_CONFIG,
             ...(
-                retryConfig ? retryConfig : {
+                retry ? retry : {
                     maxAttempts: 0
                 }
             )
@@ -367,7 +372,7 @@ export class FetchEngine<
      * delay calculations based on error conditions.
      *
      * @param attemptNo - Current attempt number (1-based)
-     * @param retryConfig - Retry configuration with delay settings
+     * @param retry - Retry configuration with delay settings
      * @param error - Optional error for dynamic delay calculation
      * @returns Delay in milliseconds before next retry attempt
      * @internal
@@ -381,9 +386,9 @@ export class FetchEngine<
      * });
      * // Returns 4000ms for 3rd attempt
      */
-    #calculateRetryDelay(attemptNo: number, retryConfig: Required<RetryConfig>): number {
+    #calculateRetryDelay(attemptNo: number, retry: Required<RetryConfig>): number {
 
-        const { baseDelay, maxDelay, useExponentialBackoff } = retryConfig;
+        const { baseDelay, maxDelay, useExponentialBackoff } = retry;
 
         if (!useExponentialBackoff) return Math.min(baseDelay, maxDelay!);
 
@@ -520,6 +525,17 @@ export class FetchEngine<
 
 
         return `${url}/${basePath}?${mergedParams.toString()}`;
+    }
+
+    #extractRetry(opts: FetchEngine.RequestOpts) {
+
+        let { retry } = opts;
+
+        if (retry === true) {
+            retry = {};
+        }
+
+        return retry;
     }
 
     #handleError(opts: {
@@ -862,7 +878,7 @@ export class FetchEngine<
             method,
             headers: opts.headers as H,
             params: mergedParams as P,
-            retryConfig: this.#retryConfig,
+            retry: this.#retry,
             determineType: this.#options.determineType,
         };
 
@@ -891,19 +907,19 @@ export class FetchEngine<
             }
         )
     ): Promise<FetchResponse<Res, H, P>> {
-        const mergedRetryConfig = {
-            ...this.#retryConfig,
-            ...options.retryConfig
+        const mergedRetry = {
+            ...this.#retry,
+            ...this.#extractRetry(options)
         };
 
-        if (mergedRetryConfig.maxAttempts === 0) {
+        if (mergedRetry.maxAttempts === 0) {
 
             return this.#makeCall<Res>(_method, path, options);
         }
 
         let _attempt = 1;
 
-        while (_attempt <= mergedRetryConfig.maxAttempts!) {
+        while (_attempt <= mergedRetry.maxAttempts!) {
 
             const [result, err] = await attempt(
                 async () => (
@@ -925,16 +941,16 @@ export class FetchEngine<
             const fetchError = err as FetchError;
 
             // Check if we should retry
-            const shouldRetry = await mergedRetryConfig.shouldRetry(fetchError, _attempt);
+            const shouldRetry = await mergedRetry.shouldRetry(fetchError, _attempt);
 
-            if (shouldRetry && _attempt <= mergedRetryConfig.maxAttempts!) {
+            if (shouldRetry && _attempt <= mergedRetry.maxAttempts!) {
 
                 // If shouldRetry is a number, use it as the delay
                 // Otherwise, calculate the delay using the default logic
                 const delay = (
                     typeof shouldRetry === 'number' ?
                     shouldRetry :
-                    this.#calculateRetryDelay(_attempt, mergedRetryConfig)
+                    this.#calculateRetryDelay(_attempt, mergedRetry)
                 );
 
                 this.dispatchEvent(

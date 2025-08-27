@@ -24,7 +24,7 @@ export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
  * const config: FetchConfig = {
  *     baseUrl: 'https://api.example.com',
  *     timeout: 5000,
- *     retryConfig: { maxAttempts: 3 },
+ *     retry: { maxAttempts: 3 },
  *     headers: { 'Authorization': 'Bearer token' }
  * };
  */
@@ -33,7 +33,7 @@ export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.In
     timeout?: number | undefined;
     headers?: H;
     params?: P;
-    retryConfig?: RetryConfig | false | undefined;
+    retry?: RetryConfig | false | undefined;
     method?: string;
     determineType?: any;
 }
@@ -121,7 +121,6 @@ export interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = Fet
     config: FetchConfig<H, P>;
 }
 
-// Add RetryConfig type
 export interface RetryConfig {
 
     /**
@@ -286,7 +285,7 @@ declare module './engine.ts' {
              * The retry configuration for the fetch request. If false, or undefined,
              * no retries will be made.
              */
-            retryConfig?: RetryConfig | false | undefined
+            retry?: RetryConfig | boolean | undefined
         };
 
         export type Options<

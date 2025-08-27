@@ -174,7 +174,7 @@ const api = new FetchEngine<AppHeaders, AppParams, AppState>({
 | `methodHeaders`       | `{ [key in HttpMethods]?: Headers<H> }`                                                       | The headers to be set on requests of a specific method                              |
 | `params`              | `Params<P>`                                                                                   | The parameters to be set on all requests                                            |
 | `methodParams`        | `{ [key in HttpMethods]?: Params<P> }`                                                        | The parameters to be set on requests of a specific method                           |
-| `retryConfig`         | `RetryConfig \| false`                                                                        | The retry configuration for the fetch request. Set to `false` to disable retries    |
+| `retry`         | `RetryConfig \| boolean`                                                                      | The retry configuration for the fetch request. Set to `false` to disable retries, `true` to use defaults |
 | `modifyOptions`       | `(opts: RequestOpts<H, P>, state: S) => RequestOpts<H>`                                       | A function that can be used to modify the options for all requests                  |
 | `modifyMethodOptions` | `{ [key in HttpMethods]?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H> }`            | A function that can be used to modify the options for requests of a specific method |
 | `validate`            | Validate Config (see below)                                                                   | Validators for when setting headers and state                                       |
@@ -226,7 +226,7 @@ interface FetchEngine.Options<H, P, S> {
         HEAD?: Params<P>;
         OPTIONS?: Params<P>;
     };
-    retryConfig?: RetryConfig | false;
+    retry?: RetryConfig | false;
     modifyOptions?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
     modifyMethodOptions?: {
         GET?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
@@ -377,7 +377,7 @@ interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceP
     timeout?: number;
     headers?: H;              // Typed headers from your custom interface
     params?: P;               // Typed params from your custom interface
-    retryConfig?: RetryConfig | false;
+    retry?: RetryConfig | false;
     method?: string;
     determineType?: any;
 }
@@ -443,7 +443,7 @@ const [result, err] = await attempt(() =>
 | `params`          | `Params<P>`       | The parameters to be set on the request                                 |
 | `timeout`         | `number`          | The timeout for the request in milliseconds                             |
 | `determineType`   | `DetermineTypeFn` | The function to determine the type of response expected from the server |
-| `retryConfig`     | `RetryConfig`     | Retry configuration overrides for this request                          |
+| `retry`           | `RetryConfig`     | Retry configuration overrides for this request                          |
 | `onBeforeReq`     | `(opts) => void \| Promise<void>` | Lifecycle hook called before the request is made                  |
 | `onAfterReq`      | `(response, opts) => void \| Promise<void>` | Lifecycle hook called after the request completes         |
 | `onError`         | `(err) => void \| Promise<void>`  | Lifecycle hook called when the request errors                            |
@@ -465,7 +465,7 @@ type RequestOpts<T = InstanceHeaders, P = InstanceParams> = {
     params?: Params<P>,
     timeout?: number
     determineType?: DetermineTypeFn,
-    retryConfig?: RetryConfig
+    retry?: RetryConfig
 };
 
 type CallOptions<H = InstanceHeaders, P = InstanceParams> = (
@@ -731,13 +731,29 @@ api.changeModifyMethodOptions('POST', undefined);
 
 ## Retry Configuration
 
+The retry option accepts three types of values:
+- `true` - Enable retries with default configuration
+- `false` - Disable retries completely
+- `RetryConfig` object - Custom retry configuration
+
+**Default values (when `retry: true` or partial config):**
+```typescript
+{
+    maxAttempts: 3,
+    baseDelay: 1000,
+    maxDelay: 10000,
+    useExponentialBackoff: true,
+    retryableStatusCodes: [408, 429, 499, 500, 502, 503, 504]
+}
+```
+
 ```typescript
 interface RetryConfig {
     maxAttempts?: number; // default: 3
     baseDelay?: number; // default: 1000 (in milliseconds)
     maxDelay?: number; // default: 10000
     useExponentialBackoff?: boolean; // default: true
-    retryableStatusCodes?: number[]; // default: [408, 429, 500, 502, 503, 504]
+    retryableStatusCodes?: number[]; // default: [408, 429, 499, 500, 502, 503, 504]
 
     // shouldRetry can return a boolean or a custom delay in milliseconds
     // When returning a number, it specifies the exact delay before the next retry
@@ -757,16 +773,22 @@ The `shouldRetry` function will be awaited and can return:
 **Examples:**
 
 ```typescript
+// Use default retry configuration
+const defaultRetryApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retry: true  // Uses defaults: 3 attempts, 1s base delay, exponential backoff
+});
+
 // Disable retries completely
 const noRetryApi = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    retryConfig: false  // No retries at all
+    retry: false  // No retries at all
 });
 
 // Custom retry logic with shouldRetry
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    retryConfig: {
+    retry: {
         maxAttempts: 5,
         baseDelay: 1000, // Used for exponential backoff when shouldRetry returns true
         shouldRetry: (error, attempt) => {
@@ -975,7 +997,7 @@ interface RequestOpts<H = any, P = any> {
     params: Params<P>;
     payload?: any;
     timeout?: number;
-    retryConfig?: RetryConfig | false;
+    retry?: RetryConfig | false;
 }
 ```
 
@@ -1060,7 +1082,7 @@ const api = new FetchEngine({
     },
 
     // Intelligent retry logic
-    retryConfig: {
+    retry: {
         maxAttempts: 3,
         baseDelay: 1000,
         useExponentialBackoff: true,
@@ -1141,7 +1163,7 @@ const isDev = process.env.NODE_ENV === 'development';
 const api = new FetchEngine({
     baseUrl: 'http://localhost:3001/api',
     timeout: isDev ? 30000 : 10000, // Longer timeout in dev
-    retryConfig: isDev ? false : { // No retries in dev, 3 retries in prod
+    retry: isDev ? false : { // No retries in dev, 3 retries in prod
         maxAttempts: 3,
         baseDelay: 1000
     }

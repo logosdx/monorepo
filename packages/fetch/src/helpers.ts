@@ -126,7 +126,7 @@ export const validateOptions = <H, P, S>(
         timeout,
         validate,
         determineType,
-        retryConfig,
+        retry,
     } = opts;
 
     assert(baseUrl, 'baseUrl is required');
@@ -244,7 +244,7 @@ export const validateOptions = <H, P, S>(
     );
 
 
-    if (retryConfig) {
+    if (retry) {
 
         const optionalNumbers = [
             'maxAttempts',
@@ -254,14 +254,14 @@ export const validateOptions = <H, P, S>(
 
         for (const key of optionalNumbers) {
 
-            const value = retryConfig[key];
+            const value = retry[key];
 
             if (typeof value !== 'number') continue;
 
             assertOptional(
                 value,
                 Number.isInteger(value) && value > 0,
-                `retryConfig.${key} must be a positive number, got ${value}`
+                `retry.${key} must be a positive number, got ${value}`
             );
         }
 

@@ -112,7 +112,7 @@ type ApiQueryParams = {
 
 const api = new FetchFactory<ApiHeaders, ApiQueryParams, ApiState>({
     baseUrl: 'https://rainbow-loans.com',
-    retryConfig: {
+    retry: {
         maxAttempts: 3,
         retryableStatusCodes: [501, 502, 503, 504]
     },
@@ -182,7 +182,7 @@ import { composeFlow, attempt } from '@logosdx/utils';
 
 const painPal = new FetchFactory({
     baseUrl: 'https://painpal.com',
-    retryConfig: {
+    retry: {
         maxAttempts: 3,
         retryableStatusCodes: [429, 501, 502, 503, 504]
     },

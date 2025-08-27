@@ -1919,7 +1919,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl + 1,
-            retryConfig: {
+            retry: {
                 maxAttempts: 2,
                 baseDelay: 10
             },
@@ -1957,7 +1957,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl + 1,
-            retryConfig: {
+            retry: {
                 maxAttempts: 3,
                 baseDelay,
                 useExponentialBackoff: true,
@@ -1981,7 +1981,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl + 1,
-            retryConfig: {
+            retry: {
                 maxAttempts: 5,
                 baseDelay,
                 useExponentialBackoff: true,
@@ -2006,7 +2006,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl + 1,
-            retryConfig: {
+            retry: {
                 maxAttempts: 3,
                 baseDelay,
                 useExponentialBackoff: false,
@@ -2028,7 +2028,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl,
-            retryConfig: {
+            retry: {
                 maxAttempts: 3,
                 baseDelay: 10,
                 useExponentialBackoff: false,
@@ -2051,7 +2051,7 @@ describe('@logosdx/fetch', () => {
         const onError = sandbox.stub();
         const api = new FetchEngine({
             baseUrl: testUrl,
-            retryConfig: {
+            retry: {
                 maxAttempts: 3,
                 baseDelay: 10,
                 useExponentialBackoff: false,
@@ -2075,7 +2075,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl,
-            retryConfig: {
+            retry: {
                 maxAttempts: 3,
                 baseDelay: 10,
                 useExponentialBackoff: false,
@@ -2111,7 +2111,7 @@ describe('@logosdx/fetch', () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl,
-            retryConfig: {
+            retry: {
                 maxAttempts: 5,
                 baseDelay: 20,
                 useExponentialBackoff: true,
@@ -2121,7 +2121,7 @@ describe('@logosdx/fetch', () => {
         const onError = sandbox.stub();
 
         const reqConfig: FetchEngine.CallOptions = {
-            retryConfig: {
+            retry: {
                 maxAttempts: 2,
                 baseDelay: 10,
                 useExponentialBackoff: false,
@@ -2145,6 +2145,23 @@ describe('@logosdx/fetch', () => {
 
         await attempt(() => api.get('/validate?name=&age=17', { onError }))
 
+        expect(onError.callCount).to.eq(3);
+    });
+
+    it('configures default retry', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retry: true
+        });
+
+        const onError = sandbox.stub();
+
+        api.on('fetch-error', onError);
+
+        await attempt(() => api.get('/validate?name=&age=17'))
+
+        expect(onError.called).to.be.true;
         expect(onError.callCount).to.eq(3);
     });
 

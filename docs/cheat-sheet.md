@@ -196,7 +196,7 @@ api.changeBaseUrl('https://staging.example.com');
 ```typescript
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    retryConfig: {
+    retry: {
         baseDelay: 1000,
         maxAttempts: 3,
         maxDelay: 10000,

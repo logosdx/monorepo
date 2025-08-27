@@ -68,7 +68,7 @@ interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceP
     timeout?: number;
     headers?: H;            // Typed headers from your custom interface
     params?: P;             // Typed params from your custom interface
-    retryConfig?: RetryConfig | false;
+    retry?: RetryConfig | false;
     method?: string;
     determineType?: any;
 }
@@ -116,7 +116,7 @@ interface FetchEngine.Options<H, P, S> {
     };
 
     // Retry configuration (set to false to disable retries)
-    retryConfig?: {
+    retry?: {
         maxAttempts?: number; // default: 3
         baseDelay?: number; // default: 1000 (in milliseconds)
         maxDelay?: number; // default: 10000
@@ -289,13 +289,19 @@ api.off('fetch-error', errorHandler); // remove listener
 // Disable retries completely
 const noRetryApi = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    retryConfig: false  // No retries at all
+    retry: false  // No retries at all
+});
+
+// Accept default retry configs
+const noRetryApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retry: true || {}  // Accept default retry configs
 });
 
 // Custom retry logic with shouldRetry controlling delays
 const customRetryApi = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    retryConfig: {
+    retry: {
         maxAttempts: 5,
         baseDelay: 1000,  // Base delay for exponential backoff
         shouldRetry: (error, attempt) => {
@@ -361,7 +367,7 @@ const [response, err] = await attempt(() =>
         onBeforeReq: (opts) => console.log('Making request:', opts),
         onAfterReq: (response) => console.log('Response:', response.status),
         onError: (error) => console.error('Error:', error),
-        retryConfig: { maxAttempts: 5 }
+        retry: { maxAttempts: 5 }
     })
 );
 
@@ -439,7 +445,7 @@ const api = new FetchEngine({
     baseUrl: process.env.API_BASE_URL,
     defaultType: 'json',
     timeout: 5000,
-    retryConfig: {
+    retry: {
         maxAttempts: 3,
         baseDelay: 1000,
         useExponentialBackoff: true,
@@ -466,7 +472,7 @@ api.on('fetch-error', (event) => {
 });
 
 api.on('fetch-retry', (event) => {
-    console.log(`Retry ${event.nextAttempt}/${api.retryConfig.maxAttempts} after ${event.delay}ms`);
+    console.log(`Retry ${event.nextAttempt}/${api.retry.maxAttempts} after ${event.delay}ms`);
 });
 
 // Dynamic state management
