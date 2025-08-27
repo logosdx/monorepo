@@ -1,4 +1,5 @@
 import { attempt, attemptSync } from './attempt.ts';
+import { wait } from './misc.ts';
 import { type AnyAsyncFunc, type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
 import { noop } from '../misc.ts';
@@ -59,6 +60,24 @@ export type MemoizeOptions<T extends AnyFunc> = {
      * @default 60000 (1 minute)
      */
     cleanupInterval?: number
+
+    /**
+     * Time in milliseconds when cached data becomes stale and should trigger proactive refresh.
+     * Must be less than ttl when both are specified.
+     * Used for stale-while-revalidate pattern.
+     *
+     * @default undefined (no stale-while-revalidate)
+     */
+    staleIn?: number
+
+    /**
+     * Maximum time in milliseconds to wait for fresh data before returning stale data.
+     * Only used when staleIn is specified.
+     * Used for stale-while-revalidate pattern.
+     *
+     * @default undefined (no timeout, always wait for fresh data)
+     */
+    staleTimeout?: number
 }
 
 /**
@@ -69,6 +88,8 @@ export type MemoizeOptions<T extends AnyFunc> = {
 type CacheItem<T> = {
     /** The cached value */
     value: T,
+    /** Timestamp when this item was created */
+    createdAt: number,
     /** Timestamp when this item expires */
     expiresAt: number,
     /** Number of times this item has been accessed */
@@ -80,6 +101,8 @@ type CacheItem<T> = {
 } | {
     /** Weak reference to the cached object value */
     value: WeakRef<object>,
+    /** Timestamp when this item was created */
+    createdAt: number,
     /** Timestamp when this item expires */
     expiresAt: number,
     /** Number of times this item has been accessed */
@@ -114,6 +137,12 @@ type CacheStats = {
     /** Number of items evicted due to size limits */
     evictions: number
 }
+
+/**
+ * Symbol used as a marker to indicate that a stale-while-revalidate timeout has occurred.
+ * This allows distinguishing between a function that returns false and a timeout.
+ */
+const TIMEOUT_SYMBOL = Symbol('stale-timeout-marker');
 
 /**
  * Enhanced memoized function with additional cache management methods.
@@ -156,6 +185,13 @@ const validateOpts = <T extends AnyFunc>(opts: MemoizeOptions<T>) => {
     assertOptional(opts.generateKey, isFunction(opts.generateKey), 'generateKey must be a function');
     assertOptional(opts.useWeakRef, typeof opts.useWeakRef === 'boolean', 'useWeakRef must be a boolean');
     assertOptional(opts.cleanupInterval, typeof opts.cleanupInterval === 'number', 'cleanupInterval must be a number');
+    assertOptional(opts.staleIn, typeof opts.staleIn === 'number' && opts.staleIn >= 0, 'staleIn must be a positive number or zero');
+    assertOptional(opts.staleTimeout, typeof opts.staleTimeout === 'number' && opts.staleTimeout >= 0, 'staleTimeout must be a positive number or zero');
+
+    // Validate staleIn vs TTL relationship
+    if (opts.staleIn !== undefined && opts.ttl !== undefined && opts.staleIn >= opts.ttl) {
+        throw new Error('staleIn must be less than ttl when both are specified');
+    }
 }
 
 /**
@@ -223,7 +259,8 @@ const defaultKeyGenerator = <T extends AnyFunc>(args: Parameters<T>): string => 
         return String(value);
     };
 
-    return args.map(stringify).join('|');
+    const key = args.map(stringify).join('|');
+    return key || '0'; // Use '0' for functions with no arguments
 };
 
 /**
@@ -387,12 +424,29 @@ const evictLRU = <T extends AnyFunc>(cache: MemoCache<T>): void => {
  * @param item - The cache item to extract value from
  * @returns The cached value, or undefined if WeakRef was garbage collected
  */
-const getCacheValue = <T>(item: CacheItem<T>): T | undefined => {
+const getCacheValue = <T>(item: CacheItem<T>): { value: T, wasGarbageCollected: boolean } => {
     if ('isWeak' in item && item.isWeak) {
         const weakValue = item.value.deref();
-        return weakValue ? (weakValue as T) : undefined;
+        if (weakValue) {
+            return { value: weakValue as T, wasGarbageCollected: false };
+        }
+        return { value: undefined as T, wasGarbageCollected: true };
     }
-    return item.value as T;
+    return { value: item.value as T, wasGarbageCollected: false };
+};
+
+/**
+ * Determines if a cache item is stale based on the staleIn threshold.
+ *
+ * @template T - The type of the cached value
+ * @param item - The cache item to check
+ * @param now - Current timestamp
+ * @param staleIn - Staleness threshold in milliseconds
+ * @returns True if the item is stale but not expired
+ */
+const isStale = <T>(item: CacheItem<T>, now: number, staleIn: number): boolean => {
+    const age = now - item.createdAt;
+    return age >= staleIn && now < item.expiresAt;
 };
 
 /**
@@ -400,6 +454,7 @@ const getCacheValue = <T>(item: CacheItem<T>): T | undefined => {
  *
  * @template T - The type of the value to cache
  * @param value - The value to cache
+ * @param createdAt - Timestamp when this item was created
  * @param expiresAt - Timestamp when this item expires
  * @param useWeakRef - Whether to use WeakRef for object values
  * @param accessSequence - Sequence number for LRU tracking
@@ -407,19 +462,20 @@ const getCacheValue = <T>(item: CacheItem<T>): T | undefined => {
  */
 const createCacheItem = <T>(
     value: T,
+    createdAt: number,
     expiresAt: number,
     useWeakRef: boolean,
     accessSequence: number
 ): CacheItem<T> => {
-    const now = Date.now();
 
     // Only use WeakRef if value is an object and useWeakRef is true
     if (useWeakRef && typeof value === 'object' && value !== null) {
         return {
             value: new WeakRef(value as object),
+            createdAt,
             expiresAt,
             accessCount: 1,
-            lastAccessed: now,
+            lastAccessed: createdAt,
             accessSequence,
             isWeak: true
         } as CacheItem<T>;
@@ -427,9 +483,10 @@ const createCacheItem = <T>(
 
     return {
         value,
+        createdAt,
         expiresAt,
         accessCount: 1,
-        lastAccessed: now,
+        lastAccessed: createdAt,
         accessSequence
     };
 };
@@ -442,6 +499,7 @@ const createCacheItem = <T>(
  * - Key generation with error handling
  * - Cache lookup and validation
  * - Expiration checking
+ * - Stale detection for stale-while-revalidate pattern
  * - Access statistics updates
  *
  * @template T - The function type being memoized
@@ -461,6 +519,7 @@ const prepareMemo = <T extends AnyFunc>(
     now: number,
     isCached: boolean,
     didExpire: boolean,
+    isStaleButValid: boolean,
     value: ReturnType<T> | undefined
 } => {
 
@@ -469,6 +528,7 @@ const prepareMemo = <T extends AnyFunc>(
         opts: {
             onError,
             generateKey = defaultKeyGenerator,
+            staleIn
         },
         cache,
         cacheManager
@@ -486,6 +546,7 @@ const prepareMemo = <T extends AnyFunc>(
             now,
             isCached: false,
             didExpire: false,
+            isStaleButValid: false,
             value: undefined
         }
     }
@@ -501,14 +562,18 @@ const prepareMemo = <T extends AnyFunc>(
             item.accessCount++;
             item.accessSequence = cacheManager.getNextSequence();
 
-            const value = getCacheValue(item);
-            if (value !== undefined) {
+            const { value, wasGarbageCollected } = getCacheValue(item);
+            if (!wasGarbageCollected) {
+                // Check if item is stale but still valid
+                const isStaleItem = staleIn !== undefined ? isStale(item, now, staleIn) : false;
+
                 cacheManager.recordHit();
                 return {
                     key,
                     now,
                     isCached: true,
                     didExpire: false,
+                    isStaleButValid: isStaleItem,
                     value
                 }
             }
@@ -522,6 +587,7 @@ const prepareMemo = <T extends AnyFunc>(
             now,
             isCached: false,
             didExpire: true,
+            isStaleButValid: false,
             value: undefined
         }
     }
@@ -532,6 +598,7 @@ const prepareMemo = <T extends AnyFunc>(
         now,
         isCached: false,
         didExpire: false,
+        isStaleButValid: false,
         value: undefined
     }
 };
@@ -582,7 +649,7 @@ const processMemo = <T extends AnyFunc>(
         onError(error, args);
     }
 
-    if (key && value !== null && value !== undefined) {
+    if (key && !error) {
         // Check if we need to evict before adding
         if (maxSize && cache.size >= maxSize) {
             evictLRU(cache);
@@ -590,7 +657,16 @@ const processMemo = <T extends AnyFunc>(
         }
 
         const accessSequence = cacheManager.getNextSequence();
-        cache.set(key, createCacheItem(value, now + ttl, useWeakRef, accessSequence));
+        cache.set(
+            key,
+            createCacheItem<ReturnType<T>>(
+                value!,
+                now,
+                now + ttl,
+                useWeakRef,
+                accessSequence
+            )
+        );
     }
 
     return value;
@@ -677,10 +753,52 @@ export const memoizeSync = <T extends AnyFunc>(
             now,
             isCached,
             didExpire,
+            isStaleButValid,
             value: memoValue
         } = prepareMemo({ fn, args, opts, cache, cacheManager });
 
+        // If cached and not expired, check for stale-while-revalidate behavior
         if (isCached && !didExpire) {
+
+            if (isStaleButValid) {
+
+                // For sync functions with staleTimeout: execute synchronously and return fresh data
+                // For sync functions without staleTimeout: return stale data immediately
+                if (
+                    opts.staleTimeout !== undefined &&
+                    key !== null
+                ) {
+
+                    // staleTimeout specified - execute function synchronously
+                    const [freshValue, error] = attemptSync(() => fn(...args));
+
+                    if (!error) {
+
+                        // Update cache with fresh value
+                        const accessSequence = cacheManager.getNextSequence();
+
+                        cache.set(
+                            key,
+                            createCacheItem(
+                                freshValue,
+                                now,
+                                now + (opts.ttl ?? 60000),
+                                opts.useWeakRef ?? false,
+                                accessSequence
+                            )
+                        );
+
+                        return freshValue;
+                    }
+
+                    // Return stale value if fresh fetch failed
+                    return memoValue;
+                }
+
+                // No staleTimeout specified - return stale data immediately
+                return memoValue;
+            }
+
             return memoValue;
         }
 
@@ -720,7 +838,8 @@ export const memoizeSync = <T extends AnyFunc>(
             entries: () => {
                 const entries: Array<[string, ReturnType<T> | undefined]> = [];
                 for (const [key, item] of cache.entries()) {
-                    entries.push([key, getCacheValue(item)]);
+                    const { value } = getCacheValue(item);
+                    entries.push([key, value]);
                 }
                 return entries;
             }
@@ -810,13 +929,90 @@ export const memoize = <T extends AnyAsyncFunc>(
     const memoized = async function (...args: Parameters<T>) {
         const {
             key,
-            now,
             isCached,
             didExpire,
+            isStaleButValid,
             value: memoValue
         } = prepareMemo({ fn, args, opts, cache, cacheManager });
 
+        // If cached and not expired, check for stale-while-revalidate behavior
         if (isCached && !didExpire) {
+            if (isStaleButValid) {
+                // For async functions with staleTimeout specified: race fresh fetch against timeout
+                // For async functions without staleTimeout: return stale immediately
+                if (opts.staleTimeout !== undefined) {
+                    // staleTimeout specified - race fresh fetch against timeout
+                    if (key !== null) {
+                        // For zero timeout, return stale immediately but still trigger background refresh
+                        if (opts.staleTimeout === 0) {
+                            // Trigger background refresh without waiting
+                            attempt(
+                                () => fn(...args)
+                            ).then(([freshValue, error]) => {
+
+                                if (!error) {
+
+                                    const accessSequence = cacheManager.getNextSequence();
+                                    const freshNow = Date.now();
+
+                                    cache.set(
+                                        key,
+                                        createCacheItem(
+                                            freshValue,
+                                            freshNow,
+                                            freshNow + (opts.ttl ?? 60000),
+                                            opts.useWeakRef ?? false,
+                                            accessSequence
+                                        )
+                                    );
+                                }
+                            })
+                            return memoValue;
+                        }
+
+                        // Race fresh fetch against timeout
+                        const freshPromise = attempt(() => fn(...args));
+                        const timeoutPromise = wait(opts.staleTimeout, TIMEOUT_SYMBOL);
+
+                        const winner = await Promise.race([freshPromise, timeoutPromise]);
+
+                        if (winner === TIMEOUT_SYMBOL) {
+
+                            // Timeout won, return stale data immediately
+                            return memoValue;
+                        }
+
+                        // Fresh data won the race
+                        const [freshValue, error] = winner as Awaited<typeof freshPromise>;
+
+                        if (!error) {
+
+                            // Update cache with fresh value
+                            const accessSequence = cacheManager.getNextSequence();
+                            const freshNow = Date.now();
+
+                            cache.set(
+                                key,
+                                createCacheItem(
+                                    freshValue,
+                                    freshNow,
+                                    freshNow + (opts.ttl ?? 60000),
+                                    opts.useWeakRef ?? false,
+                                    accessSequence
+                                )
+                            );
+
+                            return freshValue;
+                        }
+
+                        // Return stale value if fresh fetch failed
+                        return memoValue;
+                    }
+                }
+
+                // No staleTimeout specified - return stale data immediately
+                return memoValue;
+            }
             return memoValue;
         }
 
@@ -832,7 +1028,7 @@ export const memoize = <T extends AnyAsyncFunc>(
             error,
             args,
             key,
-            now,
+            now: Date.now(), // Use current time after async execution
             opts,
             cache,
             cacheManager
@@ -856,7 +1052,8 @@ export const memoize = <T extends AnyAsyncFunc>(
             entries: () => {
                 const entries: Array<[string, ReturnType<T> | undefined]> = [];
                 for (const [key, item] of cache.entries()) {
-                    entries.push([key, getCacheValue(item)]);
+                    const { value } = getCacheValue(item);
+                    entries.push([key, value]);
                 }
                 return entries;
             }

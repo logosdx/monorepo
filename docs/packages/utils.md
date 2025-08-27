@@ -938,6 +938,8 @@ interface MemoizeOptions<T> {
     maxSize?: number                   // Max cache entries (default: 1000)
     generateKey?: (args: Parameters<T>) => string
     useWeakRef?: boolean              // Use WeakRef for values (default: false)
+    staleIn?: number                   // Time in ms after which data is stale (enables stale-while-revalidate)
+    staleTimeout?: number              // Maximum wait time for fresh data when stale (default: 100ms)
     onError?: (error: Error, args: Parameters<T>) => void
     cleanupInterval?: number          // Background cleanup interval (default: 60000)
 }
@@ -968,7 +970,7 @@ interface CacheStats {
 ```ts
 import { memoize, memoizeSync, attempt } from '@logosdx/utils'
 
-// Expensive loan calculation
+// Basic expensive loan calculation
 const calculateLoanTerms = memoize(
     async (customerId: string, amount: number, creditScore: number) => {
 
@@ -1002,6 +1004,36 @@ const calculateLoanTerms = memoize(
     }
 )
 
+// Stale-while-revalidate loan calculation for instant responses
+const fastLoanTerms = memoize(
+    async (customerId: string, amount: number, creditScore: number) => {
+
+        // Same expensive calculation as above
+        const [rates, rateErr] = await attempt(() => fetchCurrentRates())
+        if (rateErr) throw rateErr
+
+        const [history, histErr] = await attempt(() => fetchCustomerHistory(customerId))
+        if (histErr) throw histErr
+
+        return computeOptimalTerms(amount, creditScore, rates, history)
+    },
+    {
+        ttl: 600000,        // Cache for 10 minutes
+        staleIn: 120000,    // Consider stale after 2 minutes
+        staleTimeout: 300,  // Wait max 300ms for fresh data
+        maxSize: 1000,
+        generateKey: (customerId, amount, creditScore) =>
+            `${customerId}:${amount}:${creditScore}`
+    }
+)
+
+// Stale-while-revalidate behavior:
+// - If data is fresh (< 2 minutes): return cached data immediately
+// - If data is stale (> 2 minutes): race cached vs fresh data
+//   - Return cached data if fresh data takes > 300ms
+//   - Return fresh data if it arrives within 300ms
+//   - Always update cache with fresh data in background
+
 // Synchronous memoization for pure functions
 const formatCurrency = memoizeSync(
     (amount: number, currency: string = 'USD') => {
@@ -1025,9 +1057,9 @@ const getLoanTerms = async (customerId: string, amount: number) => {
 
     if (err) return { error: 'Customer not found' }
 
-    // Use memoized calculation
+    // Use fast stale-while-revalidate calculation for instant UX
     const [terms, calcErr] = await attempt(() =>
-        calculateLoanTerms(customerId, amount, customer.creditScore)
+        fastLoanTerms(customerId, amount, customer.creditScore)
     )
 
     if (calcErr) return { error: 'Could not calculate loan terms' }

@@ -81,6 +81,17 @@ describe('@logosdx/fetch', () => {
                     }
                 },
             }),
+
+            mkHapiRoute('/rate-limit', (req) => {
+
+                const { query } = req;
+
+                if (!query.apiKey) {
+                    return Boom.tooManyRequests('Rate limit exceeded', { retryAfter: 1 });
+                }
+
+                return { ok: true };
+            })
         ]
     );
 
@@ -2159,7 +2170,7 @@ describe('@logosdx/fetch', () => {
 
         api.on('fetch-error', onError);
 
-        await attempt(() => api.get('/validate?name=&age=17'))
+        await attempt(() => api.get('/rate-limit'))
 
         expect(onError.called).to.be.true;
         expect(onError.callCount).to.eq(3);

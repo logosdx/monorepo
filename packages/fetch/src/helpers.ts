@@ -254,7 +254,7 @@ export const validateOptions = <H, P, S>(
 
         for (const key of optionalNumbers) {
 
-            const value = retry[key];
+            const value = (retry as RetryConfig)[key];
 
             if (typeof value !== 'number') continue;
 

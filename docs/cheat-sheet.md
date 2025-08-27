@@ -859,13 +859,22 @@ const value = reach(obj, 'deep.nested.property') ?? defaultValue
 
 ### Performance
 
-#### memoize() - Cache async results
+#### memoize() - Cache async results with stale-while-revalidate
 
 ```ts
+// Basic caching
 const cached = memoize(expensiveAsyncFn, {
     ttl: 300000,       // 5 min
     maxSize: 1000,
     generateKey: (args) => args.join(':')
+})
+
+// Stale-while-revalidate for instant responses
+const fastCached = memoize(expensiveAsyncFn, {
+    ttl: 600000,       // Cache 10 min
+    staleIn: 120000,   // Stale after 2 min
+    staleTimeout: 200, // Max 200ms wait for fresh data
+    maxSize: 1000
 })
 
 // Cache management
@@ -1005,9 +1014,10 @@ const updateState = (state, updates) => {
 }
 ```
 
-#### Cached Calculations
+#### Cached Calculations with Stale-While-Revalidate
 
 ```ts
+// Instant responses with background refresh
 const calculate = memoize(
     async (params) => {
         const [result, err] = await attempt(
@@ -1017,8 +1027,16 @@ const calculate = memoize(
         if (err) throw err
         return result
     },
-    { ttl: 60000, maxSize: 100 }
+    {
+        ttl: 300000,       // Cache 5 min
+        staleIn: 60000,    // Stale after 1 min
+        staleTimeout: 300, // Wait max 300ms for fresh
+        maxSize: 100
+    }
 )
+
+// Returns cached immediately if fresh data takes > 300ms
+// Always updates cache with fresh data in background
 ```
 
 #### Form Validation

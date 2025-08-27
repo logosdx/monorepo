@@ -335,7 +335,7 @@ describe('@logosdx/utils', () => {
 
                 fn('arg1');
                 fn('arg2'); // Should trigger onThrottle
-                
+
                 calledExactly(mocked, 1, 'function call');
                 calledExactly(onThrottle, 1, 'onThrottle called');
                 expect(onThrottle.mock.calls[0]!.arguments[0]).to.deep.equal(['arg2']);
@@ -596,7 +596,7 @@ describe('@logosdx/utils', () => {
                 // Internal argument references should be cleared
                 // This is more of a conceptual test - the implementation should not hold references
                 fn('new', 'arguments');
-                
+
                 calledExactly(mocked, 2, 'no retained references');
                 expect(mocked.mock.calls[1]!.arguments).to.deep.equal(['new', 'arguments']);
             });
@@ -646,7 +646,7 @@ describe('@logosdx/utils', () => {
                 fn('a', 'b');
                 fn({ key: 'value' });
                 fn();
-                
+
                 calledExactly(mocked, 1, 'only first call executed');
                 expect(mocked.mock.calls[0]!.arguments).to.deep.equal([1, 2, 3]);
 
@@ -730,8 +730,8 @@ describe('@logosdx/utils', () => {
                 expect(result3).to.equal(30);
                 calledExactly(mocked, 2, 'immediate execution after mid-throttle cancel');
 
-                // Wait past original throttle period
-                await wait(80);
+                // Wait past throttle period (need >100ms since fn(15) call)
+                await wait(101);
 
                 // Should still be able to throttle normally
                 const result4 = fn(20);

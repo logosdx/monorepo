@@ -168,7 +168,7 @@ await batch(processItem, {
 ### Performance & Caching
 
 ```ts
-// Async memoization with enhanced cache management
+// Async memoization with enhanced cache management and stale-while-revalidate
 type EnhancedMemoizedFunction<T> = T & {
   cache: {
     clear(): void
@@ -181,15 +181,38 @@ type EnhancedMemoizedFunction<T> = T & {
   }
 }
 
+interface MemoizeOptions<T> {
+  ttl?: number              // Time to live in milliseconds
+  maxSize?: number          // Maximum cache size
+  useWeakRef?: boolean      // Use WeakRef for memory management
+  generateKey?: (args: Parameters<T>) => string  // Custom key generator
+  staleIn?: number          // Time in ms after which data is stale (enables stale-while-revalidate)
+  staleTimeout?: number     // Maximum wait time for fresh data when stale (defaults to 100ms)
+}
+
 const memoize: <T extends AnyAsyncFunc>(fn: T, options?: MemoizeOptions<T>) => EnhancedMemoizedFunction<T>
 const memoizeSync: <T extends AnyFunc>(fn: T, options?: MemoizeOptions<T>) => EnhancedMemoizedFunction<T>
 
+// Basic memoization
 const cachedApi = memoize(fetchUser, {
   ttl: 60000,
   maxSize: 1000,
   useWeakRef: true,
   generateKey: (args) => JSON.stringify(args)
 })
+
+// Stale-while-revalidate pattern - return cached data immediately while fetching fresh data
+const swrApi = memoize(fetchUser, {
+  ttl: 300000,            // Cache for 5 minutes
+  staleIn: 60000,         // Consider stale after 1 minute
+  staleTimeout: 200,      // Wait max 200ms for fresh data when stale
+  maxSize: 1000
+})
+
+// When stale data exists:
+// - Returns cached data immediately if fresh data takes longer than staleTimeout
+// - Returns fresh data if it arrives within staleTimeout
+// - Updates cache with fresh data in background either way
 
 // Function composition with flow control
 const composeFlow: <T extends AnyAsyncFunc>(fn: T, opts: ComposeFlowOptions<T>) => T

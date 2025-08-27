@@ -142,7 +142,7 @@ export class FetchEngine<
      */
     #state: S = {} as S;
 
-    #retry: Required<retry>;
+    #retry: Required<RetryConfig>;
 
     /**
      * Removes a header from the `FetchEngine` instance

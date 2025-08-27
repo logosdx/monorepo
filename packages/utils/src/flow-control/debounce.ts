@@ -35,10 +35,17 @@ export interface DebouncedFunction<T extends AnyFunc> {
  */
 export const debounce = <T extends AnyFunc>(fn: T, opts: DebounceOptions): DebouncedFunction<T> => {
 
-    let delayTimeout: ReturnType<typeof setTimeout> | undefined;
-    let maxWaitTimeout: ReturnType<typeof setTimeout> | undefined;
-    let lastArgs: Parameters<T> | undefined;
-    let maxWaitStartTime: number | undefined;
+    const store: {
+        delayTimeout: ReturnType<typeof setTimeout> | undefined;
+        maxWaitTimeout: ReturnType<typeof setTimeout> | undefined;
+        maxWaitStartTime: number | undefined;
+        lastArgs: Parameters<T> | undefined;
+    } = {
+        delayTimeout: undefined,
+        maxWaitTimeout: undefined,
+        maxWaitStartTime: undefined,
+        lastArgs: undefined
+    };
 
     assert(isFunction(fn), 'fn must be a function');
     assertNotWrapped(fn, 'debounce');
@@ -58,64 +65,64 @@ export const debounce = <T extends AnyFunc>(fn: T, opts: DebounceOptions): Debou
 
     const clearAllTimers = () => {
 
-        if (delayTimeout !== undefined) {
-            clearTimeout(delayTimeout);
-            delayTimeout = undefined;
+        if (store.delayTimeout !== undefined) {
+            clearTimeout(store.delayTimeout);
+            store.delayTimeout = undefined;
         }
 
-        if (maxWaitTimeout !== undefined) {
-            clearTimeout(maxWaitTimeout);
-            maxWaitTimeout = undefined;
+        if (store.maxWaitTimeout !== undefined) {
+            clearTimeout(store.maxWaitTimeout);
+            store.maxWaitTimeout = undefined;
         }
 
-        maxWaitStartTime = undefined;
+        store.maxWaitStartTime = undefined;
     };
 
     const executeFunction = (args: Parameters<T>) => {
 
         clearAllTimers();
-        lastArgs = undefined;
+        store.lastArgs = undefined;
         return fn(...args);
     };
 
     const debouncedFunction = function(...args: Parameters<T>) {
 
-        lastArgs = args;
+        store.lastArgs = args;
 
-        if (delayTimeout !== undefined) {
-            clearTimeout(delayTimeout);
+        if (store.delayTimeout !== undefined) {
+            clearTimeout(store.delayTimeout);
         }
 
-        if (opts.maxWait !== undefined && maxWaitTimeout === undefined) {
-            maxWaitStartTime = Date.now();
-            maxWaitTimeout = setTimeout(() => {
-                if (lastArgs) {
-                    executeFunction(lastArgs);
+        if (opts.maxWait !== undefined && store.maxWaitTimeout === undefined) {
+            store.maxWaitStartTime = Date.now();
+            store.maxWaitTimeout = setTimeout(() => {
+                if (store.lastArgs) {
+                    executeFunction(store.lastArgs);
                 }
             }, opts.maxWait);
         }
 
-        delayTimeout = setTimeout(() => {
-            if (lastArgs) {
-                executeFunction(lastArgs);
+        store.delayTimeout = setTimeout(() => {
+            if (store.lastArgs) {
+                executeFunction(store.lastArgs);
             }
         }, opts.delay);
     };
 
     debouncedFunction.flush = function(): ReturnType<T> | undefined {
 
-        if (lastArgs === undefined) {
+        if (store.lastArgs === undefined) {
             return undefined;
         }
 
-        const args = lastArgs;
+        const args = store.lastArgs;
         return executeFunction(args);
     };
 
     debouncedFunction.cancel = function(): void {
 
         clearAllTimers();
-        lastArgs = undefined;
+        store.lastArgs = undefined;
     };
 
     markWrapped(debouncedFunction, 'debounce');
