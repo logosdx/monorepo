@@ -1,5 +1,37 @@
 # @logosdx/utils
 
+## 2.2.0
+
+### Minor Changes
+
+- 2942a4b: feat(flow-control): add in-flight promise deduplication with withInflightDedup
+
+  - Add `withInflightDedup()` utility for concurrent promise deduplication - shares in-flight promises across concurrent calls with identical arguments, with no post-settlement caching
+  - Add lifecycle hooks (onStart, onJoin, onResolve, onReject) for observability and monitoring
+  - Add custom `keyFn` option for performance-critical hot paths and extracting discriminating fields
+  - Integrate `withInflightDedup` into `composeFlow` as fifth flow control primitive alongside retry, timeout, rate-limit, and circuit-breaker
+  - Fix serializer bugs: consistent object key ordering, proper WeakSet cleanup, circular reference handling
+  - Add comprehensive type support to serializer: BigInt, Symbol, Error, WeakMap/WeakSet, -0 distinction, NaN, Infinity
+  - Add 58 new tests (32 inflight deduplication + 21 serializer + 5 integration tests)
+  - Update documentation in utils.md, cheat-sheet.md, and llm-helpers/utils.md
+
+- 7f5d60c: feat(memo): implement stale-while-revalidate pattern for memoization
+
+  - Add `staleIn` option to define when cached data becomes stale
+  - Add `staleTimeout` option to control maximum wait time for fresh data
+  - Implement stale-while-revalidate behavior: return cached data immediately while fetching fresh data in background
+  - Fix caching issues with null/undefined/false return values using Symbol-based timeout detection
+  - Fix key generation for functions with no arguments
+  - Enhance cache handling to distinguish garbage-collected WeakRefs from legitimate undefined values
+  - Update comprehensive documentation across helper files, package docs, and cheat sheet
+
+- e0580dc: Enhanced debounce and throttle functions with improved interfaces
+
+  - **debounce**: Added `flush()` method to execute immediately and return result, `cancel()` method to stop pending execution, and `maxWait` option to prevent indefinite hanging
+  - **throttle**: Added `cancel()` method to clear throttle state and allow immediate re-execution
+  - Both functions now support async operations and maintain proper error handling
+  - Breaking change: Return types changed from simple functions to enhanced interfaces with additional methods
+
 ## 2.1.2
 
 ### Patch Changes
