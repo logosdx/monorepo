@@ -181,7 +181,7 @@ describe('@logosdx/utils', () => {
 
         it('should handle circuit breaker in composition', async () => {
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = mock.fn(async (_x: number) => {
 
                 await wait(5);
                 throw new Error('Service error');
@@ -252,7 +252,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = mock.fn(async (_x: number) => {
 
                 callCount++;
 
@@ -368,15 +368,12 @@ describe('@logosdx/utils', () => {
             expect(['Function timed out', 'Max retries reached']).to.include((error1 as Error).message);
 
             // Test 4: Circuit breaker behavior with broken endpoint
-            let circuitBreakerTripped = false;
-
             // Make failed calls to trip the circuit breaker
             for (let i = 0; i < 6; i++) {
 
                 const [, error2] = await attempt(() => resilientFetch('/api/broken-endpoint'));
 
                 if ((error2 as Error).message === 'Circuit breaker tripped') {
-                    circuitBreakerTripped = true;
                     break;
                 }
 
@@ -490,6 +487,185 @@ describe('@logosdx/utils', () => {
             }
 
             expect(mockApiCall.mock.calls.length).to.be.greaterThan(3);
+        });
+
+        it('should deduplicate in-flight requests with inflight option', async () => {
+
+            let callCount = 0;
+
+            const fetchData = mock.fn(async (id: string) => {
+
+                callCount++;
+                await wait(20);
+                return `data-${id}-${callCount}`;
+            });
+
+            const deduped = composeFlow(fetchData, {
+                inflight: {},
+                withTimeout: { timeout: 100 }
+            });
+
+            // Three concurrent calls with same argument
+            const [r1, r2, r3] = await Promise.all([
+                deduped('42'),
+                deduped('42'),
+                deduped('42')
+            ]);
+
+            expect(r1).to.equal('data-42-1');
+            expect(r2).to.equal('data-42-1');
+            expect(r3).to.equal('data-42-1');
+
+            calledExactly(fetchData, 1, 'inflight: should call function once for concurrent requests');
+
+            // After settlement, new call should execute
+            await wait(30);
+            const r4 = await deduped('42');
+            expect(r4).to.equal('data-42-2');
+            calledExactly(fetchData, 2, 'inflight: new call after settlement');
+        });
+
+        it('should combine inflight with retry for resilient deduplication', async () => {
+
+            let callCount = 0;
+
+            const flakyFetch = mock.fn(async (id: string) => {
+
+                callCount++;
+
+                // Fail first attempt, succeed on retry
+                if (callCount === 1) {
+
+                    throw new Error('temporary error');
+                }
+
+                await wait(10);
+                return `data-${id}`;
+            });
+
+            const resilient = composeFlow(flakyFetch, {
+                inflight: {},
+                retry: { retries: 2, delay: 5 }
+            });
+
+            // Multiple concurrent calls - should share the retry logic
+            const [r1, r2] = await Promise.all([
+                resilient('test'),
+                resilient('test')
+            ]);
+
+            expect(r1).to.equal('data-test');
+            expect(r2).to.equal('data-test');
+
+            // Should only execute twice: first fails, second succeeds (all callers share)
+            calledExactly(flakyFetch, 2, 'inflight+retry: shared retry across concurrent calls');
+        });
+
+        it('should use custom keyFn with inflight in compose', async () => {
+
+            const fetchWithOpts = mock.fn(async (id: string, _opts: { timestamp: number }) => {
+
+                await wait(10);
+                return `data-${id}`;
+            });
+
+            // Dedupe only by id, ignore opts
+            const deduped = composeFlow(fetchWithOpts, {
+                inflight: {
+                    keyFn: (id) => id
+                },
+                withTimeout: { timeout: 50 }
+            });
+
+            // Different opts but same id - should dedupe
+            const [r1, r2] = await Promise.all([
+                deduped('123', { timestamp: 1000 }),
+                deduped('123', { timestamp: 2000 })
+            ]);
+
+            expect(r1).to.equal('data-123');
+            expect(r2).to.equal('data-123');
+            calledExactly(fetchWithOpts, 1, 'custom keyFn: deduped despite different opts');
+        });
+
+        it('should handle inflight with circuit breaker', async () => {
+
+            const failingFn = mock.fn(async (id: string) => {
+
+                await wait(10);
+                throw new Error(`service unavailable for ${id}`);
+            });
+
+            const composed = composeFlow(failingFn, {
+                inflight: {},
+                circuitBreaker: { maxFailures: 5, resetAfter: 200 }
+            });
+
+            // Test that inflight deduplication works
+            const results1 = await Promise.allSettled([
+                composed('test1'),
+                composed('test1'),
+                composed('test1')
+            ]);
+
+            // All should fail
+            expect(results1.every(r => r.status === 'rejected')).to.be.true;
+
+            // Inflight should have deduped the three concurrent calls into one
+            calledExactly(failingFn, 1, 'inflight deduped three concurrent calls');
+
+            // Verify circuit breaker also tracks failures across different keys
+            // Make several more failing calls to trip the breaker
+            await wait(20);
+            await Promise.allSettled([composed('test2')]);
+            await wait(20);
+            await Promise.allSettled([composed('test3')]);
+            await wait(20);
+            await Promise.allSettled([composed('test4')]);
+            await wait(20);
+            await Promise.allSettled([composed('test5')]);
+
+            // Now circuit should be tripped
+            await wait(20);
+            const [, error] = await attempt(() => composed('test6'));
+            expect((error as Error).message).to.equal('Circuit breaker tripped');
+
+            // Verify both mechanisms can work together
+            expect(failingFn.mock.calls.length).to.be.greaterThan(1);
+            expect(failingFn.mock.calls.length).to.be.lessThan(10); // Deduplication reduced total calls
+        });
+
+        it('should compose all flow controls including inflight', async () => {
+
+            let callCount = 0;
+
+            const complexFn = mock.fn(async (id: string) => {
+
+                callCount++;
+                await wait(15);
+                return `result-${id}-${callCount}`;
+            });
+
+            const fullyComposed = composeFlow(complexFn, {
+                inflight: {},
+                rateLimit: { maxCalls: 10, windowMs: 1000 },
+                retry: { retries: 1, delay: 5 },
+                withTimeout: { timeout: 100 },
+                circuitBreaker: { maxFailures: 5, resetAfter: 500 }
+            });
+
+            // Concurrent calls should be deduped
+            const [r1, r2, r3] = await Promise.all([
+                fullyComposed('test'),
+                fullyComposed('test'),
+                fullyComposed('test')
+            ]);
+
+            expect(r1).to.equal('result-test-1');
+            expect(r2).to.equal('result-test-1');
+            expect(r3).to.equal('result-test-1');
+
+            calledExactly(complexFn, 1, 'all controls applied: one call for concurrent requests');
         });
     });
 });

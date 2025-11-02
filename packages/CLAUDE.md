@@ -6,6 +6,7 @@ This file provides comprehensive context about the LogosDX monorepo package arch
 
 
 **8 Packages in Layered Architecture:**
+
 ```
 @logosdx/kit (orchestrator - depends on all)
     ├── @logosdx/fetch ──────────┐
@@ -21,6 +22,7 @@ All packages depend on `@logosdx/utils` as the foundation layer.
 ## Standard Package Structure
 
 Every package follows identical organization:
+
 ```
 package-name/
 ├── src/
@@ -62,6 +64,7 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 ### 2. Error Handling Philosophy (Go-style)
 
 **Use `attempt`/`attemptSync` instead of try-catch:**
+
 ```typescript
 // ✅ Preferred pattern
 const [result, err] = await attempt(() => riskyOperation());
@@ -79,6 +82,7 @@ catch (err) {
 ### 3. Validation-First Approach
 
 **Validate all inputs before business logic:**
+
 ```typescript
 function processData(input: Data): ProcessedData {
     // Validation block (prevents failures)
@@ -93,6 +97,7 @@ function processData(input: Data): ProcessedData {
 ### 4. Cleanup Function Pattern
 
 Most utilities return cleanup functions:
+
 ```typescript
 // DOM event management
 const cleanup = html.events.on(element, 'click', handler);
@@ -110,6 +115,7 @@ const component = createComponent(config);
 ## TypeScript Patterns & Conventions
 
 ### Module Augmentation Pattern
+
 ```typescript
 declare module './engine.ts' {
     export namespace FetchEngine {
@@ -121,6 +127,7 @@ declare module './engine.ts' {
 ```
 
 ### Namespace Organization
+
 ```typescript
 export class FetchEngine {
     constructor(config: FetchEngine.Config) { }
@@ -142,9 +149,11 @@ export namespace FetchEngine {
 ## Package Deep Dive
 
 ### @logosdx/utils (Foundation)
+
 **Purpose**: Core utilities, types, and flow control primitives
 
 **Key Exports:**
+
 - **Flow Control**: `attempt`, `attemptSync`, `retry`, `debounce`, `throttle`, `circuitBreaker`
 - **Data Operations**: `clone`, `merge`, `equals`, `reach`, `chunk`, `batch`
 - **Validation**: `assert`, `isObject`, `isDefined`, `isFunction`, environment detection
@@ -152,15 +161,18 @@ export namespace FetchEngine {
 - **Data Structures**: `PriorityQueue`, `Deferred`
 
 **Critical Patterns:**
+
 - Error tuples: `[result, error]` from `attempt()`
 - Validation-first function structure
 - Type guards and assertions
 - Environment detection (browser, Node.js, React Native, Cloudflare)
 
 ### @logosdx/fetch (HTTP Layer)
+
 **Purpose**: Full-featured fetch wrapper with advanced capabilities
 
 **Key Features:**
+
 - `FetchEngine` class with configurable options
 - **Enhanced response objects**: Returns `FetchResponse<T>` instead of raw data
 - **Built-in retry logic**: Exponential backoff with circuit breaker
@@ -169,6 +181,7 @@ export namespace FetchEngine {
 - **Type safety**: Full TypeScript generics support
 
 **Usage Pattern:**
+
 ```typescript
 const api = new FetchEngine({ baseUrl: '/api' });
 const [users, err] = await attempt(() => api.get<User[]>('/users'));
@@ -176,15 +189,18 @@ if (err) return handleError(err);
 ```
 
 ### @logosdx/observer (Event Layer)
+
 **Purpose**: Powerful event system with regex support and queue management
 
 **Key Components:**
+
 - **ObserverEngine**: Regex event matching with cleanup
 - **EventQueue**: Priority, concurrency, and rate limiting
 - **EventGenerator**: Async iteration over events
 - **Built-in monitoring**: Statistics and performance tracking
 
 **Pattern:**
+
 ```typescript
 const observer = new ObserverEngine();
 const unsubscribe = observer.on('user\\..*', (event) => {
@@ -193,15 +209,18 @@ const unsubscribe = observer.on('user\\..*', (event) => {
 ```
 
 ### @logosdx/dom (Browser Layer)
+
 **Purpose**: Type-safe DOM manipulation utilities
 
 **Organization:**
+
 - `html.css` - Style and class management
 - `html.attrs` - Attribute manipulation
 - `html.events` - Event handling with cleanup
 - `html.behaviors` - MutationObserver integration
 
 **Pattern:**
+
 ```typescript
 const element = createElWith('div', {
     attrs: { id: 'container' },
@@ -211,9 +230,11 @@ const element = createElWith('div', {
 ```
 
 ### @logosdx/state-machine (State Layer)
+
 **Purpose**: Stream-based state management with history
 
 **Features:**
+
 - Reducer-based state updates
 - Time travel debugging (state history)
 - Parent-child relationships
@@ -221,27 +242,33 @@ const element = createElWith('div', {
 - Event emission on changes
 
 ### @logosdx/storage (Persistence Layer)
+
 **Purpose**: Type-safe localStorage/sessionStorage wrapper
 
 **Features:**
+
 - Generic typing for storage shapes
 - Prefixed key management
 - Event-driven change notifications
 - Object assignment and merging
 
 ### @logosdx/localize (i18n Layer)
+
 **Purpose**: Internationalization with type safety
 
 **Features:**
+
 - Path-based message retrieval with `PathLeaves<T>`
 - Locale switching with fallbacks
 - Template string formatting
 - Event notifications for locale changes
 
 ### @logosdx/kit (Orchestration Layer)
+
 **Purpose**: Unified package that combines all components
 
 **Key Feature:**
+
 ```typescript
 // appKit factory with complete type inference
 const kit = appKit<MyKitType>({
@@ -254,6 +281,7 @@ const kit = appKit<MyKitType>({
 ## Import/Export Strategies
 
 ### Production Imports (In Packages)
+
 ```typescript
 // ✅ Use package imports in production code
 import { attempt } from '@logosdx/utils';
@@ -261,12 +289,14 @@ import { FetchEngine } from '@logosdx/fetch';
 ```
 
 ### Test Imports (In Tests)
+
 ```typescript
 // ✅ Use relative imports in tests to validate implementation
 import { attempt } from '../../../packages/utils/src/index.ts';
 ```
 
 ### Export Patterns
+
 ```typescript
 // Barrel exports in index.ts
 export * from './engine.js';
@@ -280,6 +310,7 @@ export { FetchEngine, FetchError } from './engine.js';
 ## Build & Distribution
 
 ### Consistent Build Strategy
+
 ```json
 {
     "scripts": {
@@ -296,12 +327,14 @@ export { FetchEngine, FetchError } from './engine.js';
 ```
 
 **Output Formats:**
+
 - **ESM**: `.mjs` files for modern bundlers
 - **CJS**: `.js` files for Node.js compatibility
 - **Types**: `.d.ts` files for TypeScript
 - **UMD**: Browser globals (`LogosDx.Utils`, `LogosDx.Dom`, etc.)
 
 ### Package Configuration Standards
+
 ```json
 {
     "sideEffects": false,              // Enable tree-shaking
@@ -314,7 +347,9 @@ export { FetchEngine, FetchError } from './engine.js';
 ## Integration Patterns
 
 ### Event System Integration
+
 Most packages integrate with observer system:
+
 ```typescript
 // Storage emits change events
 storage.on('change', handler);
@@ -327,6 +362,7 @@ stateMachine.on('state.change', handler);
 ```
 
 ### Composition Patterns
+
 ```typescript
 // Utilities compose together
 const [result, err] = await attempt(() =>
@@ -349,6 +385,7 @@ cleanupFns.forEach(fn => fn());
 ## Development Guidelines
 
 ### Required Patterns
+
 - ✅ Use `attempt`/`attemptSync` for I/O operations
 - ✅ Validate inputs in validation block
 - ✅ Follow 4-block function structure
@@ -357,6 +394,7 @@ cleanupFns.forEach(fn => fn());
 - ✅ Dogfood @logosdx/utils throughout
 
 ### Anti-patterns
+
 - ❌ `try-catch` for I/O (use `attempt` instead)
 - ❌ Business logic in error tuples
 - ❌ Missing input validation

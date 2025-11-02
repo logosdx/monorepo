@@ -3,13 +3,15 @@ import {
     circuitBreaker,
     makeRetryable,
     withTimeout,
+    withInflightDedup,
     type RateLimitOptions,
     type CircuitBreakerOptions,
     type RetryOptions,
     type WithTimeoutOptions,
+    type InflightOptions,
 } from './index.ts';
 
-import { AnyAsyncFunc } from './_helpers.ts';
+import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
 import { assert, isPlainObject } from '../validation.ts';
 
 const flowFunctions = {
@@ -17,6 +19,7 @@ const flowFunctions = {
     circuitBreaker,
     retry: makeRetryable,
     withTimeout,
+    inflight: withInflightDedup,
 }
 
 type FlowFunctionKey = keyof typeof flowFunctions;
@@ -43,6 +46,11 @@ type ComposeFlowOptions<T extends AnyAsyncFunc> = {
      * Timeout the function.
      */
     withTimeout?: WithTimeoutOptions,
+
+    /**
+     * Deduplicate in-flight requests with the same key.
+     */
+    inflight?: InflightOptions<Parameters<T>, string, Awaited<ReturnType<T>>>,
 }
 
 /**
@@ -81,7 +89,7 @@ export const composeFlow = <T extends AnyAsyncFunc>(
 
         if (key in flowFunctions && options) {
 
-            const flowFunction = flowFunctions[key];
+            const flowFunction = flowFunctions[key] as AnyFunc;
 
             const newFunction = flowFunction(
                 finalFunction as T,

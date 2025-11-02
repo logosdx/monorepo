@@ -1,6 +1,6 @@
 import { attempt, attemptSync } from './attempt.ts';
 import { wait } from './misc.ts';
-import { type AnyAsyncFunc, type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { type AnyAsyncFunc, type AnyFunc, assertNotWrapped, markWrapped, serializer } from './_helpers.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
 import { noop } from '../misc.ts';
 
@@ -193,75 +193,6 @@ const validateOpts = <T extends AnyFunc>(opts: MemoizeOptions<T>) => {
         throw new Error('staleIn must be less than ttl when both are specified');
     }
 }
-
-/**
- * Enhanced key generation that handles object property ordering,
- * circular references, and non-serializable values.
- *
- * This function provides more reliable key generation than JSON.stringify
- * by handling edge cases like circular references, function objects,
- * and consistent object key ordering.
- *
- * @template T - The function type being memoized
- * @param args - The arguments to generate a key from
- * @returns A string key suitable for caching
- *
- * @example
- * ```typescript
- * const key = defaultKeyGenerator([{a: 1, b: 2}, "test", 123]);
- * // Returns: '{"a":1,"b":2}|"test"|123'
- * ```
- */
-const defaultKeyGenerator = <T extends AnyFunc>(args: Parameters<T>): string => {
-    const seen = new WeakSet();
-
-    const stringify = (value: any): string => {
-        if (value === null) return 'null';
-        if (value === undefined) return 'undefined';
-        if (typeof value === 'string') return `"${value}"`;
-        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-        if (typeof value === 'function') return `func:${value.name || 'anonymous'}:${value.length}`;
-        if (value instanceof Date) return `date:${value.getTime()}`;
-        if (value instanceof RegExp) return `regex:${value.toString()}`;
-
-        if (typeof value === 'object') {
-            if (seen.has(value)) return '[Circular]';
-            seen.add(value);
-
-            if (Array.isArray(value)) {
-                const result = `[${value.map(stringify).join(',')}]`;
-                seen.delete(value);
-                return result;
-            }
-
-            // Sort keys for consistent serialization
-            const keys = Object.keys(value).sort();
-            const pairs = keys.map(key => `"${key}":${stringify(value[key])}`);
-            const result = `{${pairs.join(',')}}`;
-            seen.delete(value);
-            return result;
-        }
-
-        if (value instanceof Map) {
-            const pairs = Array.from(value.entries())
-                .map(
-                    ([key, value]) => `${stringify(key)}:${stringify(value)}`
-                )
-                .sort();
-            return `map:${pairs.join(',')}`;
-        }
-
-        if (value instanceof Set) {
-            const values = Array.from(value).map(stringify).sort();
-            return `set:${values.join(',')}`;
-        }
-
-        return String(value);
-    };
-
-    const key = args.map(stringify).join('|');
-    return key || '0'; // Use '0' for functions with no arguments
-};
 
 /**
  * Manages cache statistics and cleanup operations for memoized functions.
@@ -527,7 +458,7 @@ const prepareMemo = <T extends AnyFunc>(
         args,
         opts: {
             onError,
-            generateKey = defaultKeyGenerator,
+            generateKey = serializer,
             staleIn
         },
         cache,

@@ -14,7 +14,7 @@ type BatchFunction<A extends unknown[] = unknown[], R = unknown> = (
     Func<A, R>
 );
 
-type OnChunkParam<T> = {
+export type OnChunkParam<T> = {
     index: number;
     total: number;
     items: T[];
@@ -23,7 +23,7 @@ type OnChunkParam<T> = {
     completionPercent: number;
 };
 
-type BatchOptions<T, R> = {
+export type BatchOptions<T, R> = {
     items: T[];
     concurrency?: number;
     failureMode?: 'abort' | 'continue';
@@ -34,7 +34,7 @@ type BatchOptions<T, R> = {
     onChunkEnd?: (params: OnChunkParam<T>) => MaybePromise<void>;
 };
 
-type BatchResult<T, R> = {
+export type BatchResult<T, R> = {
     result: R | null;
     error: Error | null;
     item: T;

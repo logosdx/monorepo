@@ -1202,6 +1202,133 @@ const SearchInput = () => {
 
 ---
 
+### `withInflightDedup()`
+
+Deduplicate concurrent async calls with identical arguments, ensuring only one execution per unique key.
+
+```ts
+function withInflightDedup<Args extends any[], Value, Key = string>(
+    producer: AsyncFunc<Args, Value>,
+    opts?: InflightOptions<Args, Key, Value>
+): AsyncFunc<Args, Value>
+
+interface InflightOptions<Args extends any[] = any[], Key = string, Value = unknown> {
+    keyFn?: (...args: Args) => Key
+    hooks?: InflightHooks<Key, Value>
+}
+
+interface InflightHooks<Key = string, Value = unknown> {
+    onStart?: (key: Key) => void
+    onJoin?: (key: Key) => void
+    onResolve?: (key: Key, value: Value) => void
+    onReject?: (key: Key, error: unknown) => void
+}
+```
+
+**What it does:**
+
+- Deduplicates concurrent async calls with identical arguments
+- First call starts the producer; concurrent calls share the same promise
+- No caching after promise settles - each new request starts fresh
+- Automatic cleanup on resolve/reject
+
+**What it doesn't do:**
+
+- No memoization/TTL/stale-while-revalidate (use `memoize` for that)
+- No AbortController handling (callers manage their own cancellation)
+- No request queuing (all concurrent calls share the same promise)
+
+**Parameters:**
+
+- `producer` - Async function to wrap with deduplication
+- `opts.keyFn` - Optional custom key function (defaults to built-in serializer)
+- `opts.hooks` - Optional lifecycle hooks for observability
+
+**Returns:** Wrapped function with in-flight deduplication
+
+**Example:**
+
+```ts
+import { withInflightDedup, attempt } from '@logosdx/utils'
+
+// Basic usage - database query deduplication
+const fetchUser = async (id: string) => db.users.findById(id)
+const getUser = withInflightDedup(fetchUser)
+
+// Three concurrent calls → one database query
+const [user1, user2, user3] = await Promise.all([
+    getUser("42"),
+    getUser("42"),
+    getUser("42")
+])
+
+// With hooks for observability
+const search = async (q: string) => api.search(q)
+const dedupedSearch = withInflightDedup(search, {
+    hooks: {
+        onStart: (k) => logger.debug("search started", k),
+        onJoin: (k) => logger.debug("joined existing search", k),
+        onResolve: (k) => logger.debug("search completed", k),
+        onReject: (k, e) => logger.error("search failed", k, e),
+    },
+})
+
+// Custom key - ignore volatile parameters
+const fetchData = async (id: string, opts: { timestamp?: number }) => {
+
+    const response = await fetch(`/api/data/${id}`)
+    return response.json()
+}
+
+const dedupedFetch = withInflightDedup(fetchData, {
+    keyFn: (id) => id  // Only dedupe by id, ignore opts
+})
+
+// Hot path optimization - extract discriminating field only
+const getProfile = async (req: { userId: string; meta: LargeObject }) => {
+
+    const response = await fetch(`/api/profiles/${req.userId}`)
+    return response.json()
+}
+
+const dedupedGetProfile = withInflightDedup(getProfile, {
+    keyFn: (req) => req.userId  // Avoid serializing large meta object
+})
+
+// Functions as arguments - MUST use custom keyFn
+const fetchWithTransform = async (url: string, transform: (data: any) => any) => {
+
+    const response = await fetch(url)
+    const data = await response.json()
+    return transform(data)
+}
+
+const dedupedFetch = withInflightDedup(fetchWithTransform, {
+    keyFn: (url) => url  // Only dedupe by URL, ignore transform function
+})
+```
+
+**When to use:**
+
+- Deduplicating database queries triggered multiple times
+- Preventing duplicate API calls during component re-renders
+- Sharing expensive computations across concurrent callers
+- Hot paths where multiple parts of code request the same resource
+
+**Performance notes:**
+
+- Default key generation: O(n) in argument structure size
+- For hot paths or complex args, use custom `keyFn` to extract only discriminating fields
+- For functions as arguments, MUST use custom `keyFn` (functions always collide in default serializer)
+
+**Key differences from memoize:**
+
+- **No caching after settlement**: Each new request starts fresh producer execution
+- **Concurrent-only deduplication**: Only shares promise while in-flight
+- **No TTL/stale-while-revalidate**: Use `memoize` if you need result caching
+
+---
+
 ### `throttle()`
 
 Limit function execution frequency to a maximum rate. Enhanced with `cancel()` capability to clear throttle state.

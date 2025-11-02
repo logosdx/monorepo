@@ -163,6 +163,55 @@ await batch(processItem, {
   failureMode: 'continue',
   onChunkStart: ({ index, total }) => console.log(`Starting chunk ${index + 1}/${total}`)
 })
+
+// In-flight promise deduplication - share promises for concurrent calls
+const withInflightDedup: <Args extends any[], Value, Key = string>(
+  producer: AsyncFunc<Args, Value>,
+  opts?: InflightOptions<Args, Key, Value>
+) => AsyncFunc<Args, Value>
+
+interface InflightOptions<Args, Key, Value> {
+  keyFn?: (...args: Args) => Key
+  hooks?: InflightHooks<Key, Value>
+}
+
+interface InflightHooks<Key, Value> {
+  onStart?: (key: Key) => void
+  onJoin?: (key: Key) => void
+  onResolve?: (key: Key, value: Value) => void
+  onReject?: (key: Key, error: unknown) => void
+}
+
+// Basic usage - deduplicate concurrent calls
+const fetchUser = withInflightDedup(async (id: string) => {
+  return db.users.findById(id)
+})
+
+// Three concurrent calls → one database query
+const [u1, u2, u3] = await Promise.all([
+  fetchUser("42"),
+  fetchUser("42"),
+  fetchUser("42")
+])
+
+// With observability hooks
+const search = withInflightDedup(searchAPI, {
+  hooks: {
+    onStart: (key) => logger.debug("started", key),
+    onJoin: (key) => logger.debug("joined", key),
+    onResolve: (key) => logger.debug("completed", key)
+  }
+})
+
+// Custom key function for hot paths
+const getProfile = withInflightDedup(fetchProfile, {
+  keyFn: (req) => req.userId  // Extract only discriminating field
+})
+
+// Key differences from memoize:
+// - No caching after settlement (each new request starts fresh)
+// - Only shares promise while in-flight
+// - No TTL/stale-while-revalidate features
 ```
 
 ### Performance & Caching

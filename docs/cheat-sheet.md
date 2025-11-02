@@ -825,6 +825,36 @@ const results = await batch(processItem, {
 })
 ```
 
+#### withInflightDedup() - Deduplicate concurrent calls
+
+```ts
+// Basic usage - share in-flight promises
+const fetchUser = withInflightDedup(async (id: string) => {
+    return db.users.findById(id)
+})
+
+// Three concurrent calls → one database query
+const [u1, u2, u3] = await Promise.all([
+    fetchUser("42"),
+    fetchUser("42"),
+    fetchUser("42")
+])
+
+// With observability hooks
+const search = withInflightDedup(searchAPI, {
+    hooks: {
+        onStart: (key) => logger.debug("started", key),
+        onJoin: (key) => logger.debug("joined", key),
+        onResolve: (key) => logger.debug("completed", key)
+    }
+})
+
+// Custom key for hot paths
+const getProfile = withInflightDedup(fetchProfile, {
+    keyFn: (req) => req.userId  // Extract only discriminating field
+})
+```
+
 ### Data Operations
 
 #### clone() - Deep clone with modern types
