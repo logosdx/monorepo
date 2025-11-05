@@ -1,5 +1,14 @@
 # @logosdx/localize
 
+## 1.0.12
+
+### Patch Changes
+
+- Updated dependencies [0cf6edd]
+- Updated dependencies [0cf6edd]
+- Updated dependencies [0cf6edd]
+  - @logosdx/utils@2.2.0
+
 ## 1.0.11
 
 ### Patch Changes

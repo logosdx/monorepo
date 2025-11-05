@@ -1,5 +1,40 @@
 # @logosdx/fetch
 
+## 4.0.0
+
+### Major Changes
+
+- 0cf6edd: **BREAKING CHANGE**: Rename `retryConfig` option to `retry`
+
+  - Rename `retryConfig` to `retry` in FetchEngine constructor options
+  - Rename `retryConfig` to `retry` in FetchConfig and RequestOpts interfaces
+  - Add support for `retry: true` to enable default retry configuration
+  - Maintain existing support for `retry: false` to disable retries
+  - Maintain existing support for `retry: {...}` for custom RetryConfig objects
+
+  **Migration:**
+
+  ```typescript
+  // Before
+  const api = new FetchEngine({
+    retryConfig: { maxAttempts: 3 },
+  });
+
+  // After
+  const api = new FetchEngine({
+    retry: { maxAttempts: 3 },
+    // or retry: true for defaults
+    // or retry: false to disable
+  });
+  ```
+
+### Patch Changes
+
+- Updated dependencies [0cf6edd]
+- Updated dependencies [0cf6edd]
+- Updated dependencies [0cf6edd]
+  - @logosdx/utils@2.2.0
+
 ## 3.0.1
 
 ### Patch Changes
