@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/dom",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "A small set of utilities for DOM manipulation",
   "exports": {
     ".": {
