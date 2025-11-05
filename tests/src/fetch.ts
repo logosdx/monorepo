@@ -8,7 +8,6 @@ import {
     before,
     beforeEach,
     after,
-    afterEach
 } from 'node:test'
 
 import { expect } from 'chai';
@@ -28,7 +27,7 @@ import logosFetch from '../../packages/fetch/src/index.ts';
 
 import { attempt } from '../../packages/utils/src/index.ts';
 
-import { sandbox, log } from './_helpers';
+import { sandbox } from './_helpers';
 
 const mkHapiRoute = (
     path: string,
@@ -2211,7 +2210,7 @@ describe('@logosdx/fetch', () => {
 
         let modifyCallCount = 0;
 
-        const modifyOptions = (opts: any, state: any) => {
+        const modifyOptions = (opts: any) => {
 
             modifyCallCount++;
             opts.headers = { ...opts.headers, 'x-modified': 'true' };
@@ -2252,14 +2251,14 @@ describe('@logosdx/fetch', () => {
         let postModifyCallCount = 0;
         let getModifyCallCount = 0;
 
-        const postModifyOptions = (opts: any, state: any) => {
+        const postModifyOptions = (opts: any) => {
 
             postModifyCallCount++;
             opts.headers = { ...opts.headers, 'x-post-modified': 'true' };
             return opts;
         };
 
-        const getModifyOptions = (opts: any, state: any) => {
+        const getModifyOptions = (opts: any) => {
 
             getModifyCallCount++;
             opts.headers = { ...opts.headers, 'x-get-modified': 'true' };

@@ -30,7 +30,7 @@ Comprehensive patterns for TypeScript code organization, classes, types, and sym
 
 ## Function Structure
 
-The comments below `// === whatever ===` are for context and not to be included. Only apply this block structure when necessary.
+Use our **4-block structure** for complex functions:
 
 ```ts
 /**
@@ -41,16 +41,13 @@ The comments below `// === whatever ===` are for context and not to be included.
  */
 async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<User> {
 
-    // === Declaration block ===
     let retryCount = 0;
 
-    // === Validation block ===
     if (!isValidEmail(newEmail)) {
 
         throw new InvalidEmailError();
     }
 
-    // === Business logic block ===
     const [user, err] = await attempt(() => fetchUser(userID));
 
     if (err || !user) {
@@ -64,7 +61,6 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
 
     const modifiedUser = modifyUserEmail(user, newEmail);
 
-    // === Commit block ===
     const [ok, saveErr] = await attempt(() => saveUser(modifiedUser));
 
     if (saveErr) {
@@ -75,6 +71,65 @@ async function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<Us
     return modifiedUser;
 }
 ```
+
+### Where the "declaration" block is:
+
+Declare places in a single, predictable place.
+
+```typescript
+function updateUserEmail(userID: UUID, newEmail: EmailAddress): Promise<User> {
+
+    let retryCount = 0; // <-- declare vars first
+    // ...
+}
+```
+
+### "Validation" block is:
+
+We validate inputs whenever appropriate to have as much predictability as possible
+
+```typescript
+    if (!isValidEmail(newEmail)) {
+
+        throw new InvalidEmailError();
+    }
+
+    const [user, err] = await attempt(() => fetchUser(userID));
+
+    if (err || !user) {
+
+        throw new UserNotFoundError();
+    }
+    else if (user.email === newEmail) { // notice that else is not on the same line as the closing if
+
+        return user;
+    }
+```
+
+### "Business Logic" block is:
+
+Once our function's state is as perfect as possible, perform the business logic
+
+```typescript
+    const modifiedUser = modifyUserEmail(user, newEmail);
+```
+
+### "Commit" block is:
+
+Try to leave the things that modify your state for last whenever possible
+
+```typescript
+    const [ok, saveErr] = await attempt(() => saveUser(modifiedUser));
+
+    if (saveErr) {
+
+        throw saveErr;
+    }
+
+    return modifiedUser;
+}
+```
+
 
 ## Type Organization
 

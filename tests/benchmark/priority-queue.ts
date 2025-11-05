@@ -1,7 +1,6 @@
 import { test, describe } from 'node:test'
 import { performance } from 'perf_hooks';
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { PriorityQueue } from '../../packages/utils/src/index.ts';

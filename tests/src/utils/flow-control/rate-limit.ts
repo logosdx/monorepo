@@ -6,10 +6,9 @@ import {
     after,
 } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
-import { mockHelpers, runTimers, nextTick } from '../../_helpers';
+import { mockHelpers } from '../../_helpers';
 
 import {
     attempt,

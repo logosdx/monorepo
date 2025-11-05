@@ -2,7 +2,7 @@ export * from './attempt.ts';
 export * from './batch.ts';
 export * from './debounce.ts';
 export * from './inflight.ts';
-export * from './memo.ts';
+export * from './memo/index.ts';
 export * from './rate-limit.ts';
 export * from './throttle.ts';
 export * from './circuit-breaker.ts';

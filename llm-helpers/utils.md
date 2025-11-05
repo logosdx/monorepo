@@ -214,64 +214,137 @@ const getProfile = withInflightDedup(fetchProfile, {
 // - No TTL/stale-while-revalidate features
 ```
 
-### Performance & Caching
+### Memoization & Caching
 
 ```ts
-// Async memoization with enhanced cache management and stale-while-revalidate
+// Async memoization with LRU eviction, inflight deduplication, and stale-while-revalidate
 type EnhancedMemoizedFunction<T> = T & {
   cache: {
     clear(): void
     delete(key: string): boolean
     has(key: string): boolean
     size: number
-    stats(): { hits: number; misses: number; hitRate: number; size: number; evictions: number }
+    stats(): CacheStats
     keys(): IterableIterator<string>
     entries(): Array<[string, ReturnType<T> | undefined]>
   }
 }
 
-interface MemoizeOptions<T> {
-  ttl?: number              // Time to live in milliseconds
-  maxSize?: number          // Maximum cache size
-  useWeakRef?: boolean      // Use WeakRef for memory management
-  generateKey?: (args: Parameters<T>) => string  // Custom key generator
-  staleIn?: number          // Time in ms after which data is stale (enables stale-while-revalidate)
-  staleTimeout?: number     // Maximum wait time for fresh data when stale (defaults to 100ms)
+interface CacheStats {
+  hits: number          // Successful cache lookups
+  misses: number        // Cache misses (function executed)
+  evictions: number     // Items evicted due to maxSize
+  hitRate: number       // hits / (hits + misses)
+  size: number          // Current cache size
 }
 
-const memoize: <T extends AnyAsyncFunc>(fn: T, options?: MemoizeOptions<T>) => EnhancedMemoizedFunction<T>
-const memoizeSync: <T extends AnyFunc>(fn: T, options?: MemoizeOptions<T>) => EnhancedMemoizedFunction<T>
+interface MemoizeOptions<T> {
+  ttl?: number                    // Time to live in milliseconds (default: 60000)
+  maxSize?: number                // Maximum cache size with LRU eviction (default: 1000)
+  cleanupInterval?: number        // Background cleanup interval (default: 60000)
+  useWeakRef?: boolean            // Use WeakRef for objects (memory-sensitive) (default: false)
+  generateKey?: (args: Parameters<T>) => string  // Custom key generator
+  onError?: (error: Error, args: Parameters<T>) => void  // Error handler
+  staleIn?: number                // Time after which data is stale (enables SWR)
+  staleTimeout?: number           // Max wait for fresh data when stale (default: undefined)
+  adapter?: CacheAdapter          // Custom cache adapter (Redis, Memcached, etc.)
+}
 
-// Basic memoization
-const cachedApi = memoize(fetchUser, {
-  ttl: 60000,
-  maxSize: 1000,
-  useWeakRef: true,
-  generateKey: (args) => JSON.stringify(args)
+const memoize: <T extends AsyncFunc>(fn: T, options?: MemoizeOptions<T>) => EnhancedMemoizedFunction<T>
+const memoizeSync: <T extends Func>(fn: T, options?: Omit<MemoizeOptions<T>, 'adapter' | 'staleIn' | 'staleTimeout'>) => EnhancedMemoizedFunction<T>
+
+// Basic async memoization - caches results with TTL and LRU eviction
+const fetchUser = async (id: string) => database.users.findById(id)
+const getUser = memoize(fetchUser, {
+  ttl: 60000,              // Cache for 1 minute
+  maxSize: 500             // Keep 500 users max (LRU eviction)
 })
 
-// Stale-while-revalidate pattern - return cached data immediately while fetching fresh data
-const swrApi = memoize(fetchUser, {
-  ttl: 300000,            // Cache for 5 minutes
-  staleIn: 60000,         // Consider stale after 1 minute
-  staleTimeout: 200,      // Wait max 200ms for fresh data when stale
-  maxSize: 1000
+// Three concurrent calls → one database query (inflight deduplication)
+// Subsequent calls within TTL → instant cache hit
+const [user1, user2, user3] = await Promise.all([
+  getUser("42"),
+  getUser("42"),
+  getUser("42")
+])
+
+// Stale-while-revalidate pattern - fast responses with fresh data
+const getPrices = memoize(fetchPrices, {
+  ttl: 60000,              // Expire after 1 minute
+  staleIn: 30000,          // Consider stale after 30 seconds
+  staleTimeout: 1000       // Wait max 1 second for fresh data
 })
 
-// When stale data exists:
-// - Returns cached data immediately if fresh data takes longer than staleTimeout
-// - Returns fresh data if it arrives within staleTimeout
-// - Updates cache with fresh data in background either way
+// Behavior:
+// - Fresh data (age < staleIn): Returns cached immediately
+// - Stale data (age > staleIn): Races fresh fetch vs staleTimeout
+//   - Fresh data arrives within timeout: Returns fresh
+//   - Timeout reached: Returns stale, updates cache in background
+// - No cached data: Fetches fresh (blocks)
 
-// Function composition with flow control
-const composeFlow: <T extends AnyAsyncFunc>(fn: T, opts: ComposeFlowOptions<T>) => T
-
-const resilientApi = composeFlow(apiCall, {
-  rateLimit: { maxCalls: 10, windowMs: 60000 },
-  circuitBreaker: { maxFailures: 3, resetAfter: 30000 },
-  retry: { retries: 3, delay: 1000 },
-  withTimeout: { timeout: 5000 }
+// Custom key function for hot paths - extract only discriminating fields
+const fetchUserProfile = async (req: { userId: string; timestamp: number }) => { }
+const getProfile = memoize(fetchUserProfile, {
+  generateKey: ([req]) => req.userId  // Ignore timestamp, cache by userId only
 })
+
+// Sync memoization - no inflight deduplication, no stale-while-revalidate
+const fibonacci = (n: number): number => {
+  if (n <= 1) return n
+  return fibonacci(n - 1) + fibonacci(n - 2)
+}
+const memoFib = memoizeSync(fibonacci, {
+  ttl: 300000,             // Cache for 5 minutes
+  maxSize: 100
+})
+
+memoFib(40)  // Computed and cached
+memoFib(40)  // Instant return from cache
+
+// Cache management API
+getUser.cache.stats()     // { hits: 10, misses: 3, hitRate: 0.77, evictions: 0, size: 3 }
+getUser.cache.clear()     // Clear all entries
+getUser.cache.delete(key) // Remove specific entry
+getUser.cache.has(key)    // Check if cached
+getUser.cache.size        // Current cache size
+getUser.cache.keys()      // Iterate cache keys
+getUser.cache.entries()   // Get all [key, value] pairs
+
+// Pluggable cache adapters for distributed caching
+class RedisCacheAdapter implements CacheAdapter<string, CacheItem<any>> {
+  async get(key: string): Promise<CacheItem<any> | undefined> { }
+  async set(key: string, value: CacheItem<any>, expiresAt: number): Promise<void> { }
+  async delete(key: string): Promise<boolean> { }
+  // ... other methods
+}
+
+const distributedCache = memoize(expensiveQuery, {
+  adapter: new RedisCacheAdapter(redisClient)
+})
+
+// Memory-sensitive caching with WeakRef (objects only)
+const cacheLargeObjects = memoize(fetchLargeData, {
+  useWeakRef: true,  // Objects can be GC'd if memory is needed
+  ttl: 300000
+})
+
+// Key differences: memoize vs memoizeSync
+// memoize:
+// - Built-in inflight deduplication (concurrent calls share promise)
+// - Supports stale-while-revalidate pattern
+// - Supports custom cache adapters (Redis, etc.)
+// - Async overhead (Promise handling)
+//
+// memoizeSync:
+// - No inflight deduplication (sync functions execute instantly)
+// - No stale-while-revalidate (not applicable for sync)
+// - No custom adapters (direct Map for performance)
+// - Zero promise overhead
+
+// When to use:
+// - memoize: Expensive async operations (API calls, DB queries, file I/O)
+// - memoizeSync: Expensive pure computations (parsing, transformations)
+// - Both provide LRU eviction, TTL, and WeakRef support
 ```
 
 ## Data Operations

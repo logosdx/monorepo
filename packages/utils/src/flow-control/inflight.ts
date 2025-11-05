@@ -150,10 +150,8 @@ export function withInflightDedup<Args extends any[], Value, Key = string>(
 
     const wrapped = async (...args: Args): Promise<Value> => {
 
-        // === Declaration block ===
         const key = opts?.keyFn ? opts.keyFn(...args) : serializer(args) as Key;
 
-        // === Validation block ===
         const existing = inflight.get(key);
 
         if (existing) {
@@ -162,7 +160,6 @@ export function withInflightDedup<Args extends any[], Value, Key = string>(
             return existing;
         }
 
-        // === Business logic block ===
         safeHook(opts?.hooks?.onStart, key);
 
         const promise = producer(...args)
@@ -181,7 +178,6 @@ export function withInflightDedup<Args extends any[], Value, Key = string>(
                 inflight.delete(key);
             });
 
-        // === Commit block ===
         inflight.set(key, promise);
 
         return promise;

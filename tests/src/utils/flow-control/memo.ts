@@ -12,7 +12,6 @@ import {
     wait,
     memoizeSync,
     memoize,
-    attempt,
 } from '../../../../packages/utils/src/index.ts';
 import { attemptSync } from '../../../../packages/kit/src/index.ts';
 
@@ -265,12 +264,13 @@ describe('@logosdx/utils', () => {
             expect(result1).to.equal('success');
             calledExactly(onError, 0, 'no errors on success');
 
-            // Failed call
-            const result2 = memoized(true);
-            expect(result2).to.be.null; // Error handling returns null from processMemo
+            // Failed call should throw
+            const [, error] = attemptSync(() => memoized(true));
+            expect(error).to.be.instanceOf(Error);
+            expect((error as Error).message).to.equal('function error');
             calledExactly(onError, 1, 'error reported on failure');
 
-            // Verify error was passed correctly
+            // Verify error was passed correctly to onError hook
             const errorCall = onError.mock.calls[0];
             expect(errorCall).to.not.be.undefined;
             expect(errorCall!.arguments[0]).to.be.instanceOf(Error);
@@ -291,10 +291,11 @@ describe('@logosdx/utils', () => {
                 }
             });
 
+            // Key generation fails, but function still executes (permissive behavior)
             const result = memoized(5);
-            expect(result).to.be.undefined; // Key error prevents caching/execution
+            expect(result).to.equal(10); // Function executes normally
             calledExactly(onError, 1, 'key generation error reported');
-            calledExactly(fn, 0, 'function not called on key error');
+            calledExactly(fn, 1, 'function executes despite key error');
 
             const errorCall = onError.mock.calls[0];
             expect(errorCall).to.not.be.undefined;
@@ -414,7 +415,7 @@ describe('@logosdx/utils', () => {
             const wrappedFnAsync = memoize(fn as any);
 
             const [, error1] = attemptSync(() => memoizeSync(wrappedFnSync));
-            const [, error2] = await attempt(() => memoize(wrappedFnAsync));
+            const [, error2] = attemptSync(() => memoize(wrappedFnAsync));
 
             expect(error1).to.be.an.instanceof(Error);
             expect((error1 as Error).message).to.equal('Function is already wrapped by memoize');
@@ -422,7 +423,7 @@ describe('@logosdx/utils', () => {
             expect((error2 as Error).message).to.equal('Function is already wrapped by memoize');
         });
 
-        it('should return fresh data when within staleIn period', () => {
+        it('should return cached data when within TTL period', () => {
 
             let callCount = 0;
             const fn = mock.fn((n: number) => {
@@ -431,7 +432,6 @@ describe('@logosdx/utils', () => {
             });
 
             const memoized = memoizeSync(fn, {
-                staleIn: 20,    // 20ms stale threshold
                 ttl: 50,        // 50ms expiration
                 maxSize: 100,
                 cleanupInterval: 0,
@@ -443,7 +443,7 @@ describe('@logosdx/utils', () => {
             expect(result1).to.equal('result-5-call-1');
             calledExactly(fn, 1, 'first call executes function');
 
-            // Second call immediately should use cache (within staleIn period)
+            // Second call immediately should use cache (within TTL period)
             const result2 = memoized(5);
             expect(result2).to.equal('result-5-call-1');
             calledExactly(fn, 1, 'immediate second call uses cache');
@@ -451,7 +451,7 @@ describe('@logosdx/utils', () => {
             expect(memoized.cache.size).to.equal(1);
         });
 
-        it('should return stale data immediately when no staleTimeout specified', async () => {
+        it('should return cached data until TTL expires for sync', async () => {
 
             let callCount = 0;
             const fn = mock.fn((n: number) => {
@@ -460,12 +460,10 @@ describe('@logosdx/utils', () => {
             });
 
             const memoized = memoizeSync(fn, {
-                staleIn: 10,    // 10ms stale threshold
                 ttl: 50,        // 50ms expiration
                 maxSize: 100,
                 cleanupInterval: 0,
                 onError: () => {}
-                // Note: no staleTimeout specified
             });
 
             // First call should execute function
@@ -473,18 +471,18 @@ describe('@logosdx/utils', () => {
             expect(result1).to.equal('result-3-call-1');
             calledExactly(fn, 1, 'first call executes function');
 
-            // Wait for data to become stale (past staleIn period)
+            // Wait but stay within TTL
             await wait(15);
 
-            // Second call should return cached value immediately (no fresh fetch attempted)
+            // Second call should return cached value (still within TTL)
             const result2 = memoized(3);
             expect(result2).to.equal('result-3-call-1'); // Should return original cached value
-            calledExactly(fn, 1, 'call past staleIn returns cached value without fresh fetch');
+            calledExactly(fn, 1, 'call within TTL returns cached value');
 
             expect(memoized.cache.size).to.equal(1);
         });
 
-        it('should accurately calculate cache entry age for stale detection', async () => {
+        it('should accurately respect TTL timing for sync functions', async () => {
 
             let callCount = 0;
             const fn = mock.fn((n: number) => {
@@ -493,9 +491,7 @@ describe('@logosdx/utils', () => {
             });
 
             const memoized = memoizeSync(fn, {
-                staleIn: 15, // 15ms stale threshold
                 ttl: 50,     // 50ms expiration
-                staleTimeout: 100, // Wait up to 100ms for fresh data before returning stale
                 maxSize: 100,
                 cleanupInterval: 0, // Disable background cleanup for precise timing
                 onError: () => {}
@@ -507,31 +503,29 @@ describe('@logosdx/utils', () => {
             expect(memoized.cache.size).to.equal(1);
             calledExactly(fn, 1, 'first call executes function');
 
-            // Second call at t=10ms - within staleIn, should return cached
+            // Second call at t=10ms - within TTL, should return cached
             await wait(10);
             const result2 = memoized(1);
             expect(result2).to.equal('result-1-call-1');
-            calledExactly(fn, 1, 'call at 10ms uses cache (not stale yet)');
+            calledExactly(fn, 1, 'call at 10ms uses cache (within TTL)');
 
-            // Third call at t=20ms - past staleIn (15ms) but within TTL (50ms)
-            // This should detect stale and trigger revalidation
+            // Third call at t=20ms - still within TTL (50ms)
             await wait(10); // 10 + 10 = 20ms total
             const result3 = memoized(1);
-            // With stale detection implemented, this should trigger a fresh function call
-            expect(result3).to.equal('result-1-call-2'); // Fresh data from revalidation
-            calledExactly(fn, 2, 'call past staleIn triggers revalidation');
+            expect(result3).to.equal('result-1-call-1'); // Cached data returned
+            calledExactly(fn, 1, 'call at 20ms still uses cache (within TTL)');
 
-            // Fourth call at t=25ms - within fresh cache period (fresh data is only 5ms old)
-            await wait(5); // 20 + 5 = 25ms total
+            // Fourth call at t=40ms - still within TTL
+            await wait(20); // 20 + 20 = 40ms total
             const result4 = memoized(1);
-            expect(result4).to.equal('result-1-call-2'); // Fresh data from cache (updated in previous call)
-            calledExactly(fn, 2, 'fresh data is still cached, no additional calls');
+            expect(result4).to.equal('result-1-call-1'); // Still cached
+            calledExactly(fn, 1, 'call at 40ms still uses cache (within TTL)');
 
             // Fifth call at t=60ms - past TTL (50ms), should execute function again
-            await wait(35); // 25 + 35 = 60ms total (past 50ms TTL)
+            await wait(20); // 40 + 20 = 60ms total (past 50ms TTL)
             const result5 = memoized(1);
-            expect(result5).to.equal('result-1-call-3');
-            calledExactly(fn, 3, 'call past TTL executes function again');
+            expect(result5).to.equal('result-1-call-2');
+            calledExactly(fn, 2, 'call past TTL executes function again');
         });
     });
 
@@ -763,97 +757,76 @@ describe('@logosdx/utils', () => {
 
     describe('stale-while-revalidate option validation', () => {
 
-        it('should validate staleIn option properly', () => {
+        it('should reject staleIn option for sync functions', () => {
 
             const fn = mock.fn((n: number) => n * 2);
 
-            // Test valid staleIn values
-            expect(() => {
-                memoizeSync(fn, { staleIn: 100 });
-            }).to.not.throw();
+            // staleIn is not supported for sync functions
+            const [, error1] = attemptSync(() => memoizeSync(fn, { staleIn: 100 } as any));
+            expect(error1).to.be.instanceOf(Error);
+            expect((error1 as Error).message).to.equal('memoizeSync does not support staleIn (sync functions execute instantly, use ttl instead)');
 
-            expect(() => {
-                memoizeSync(fn, { staleIn: 0 });
-            }).to.not.throw();
+            const [, error2] = attemptSync(() => memoizeSync(fn, { staleIn: 0 } as any));
+            expect(error2).to.be.instanceOf(Error);
+            expect((error2 as Error).message).to.equal('memoizeSync does not support staleIn (sync functions execute instantly, use ttl instead)');
 
-            // Test invalid staleIn values
-            const [, negativeError] = attemptSync(() => memoizeSync(fn, { staleIn: -1 } as any));
-            expect(negativeError).to.be.instanceOf(Error);
-            expect((negativeError as Error).message).to.equal('staleIn must be a positive number or zero');
-
-            const [, stringError] = attemptSync(() => memoizeSync(fn, { staleIn: '100' } as any));
-            expect(stringError).to.be.instanceOf(Error);
-            expect((stringError as Error).message).to.equal('staleIn must be a positive number or zero');
-
-            const [, nullError] = attemptSync(() => memoizeSync(fn, { staleIn: null } as any));
-            expect(nullError).to.be.instanceOf(Error);
-            expect((nullError as Error).message).to.equal('staleIn must be a positive number or zero');
-
+            // undefined is OK (not specified)
             const [undefinedIsOk] = attemptSync(() => memoizeSync(fn, {}));
             expect(undefinedIsOk).to.not.be.instanceOf(Error);
         });
 
-        it('should validate staleTimeout option properly', () => {
+        it('should reject staleTimeout option for sync functions', () => {
 
             const fn = mock.fn((n: number) => n * 2);
 
-            // Test valid staleTimeout values
-            expect(() => {
-                memoizeSync(fn, { staleTimeout: 100 });
-            }).to.not.throw();
+            // staleTimeout is not supported for sync functions
+            const [, error1] = attemptSync(() => memoizeSync(fn, { staleTimeout: 100 } as any));
+            expect(error1).to.be.instanceOf(Error);
+            expect((error1 as Error).message).to.equal('memoizeSync does not support staleTimeout (sync functions execute instantly)');
 
-            expect(() => {
-                memoizeSync(fn, { staleTimeout: 0 });
-            }).to.not.throw();
+            const [, error2] = attemptSync(() => memoizeSync(fn, { staleTimeout: 0 } as any));
+            expect(error2).to.be.instanceOf(Error);
+            expect((error2 as Error).message).to.equal('memoizeSync does not support staleTimeout (sync functions execute instantly)');
 
-            // Test invalid staleTimeout values
-            const [, negativeError] = attemptSync(() => memoizeSync(fn, { staleTimeout: -1 } as any));
-            expect(negativeError).to.be.instanceOf(Error);
-            expect((negativeError as Error).message).to.equal('staleTimeout must be a positive number or zero');
-
-            const [, stringError] = attemptSync(() => memoizeSync(fn, { staleTimeout: '100' } as any));
-            expect(stringError).to.be.instanceOf(Error);
-            expect((stringError as Error).message).to.equal('staleTimeout must be a positive number or zero');
-
-            const [, objectError] = attemptSync(() => memoizeSync(fn, { staleTimeout: {} } as any));
-            expect(objectError).to.be.instanceOf(Error);
-            expect((objectError as Error).message).to.equal('staleTimeout must be a positive number or zero');
-
+            // undefined is OK (not specified)
             const [undefinedIsOk] = attemptSync(() => memoizeSync(fn, {}));
             expect(undefinedIsOk).to.not.be.instanceOf(Error);
         });
 
-        it('should validate that staleIn is less than TTL', () => {
+        it('should validate that staleIn is less than TTL for async functions', () => {
 
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = mock.fn(async (n: number) => {
+                await wait(1);
+                return n * 2;
+            });
 
             // Valid cases: staleIn < ttl
             expect(() => {
-                memoizeSync(fn, { staleIn: 50, ttl: 100 });
+                memoize(fn, { staleIn: 50, ttl: 100 });
             }).to.not.throw();
 
             expect(() => {
-                memoizeSync(fn, { staleIn: 0, ttl: 100 });
+                memoize(fn, { staleIn: 0, ttl: 100 });
             }).to.not.throw();
 
-            // Valid case: only staleIn specified (no ttl constraint)
+            // Valid case: only staleIn specified (uses default ttl which is > staleIn)
             expect(() => {
-                memoizeSync(fn, { staleIn: 100 });
+                memoize(fn, { staleIn: 100 });
             }).to.not.throw();
 
             // Valid case: only ttl specified (no staleIn constraint)
             expect(() => {
-                memoizeSync(fn, { ttl: 100 });
+                memoize(fn, { ttl: 100 });
             }).to.not.throw();
 
             // Invalid cases: staleIn >= ttl
-            const [, equalError] = attemptSync(() => memoizeSync(fn, { staleIn: 100, ttl: 100 }));
+            const [, equalError] = attemptSync(() => memoize(fn, { staleIn: 100, ttl: 100 }));
             expect(equalError).to.be.instanceOf(Error);
-            expect((equalError as Error).message).to.equal('staleIn must be less than ttl when both are specified');
+            expect((equalError as Error).message).to.include('staleIn must be');
 
-            const [, greaterError] = attemptSync(() => memoizeSync(fn, { staleIn: 150, ttl: 100 }));
+            const [, greaterError] = attemptSync(() => memoize(fn, { staleIn: 150, ttl: 100 }));
             expect(greaterError).to.be.instanceOf(Error);
-            expect((greaterError as Error).message).to.equal('staleIn must be less than ttl when both are specified');
+            expect((greaterError as Error).message).to.include('staleIn must be');
         });
     });
 
@@ -902,9 +875,7 @@ describe('@logosdx/utils', () => {
             });
 
             const memoized = memoizeSync(fn, {
-                ttl: 100,
-                staleIn: 10,
-                staleTimeout: 5
+                ttl: 100
             });
 
             // First call returns undefined

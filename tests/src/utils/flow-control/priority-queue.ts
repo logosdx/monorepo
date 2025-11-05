@@ -1,6 +1,5 @@
 import { test, describe } from 'node:test'
 
-// @ts-expect-error - chai is not a module
 import { expect } from 'chai';
 
 import { PriorityQueue } from '../../../../packages/utils/src/index.ts';

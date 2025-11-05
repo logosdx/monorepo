@@ -920,7 +920,7 @@ const emailField = createFormField(customer, 'profile.personal.email', 'Email Ad
 
 ### `memoize()` and `memoizeSync()`
 
-Cache function results with TTL, LRU eviction, and cache management.
+Cache function results with TTL, LRU eviction, built-in inflight deduplication, and stale-while-revalidate pattern.
 
 ```ts
 function memoize<T extends (...args: any[]) => Promise<any>>(
@@ -930,21 +930,22 @@ function memoize<T extends (...args: any[]) => Promise<any>>(
 
 function memoizeSync<T extends (...args: any[]) => any>(
     fn: T,
-    options?: MemoizeOptions<T>
+    options?: Omit<MemoizeOptions<T>, 'adapter' | 'staleIn' | 'staleTimeout'>
 ): EnhancedMemoizedFunction<T>
 
 interface MemoizeOptions<T> {
     ttl?: number                       // Time to live in ms (default: 60000)
     maxSize?: number                   // Max cache entries (default: 1000)
-    generateKey?: (args: Parameters<T>) => string
+    cleanupInterval?: number          // Background cleanup interval (default: 60000, 0 to disable)
+    generateKey?: (args: Parameters<T>) => string  // Custom key generator
     useWeakRef?: boolean              // Use WeakRef for values (default: false)
-    staleIn?: number                   // Time in ms after which data is stale (enables stale-while-revalidate)
-    staleTimeout?: number              // Maximum wait time for fresh data when stale (default: 100ms)
-    onError?: (error: Error, args: Parameters<T>) => void
-    cleanupInterval?: number          // Background cleanup interval (default: 60000)
+    staleIn?: number                   // Time in ms after which data is stale (enables SWR)
+    staleTimeout?: number              // Max wait for fresh data when stale (default: undefined)
+    onError?: (error: Error, args: Parameters<T>) => void  // Error handler
+    adapter?: CacheAdapter<string, CacheItem<ReturnType<T>>>  // Custom cache backend
 }
 
-interface EnhancedMemoizedFunction<T> extends T {
+type EnhancedMemoizedFunction<T> = T & {
     cache: {
         clear(): void
         delete(key: string): boolean
@@ -952,132 +953,158 @@ interface EnhancedMemoizedFunction<T> extends T {
         size: number
         stats(): CacheStats
         keys(): IterableIterator<string>
-        entries(): Array<[string, any]>
+        entries(): Array<[string, ReturnType<T> | undefined]>
     }
 }
 
 interface CacheStats {
-    hits: number
-    misses: number
-    hitRate: number
-    size: number
-    evictions: number
+    hits: number           // Successful cache lookups
+    misses: number         // Cache misses (function executed)
+    evictions: number      // Items evicted due to maxSize
+    hitRate: number        // hits / (hits + misses)
+    size: number           // Current cache size
 }
 ```
+
+**Key features:**
+
+- **Built-in inflight deduplication**: Concurrent calls with same arguments share the same promise (prevents duplicate API calls)
+- **Stale-while-revalidate**: Return stale data instantly while fetching fresh data in background
+- **Pluggable cache adapters**: Support for Redis, Memcached, or custom backends
+- **Enhanced cache stats**: Track hits, misses, evictions, and hit rate
+- **LRU eviction with sequence tracking**: Deterministic eviction even with identical timestamps
+- **Background cleanup**: Automatic expired entry removal
+
+**Key differences between `memoize` and `memoizeSync`:**
+
+| Feature | `memoize` (async) | `memoizeSync` (sync) |
+|---------|-------------------|----------------------|
+| **Inflight deduplication** | ✅ Built-in | ❌ Not needed (instant execution) |
+| **Stale-while-revalidate** | ✅ Supported | ❌ Not applicable |
+| **Custom cache adapters** | ✅ Redis, Memcached, etc. | ❌ Direct Map only |
+| **Performance overhead** | Minimal async overhead | Zero overhead |
+| **Use cases** | API calls, DB queries | Pure computations |
 
 **Example:**
 
 ```ts
 import { memoize, memoizeSync, attempt } from '@logosdx/utils'
 
-// Basic expensive loan calculation
-const calculateLoanTerms = memoize(
-    async (customerId: string, amount: number, creditScore: number) => {
+// Basic async memoization with inflight deduplication
+const fetchUser = async (id: string) => {
 
-        // Complex calculation involving multiple API calls
-        const [rates, rateErr] = await attempt(() => fetchCurrentRates())
+    const response = await fetch(`/api/users/${id}`)
+    return response.json()
+}
 
-        if (rateErr) throw rateErr
+const getUser = memoize(fetchUser, {
+    ttl: 60000,              // Cache for 1 minute
+    maxSize: 500             // Keep 500 users max
+})
 
-        const [history, histErr] = await attempt(() => fetchCustomerHistory(customerId))
+// Three concurrent calls → one API request (inflight deduplication)
+// Subsequent calls within TTL → instant cache hit
+const [user1, user2, user3] = await Promise.all([
+    getUser("42"),
+    getUser("42"),
+    getUser("42")
+])
 
-        if (histErr) throw histErr
+// Stale-while-revalidate for instant responses with fresh data
+const getPrices = memoize(
+    async (symbol: string) => {
 
-        // Expensive computation
-        return computeOptimalTerms(amount, creditScore, rates, history)
+        const response = await fetch(`/api/prices/${symbol}`)
+        return response.json()
     },
     {
-        ttl: 300000,        // Cache for 5 minutes
-        maxSize: 1000,      // Keep 1000 most recent calculations
-        generateKey: (customerId, amount, creditScore) =>
-            `${customerId}:${amount}:${creditScore}`,
-        onCacheHit: (key) => {
-
-            console.log(`Cache hit for loan calculation: ${key}`)
-            metrics.increment('loan_calc.cache.hit')
-        },
-        onCacheMiss: (key) => {
-
-            console.log(`Cache miss for loan calculation: ${key}`)
-            metrics.increment('loan_calc.cache.miss')
-        }
+        ttl: 60000,              // Expire after 1 minute
+        staleIn: 30000,          // Consider stale after 30 seconds
+        staleTimeout: 1000       // Wait max 1 second for fresh data
     }
 )
 
-// Stale-while-revalidate loan calculation for instant responses
-const fastLoanTerms = memoize(
-    async (customerId: string, amount: number, creditScore: number) => {
+// Behavior:
+// - Fresh data (age < staleIn): Returns cached immediately
+// - Stale data (age > staleIn): Races fresh fetch vs staleTimeout
+//   - Fresh arrives within timeout: Returns fresh
+//   - Timeout reached: Returns stale, updates cache in background
+// - No cached data: Fetches fresh (blocks)
 
-        // Same expensive calculation as above
-        const [rates, rateErr] = await attempt(() => fetchCurrentRates())
-        if (rateErr) throw rateErr
+// Custom key function for hot paths
+const fetchProfile = async (req: { userId: string; timestamp: number }) => {
 
-        const [history, histErr] = await attempt(() => fetchCustomerHistory(customerId))
-        if (histErr) throw histErr
+    const response = await fetch(`/api/profiles/${req.userId}`)
+    return response.json()
+}
 
-        return computeOptimalTerms(amount, creditScore, rates, history)
-    },
-    {
-        ttl: 600000,        // Cache for 10 minutes
-        staleIn: 120000,    // Consider stale after 2 minutes
-        staleTimeout: 300,  // Wait max 300ms for fresh data
-        maxSize: 1000,
-        generateKey: (customerId, amount, creditScore) =>
-            `${customerId}:${amount}:${creditScore}`
-    }
-)
+const getProfile = memoize(fetchProfile, {
+    generateKey: ([req]) => req.userId  // Ignore timestamp, cache by userId only
+})
 
-// Stale-while-revalidate behavior:
-// - If data is fresh (< 2 minutes): return cached data immediately
-// - If data is stale (> 2 minutes): race cached vs fresh data
-//   - Return cached data if fresh data takes > 300ms
-//   - Return fresh data if it arrives within 300ms
-//   - Always update cache with fresh data in background
+// Synchronous memoization - no inflight dedup, no SWR
+const fibonacci = (n: number): number => {
 
-// Synchronous memoization for pure functions
-const formatCurrency = memoizeSync(
-    (amount: number, currency: string = 'USD') => {
+    if (n <= 1) return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
 
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency
-        }).format(amount)
-    },
-    {
-        maxSize: 500,
-        generateKey: (amount, currency) => `${amount}:${currency}`
-    }
-)
+const memoFib = memoizeSync(fibonacci, {
+    ttl: 300000,             // Cache for 5 minutes
+    maxSize: 100
+})
+
+memoFib(40)  // Computed and cached
+memoFib(40)  // Instant return from cache
 
 // Cache management
-const getLoanTerms = async (customerId: string, amount: number) => {
+getUser.cache.stats()     // { hits: 10, misses: 3, hitRate: 0.77, evictions: 0, size: 3 }
+getUser.cache.clear()     // Clear all entries
+getUser.cache.delete(key) // Remove specific entry
+getUser.cache.has(key)    // Check if cached
+getUser.cache.size        // Current cache size
+getUser.cache.keys()      // Iterate cache keys
+getUser.cache.entries()   // Get all [key, value] pairs
 
-    // Get customer credit score
-    const [customer, err] = await attempt(() => fetchCustomer(customerId))
+// Distributed caching with custom adapter (Redis example)
+import { MapCacheAdapter } from '@logosdx/utils'
 
-    if (err) return { error: 'Customer not found' }
+class RedisCacheAdapter implements CacheAdapter<string, CacheItem<any>> {
 
-    // Use fast stale-while-revalidate calculation for instant UX
-    const [terms, calcErr] = await attempt(() =>
-        fastLoanTerms(customerId, amount, customer.creditScore)
-    )
+    async get(key: string): Promise<CacheItem<any> | undefined> {
 
-    if (calcErr) return { error: 'Could not calculate loan terms' }
+        const data = await redis.get(key)
+        return data ? JSON.parse(data) : undefined
+    }
 
-    return { terms }
+    async set(key: string, value: CacheItem<any>, expiresAt: number): Promise<void> {
+
+        const ttl = Math.max(0, expiresAt - Date.now())
+        await redis.set(key, JSON.stringify(value), 'PX', ttl)
+    }
+
+    // ... implement other methods
 }
 
-// Monitor cache performance
-console.log(calculateLoanTerms.cache.stats())
-// { hits: 45, misses: 12, hitRate: 0.79, size: 57, evictions: 2 }
+const distributedCache = memoize(expensiveQuery, {
+    adapter: new RedisCacheAdapter()
+})
 
-// Clear cache when rates change
-const onRateUpdate = () => {
-
-    console.log('Interest rates updated, clearing loan calculation cache')
-    calculateLoanTerms.cache.clear()
-}
+// Memory-sensitive caching with WeakRef
+const cacheLargeObjects = memoize(fetchLargeData, {
+    useWeakRef: true,  // Objects can be GC'd if memory is needed
+    ttl: 300000
+})
 ```
+
+**When to use:**
+
+- **`memoize`**: Expensive async operations (API calls, DB queries, file I/O)
+- **`memoizeSync`**: Expensive pure computations (parsing, transformations)
+- **Custom `generateKey`**: Hot paths with complex arguments or functions as parameters
+- **`staleIn` + `staleTimeout`**: Fast responses more important than 100% fresh data
+- **`useWeakRef`**: Large cached objects in long-running processes
+- **Custom `adapter`**: Distributed caching across multiple servers
 
 ---
 
