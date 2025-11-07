@@ -916,6 +916,145 @@ const nameField = createFormField(customer, 'profile.personal.name', 'Full Name'
 const emailField = createFormField(customer, 'profile.personal.email', 'Email Address')
 ```
 
+### `setDeep()`
+
+Set values deep within nested objects using dot notation paths. Creates intermediate objects automatically.
+
+```ts
+function setDeep<T, P extends PathNames<T>>(
+    obj: T,
+    path: P,
+    value: PathValue<T, P>
+): void
+```
+
+**Parameters:**
+
+- `obj` - Object to modify (mutated in place)
+- `path` - Dot-separated path to target property
+- `value` - Value to set at the path
+
+**Example:**
+
+```ts
+import { setDeep } from '@logosdx/utils'
+
+// Building configuration incrementally
+const config: any = {}
+
+setDeep(config, 'server.port', 3000)
+setDeep(config, 'server.host', 'localhost')
+setDeep(config, 'database.connection.timeout', 5000)
+
+console.log(config)
+// { server: { port: 3000, host: 'localhost' }, database: { connection: { timeout: 5000 } } }
+
+// Setting metrics in monitoring
+const metrics: any = { memory: { heap: 100 } }
+
+setDeep(metrics, 'memory.rss', 1024)
+setDeep(metrics, 'cpu.user', 50)
+
+console.log(metrics)
+// { memory: { heap: 100, rss: 1024 }, cpu: { user: 50 } }
+
+// API response building
+function buildSuccessResponse(data: any) {
+
+    const response: any = {}
+
+    setDeep(response, 'status.code', 200)
+    setDeep(response, 'status.message', 'OK')
+    setDeep(response, 'data.results', data)
+    setDeep(response, 'data.timestamp', Date.now())
+
+    return response
+}
+```
+
+### `setDeepMany()`
+
+Set multiple values deep within nested objects using dot notation paths. Fails fast on first error with helpful error messages including entry index.
+
+```ts
+function setDeepMany<T>(
+    obj: T,
+    entries: Array<[PathNames<T>, any]>
+): void
+```
+
+**Parameters:**
+
+- `obj` - Object to modify (mutated in place)
+- `entries` - Array of `[path, value]` tuples to set
+
+**Example:**
+
+```ts
+import { setDeepMany } from '@logosdx/utils'
+
+// Building complete response objects
+const response: any = {}
+
+setDeepMany(response, [
+    ['status.code', 200],
+    ['status.message', 'OK'],
+    ['data.results', [1, 2, 3]],
+    ['data.total', 3],
+    ['meta.timestamp', Date.now()],
+    ['meta.version', '1.0.0']
+])
+
+// Complex configuration
+const appConfig: any = {}
+
+setDeepMany(appConfig, [
+    ['server.port', 3000],
+    ['server.host', 'localhost'],
+    ['database.url', 'postgres://localhost'],
+    ['database.pool.min', 2],
+    ['database.pool.max', 10],
+    ['features.auth.enabled', true],
+    ['features.logging.level', 'info'],
+    ['features.monitoring.metrics', true]
+])
+
+// Setting multiple metrics at once
+const systemMetrics: any = { memory: { heap: 100 } }
+
+setDeepMany(systemMetrics, [
+    ['memory.rss', 1024],
+    ['memory.external', 512],
+    ['cpu.user', 50],
+    ['cpu.system', 30],
+    ['uptime.seconds', 3600]
+])
+```
+
+**Error Messages:**
+
+Validation errors include entry index for quick debugging:
+
+```ts
+// Invalid tuple format
+setDeepMany(obj, [
+    ['valid', 'works'],
+    ['invalid']  // ❌ entry 1 must be a [path, value] tuple
+])
+
+// Empty path
+setDeepMany(obj, [
+    ['valid', 'works'],
+    ['', 'oops']  // ❌ entry 1 must have a non-empty string path (received: string)
+])
+
+// Errors from setDeep include path context
+setDeepMany(obj, [
+    ['valid.path', 'works'],
+    ['a.b', 'fails']  // ❌ Cannot set property 'b' on null at path: a
+])
+```
+
 ## Performance & Caching
 
 ### `memoize()` and `memoizeSync()`

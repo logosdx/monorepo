@@ -1,4 +1,5 @@
 import type { Func, PathNames, PathValue } from './types.ts';
+import { assert } from './validation.ts';
 
 /**
  * A no-operation function that accepts any arguments and returns any value.
@@ -314,6 +315,160 @@ export const reach = <T extends object, P extends PathNames<T>>(
         obj as any
     ) as PathValue<T, P> | undefined;
 }
+
+/**
+ * Sets a value deep within a nested object using dot notation path.
+ *
+ * Creates intermediate objects if they don't exist along the path. Mutates the
+ * original object in place. Use this when you need to update nested configuration
+ * objects, set metrics in nested structures, or build objects incrementally without
+ * manual property checking at each level.
+ *
+ * @param obj object to modify
+ * @param path dot-separated path to the target property
+ * @param value value to set at the path
+ *
+ * @example
+ * const metrics = { memory: { heap: 100 } };
+ * setDeep(metrics, 'memory.rss', 1024);
+ * // metrics is now { memory: { heap: 100, rss: 1024 } }
+ *
+ * @example
+ * // Creates missing intermediate objects
+ * const config = {};
+ * setDeep(config, 'server.port', 3000);
+ * setDeep(config, 'server.host', 'localhost');
+ * setDeep(config, 'database.connection.timeout', 5000);
+ * // config is now { server: { port: 3000, host: 'localhost' }, database: { connection: { timeout: 5000 } } }
+ *
+ * @example
+ * // Building response objects incrementally
+ * function buildResponse(data: any) {
+ *
+ *     const response = {};
+ *
+ *     setDeep(response, 'status.code', 200);
+ *     setDeep(response, 'status.message', 'OK');
+ *     setDeep(response, 'data.results', data);
+ *
+ *     return response;
+ * }
+ */
+export const setDeep = <T extends object, P extends PathNames<T>>(
+    obj: T,
+    path: P,
+    value: PathValue<T, P>
+): void => {
+
+    assert(typeof obj === 'object' && obj !== null, 'obj must be a non-null object');
+    assert(typeof path === 'string' && path.length > 0, 'path must be a non-empty string');
+
+    const keys = path.split('.');
+    const lastKey = keys[keys.length - 1]!;
+
+    let current: any = obj;
+
+    for (let i = 0; i < keys.length - 1; i++) {
+
+        const key = keys[i]!;
+
+        if (current === null || current === undefined) {
+            throw new Error(`Cannot set property '${key}' on ${current} at path: ${keys.slice(0, i).join('.')}`);
+        }
+
+        if (typeof current !== 'object') {
+            throw new Error(`Cannot set property '${key}' on primitive value at path: ${keys.slice(0, i).join('.')}`);
+        }
+
+        if (!(key in current)) {
+            current[key] = {};
+        }
+
+        current = current[key];
+    }
+
+    if (current === null || current === undefined) {
+        throw new Error(`Cannot set property '${lastKey}' on ${current}`);
+    }
+
+    if (typeof current !== 'object') {
+        throw new Error(`Cannot set property '${lastKey}' on primitive value`);
+    }
+
+    current[lastKey] = value;
+};
+
+/**
+ * Sets multiple values deep within a nested object using dot notation paths.
+ *
+ * Efficiently sets multiple nested properties in a single call. Each entry is processed
+ * sequentially, and if any entry fails, an error is thrown immediately. Use this when
+ * you need to initialize or update multiple nested properties at once, such as building
+ * configuration objects or setting multiple metrics.
+ *
+ * @param obj object to modify
+ * @param entries array of [path, value] tuples to set
+ *
+ * @example
+ * const response = {};
+ * setDeepMany(response, [
+ *     ['status.code', 200],
+ *     ['status.message', 'OK'],
+ *     ['data.results', [1, 2, 3]],
+ *     ['data.total', 3]
+ * ]);
+ * // response is now { status: { code: 200, message: 'OK' }, data: { results: [1, 2, 3], total: 3 } }
+ *
+ * @example
+ * // Building configuration objects
+ * const config = {};
+ * setDeepMany(config, [
+ *     ['server.port', 3000],
+ *     ['server.host', 'localhost'],
+ *     ['database.url', 'postgres://localhost'],
+ *     ['database.pool.min', 2],
+ *     ['database.pool.max', 10],
+ *     ['features.auth.enabled', true],
+ *     ['features.logging.level', 'info']
+ * ]);
+ *
+ * @example
+ * // Setting multiple metrics at once
+ * const metrics = { memory: { heap: 100 } };
+ * setDeepMany(metrics, [
+ *     ['memory.rss', 1024],
+ *     ['memory.external', 512],
+ *     ['cpu.user', 50],
+ *     ['cpu.system', 30]
+ * ]);
+ */
+export const setDeepMany = <T extends object>(
+    obj: T,
+    entries: Array<[PathNames<T>, any]>
+): void => {
+
+    assert(typeof obj === 'object' && obj !== null, 'obj must be a non-null object');
+    assert(Array.isArray(entries), 'entries must be an array');
+
+    for (let i = 0; i < entries.length; i++) {
+
+        const entry = entries[i]!;
+
+        assert(
+            Array.isArray(entry) && entry.length === 2,
+            `entry ${i} must be a [path, value] tuple`
+        );
+
+        const [path, value] = entry;
+
+        assert(
+            typeof path === 'string' && path.length > 0,
+            `entry ${i} must have a non-empty string path (received: ${typeof path})`
+        );
+
+        setDeep(obj, path, value);
+    }
+};
 
 /**
  * Splits an array into smaller arrays of the specified size.

@@ -196,8 +196,8 @@ type AssertObjTestFn<T, P extends string> = (val: PathValue<T, P>) => [
 ];
 
 /**
- * Asserts the values in an object based on the provided assertations.
- * The assertations are a map of paths to functions that return a tuple
+ * Asserts the values in an object based on the provided assertions.
+ * The assertions are a map of paths to functions that return a tuple
  * of a boolean and a message. This is intended to be used for testing
  * and validation when there is no schema validator available.
  *
@@ -245,7 +245,7 @@ export const assertObject = <T extends object>(
 
         if (test === undefined) {
 
-            throw new Error(`assertation for path ${path} is undefined`);
+            throw new Error(`assertion for path ${path} is undefined`);
         }
 
         if (test instanceof Array) {
@@ -262,7 +262,11 @@ export const assertObject = <T extends object>(
 
     for (const [val, test] of tests) {
 
-        const [check, message] = test(val as never);
+        const res = test(val as never) as [AssertTest, string];
+
+        assert(res instanceof Array, `assertion did not return a tuple [boolean, string]`);
+
+        const [check, message] = res;
 
         assert(check, message);
     }

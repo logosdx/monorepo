@@ -1,11 +1,11 @@
+import { wait } from './misc.ts';
+import { attempt } from './attempt.ts';
 import {
     assert,
-    wait,
-    attempt,
     isFunction,
     assertOptional,
     isPlainObject,
-} from '../index.ts';
+} from '../validation.ts';
 
 import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 

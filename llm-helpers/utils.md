@@ -370,11 +370,24 @@ const config = mergeDefaults(userConfig, defaultConfig)
 ### Safe Property Access
 
 ```ts
-// Dot-notation path traversal
+// Dot-notation path traversal (read)
 const reach: <T, P extends PathNames<T>>(obj: T, path: P) => PathValue<T, P> | undefined
 
 const userName = reach(response, 'data.user.profile.name')
 const score = reach(gameState, 'players.0.stats.score')
+
+// Dot-notation path setting (write)
+const setDeep: <T, P extends PathNames<T>>(obj: T, path: P, value: PathValue<T, P>) => void
+const setDeepMany: <T>(obj: T, entries: Array<[PathNames<T>, any]>) => void
+
+setDeep(config, 'server.port', 3000)
+setDeep(metrics, 'memory.rss', 1024)
+
+setDeepMany(response, [
+  ['status.code', 200],
+  ['status.message', 'OK'],
+  ['data.results', [1, 2, 3]]
+])
 
 // Safe object key operations
 const getSafeKeys: <T extends object>(obj: T) => Array<keyof T>

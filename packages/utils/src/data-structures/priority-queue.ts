@@ -77,7 +77,8 @@ export class PriorityQueue<T> {
 
         if (options.maxHeap) {
 
-            this.compare = (a, b) => -this.compare(a, b);
+            const originalCompare = this.compare;
+            this.compare = (a, b) => -originalCompare(a, b);
         }
 
         this.options = options;
