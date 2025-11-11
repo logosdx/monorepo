@@ -488,10 +488,6 @@ export class ObserverEngine<
             validateListener('on', { event, listener } as never);
         }
 
-        const { eventName, isRgx } = this.#eventInfo(event);
-
-        const listenerMap = isRgx ? this.#rgxListenerMap : this.#listenerMap;
-
         if (listener === undefined) {
 
             return new EventGenerator<Shape, Events<Shape>>(
@@ -499,6 +495,9 @@ export class ObserverEngine<
                 event as never
             );
         }
+
+        const { eventName, isRgx } = this.#eventInfo(event);
+        const listenerMap = isRgx ? this.#rgxListenerMap : this.#listenerMap;
 
         this.#currentSpy({
             event,
@@ -537,6 +536,11 @@ export class ObserverEngine<
             });
 
             cbSet!.delete(listener as Func);
+
+            // Remove empty Set from Map to prevent memory bloat
+            if (cbSet!.size === 0) {
+                listenerMap.delete(eventName as never);
+            }
 
             this.#internalListener.dispatchEvent(
                 new InternalEvent(InternalEvs.off, [event as string, listener])
@@ -627,20 +631,28 @@ export class ObserverEngine<
 
         const self = this;
 
-        let cleanup: ObserverEngine.Cleanup;
-
         const runOnce = function (...args: unknown[]) {
 
-            cleanup?.();
+            const { eventName, isRgx } = self.#eventInfo(event);
+            const listenerMap = isRgx ? self.#rgxListenerMap : self.#listenerMap;
+
+            const fns = listenerMap.get(eventName as never);
+
+            if (fns) {
+
+                fns.delete(runOnce as Func);
+                if (fns.size === 0) listenerMap.delete(eventName as never);
+            }
+
             (listener as Func).apply(self, args);
         }
 
-        cleanup = this.on.apply(
-            this,
-            [event as never, runOnce, { once: true }] as never
-        )
-
-        return cleanup as ObserverEngine.Cleanup;
+        return this.on(
+            event,
+            runOnce,
+            // @ts-expect-error
+            { once: true }
+        );
     }
 
     /**

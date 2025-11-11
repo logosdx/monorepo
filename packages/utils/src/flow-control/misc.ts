@@ -140,13 +140,23 @@ export const wait = <T>(ms: number, value: T = true as T) => {
         resolve => {
 
             timeout = setTimeout(
-                () => resolve(value),
+                () => {
+
+                    timeout = null as never;
+                    resolve(value);
+                },
                 ms
             );
         }
     );
 
-    promise.clear = () => clearTimeout(timeout);
+    promise.clear = () => {
+
+        if (!timeout) return;
+
+        clearTimeout(timeout);
+        timeout = null as never;
+    };
 
     return promise;
 };

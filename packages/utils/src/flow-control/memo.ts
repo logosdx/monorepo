@@ -688,68 +688,51 @@ export const memoizeSync = <T extends AnyFunc>(
             value: memoValue
         } = prepareMemo({ fn, args, opts, cache, cacheManager });
 
-        // If cached and not expired, check for stale-while-revalidate behavior
-        if (isCached && !didExpire) {
+        // If key generation failed, we can't reach cache.
+        // Fall back to executing the function directly.
+        if (key === null) return fn(...args) as ReturnType<T>;
 
-            if (isStaleButValid) {
+        // If not cached and expired, execute function and store result
+        if (!isCached || didExpire) {
 
-                // For sync functions with staleTimeout: execute synchronously and return fresh data
-                // For sync functions without staleTimeout: return stale data immediately
-                if (
-                    opts.staleTimeout !== undefined &&
-                    key !== null
-                ) {
+            const [value, error] = attemptSync(() => fn(...args));
 
-                    // staleTimeout specified - execute function synchronously
-                    const [freshValue, error] = attemptSync(() => fn(...args));
-
-                    if (!error) {
-
-                        // Update cache with fresh value
-                        const accessSequence = cacheManager.getNextSequence();
-
-                        cache.set(
-                            key,
-                            createCacheItem(
-                                freshValue,
-                                now,
-                                now + (opts.ttl ?? 60000),
-                                opts.useWeakRef ?? false,
-                                accessSequence
-                            )
-                        );
-
-                        return freshValue;
-                    }
-
-                    // Return stale value if fresh fetch failed
-                    return memoValue;
-                }
-
-                // No staleTimeout specified - return stale data immediately
-                return memoValue;
-            }
-
-            return memoValue;
+            return processMemo({
+                value,
+                error,
+                args,
+                key,
+                now,
+                opts,
+                cache,
+                cacheManager
+            });
         }
 
-        // Don't execute function if key generation failed
-        if (key === null) {
-            return undefined as ReturnType<T>;
-        }
+        if (!isStaleButValid) return memoValue;
+        if (opts.staleTimeout === undefined) return memoValue;
 
-        const [value, error] = attemptSync(() => fn(...args));
+        // staleTimeout specified - execute function synchronously
+        const [freshValue, error] = attemptSync(() => fn(...args));
 
-        return processMemo({
-            value,
-            error,
-            args,
+        if (error) return memoValue;
+
+        // Update cache with fresh value
+        const accessSequence = cacheManager.getNextSequence();
+
+        cache.set(
             key,
-            now,
-            opts,
-            cache,
-            cacheManager
-        });
+            createCacheItem(
+                freshValue,
+                now,
+                now + (opts.ttl ?? 60000),
+                opts.useWeakRef ?? false,
+                accessSequence
+            )
+        );
+
+        return freshValue;
+
     } as EnhancedMemoizedFunction<T>;
 
     // Add cache methods
@@ -866,104 +849,98 @@ export const memoize = <T extends AnyAsyncFunc>(
             value: memoValue
         } = prepareMemo({ fn, args, opts, cache, cacheManager });
 
-        // If cached and not expired, check for stale-while-revalidate behavior
-        if (isCached && !didExpire) {
-            if (isStaleButValid) {
-                // For async functions with staleTimeout specified: race fresh fetch against timeout
-                // For async functions without staleTimeout: return stale immediately
-                if (opts.staleTimeout !== undefined) {
-                    // staleTimeout specified - race fresh fetch against timeout
-                    if (key !== null) {
-                        // For zero timeout, return stale immediately but still trigger background refresh
-                        if (opts.staleTimeout === 0) {
-                            // Trigger background refresh without waiting
-                            attempt(
-                                () => fn(...args)
-                            ).then(([freshValue, error]) => {
-
-                                if (!error) {
-
-                                    const accessSequence = cacheManager.getNextSequence();
-                                    const freshNow = Date.now();
-
-                                    cache.set(
-                                        key,
-                                        createCacheItem(
-                                            freshValue,
-                                            freshNow,
-                                            freshNow + (opts.ttl ?? 60000),
-                                            opts.useWeakRef ?? false,
-                                            accessSequence
-                                        )
-                                    );
-                                }
-                            })
-                            return memoValue;
-                        }
-
-                        // Race fresh fetch against timeout
-                        const freshPromise = attempt(() => fn(...args));
-                        const timeoutPromise = wait(opts.staleTimeout, TIMEOUT_SYMBOL);
-
-                        const winner = await Promise.race([freshPromise, timeoutPromise]);
-
-                        if (winner === TIMEOUT_SYMBOL) {
-
-                            // Timeout won, return stale data immediately
-                            return memoValue;
-                        }
-
-                        // Fresh data won the race
-                        const [freshValue, error] = winner as Awaited<typeof freshPromise>;
-
-                        if (!error) {
-
-                            // Update cache with fresh value
-                            const accessSequence = cacheManager.getNextSequence();
-                            const freshNow = Date.now();
-
-                            cache.set(
-                                key,
-                                createCacheItem(
-                                    freshValue,
-                                    freshNow,
-                                    freshNow + (opts.ttl ?? 60000),
-                                    opts.useWeakRef ?? false,
-                                    accessSequence
-                                )
-                            );
-
-                            return freshValue;
-                        }
-
-                        // Return stale value if fresh fetch failed
-                        return memoValue;
-                    }
-                }
-
-                // No staleTimeout specified - return stale data immediately
-                return memoValue;
-            }
-            return memoValue;
-        }
-
         // Don't execute function if key generation failed
         if (key === null) {
             return undefined as ReturnType<T>;
         }
 
-        const [value, error] = await attempt(() => fn(...args));
+        if (!isCached || didExpire) {
 
-        return processMemo({
-            value,
-            error,
-            args,
+            const [value, error] = await attempt(() => fn(...args));
+
+            return processMemo({
+                value,
+                error,
+                args,
+                key,
+                now: Date.now(), // Use current time after async execution
+                opts,
+                cache,
+                cacheManager
+            });
+        }
+
+        // If cached and not expired, check for stale-while-revalidate behavior
+        if (!isStaleButValid) return memoValue;
+
+        // For async functions without staleTimeout: return stale immediately
+        if (opts.staleTimeout === undefined) return memoValue;
+
+        // For zero timeout, return stale immediately but still trigger background refresh
+        if (opts.staleTimeout === 0) {
+            // Trigger background refresh without waiting
+            attempt(
+                () => fn(...args)
+            ).then(([freshValue, error]) => {
+
+                if (!error) {
+
+                    const accessSequence = cacheManager.getNextSequence();
+                    const freshNow = Date.now();
+
+                    cache.set(
+                        key,
+                        createCacheItem(
+                            freshValue,
+                            freshNow,
+                            freshNow + (opts.ttl ?? 60000),
+                            opts.useWeakRef ?? false,
+                            accessSequence
+                        )
+                    );
+                }
+            })
+            return memoValue;
+        }
+
+        // For async functions with staleTimeout specified: race fresh fetch against timeout
+        const freshPromise = attempt(() => fn(...args));
+        const timeoutPromise = wait(opts.staleTimeout, TIMEOUT_SYMBOL);
+
+        const winner = await Promise.race([freshPromise, timeoutPromise]);
+
+        if (winner === TIMEOUT_SYMBOL) {
+
+            // Timeout won, return stale data immediately
+            return memoValue;
+        }
+
+        // Fresh data won the race
+        const [freshValue, error] = winner as Awaited<typeof freshPromise>;
+
+        timeoutPromise.clear();
+
+        // Return stale value if fresh fetch failed
+        if (error) return memoValue;
+
+        // Update cache with fresh value
+        const accessSequence = cacheManager.getNextSequence();
+        const freshNow = Date.now();
+
+        cache.set(
             key,
-            now: Date.now(), // Use current time after async execution
-            opts,
-            cache,
-            cacheManager
-        });
+            createCacheItem(
+                freshValue,
+                freshNow,
+                freshNow + (opts.ttl ?? 60000),
+                opts.useWeakRef ?? false,
+                accessSequence
+            )
+        );
+
+        return freshValue;
+
+
     } as EnhancedMemoizedFunction<T>;
 
     // Add cache methods
