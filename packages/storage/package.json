@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/storage",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
   "exports": {
     ".": {

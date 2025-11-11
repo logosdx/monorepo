@@ -1,5 +1,56 @@
 # @logosdx/utils
 
+## 2.3.0
+
+### Minor Changes
+
+- 6560f02: ## @logosdx/utils
+
+  ### Added
+
+  - `feat(misc):` Add `setDeep()` for setting values deep within nested objects using dot notation paths
+  - `feat(misc):` Add `setDeepMany()` for batch setting multiple nested values with fail-fast validation
+
+  ### Changed
+
+  - `refactor(flow-control):` Optimize imports in `retry.ts` - import from specific modules instead of index
+  - `refactor(flow-control):` Reorganize export order in index - move foundational exports first
+  - `docs(validation):` Fix typo "assertations" → "assertions" in documentation and error messages
+  - `refactor(validation):` Add explicit assertion for tuple return format in `assertObject()`
+
+  ### Fixed
+
+  - `fix(priority-queue):` Fix maxHeap option causing infinite recursion by storing original compare function before negation
+
+### Patch Changes
+
+- 9edb1c4: Fix memory leaks in observer and flow control utilities
+
+  ## Utils
+
+  ### Fixed
+
+  - `fix(flow-control/misc)`: Prevent timeout reference retention in wait() by nulling after completion
+  - `fix(flow-control/memo)`: Clear losing timeout promise in stale-while-revalidate race condition
+  - `refactor(flow-control/memo)`: Restructure control flow with early returns for better readability
+
+  ### Changed
+
+  - `perf(flow-control/misc)`: Add guard check to wait().clear() for safer timeout cleanup
+
+  ***
+
+  ## Observer
+
+  ### Fixed
+
+  - `fix(engine)`: Eliminate circular reference in once() runOnce closure preventing garbage collection
+  - `fix(engine)`: Remove empty Sets from listener Maps to prevent memory bloat
+
+  ### Changed
+
+  - `refactor(engine)`: Move #eventInfo call after early return check for better performance
+
 ## 2.2.0
 
 ### Minor Changes
