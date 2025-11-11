@@ -1,5 +1,40 @@
 # @logosdx/observer
 
+## 2.0.9
+
+### Patch Changes
+
+- 9edb1c4: Fix memory leaks in observer and flow control utilities
+
+  ## Utils
+
+  ### Fixed
+
+  - `fix(flow-control/misc)`: Prevent timeout reference retention in wait() by nulling after completion
+  - `fix(flow-control/memo)`: Clear losing timeout promise in stale-while-revalidate race condition
+  - `refactor(flow-control/memo)`: Restructure control flow with early returns for better readability
+
+  ### Changed
+
+  - `perf(flow-control/misc)`: Add guard check to wait().clear() for safer timeout cleanup
+
+  ***
+
+  ## Observer
+
+  ### Fixed
+
+  - `fix(engine)`: Eliminate circular reference in once() runOnce closure preventing garbage collection
+  - `fix(engine)`: Remove empty Sets from listener Maps to prevent memory bloat
+
+  ### Changed
+
+  - `refactor(engine)`: Move #eventInfo call after early return check for better performance
+
+- Updated dependencies [9edb1c4]
+- Updated dependencies [6560f02]
+  - @logosdx/utils@2.3.0
+
 ## 2.0.8
 
 ### Patch Changes
