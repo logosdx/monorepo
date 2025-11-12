@@ -24,10 +24,21 @@ import {
 } from '../../packages/fetch/src/index.ts';
 
 import logosFetch from '../../packages/fetch/src/index.ts';
-
 import { attempt } from '../../packages/utils/src/index.ts';
-
 import { sandbox } from './_helpers';
+
+// Augment the FetchEngine module with custom response headers for testing
+declare module '../../packages/fetch/src/engine.ts' {
+
+    namespace FetchEngine {
+
+        interface InstanceResponseHeaders {
+            'x-custom-response-header': string;
+            'x-rate-limit-remaining': string;
+            'x-request-id': string;
+        }
+    }
+}
 
 const mkHapiRoute = (
     path: string,
@@ -90,6 +101,14 @@ describe('@logosdx/fetch', () => {
                 }
 
                 return { ok: true };
+            }),
+
+            mkHapiRoute('/custom-headers', (_, h) => {
+
+                return h.response({ ok: true })
+                    .header('x-custom-response-header', 'test-value')
+                    .header('x-rate-limit-remaining', '100')
+                    .header('x-request-id', 'req-12345');
             })
         ]
     );
@@ -313,12 +332,12 @@ describe('@logosdx/fetch', () => {
         expect(response.data).to.be.an('object');
 
         expect(response.headers).to.exist;
-        expect(response.headers).to.be.instanceOf(Headers);
-        expect(response.headers.get('content-type')).to.contain('application/json');
+        expect(response.headers).to.be.an('object');
+        expect(response.headers['content-type']).to.contain('application/json');
 
-        // Headers should have standard API methods
-        expect(response.headers.has('content-type')).to.be.true;
-        expect(response.headers.get('non-existent')).to.be.null;
+        // Headers should be accessible via bracket notation
+        expect(response.headers['content-type']).to.exist;
+        expect(response.headers['non-existent']).to.be.undefined;
 
         expect(response.status).to.exist;
         expect(response.status).to.be.a('number');
@@ -374,7 +393,7 @@ describe('@logosdx/fetch', () => {
             expect(response.data, `${name}: data should contain expected`).to.contain(expectedData);
 
             expect(response.headers, `${name}: headers should exist`).to.exist;
-            expect(response.headers, `${name}: headers should be Headers instance`).to.be.instanceOf(Headers);
+            expect(response.headers, `${name}: headers should be an object`).to.be.an('object');
 
             expect(response.status, `${name}: status should exist`).to.exist;
             expect(response.status, `${name}: status should be number`).to.be.a('number');
@@ -416,7 +435,7 @@ describe('@logosdx/fetch', () => {
 
         expect(emptyResponse.data).to.be.null;
         expect(emptyResponse.headers).to.exist;
-        expect(emptyResponse.headers).to.be.instanceOf(Headers);
+        expect(emptyResponse.headers).to.be.an('object');
         expect(emptyResponse.status).to.exist;
         expect(emptyResponse.status).to.be.a('number');
         expect(emptyResponse.request).to.exist;
@@ -430,7 +449,7 @@ describe('@logosdx/fetch', () => {
         expect(noContentResponse.data).to.be.null;
         expect(noContentResponse.status).to.eq(204);
         expect(noContentResponse.headers).to.exist;
-        expect(noContentResponse.headers).to.be.instanceOf(Headers);
+        expect(noContentResponse.headers).to.be.an('object');
         expect(noContentResponse.request).to.exist;
         expect(noContentResponse.request).to.be.instanceOf(Request);
         expect(noContentResponse.config).to.exist;
@@ -488,7 +507,7 @@ describe('@logosdx/fetch', () => {
         expect(postResponse.data).to.have.property('ok');
 
         // === Test that response maintains FetchResponse structure with generics ===
-        expect(postResponse.headers).to.be.instanceOf(Headers);
+        expect(postResponse.headers).to.be.an('object');
         expect(postResponse.status).to.be.a('number');
         expect(postResponse.request).to.be.instanceOf(Request);
         expect(postResponse.config).to.be.an('object');
@@ -506,7 +525,7 @@ describe('@logosdx/fetch', () => {
             const responseKeys = Object.keys(response).sort();
             expect(responseKeys, 'Generic responses should maintain FetchResponse structure').to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
             expect(response.data).to.exist;
-            expect(response.headers).to.be.instanceOf(Headers);
+            expect(response.headers).to.be.an('object');
             expect(response.status).to.be.a('number');
             expect(response.request).to.be.instanceOf(Request);
             expect(response.config).to.be.an('object');
@@ -516,7 +535,7 @@ describe('@logosdx/fetch', () => {
         const defaultResponse = await api.get('/json');
 
         expect(defaultResponse.data).to.exist;
-        expect(defaultResponse.headers).to.be.instanceOf(Headers);
+        expect(defaultResponse.headers).to.be.an('object');
         expect(defaultResponse.status).to.be.a('number');
         expect(defaultResponse.request).to.be.instanceOf(Request);
         expect(defaultResponse.config).to.be.an('object');
@@ -549,7 +568,7 @@ describe('@logosdx/fetch', () => {
         expect(status).to.exist;
         expect(status).to.eq(200);
         expect(headers).to.exist;
-        expect(headers).to.be.instanceOf(Headers);
+        expect(headers).to.be.an('object');
 
         // === Test destructuring with generics ===
         const { data: typedData, status: typedStatus } = await api.get<{ ok: boolean }>('/json');
@@ -563,7 +582,7 @@ describe('@logosdx/fetch', () => {
         const { data: allData, headers: allHeaders, status: allStatus, request, config } = await api.get('/json');
 
         expect(allData).to.exist;
-        expect(allHeaders).to.be.instanceOf(Headers);
+        expect(allHeaders).to.be.an('object');
         expect(allStatus).to.be.a('number');
         expect(request).to.be.instanceOf(Request);
         expect(config).to.be.an('object');
@@ -625,7 +644,7 @@ describe('@logosdx/fetch', () => {
         expect(restMetadata).to.have.property('config');
 
         expect(restMetadata.status).to.eq(200);
-        expect(restMetadata.headers).to.be.instanceOf(Headers);
+        expect(restMetadata.headers).to.be.an('object');
         expect(restMetadata.request).to.be.instanceOf(Request);
         expect(restMetadata.config).to.be.an('object');
     });
@@ -2307,6 +2326,63 @@ describe('@logosdx/fetch', () => {
 
         expect(postModifyCallCount).to.equal(1); // Should still be 1
         expect(getModifyCallCount).to.equal(1); // Should still be 1
+    });
+
+    it('supports custom typed response headers', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        // === Test with custom headers from server ===
+        const response = await api.get('/custom-headers');
+
+        // Verify the response headers object exists and is typed correctly
+        expect(response.headers).to.exist;
+        expect(response.headers).to.be.an('object');
+
+        // Verify that standard headers are accessible
+        expect(response.headers['content-type']).to.exist;
+        expect(response.headers['content-type']).to.contain('application/json');
+
+        // TypeScript should allow access to custom headers defined in InstanceResponseHeaders
+        // These headers are sent by the server, so they should exist
+        const customHeader: string | undefined = response.headers['x-custom-response-header'];
+        const rateLimit: string | undefined = response.headers['x-rate-limit-remaining'];
+        const requestId: string | undefined = response.headers['x-request-id'];
+
+        // Verify the custom headers have the expected values
+        expect(customHeader).to.equal('test-value');
+        expect(rateLimit).to.equal('100');
+        expect(requestId).to.equal('req-12345');
+
+        // === Test with endpoint that doesn't send custom headers ===
+        const standardResponse = await api.get('/json');
+
+        // Custom headers should be undefined for this endpoint
+        expect(standardResponse.headers['x-custom-response-header']).to.be.undefined;
+        expect(standardResponse.headers['x-rate-limit-remaining']).to.be.undefined;
+        expect(standardResponse.headers['x-request-id']).to.be.undefined;
+
+        // === Test per-request response header typing ===
+        interface CustomResponseHeaders {
+            'x-test-specific': string;
+        }
+
+        const typedResponse = await api.get<any, CustomResponseHeaders>('/json');
+
+        expect(typedResponse.headers).to.exist;
+        expect(typedResponse.headers).to.be.an('object');
+
+        // TypeScript knows about the custom header type
+        const testSpecific: string | undefined = typedResponse.headers['x-test-specific'];
+        expect(testSpecific).to.be.undefined;
+
+        // === Verify that headers are correctly extracted from actual response ===
+        const allHeaders = Object.keys(response.headers);
+        expect(allHeaders.length).to.be.greaterThan(0);
+        expect(allHeaders).to.include('content-type');
+        expect(allHeaders).to.include('x-custom-response-header');
+        expect(allHeaders).to.include('x-rate-limit-remaining');
+        expect(allHeaders).to.include('x-request-id');
     });
 
 });

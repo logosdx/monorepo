@@ -43,6 +43,11 @@ import {
  * * * https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
  * * * https://github.com/facebook/react-native/blob/0.67-stable/packages/rn-tester/js/examples/XHR/XHRExampleAbortController.js
  *
+ * @template H - Type of request headers
+ * @template P - Type of request params
+ * @template S - Type of instance state
+ * @template RH - Type of response headers
+ *
  * @example
  * // Basic setup with error handling
  * const api = new FetchEngine({
@@ -79,6 +84,7 @@ export class FetchEngine<
     H = FetchEngine.InstanceHeaders,
     P = FetchEngine.InstanceParams,
     S = FetchEngine.InstanceState,
+    RH = FetchEngine.InstanceResponseHeaders,
 > extends EventTarget {
 
     /**
@@ -120,6 +126,8 @@ export class FetchEngine<
 
     #validate?: FetchEngine.Options<H, P, S>['validate'];
 
+    #instanceAbortController = new AbortController();
+
     /**
      * For saving values that may be needed to craft requests as the
      * application progresses; for example: as you login, you get a
@@ -143,6 +151,11 @@ export class FetchEngine<
     #state: S = {} as S;
 
     #retry: Required<RetryConfig>;
+
+    get #destroyed() {
+
+        return this.#instanceAbortController.signal.aborted;
+    }
 
     /**
      * Removes a header from the `FetchEngine` instance
@@ -671,7 +684,7 @@ export class FetchEngine<
      * @returns FetchResponse object with data, headers, status, request, and config
      * @internal
      */
-    async #makeCall <Res>(
+    async #makeCall <Res, ReqRH = RH>(
         _method: HttpMethods,
         path: string,
         options: (
@@ -682,7 +695,7 @@ export class FetchEngine<
                 attempt?: number
             }
         )
-    ): Promise<FetchResponse<Res, H, P>> {
+    ): Promise<FetchResponse<Res, H, P, ReqRH>> {
 
         const {
             payload,
@@ -885,17 +898,25 @@ export class FetchEngine<
         // Create the Request object for the response
         const request = new Request(url, opts as RequestInit);
 
+        // Convert response headers to plain object for typed access
+        const headers = {} as Partial<ReqRH>;
+
+        response.headers.forEach((value, key) => {
+
+            headers[key as keyof ReqRH] = value as ReqRH[keyof ReqRH];
+        });
+
         // Return the enhanced response object
         return {
             data: data!,
-            headers: response.headers,
+            headers,
             status: response.status,
             request,
             config
         }
     }
 
-    async #attemptCall<Res>(
+    async #attemptCall<Res, ReqRH = RH>(
         _method: HttpMethods,
         path: string,
         options: (
@@ -906,7 +927,7 @@ export class FetchEngine<
                 cancelTimeout?: NodeJS.Timeout,
             }
         )
-    ): Promise<FetchResponse<Res, H, P>> {
+    ): Promise<FetchResponse<Res, H, P, ReqRH>> {
         const mergedRetry = {
             ...this.#retry,
             ...this.#extractRetry(options)
@@ -914,7 +935,7 @@ export class FetchEngine<
 
         if (mergedRetry.maxAttempts === 0) {
 
-            return this.#makeCall<Res>(_method, path, options);
+            return this.#makeCall<Res, ReqRH>(_method, path, options);
         }
 
         let _attempt = 1;
@@ -923,7 +944,7 @@ export class FetchEngine<
 
             const [result, err] = await attempt(
                 async () => (
-                    this.#makeCall<Res>(
+                    this.#makeCall<Res, ReqRH>(
                         _method,
                         path,
                         {
@@ -1098,14 +1119,20 @@ export class FetchEngine<
      * // Abort request if needed
      * setTimeout(() => request.abort('User cancelled'), 2000);
      */
-    request <Res = any, Data = any>(
+    request <Res = any, Data = any, ReqRH = RH>(
         method: HttpMethods,
         path: string,
         options: (
             FetchEngine.CallOptions<H, P> &
             ({ payload: Data | null } | {})
          ) = { payload: null }
-    ): FetchEngine.AbortablePromise<FetchResponse<Res, H, P>> {
+    ): FetchEngine.AbortablePromise<FetchResponse<Res, H, P, ReqRH>> {
+
+        // Prevent requests on destroyed instances (memory leak prevention)
+        if (this.#destroyed) {
+
+            throw new Error('Cannot make requests on destroyed FetchEngine instance');
+        }
 
         // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
         const controller = options.abortController ?? new AbortController();
@@ -1133,7 +1160,7 @@ export class FetchEngine<
             options.onError?.apply(this, args as never);
         }
 
-        const call = this.#attemptCall <Res>(method, path, {
+        const call = this.#attemptCall <Res, ReqRH>(method, path, {
             ...options,
             controller,
             onAfterReq,
@@ -1144,7 +1171,12 @@ export class FetchEngine<
 
             return res!;
 
-        }) as FetchEngine.AbortablePromise<FetchResponse<Res, H, P>>;
+        }).finally(() => {
+
+            // Guarantee timeout cleanup in all code paths (memory leak prevention)
+            clearTimeout(timeout);
+
+        }) as FetchEngine.AbortablePromise<FetchResponse<Res, H, P, ReqRH>>;
 
         Object.defineProperty(call, 'isAborted', {
             get: () => controller.signal.aborted,
@@ -1175,9 +1207,9 @@ export class FetchEngine<
      *     api.options('/users')
      * );
      */
-    options <Res = any>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
+    options <Res = any, ReqRH = RH>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, null>('options', path, options);
+        return this.request <Res, null, ReqRH>('options', path, options);
     }
 
     /**
@@ -1200,15 +1232,15 @@ export class FetchEngine<
      *
      * console.log('Users:', response.data);
      * console.log('Status:', response.status);
-     * console.log('Content-Type:', response.headers.get('content-type'));
+     * console.log('Content-Type:', response.headers['content-type']);
      *
      * @example
      * // Destructure just the data
      * const { data: users } = await api.get('/users');
      */
-    get <Res = any>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
+    get <Res = any, ReqRH = RH>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, null>('get', path, options);
+        return this.request <Res, null, ReqRH>('get', path, options);
     }
 
     /**
@@ -1227,9 +1259,9 @@ export class FetchEngine<
      *     api.delete('/users/123')
      * );
      */
-    delete <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    delete <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data>('delete', path, { ...options, payload });
+        return this.request <Res, Data, ReqRH>('delete', path, { ...options, payload });
     }
 
     /**
@@ -1255,15 +1287,15 @@ export class FetchEngine<
      * if (err) return;
      *
      * console.log('Created user:', response.data);
-     * console.log('Location header:', response.headers.get('location'));
+     * console.log('Location header:', response.headers['location']);
      *
      * @example
      * // Destructure just the data
      * const { data: newUser } = await api.post('/users', userData);
      */
-    post <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    post <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data>('post', path, { ...options, payload });
+        return this.request <Res, Data, ReqRH>('post', path, { ...options, payload });
     }
 
     /**
@@ -1285,9 +1317,9 @@ export class FetchEngine<
      *     })
      * );
      */
-    put <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    put <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data>('put', path, { ...options, payload });
+        return this.request <Res, Data, ReqRH>('put', path, { ...options, payload });
     }
 
     /**
@@ -1308,9 +1340,9 @@ export class FetchEngine<
      *     })
      * );
      */
-    patch <Res = any, Data = any>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    patch <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data>('patch', path, { ...options, payload });
+        return this.request <Res, Data, ReqRH>('patch', path, { ...options, payload });
     }
 
     /**
@@ -2068,10 +2100,12 @@ export class FetchEngine<
         once = false
     ) {
 
+        const signal = this.#instanceAbortController.signal;
+
         if (ev === '*') {
             for (const _e in FetchEventNames) {
 
-                this.addEventListener(_e, listener as Func, { once });
+                this.addEventListener(_e, listener as Func, { once, signal });
             }
 
             return () => {
@@ -2083,7 +2117,7 @@ export class FetchEngine<
             };
         }
 
-        this.addEventListener(ev, listener as Func, { once });
+        this.addEventListener(ev, listener as Func, { once, signal });
 
         return () => {
 
@@ -2126,5 +2160,92 @@ export class FetchEngine<
         this.removeEventListener(ev, listener);
     }
 
+    /**
+     * Destroys the FetchEngine instance and cleans up all resources.
+     *
+     * Marks the instance as destroyed and clears internal state references.
+     * After calling destroy(), the instance should not be used for new requests.
+     *
+     * **Memory Leak Prevention:**
+     * - Prevents new requests from being made (throws error if attempted)
+     * - Clears internal state references
+     * - Marks instance as destroyed
+     *
+     * **Important:** EventTarget API doesn't expose listeners for removal.
+     * Users must manually call `api.off()` for each listener they added,
+     * or use AbortSignal pattern for automatic cleanup:
+     *
+     * @example
+     * // Manual cleanup approach
+     * const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
+     * const errorHandler = (e) => console.error(e);
+     * const responseHandler = (e) => console.log(e);
+     *
+     * api.on('fetch-error', errorHandler);
+     * api.on('fetch-response', responseHandler);
+     *
+     * // Clean up listeners before destroying
+     * api.off('fetch-error', errorHandler);
+     * api.off('fetch-response', responseHandler);
+     * api.destroy();
+     *
+     * @example
+     * // AbortSignal pattern (recommended for automatic cleanup)
+     * const controller = new AbortController();
+     *
+     * api.addEventListener('fetch-error', errorHandler, { signal: controller.signal });
+     * api.addEventListener('fetch-response', responseHandler, { signal: controller.signal });
+     *
+     * // All listeners removed at once
+     * controller.abort();
+     * api.destroy();
+     *
+     * @example
+     * // Component lifecycle cleanup
+     * class MyComponent {
+     *     constructor() {
+     *         this.api = new FetchEngine({ baseUrl: 'https://api.example.com' });
+     *         this.controller = new AbortController();
+     *
+     *         // Use signal for auto-cleanup
+     *         this.api.addEventListener('fetch-error',
+     *             this.handleError,
+     *             { signal: this.controller.signal }
+     *         );
+     *     }
+     *
+     *     destroy() {
+     *         this.controller.abort(); // Remove all listeners
+     *         this.api.destroy();       // Destroy instance
+     *         this.api = null;
+     *     }
+     * }
+     */
+    destroy() {
 
+        if (this.#destroyed) {
+
+            console.warn('FetchEngine instance already destroyed');
+            return;
+        }
+
+        // Clear state references to allow garbage collection
+        this.#state = {} as S;
+        this.#instanceAbortController.abort(); // Abort any ongoing requests
+    }
+
+    /**
+     * Checks if the FetchEngine instance has been destroyed.
+     *
+     * @returns true if destroy() has been called
+     *
+     * @example
+     * if (!api.isDestroyed()) {
+     *     await api.get('/users');
+     * }
+     */
+    isDestroyed(): boolean {
+
+        return this.#destroyed;
+    }
 }

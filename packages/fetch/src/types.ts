@@ -48,6 +48,9 @@ export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.In
  * HTTP response details.
  *
  * @template T - Type of the parsed response data
+ * @template H - Type of request headers used in the config
+ * @template P - Type of request params used in the config
+ * @template RH - Type of response headers received from the server
  *
  * @example
  * // Destructure just the data (backward compatibility pattern)
@@ -73,7 +76,12 @@ export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.In
  *     console.log('Success:', response.data);
  * }
  */
-export interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+export interface FetchResponse<
+    T = any,
+    H = FetchEngine.InstanceHeaders,
+    P = FetchEngine.InstanceParams,
+    RH = FetchEngine.InstanceResponseHeaders
+> {
     /**
      * Parsed response body data.
      *
@@ -85,13 +93,29 @@ export interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = Fet
     data: T;
 
     /**
-     * HTTP response headers.
+     * HTTP response headers received from the server.
      *
-     * The Headers object from the fetch Response, providing access to
-     * all response headers using the standard Headers API methods
-     * like get(), has(), entries(), etc.
+     * A plain object containing the response headers with type-safe access
+     * to headers you've defined in the InstanceResponseHeaders interface.
+     * All header names are preserved as-is from the server response.
+     *
+     * @example
+     * // Define your response headers
+     * declare module '@logosdx/fetch' {
+     *     namespace FetchEngine {
+     *         interface InstanceResponseHeaders {
+     *             'x-rate-limit': string;
+     *             'x-request-id': string;
+     *         }
+     *     }
+     * }
+     *
+     * // Now TypeScript knows about your response headers
+     * const response = await api.get('/users');
+     * const rateLimit = response.headers['x-rate-limit'];
+     * const requestId = response.headers['x-request-id'];
      */
-    headers: Headers;
+    headers: Partial<RH>;
 
     /**
      * HTTP status code.
@@ -192,6 +216,14 @@ declare module './engine.ts' {
         }
 
         /**
+         * Override this interface with the response headers you expect
+         * to receive from your API. These are the headers that will be
+         * returned in the FetchResponse object.
+         */
+        export interface InstanceResponseHeaders extends Record<string, string> {
+        }
+
+        /**
          * Override this interface with the state you intend
          * to use and set throughout your app. These are the
          * universal state that will be set on all requests.
@@ -209,6 +241,12 @@ declare module './engine.ts' {
          * on requests
          */
         export type Params<T = InstanceParams> = DictOrT<T>;
+
+        /**
+         * Response headers helper type that represents headers received
+         * from the server in API responses
+         */
+        export type ResponseHeaders<T = InstanceResponseHeaders> = DictOrT<T>;
 
         /**
          * Function type for modifying request options before they are sent.

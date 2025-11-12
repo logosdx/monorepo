@@ -22,11 +22,15 @@ const api = new FetchEngine({
 });
 
 // Error handling pattern
-const [{ data: user }, err] = await attempt(() => api.get('/users/123'));
+const [response, err] = await attempt(() => api.get('/users/123'));
 if (err) {
     console.error('Request failed:', err.status, err.message);
     return;
 }
+
+const { data: user } = response;
+console.log('User:', user);
+console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
 
 // Global instance (simplified usage)
 import fetch, { get, post, setState, addHeader } from '@logosdx/fetch';
@@ -53,10 +57,10 @@ interface AbortablePromise<T> extends Promise<T> {
     abort(reason?: string): void;
 }
 
-// Enhanced response object with typed headers and params
-interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+// Enhanced response object with typed headers, params, and response headers
+interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams, RH = FetchEngine.InstanceResponseHeaders> {
     data: T;                // Parsed response body
-    headers: Headers;       // Response headers
+    headers: Partial<RH>;   // Response headers as typed plain object
     status: number;         // HTTP status code
     request: Request;       // Original request object
     config: FetchConfig<H, P>;  // Typed configuration used for request
@@ -73,16 +77,16 @@ interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceP
     determineType?: any;
 }
 
-// HTTP convenience methods - all return FetchResponse with typed config
-api.get<User>(path, options?): AbortablePromise<FetchResponse<User, H, P>>
-api.post<User, CreateUserData>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P>>
-api.put<User, UpdateUserData>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P>>
-api.patch<User, Partial<User>>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P>>
-api.delete<void>(path, payload?, options?): AbortablePromise<FetchResponse<void, H, P>>
-api.options<any>(path, options?): AbortablePromise<FetchResponse<any, H, P>>
+// HTTP convenience methods - all return FetchResponse with typed config and response headers
+api.get<User, RH>(path, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
+api.post<User, CreateUserData, RH>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
+api.put<User, UpdateUserData, RH>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
+api.patch<User, Partial<User>, RH>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
+api.delete<void, any, RH>(path, payload?, options?): AbortablePromise<FetchResponse<void, H, P, RH>>
+api.options<any, RH>(path, options?): AbortablePromise<FetchResponse<any, H, P, RH>>
 
 // Generic request method
-api.request<Response, RequestData>(method, path, options & { payload?: RequestData }): AbortablePromise<FetchResponse<Response, H, P>>
+api.request<Response, RequestData, RH>(method, path, options & { payload?: RequestData }): AbortablePromise<FetchResponse<Response, H, P, RH>>
 
 // Request cancellation
 const request = api.get('/users');
@@ -252,8 +256,10 @@ if (response.status === 200) {
     console.log('Success! Users:', response.data);
     console.log('Request URL:', response.request.url);
     console.log('Config used:', response.config);
+    console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
     // response.config.headers is typed as MyHeaders
     // response.config.params is typed as MyParams
+    // response.headers is typed as Partial<InstanceResponseHeaders>
 }
 ```
 
@@ -373,7 +379,8 @@ const [response, err] = await attempt(() =>
 
 if (!err) {
     console.log('Users:', response.data);
-    console.log('Rate limit remaining:', response.headers.get('x-rate-limit-remaining'));
+    console.log('Rate limit remaining:', response.headers['x-rate-limit-remaining']);
+    console.log('Request ID:', response.headers['x-request-id']);
 }
 ```
 
@@ -394,6 +401,13 @@ declare module '@logosdx/fetch' {
             format?: 'json' | 'xml';
         }
 
+        interface InstanceResponseHeaders extends Record<string, string> {
+            'x-rate-limit-remaining'?: string;
+            'x-rate-limit-reset'?: string;
+            'x-request-id'?: string;
+            'content-type'?: string;
+        }
+
         interface InstanceState {
             authToken?: string;
             userId?: string;
@@ -406,7 +420,8 @@ declare module '@logosdx/fetch' {
 const api = new FetchEngine<
     FetchEngine.InstanceHeaders,
     FetchEngine.InstanceParams,
-    FetchEngine.InstanceState
+    FetchEngine.InstanceState,
+    FetchEngine.InstanceResponseHeaders
 >({
     baseUrl: 'https://api.example.com',
     validate: {
@@ -431,10 +446,102 @@ setState('authToken', 'token123'); // ✅ Typed
 const response = await get<User>('/api/user');
 response.data; // ✅ Typed as User
 response.status; // ✅ Typed as number
-response.headers; // ✅ Typed as Headers
+response.headers; // ✅ Typed as Partial<InstanceResponseHeaders>
+response.headers['x-rate-limit-remaining']; // ✅ Typed access to response headers
 response.request; // ✅ Typed as Request
 response.config.headers; // ✅ Typed as InstanceHeaders
 response.config.params; // ✅ Typed as InstanceParams
+
+// Per-request response header typing
+interface CustomHeaders {
+    'x-custom-header': string;
+}
+
+const customResponse = await get<User, CustomHeaders>('/api/user');
+customResponse.headers['x-custom-header']; // ✅ Typed
+```
+
+## Lifecycle Management
+
+```typescript
+// Memory leak prevention - destroy instances when done
+const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
+
+// Use the instance...
+await api.get('/users');
+
+// Clean up when no longer needed (component unmount, app teardown)
+api.destroy();
+
+// Attempting requests after destroy throws error
+api.isDestroyed(); // true
+await api.get('/users'); // throws: "Cannot make requests on destroyed FetchEngine instance"
+
+// Listener cleanup - Option 1: Use on() with cleanup function (recommended)
+// Listeners added via on() are automatically removed when destroy() is called
+const cleanup1 = api.on('fetch-error', (e) => console.error(e));
+const cleanup2 = api.on('fetch-response', (e) => console.log(e));
+
+// Manual cleanup (if you stored the cleanup functions)
+cleanup1();
+cleanup2();
+
+// Or just call destroy() - automatically removes all listeners added via on()
+api.destroy();
+
+// Listener cleanup - Option 2: Use off() for manual removal
+const errorHandler = (e) => console.error(e);
+const responseHandler = (e) => console.log(e);
+
+api.on('fetch-error', errorHandler);
+api.on('fetch-response', responseHandler);
+
+// Remove specific listeners manually
+api.off('fetch-error', errorHandler);
+api.off('fetch-response', responseHandler);
+api.destroy();
+
+// Listener cleanup - Option 3: Use addEventListener with your own AbortController
+// For advanced use cases where you need fine-grained control
+const controller = new AbortController();
+
+api.addEventListener('fetch-error', errorHandler, { signal: controller.signal });
+api.addEventListener('fetch-response', responseHandler, { signal: controller.signal });
+
+// Remove all listeners at once
+controller.abort();
+api.destroy();
+
+// Component lifecycle integration (simplest approach)
+class MyComponent {
+    constructor() {
+        this.api = new FetchEngine({ baseUrl: 'https://api.example.com' });
+
+        // on() returns cleanup function and automatically cleaned on destroy()
+        this.cleanups = [
+            this.api.on('fetch-error', this.handleError),
+            this.api.on('fetch-response', this.handleResponse)
+        ];
+    }
+
+    async fetchData() {
+        if (this.api.isDestroyed()) {
+            throw new Error('API instance destroyed');
+        }
+        return this.api.get('/data');
+    }
+
+    destroy() {
+        // Option 1: Just destroy - automatically removes listeners added via on()
+        this.api.destroy();
+
+        // Option 2: Manually cleanup first (if you stored cleanup functions)
+        // this.cleanups.forEach(cleanup => cleanup());
+        // this.api.destroy();
+
+        this.api = null;
+    }
+}
 ```
 
 ## Production Patterns

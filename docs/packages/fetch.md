@@ -57,7 +57,7 @@ if (err) {
 }
 console.log('Users:', response.data);
 console.log('Status:', response.status);
-console.log('Headers:', response.headers.get('content-type'));
+console.log('Headers:', response.headers['content-type']);
 
 ```
 
@@ -133,6 +133,7 @@ Creates a new HTTP client instance with type-safe headers, parameters, and state
 - `H` - Interface for typed headers (optional)
 - `P` - Interface for typed parameters (optional)
 - `S` - Interface for typed state (defaults to `InstanceState`)
+- `RH` - Interface for typed response headers (defaults to `InstanceResponseHeaders`)
 
 **Example:**
 
@@ -252,7 +253,7 @@ interface FetchEngine.Options<H, P, S> {
 
 ### Request Methods
 
-All request methods return an `AbortablePromise<FetchResponse<T, H, P>>` that can be cancelled and provides status information. The response object contains the parsed data along with headers, status, request details, and typed configuration matching your custom headers and params interfaces.
+All request methods return an `AbortablePromise<FetchResponse<T, H, P, RH>>` that can be cancelled and provides status information. The response object contains the parsed data along with typed response headers, status, request details, and typed configuration matching your custom headers and params interfaces.
 
 **Parameters:**
 
@@ -267,19 +268,19 @@ All request methods return an `AbortablePromise<FetchResponse<T, H, P>>` that ca
 **GET**
 
 ```typescript
-api.get<T>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
+api.get<T, RH>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P, RH>>
 ```
 
 **DELETE**
 
 ```typescript
-api.delete<T>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
+api.delete<T, any, RH>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P, RH>>
 ```
 
 **OPTIONS**
 
 ```typescript
-api.options<T>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
+api.options<T, RH>(path: string, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P, RH>>
 ```
 
 **Example:**
@@ -288,7 +289,7 @@ api.options<T>(path: string, options?: RequestOptions): AbortablePromise<FetchRe
 const [response, err] = await attempt(() => api.get<User[]>('/users'));
 if (!err) {
     console.log('Users:', response.data);
-    console.log('Total:', response.headers.get('x-total-count'));
+    console.log('Total:', response.headers['x-total-count']);
 }
 
 const [userResponse, err2] = await attempt(() => api.get<User>('/users/123', {
@@ -312,19 +313,19 @@ const [deleteResponse, err4] = await attempt(() => api.delete<User>('/users/123'
 **POST**
 
 ```typescript
-api.post<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
+api.post<T, D = any, RH = InstanceResponseHeaders>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P, RH>>
 ```
 
 **PUT**
 
 ```typescript
-api.put<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
+api.put<T, D = any, RH = InstanceResponseHeaders>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P, RH>>
 ```
 
 **PATCH**
 
 ```typescript
-api.patch<T, D = any>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P>>
+api.patch<T, D = any, RH = InstanceResponseHeaders>(path: string, payload?: D, options?: RequestOptions): AbortablePromise<FetchResponse<T, H, P, RH>>
 ```
 
 **Example:**
@@ -364,9 +365,9 @@ const [updatedUser, err] = await attempt(() =>
 Every HTTP request returns an enhanced response object with typed configuration:
 
 ```typescript
-interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams, RH = FetchEngine.InstanceResponseHeaders> {
     data: T;                  // Parsed response body
-    headers: Headers;         // Response headers
+    headers: Partial<RH>;     // Response headers as typed plain object
     status: number;           // HTTP status code
     request: Request;         // Original request object
     config: FetchConfig<H, P>; // Typed configuration used for request
@@ -397,8 +398,8 @@ console.log('Config:', response.config);       // Request configuration used
 const { data: users } = await api.get<User[]>('/users');
 
 // Access specific response metadata
-const contentType = response.headers.get('content-type');
-const rateLimit = response.headers.get('x-rate-limit-remaining');
+const contentType = response.headers['content-type'];
+const rateLimit = response.headers['x-rate-limit-remaining'];
 const requestUrl = response.request.url;
 const usedTimeout = response.config.timeout;
 ```
@@ -406,11 +407,11 @@ const usedTimeout = response.config.timeout;
 #### `request<T, D>(method, path, options?)`
 
 ```typescript
-request<T, D = any>(
+request<T, D = any, RH = InstanceResponseHeaders>(
     method: HttpMethods,
     path: string,
     options?: RequestOptions & { payload?: D }
-): AbortablePromise<FetchResponse<T, H, P>>
+): AbortablePromise<FetchResponse<T, H, P, RH>>
 ```
 
 **Example:**
@@ -933,6 +934,110 @@ interface FetchEvent {
 }
 ```
 
+## Lifecycle Management
+
+### `destroy()`
+
+```typescript
+destroy(): void
+```
+
+Destroys the FetchEngine instance and cleans up resources. After calling `destroy()`, new requests will throw an error. This method prevents memory leaks by clearing internal state references and automatically removing all event listeners added via `on()` or `once()`.
+
+**Event Listener Cleanup:**
+- Listeners added via `on()` or `once()` are **automatically removed** when `destroy()` is called
+- Listeners added via `addEventListener()` with your own AbortController must be cleaned up manually
+- `on()` returns a cleanup function if you need manual control before destroy
+
+**Example:**
+
+```typescript
+// Basic cleanup - listeners added via on() automatically cleaned up
+const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
+
+const cleanup = api.on('fetch-error', (e) => console.error(e));
+
+// destroy() automatically removes the listener above
+api.destroy();
+
+// Attempting requests after destroy throws error
+await api.get('/users'); // throws: "Cannot make requests on destroyed FetchEngine instance"
+
+// Option 1: Use on() with cleanup function (recommended)
+const errorCleanup = api.on('fetch-error', errorHandler);
+const responseCleanup = api.on('fetch-response', responseHandler);
+
+// Manual cleanup if needed before destroy
+errorCleanup();
+responseCleanup();
+
+// Or just destroy - automatically removes all on() listeners
+api.destroy();
+
+// Option 2: Use off() for manual removal
+api.on('fetch-error', errorHandler);
+api.on('fetch-response', responseHandler);
+
+api.off('fetch-error', errorHandler);
+api.off('fetch-response', responseHandler);
+api.destroy();
+
+// Option 3: Use addEventListener with your own AbortController (advanced)
+const controller = new AbortController();
+
+api.addEventListener('fetch-error', errorHandler, { signal: controller.signal });
+api.addEventListener('fetch-response', responseHandler, { signal: controller.signal });
+
+controller.abort(); // Required - not automatic
+api.destroy();
+
+// Component lifecycle integration (simplest approach)
+class MyComponent {
+
+    constructor() {
+
+        this.api = new FetchEngine({ baseUrl: 'https://api.example.com' });
+
+        // on() automatically cleaned up on destroy()
+        api.on('fetch-error', this.handleError);
+        api.on('fetch-response', this.handleResponse);
+    }
+
+    async fetchData() {
+
+        if (this.api.isDestroyed()) {
+
+            throw new Error('API instance destroyed');
+        }
+        return this.api.get('/data');
+    }
+
+    destroy() {
+
+        // Automatically removes all listeners added via on()
+        this.api.destroy();
+        this.api = null;
+    }
+}
+```
+
+### `isDestroyed()`
+
+```typescript
+isDestroyed(): boolean
+```
+
+Checks if the FetchEngine instance has been destroyed.
+
+**Example:**
+
+```typescript
+if (!api.isDestroyed()) {
+
+    await api.get('/users');
+}
+```
+
 ## Error Handling
 
 ### FetchError
@@ -1021,6 +1126,13 @@ declare module '@logosdx/fetch' {
             locale?: string;
         }
 
+        interface InstanceResponseHeaders extends Record<string, string> {
+            'x-rate-limit-remaining'?: string;
+            'x-rate-limit-reset'?: string;
+            'x-request-id'?: string;
+            'content-type'?: string;
+        }
+
         interface InstanceState {
             authToken?: string;
             userId?: string;
@@ -1045,7 +1157,8 @@ const [response] = await attempt(() => get<User>('/api/data')); // ✅ Typed
 if (response) {
     response.data;    // ✅ Typed as User
     response.status;  // ✅ Typed as number
-    response.headers; // ✅ Typed as Headers
+    response.headers; // ✅ Typed as Partial<InstanceResponseHeaders>
+    response.headers['x-rate-limit-remaining']; // ✅ Typed access to response headers
     response.config.headers; // ✅ Typed as InstanceHeaders
     response.config.params;  // ✅ Typed as InstanceParams
 }
