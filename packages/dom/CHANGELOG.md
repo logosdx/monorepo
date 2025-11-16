@@ -1,5 +1,12 @@
 # @logosdx/dom
 
+## 2.0.10
+
+### Patch Changes
+
+- Updated dependencies [8fda604]
+  - @logosdx/utils@2.4.0
+
 ## 2.0.9
 
 ### Patch Changes
