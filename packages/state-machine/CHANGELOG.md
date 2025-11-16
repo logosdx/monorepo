@@ -1,5 +1,12 @@
 # @logosdx/state-machine
 
+## 1.0.15
+
+### Patch Changes
+
+- Updated dependencies [6416ac4]
+  - @logosdx/utils@2.5.0
+
 ## 1.0.14
 
 ### Patch Changes
