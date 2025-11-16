@@ -734,3 +734,441 @@ function getConfig<P extends PathNames<Config>>(path: P): PathValue<Config, P> |
 
 const apiUrl = getConfig('api.endpoints.users') // Type-safe!
 ```
+
+## Configuration & Environment Variables
+
+### Environment Variable Parsing
+
+Transform flat environment variables into nested configuration objects with intelligent type coercion. Particularly useful for containerized applications and 12-factor apps.
+
+```ts
+const makeNestedConfig: <C extends object, F extends Record<string, string>>(
+  flatConfig: F,
+  opts?: {
+    filter?: (key: string, val: string) => boolean
+    forceAllCapToLower?: boolean  // Default: true
+    separator?: string            // Default: "_"
+    stripPrefix?: string | number // Strip prefix from keys
+    parseUnits?: boolean          // Default: false
+    skipConversion?: (key: string, value: unknown) => boolean
+    memoizeOpts?: MemoizeOptions | false
+  }
+) => () => C
+
+const castValuesToTypes: (
+  obj: object,
+  opts?: {
+    parseUnits?: boolean  // Default: false
+    skipConversion?: (key: string, value: unknown) => boolean
+  }
+) => void  // Mutates in place
+const isEnabledValue: (val: unknown) => boolean
+const isDisabledValue: (val: unknown) => boolean
+const hasEnabledOrDisabledValue: (val: unknown) => boolean
+```
+
+#### Why Use This
+
+Environment variables are always strings, but application configuration often needs booleans, numbers, and nested structures. `makeNestedConfig` bridges this gap by:
+
+1. **Converting flat keys to nested objects**: `APP_DB_HOST` → `{ db: { host: ... } }`
+2. **Smart type coercion**: `"true"` → `true`, `"5432"` → `5432`
+3. **Preserving camelCase in all-caps contexts**: `APP_WORKER_maxRetries` → `{ worker: { maxRetries: ... } }`
+
+This eliminates manual environment variable parsing and reduces configuration boilerplate.
+
+#### Configuration Patterns
+
+```ts
+// Basic usage - transform environment variables
+// Given process.env:
+// {
+//   APP_DB_HOST: 'localhost',
+//   APP_DB_PORT: '5432',
+//   APP_DEBUG: 'true',
+//   APP_FEATURE_X_ENABLED: 'false'
+// }
+
+const config = makeNestedConfig(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_',
+  forceAllCapToLower: true,
+  separator: '_'
+})
+
+console.log(config())
+// {
+//   db: { host: 'localhost', port: 5432 },
+//   debug: true,
+//   feature: { x: { enabled: false } }
+// }
+
+// Memoized configuration - prevents repeated processing
+const getCachedConfig = makeNestedConfig(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_',
+  memoizeOpts: { ttl: 300000 }  // Cache for 5 minutes
+})
+
+// Mixed casing - preserve camelCase in configuration
+// Given: APP_WORKER_EMAILS_maxRunsPerMin: '100'
+const workerConfig = makeNestedConfig(process.env, {
+  filter: (key) => key.startsWith('APP_WORKER_'),
+  stripPrefix: 'APP_WORKER_',
+  forceAllCapToLower: true  // ALL_CAPS → lowercase, but keeps maxRunsPerMin
+})
+
+console.log(workerConfig())
+// { emails: { maxRunsPerMin: 100 } }
+// Note: maxRunsPerMin preserved because it's not all-caps
+
+// Custom separators for different naming conventions
+// Given: APP_DB__HOST, APP_DB__PORT
+const customSepConfig = makeNestedConfig(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_',
+  separator: '__'  // Use double underscore
+})
+
+// Numeric prefix stripping
+const shortConfig = makeNestedConfig(process.env, {
+  stripPrefix: 4  // Strip first 4 characters ("APP_")
+})
+
+// Parse unit values (time durations and byte sizes)
+// Given: APP_TIMEOUT='5m', APP_MAX_UPLOAD_SIZE='10mb'
+const configWithUnits = makeNestedConfig(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_',
+  parseUnits: true  // Enable unit parsing
+})
+
+console.log(configWithUnits())
+// { timeout: 300000, max: { upload: { size: 10485760 } } }
+
+// Skip conversion for sensitive keys (keep as strings)
+// Given: APP_API_KEY='12345', APP_SECRET='abc', APP_PORT='3000'
+const configWithSkip = makeNestedConfig(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_',
+  skipConversion: (key) => key.toLowerCase().includes('key') || key.toLowerCase().includes('secret')
+})
+
+console.log(configWithSkip())
+// { api: { key: '12345' }, secret: 'abc', port: 3000 }
+// Keys and secrets kept as strings, port converted to number
+
+// Combine parseUnits and skipConversion
+const advancedConfig = makeNestedConfig(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_',
+  parseUnits: true,
+  skipConversion: (key) => key.toLowerCase().includes('key')
+})
+```
+
+#### Type Coercion
+
+The `castValuesToTypes` function intelligently converts string values:
+
+```ts
+const config = {
+  debug: 'true',        // → true
+  verbose: 'yes',       // → true
+  silent: 'false',      // → false
+  disabled: 'no',       // → false
+  port: '3000',         // → 3000
+  timeout: '5000',      // → 5000
+  name: 'myapp',        // → 'myapp' (unchanged)
+  nested: {
+    enabled: 'true',    // → true (recursive)
+    retries: '5'        // → 5 (recursive)
+  }
+}
+
+castValuesToTypes(config)  // Mutates in place
+
+// Parse unit values
+const configWithUnits = {
+  timeout: '5m',
+  maxSize: '10mb',
+  debug: 'true'
+}
+
+castValuesToTypes(configWithUnits, { parseUnits: true })
+console.log(configWithUnits)
+// { timeout: 300000, maxSize: 10485760, debug: true }
+
+// Skip conversion for specific keys
+const configWithSkip = {
+  apiKey: '12345',
+  secretToken: '67890',
+  port: '3000'
+}
+
+castValuesToTypes(configWithSkip, {
+  skipConversion: (key) => key.toLowerCase().includes('key') || key.toLowerCase().includes('token')
+})
+console.log(configWithSkip)
+// { apiKey: '12345', secretToken: '67890', port: 3000 }
+
+// Combine both options
+const advancedConfig = {
+  timeout: '5m',
+  apiKey: '12345',
+  port: '3000'
+}
+
+castValuesToTypes(advancedConfig, {
+  parseUnits: true,
+  skipConversion: (key) => key.toLowerCase().includes('key')
+})
+console.log(advancedConfig)
+// { timeout: 300000, apiKey: '12345', port: 3000 }
+```
+
+**Recognized boolean values:**
+- Enabled: `"true"`, `"yes"`, `true`
+- Disabled: `"false"`, `"no"`, `false`
+
+**Number coercion:**
+- Only strings containing only digits: `/^\d+$/`
+- Does not convert floats or negative numbers (intentional safety)
+
+**Unit parsing (when parseUnits: true):**
+- Time durations: `'5m'` → 300000 (milliseconds)
+- Byte sizes: `'10mb'` → 10485760 (bytes)
+
+#### Value Validation Helpers
+
+```ts
+// Check for enabled/disabled values
+if (isEnabledValue(process.env.DEBUG)) {
+  enableDebugMode()
+}
+
+if (isDisabledValue(process.env.FEATURE_FLAG)) {
+  skipFeature()
+}
+
+// Validate configuration values
+const hasValidToggle = hasEnabledOrDisabledValue(config.toggle)
+```
+
+#### When to Use Each Pattern
+
+**`makeNestedConfig` when:**
+- Loading environment variables in containerized apps
+- Building 12-factor app configuration
+- Need nested structure from flat keys
+- Want memoization for expensive config processing
+
+**`castValuesToTypes` when:**
+- Already have flat config object
+- Need in-place mutation (memory efficient)
+- Custom parsing logic required
+
+**Direct validation helpers when:**
+- Checking individual environment variable values
+- Building custom configuration parsers
+- Need boolean coercion without full config transformation
+
+## Unit Conversion & Formatting
+
+Human-readable time and byte size utilities for configuration, logging, and user interfaces.
+
+```ts
+// Time unit constants
+const timeUnits: {
+  sec: number, min: number, hour: number, day: number, week: number
+  min15: number, min30: number, hour2: number, hour4: number, hour8: number, hour12: number
+  secs(n: number): number, mins(n: number): number, hours(n: number): number
+  days(n: number): number, weeks(n: number): number, months(n: number): number, years(n: number): number
+}
+
+// Byte unit constants
+const byteUnits: {
+  kb: number, mb: number, gb: number, tb: number
+  kbs(n: number): number, mbs(n: number): number, gbs(n: number): number, tbs(n: number): number
+}
+
+// Convenience exports
+const seconds: (n: number) => number
+const minutes: (n: number) => number
+const hours: (n: number) => number
+const days: (n: number) => number
+const weeks: (n: number) => number
+const months: (n: number) => number
+const years: (n: number) => number
+
+const kilobytes: (n: number) => number
+const megabytes: (n: number) => number
+const gigabytes: (n: number) => number
+const terabytes: (n: number) => number
+
+// Parsing - flexible input formats
+const parseTimeDuration: (str: string) => number  // → milliseconds
+const parseByteSize: (str: string) => number      // → bytes
+
+// Formatting - numbers to human-readable strings
+const formatTimeDuration: (ms: number, opts?: {
+  decimals?: number
+  unit?: 'sec' | 'min' | 'hour' | 'day' | 'week' | 'month' | 'year'
+}) => string
+
+const formatByteSize: (bytes: number, opts?: {
+  decimals?: number  // Default: 2
+  unit?: 'kb' | 'mb' | 'gb' | 'tb'
+}) => string
+```
+
+#### Why Use This
+
+Configuration files and environment variables often use human-readable duration/size strings. Converting these to milliseconds/bytes (and vice versa for display) is repetitive boilerplate. These utilities provide:
+
+1. **Natural language parsing**: `"5 minutes"` → `300000` milliseconds
+2. **Multiple format support**: `"5min"`, `"5mins"`, `"5 minutes"` all work
+3. **Intelligent formatting**: Auto-selects appropriate unit for display
+4. **Type safety**: All conversions are explicit and typed
+
+#### Time Duration Patterns
+
+```ts
+// Parse various time formats to milliseconds
+parseTimeDuration('30sec')       // 30000
+parseTimeDuration('30 secs')     // 30000
+parseTimeDuration('30 seconds')  // 30000
+parseTimeDuration('5m')          // 300000
+parseTimeDuration('5min')        // 300000
+parseTimeDuration('5 minutes')   // 300000
+parseTimeDuration('2h')          // 7200000
+parseTimeDuration('2hrs')        // 7200000
+parseTimeDuration('2 hours')     // 7200000
+parseTimeDuration('1d')          // 86400000
+parseTimeDuration('1day')        // 86400000
+parseTimeDuration('2.5 hours')   // 9000000 (supports decimals)
+
+// Use in configuration
+const config = {
+  sessionTimeout: parseTimeDuration(process.env.SESSION_TIMEOUT || '1hour'),
+  cacheExpiry: parseTimeDuration(process.env.CACHE_TTL || '15min'),
+  heartbeat: parseTimeDuration(process.env.HEARTBEAT || '30sec')
+}
+
+// Programmatic duration calculation
+setTimeout(cleanup, minutes(5))        // 5 minutes
+setInterval(poll, seconds(30))        // 30 seconds
+cache.set(key, value, { ttl: hours(1) })  // 1 hour
+
+// Format for display
+formatTimeDuration(1000)              // "1sec"
+formatTimeDuration(30000)             // "30sec"
+formatTimeDuration(90000)             // "1.5min" (smart decimals)
+formatTimeDuration(3600000)           // "1hour"
+formatTimeDuration(86400000)          // "1day"
+
+// Control formatting
+formatTimeDuration(90000, { unit: 'sec' })     // "90sec" (force unit)
+formatTimeDuration(90000, { decimals: 0 })     // "2min" (round up)
+formatTimeDuration(90000, { decimals: 2 })     // "1.5min" (trailing zeros removed)
+
+// Logging with readable durations
+logger.info(`Cache expires in: ${formatTimeDuration(cache.ttl)}`)
+logger.debug(`Request took: ${formatTimeDuration(elapsed)}`)
+```
+
+#### Byte Size Patterns
+
+```ts
+// Parse various byte size formats
+parseByteSize('10kb')            // 10240
+parseByteSize('10 kbs')          // 10240
+parseByteSize('10 kilobytes')    // 10240
+parseByteSize('5mb')             // 5242880
+parseByteSize('5 megabytes')     // 5242880
+parseByteSize('2.5gb')           // 2684354560 (supports decimals)
+
+// Use in configuration
+const config = {
+  uploadLimit: parseByteSize(process.env.MAX_UPLOAD || '10mb'),
+  diskQuota: parseByteSize(process.env.DISK_QUOTA || '100gb'),
+  thumbnailMax: parseByteSize(process.env.THUMB_SIZE || '500kb')
+}
+
+// Programmatic size calculation
+const maxFileSize = megabytes(10)  // 10485760
+const bufferSize = kilobytes(64)   // 65536
+
+// Format for display
+formatByteSize(1024)              // "1kb"
+formatByteSize(1536)              // "1.5kb"
+formatByteSize(10485760)          // "10mb"
+formatByteSize(1073741824)        // "1gb"
+
+// Control formatting
+formatByteSize(1024, { unit: 'mb' })          // "0mb" (force unit)
+formatByteSize(1536, { decimals: 0 })         // "2kb" (round up)
+formatByteSize(1024 * 1.5, { decimals: 3 })   // "1.5kb"
+
+// Display file sizes
+files.forEach(file => {
+  console.log(`${file.name}: ${formatByteSize(file.size)}`)
+})
+```
+
+#### Advanced Time Unit Usage
+
+```ts
+// Using constants directly
+const CACHE_TTL = timeUnits.min15  // 15 minutes
+const SESSION_DURATION = timeUnits.hour2  // 2 hours
+
+// Combining units for complex durations
+const complexDuration =
+  days(7) +
+  hours(12) +
+  minutes(30)  // 7 days, 12 hours, 30 minutes in ms
+
+// Rate limiting with time units
+const apiLimiter = rateLimit(apiCall, {
+  maxCalls: 100,
+  windowMs: minutes(15)  // 100 calls per 15 minutes
+})
+
+// Retry with exponential backoff
+const resilientFetch = retry(fetch, {
+  retries: 3,
+  delay: seconds(1),
+  backoff: 2  // 1s, 2s, 4s
+})
+
+// Circuit breaker timeouts
+const protectedApi = circuitBreaker(apiCall, {
+  maxFailures: 5,
+  resetAfter: minutes(5)  // Reset after 5 minutes
+})
+```
+
+#### When to Use Each Pattern
+
+**Constants (`timeUnits.min`, `byteUnits.mb`) when:**
+- You need the raw millisecond/byte value
+- Building configuration objects
+- Performance-critical code (no function call overhead)
+
+**Functions (`minutes()`, `megabytes()`) when:**
+- Dynamic values from variables
+- Clearer intent: `minutes(config.timeout)` vs `config.timeout * 60000`
+- Composing multiple units
+
+**Parsing (`parseTimeDuration()`, `parseByteSize()`) when:**
+- Reading from environment variables
+- Processing user input
+- Loading configuration files
+- Supporting multiple input formats
+
+**Formatting (`formatTimeDuration()`, `formatByteSize()`) when:**
+- Displaying durations to users
+- Logging human-readable values
+- Building UI components
+- Generating reports

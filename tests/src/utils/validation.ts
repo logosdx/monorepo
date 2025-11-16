@@ -28,6 +28,9 @@ import {
     isDefined,
     isNull,
     allKeysValid,
+    isEnabledValue,
+    isDisabledValue,
+    hasEnabledOrDisabledValue,
     allItemsValid,
 } from '../../../packages/utils/src/validation.ts';
 
@@ -636,6 +639,167 @@ describe('@logosdx/utils - validation', () => {
             });
 
             expect(allPassed).to.be.true;
+        });
+    });
+
+    describe('isEnabledValue', () => {
+
+        it('should return true for string "true"', () => {
+
+            expect(isEnabledValue('true')).to.be.true;
+        });
+
+        it('should return true for string "yes"', () => {
+
+            expect(isEnabledValue('yes')).to.be.true;
+        });
+
+        it('should return true for boolean true', () => {
+
+            expect(isEnabledValue(true)).to.be.true;
+        });
+
+        it('should return false for string "false"', () => {
+
+            expect(isEnabledValue('false')).to.be.false;
+        });
+
+        it('should return false for string "no"', () => {
+
+            expect(isEnabledValue('no')).to.be.false;
+        });
+
+        it('should return false for boolean false', () => {
+
+            expect(isEnabledValue(false)).to.be.false;
+        });
+
+        it('should return false for arbitrary strings', () => {
+
+            expect(isEnabledValue('maybe')).to.be.false;
+            expect(isEnabledValue('unknown')).to.be.false;
+            expect(isEnabledValue('')).to.be.false;
+        });
+
+        it('should return false for numbers', () => {
+
+            expect(isEnabledValue(1)).to.be.false;
+            expect(isEnabledValue(0)).to.be.false;
+            expect(isEnabledValue(123)).to.be.false;
+        });
+
+        it('should return false for null and undefined', () => {
+
+            expect(isEnabledValue(null)).to.be.false;
+            expect(isEnabledValue(undefined)).to.be.false;
+        });
+
+        it('should return false for objects', () => {
+
+            expect(isEnabledValue({})).to.be.false;
+            expect(isEnabledValue([])).to.be.false;
+        });
+    });
+
+    describe('isDisabledValue', () => {
+
+        it('should return true for string "false"', () => {
+
+            expect(isDisabledValue('false')).to.be.true;
+        });
+
+        it('should return true for string "no"', () => {
+
+            expect(isDisabledValue('no')).to.be.true;
+        });
+
+        it('should return true for boolean false', () => {
+
+            expect(isDisabledValue(false)).to.be.true;
+        });
+
+        it('should return false for string "true"', () => {
+
+            expect(isDisabledValue('true')).to.be.false;
+        });
+
+        it('should return false for string "yes"', () => {
+
+            expect(isDisabledValue('yes')).to.be.false;
+        });
+
+        it('should return false for boolean true', () => {
+
+            expect(isDisabledValue(true)).to.be.false;
+        });
+
+        it('should return false for arbitrary strings', () => {
+
+            expect(isDisabledValue('maybe')).to.be.false;
+            expect(isDisabledValue('unknown')).to.be.false;
+            expect(isDisabledValue('')).to.be.false;
+        });
+
+        it('should return false for numbers', () => {
+
+            expect(isDisabledValue(1)).to.be.false;
+            expect(isDisabledValue(0)).to.be.false;
+            expect(isDisabledValue(123)).to.be.false;
+        });
+
+        it('should return false for null and undefined', () => {
+
+            expect(isDisabledValue(null)).to.be.false;
+            expect(isDisabledValue(undefined)).to.be.false;
+        });
+
+        it('should return false for objects', () => {
+
+            expect(isDisabledValue({})).to.be.false;
+            expect(isDisabledValue([])).to.be.false;
+        });
+    });
+
+    describe('hasEnabledOrDisabledValue', () => {
+
+        it('should return true for enabled values', () => {
+
+            expect(hasEnabledOrDisabledValue('true')).to.be.true;
+            expect(hasEnabledOrDisabledValue('yes')).to.be.true;
+            expect(hasEnabledOrDisabledValue(true)).to.be.true;
+        });
+
+        it('should return true for disabled values', () => {
+
+            expect(hasEnabledOrDisabledValue('false')).to.be.true;
+            expect(hasEnabledOrDisabledValue('no')).to.be.true;
+            expect(hasEnabledOrDisabledValue(false)).to.be.true;
+        });
+
+        it('should return false for arbitrary strings', () => {
+
+            expect(hasEnabledOrDisabledValue('maybe')).to.be.false;
+            expect(hasEnabledOrDisabledValue('unknown')).to.be.false;
+            expect(hasEnabledOrDisabledValue('')).to.be.false;
+        });
+
+        it('should return false for numbers', () => {
+
+            expect(hasEnabledOrDisabledValue(1)).to.be.false;
+            expect(hasEnabledOrDisabledValue(0)).to.be.false;
+            expect(hasEnabledOrDisabledValue(123)).to.be.false;
+        });
+
+        it('should return false for null and undefined', () => {
+
+            expect(hasEnabledOrDisabledValue(null)).to.be.false;
+            expect(hasEnabledOrDisabledValue(undefined)).to.be.false;
+        });
+
+        it('should return false for objects', () => {
+
+            expect(hasEnabledOrDisabledValue({})).to.be.false;
+            expect(hasEnabledOrDisabledValue([])).to.be.false;
         });
     });
 });

@@ -1055,6 +1055,348 @@ setDeepMany(obj, [
 ])
 ```
 
+---
+
+### `makeNestedConfig()`
+
+Transform flat environment variables into nested configuration objects with automatic type coercion. Essential for 12-factor apps and containerized deployments.
+
+```ts
+function makeNestedConfig<C extends object, F extends Record<string, string>>(
+    flatConfig: F,
+    opts?: {
+        filter?: (key: string, val: string) => boolean
+        forceAllCapToLower?: boolean  // Default: true
+        separator?: string            // Default: "_"
+        stripPrefix?: string | number
+        parseUnits?: boolean          // Default: false
+        skipConversion?: (key: string, value: unknown) => boolean
+        memoizeOpts?: MemoizeOptions | false
+    }
+): () => C
+```
+
+**Example:**
+
+```ts
+import { makeNestedConfig } from '@logosdx/utils'
+
+// Given process.env:
+// {
+//   APP_DB_HOST: 'localhost',
+//   APP_DB_PORT: '5432',
+//   APP_DEBUG: 'true',
+//   APP_FEATURE_X_ENABLED: 'false',
+//   APP_WORKER_EMAILS_maxRunsPerMin: '100'
+// }
+
+const config = makeNestedConfig(process.env, {
+    filter: (key) => key.startsWith('APP_'),
+    stripPrefix: 'APP_',
+    forceAllCapToLower: true
+})
+
+console.log(config())
+// {
+//   db: { host: 'localhost', port: 5432 },
+//   debug: true,
+//   feature: { x: { enabled: false } },
+//   worker: { emails: { maxRunsPerMin: 100 } }
+// }
+
+// Note: maxRunsPerMin preserved because it's not all-caps
+
+// Memoized configuration for repeated access
+const getCachedConfig = makeNestedConfig(process.env, {
+    filter: (key) => key.startsWith('APP_'),
+    stripPrefix: 'APP_',
+    memoizeOpts: { ttl: 300000 }  // Cache for 5 minutes
+})
+
+// Custom separators for different naming conventions
+const doubleUnderscoreConfig = makeNestedConfig(process.env, {
+    filter: (key) => key.startsWith('APP_'),
+    stripPrefix: 'APP_',
+    separator: '__'
+})
+
+// Parse unit values (time durations and byte sizes)
+// Given: APP_TIMEOUT='5m', APP_MAX_SIZE='10mb'
+const configWithUnits = makeNestedConfig(process.env, {
+    filter: (key) => key.startsWith('APP_'),
+    stripPrefix: 'APP_',
+    parseUnits: true
+})
+// { timeout: 300000, max: { size: 10485760 } }
+
+// Skip conversion for sensitive keys (keep as strings)
+// Given: APP_API_KEY='12345', APP_PORT='3000'
+const configWithSkip = makeNestedConfig(process.env, {
+    filter: (key) => key.startsWith('APP_'),
+    stripPrefix: 'APP_',
+    skipConversion: (key) => key.toLowerCase().includes('key')
+})
+// { api: { key: '12345' }, port: 3000 }
+```
+
+---
+
+### `castValuesToTypes()`
+
+Intelligently coerce string values to their appropriate types. Recursively processes nested objects.
+
+```ts
+function castValuesToTypes(
+    obj: object,
+    opts?: {
+        parseUnits?: boolean  // Default: false
+        skipConversion?: (key: string, value: unknown) => boolean
+    }
+): void  // Mutates in place
+```
+
+**Example:**
+
+```ts
+import { castValuesToTypes } from '@logosdx/utils'
+
+const config = {
+    debug: 'true',        // → true
+    verbose: 'yes',       // → true
+    silent: 'false',      // → false
+    disabled: 'no',       // → false
+    port: '3000',         // → 3000
+    timeout: '5000',      // → 5000
+    name: 'myapp',        // → 'myapp' (unchanged)
+    nested: {
+        enabled: 'true',  // → true (recursive)
+        retries: '5'      // → 5 (recursive)
+    }
+}
+
+castValuesToTypes(config)  // Mutates in place
+
+console.log(config.debug)  // true (boolean)
+console.log(config.port)   // 3000 (number)
+
+// Parse unit values
+const configWithUnits = {
+    timeout: '5m',
+    maxSize: '10mb',
+    debug: 'true'
+}
+
+castValuesToTypes(configWithUnits, { parseUnits: true })
+console.log(configWithUnits.timeout)  // 300000 (5 minutes in ms)
+console.log(configWithUnits.maxSize)  // 10485760 (10 MB in bytes)
+
+// Skip conversion for specific keys
+const configWithSkip = {
+    apiKey: '12345',
+    port: '3000'
+}
+
+castValuesToTypes(configWithSkip, {
+    skipConversion: (key) => key.toLowerCase().includes('key')
+})
+console.log(configWithSkip.apiKey)  // '12345' (kept as string)
+console.log(configWithSkip.port)    // 3000 (converted to number)
+```
+
+**Recognized values:**
+- **Enabled**: `"true"`, `"yes"`, `true`
+- **Disabled**: `"false"`, `"no"`, `false`
+- **Numbers**: Strings containing only digits (`/^\d+$/`)
+
+---
+
+### `isEnabledValue()` / `isDisabledValue()`
+
+Check if a value represents an enabled or disabled state.
+
+```ts
+function isEnabledValue(val: unknown): boolean
+function isDisabledValue(val: unknown): boolean
+function hasEnabledOrDisabledValue(val: unknown): boolean
+```
+
+**Example:**
+
+```ts
+import { isEnabledValue, isDisabledValue } from '@logosdx/utils'
+
+// Environment variable checking
+if (isEnabledValue(process.env.DEBUG)) {
+    enableDebugMode()
+}
+
+if (isDisabledValue(process.env.FEATURE_FLAG)) {
+    skipFeature()
+}
+
+// Configuration validation
+const config = {
+    featureA: 'true',
+    featureB: 'no',
+    featureC: 'maybe'
+}
+
+Object.entries(config).forEach(([key, value]) => {
+    if (isEnabledValue(value)) {
+        console.log(`${key}: enabled`)
+    } else if (isDisabledValue(value)) {
+        console.log(`${key}: disabled`)
+    } else {
+        console.warn(`${key}: invalid value`)
+    }
+})
+```
+
+---
+
+### Unit Conversion & Formatting
+
+Human-readable time and byte size utilities for configuration, logging, and display.
+
+#### Time Units
+
+```ts
+// Constants
+const timeUnits: {
+    sec: number, min: number, hour: number, day: number, week: number
+    secs(n: number): number, mins(n: number): number, hours(n: number): number
+    days(n: number): number, weeks(n: number): number
+}
+
+// Convenience functions
+const seconds: (n: number) => number
+const minutes: (n: number) => number
+const hours: (n: number) => number
+const days: (n: number) => number
+const weeks: (n: number) => number
+const months: (n: number) => number
+const years: (n: number) => number
+
+// Parse human-readable strings to milliseconds
+const parseTimeDuration: (str: string) => number
+
+// Format milliseconds to human-readable strings
+const formatTimeDuration: (ms: number, opts?: {
+    decimals?: number
+    unit?: 'sec' | 'min' | 'hour' | 'day' | 'week' | 'month' | 'year'
+}) => string
+```
+
+**Example:**
+
+```ts
+import {
+    seconds, minutes, hours,
+    parseTimeDuration,
+    formatTimeDuration
+} from '@logosdx/utils'
+
+// Programmatic duration calculation
+setTimeout(cleanup, minutes(5))     // 5 minutes = 300000ms
+setInterval(poll, seconds(30))      // 30 seconds = 30000ms
+cache.set(key, value, { ttl: hours(1) })  // 1 hour
+
+// Parse configuration from environment variables
+const config = {
+    sessionTimeout: parseTimeDuration(process.env.SESSION_TIMEOUT || '1hour'),
+    cacheExpiry: parseTimeDuration(process.env.CACHE_TTL || '15min'),
+    heartbeat: parseTimeDuration(process.env.HEARTBEAT || '30sec')
+}
+
+// Supports multiple formats
+parseTimeDuration('30sec')       // 30000
+parseTimeDuration('30 secs')     // 30000
+parseTimeDuration('30 seconds')  // 30000
+parseTimeDuration('5m')          // 300000
+parseTimeDuration('5min')        // 300000
+parseTimeDuration('2.5 hours')   // 9000000 (decimals supported)
+
+// Format for display (auto-selects unit)
+formatTimeDuration(1000)          // "1sec"
+formatTimeDuration(90000)         // "1.5min" (smart decimals)
+formatTimeDuration(3600000)       // "1hour"
+
+// Control formatting
+formatTimeDuration(90000, { unit: 'sec' })      // "90sec"
+formatTimeDuration(90000, { decimals: 0 })      // "2min"
+
+// Logging with readable durations
+logger.info(`Cache expires in: ${formatTimeDuration(cache.ttl)}`)
+logger.debug(`Request took: ${formatTimeDuration(elapsed)}`)
+```
+
+#### Byte Sizes
+
+```ts
+// Constants
+const byteUnits: {
+    kb: number, mb: number, gb: number, tb: number
+    kbs(n: number): number, mbs(n: number): number
+    gbs(n: number): number, tbs(n: number): number
+}
+
+// Convenience functions
+const kilobytes: (n: number) => number
+const megabytes: (n: number) => number
+const gigabytes: (n: number) => number
+const terabytes: (n: number) => number
+
+// Parse human-readable strings to bytes
+const parseByteSize: (str: string) => number
+
+// Format bytes to human-readable strings
+const formatByteSize: (bytes: number, opts?: {
+    decimals?: number  // Default: 2
+    unit?: 'kb' | 'mb' | 'gb' | 'tb'
+}) => string
+```
+
+**Example:**
+
+```ts
+import {
+    megabytes, kilobytes,
+    parseByteSize,
+    formatByteSize
+} from '@logosdx/utils'
+
+// Programmatic size calculation
+const maxFileSize = megabytes(10)  // 10485760 bytes
+const bufferSize = kilobytes(64)   // 65536 bytes
+
+// Parse configuration
+const config = {
+    uploadLimit: parseByteSize(process.env.MAX_UPLOAD || '10mb'),
+    diskQuota: parseByteSize(process.env.DISK_QUOTA || '100gb'),
+    thumbnailMax: parseByteSize(process.env.THUMB_SIZE || '500kb')
+}
+
+// Supports multiple formats
+parseByteSize('10kb')           // 10240
+parseByteSize('10 kbs')         // 10240
+parseByteSize('10 kilobytes')   // 10240
+parseByteSize('2.5gb')          // 2684354560 (decimals supported)
+
+// Format for display (auto-selects unit)
+formatByteSize(1024)            // "1kb"
+formatByteSize(1536)            // "1.5kb"
+formatByteSize(10485760)        // "10mb"
+
+// Control formatting
+formatByteSize(1024, { unit: 'mb' })        // "0mb"
+formatByteSize(1536, { decimals: 0 })       // "2kb"
+
+// Display file sizes
+files.forEach(file => {
+    console.log(`${file.name}: ${formatByteSize(file.size)}`)
+})
+```
+
 ## Performance & Caching
 
 ### `memoize()` and `memoizeSync()`

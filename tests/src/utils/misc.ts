@@ -18,6 +18,8 @@ import {
     wait,
     chunk,
     nTimes,
+    castValuesToTypes,
+    makeNestedConfig,
 } from '../../../packages/utils/src/index.ts';
 
 describe('@logosdx/utils', () => {
@@ -733,5 +735,554 @@ describe('@logosdx/utils', () => {
             expect(result).to.deep.equal([0, 1]);
         });
 
+    });
+
+    describe('misc: castValuesToTypes', () => {
+
+        it('should convert string booleans to actual booleans', () => {
+
+            const config: any = {
+                debug: 'true',
+                enabled: 'yes',
+                disabled: 'false',
+                hidden: 'no',
+            };
+
+            castValuesToTypes(config);
+
+            expect(config.debug).to.equal(true);
+            expect(config.enabled).to.equal(true);
+            expect(config.disabled).to.equal(false);
+            expect(config.hidden).to.equal(false);
+        });
+
+        it('should convert numeric strings to numbers', () => {
+
+            const config: any = {
+                port: '3000',
+                timeout: '5000',
+                retries: '3',
+            };
+
+            castValuesToTypes(config);
+
+            expect(config.port).to.equal(3000);
+            expect(config.timeout).to.equal(5000);
+            expect(config.retries).to.equal(3);
+        });
+
+        it('should handle nested objects recursively', () => {
+
+            const config: any = {
+                server: {
+                    port: '8080',
+                    debug: 'true',
+                },
+                database: {
+                    pool: {
+                        min: '2',
+                        max: '10',
+                    },
+                },
+            };
+
+            castValuesToTypes(config);
+
+            expect(config.server.port).to.equal(8080);
+            expect(config.server.debug).to.equal(true);
+            expect(config.database.pool.min).to.equal(2);
+            expect(config.database.pool.max).to.equal(10);
+        });
+
+        it('should leave non-convertible strings as-is', () => {
+
+            const config: any = {
+                name: 'myapp',
+                description: 'A great app',
+                version: '1.2.3',
+            };
+
+            castValuesToTypes(config);
+
+            expect(config.name).to.equal('myapp');
+            expect(config.description).to.equal('A great app');
+            expect(config.version).to.equal('1.2.3');
+        });
+
+        it('should handle mixed value types', () => {
+
+            const config: any = {
+                debug: 'true',
+                port: '3000',
+                name: 'app',
+                timeout: '5000',
+                enabled: 'yes',
+            };
+
+            castValuesToTypes(config);
+
+            expect(config.debug).to.equal(true);
+            expect(config.port).to.equal(3000);
+            expect(config.name).to.equal('app');
+            expect(config.timeout).to.equal(5000);
+            expect(config.enabled).to.equal(true);
+        });
+
+        it('should not throw on non-string values', () => {
+
+            const config: any = {
+                alreadyNumber: 123,
+                alreadyBoolean: true,
+                stringNumber: '456',
+            };
+
+            castValuesToTypes(config);
+
+            expect(config.alreadyNumber).to.equal(123);
+            expect(config.alreadyBoolean).to.equal(true);
+            expect(config.stringNumber).to.equal(456);
+        });
+
+        it('should handle empty objects', () => {
+
+            const config: any = {};
+
+            castValuesToTypes(config);
+
+            expect(config).to.deep.equal({});
+        });
+
+        it('should handle zero as string', () => {
+
+            const config: any = { count: '0' };
+
+            castValuesToTypes(config);
+
+            expect(config.count).to.equal(0);
+        });
+
+        it('should parse time duration units when parseUnits is true', () => {
+
+            const config: any = {
+                timeout: '5m',
+                cacheExpiry: '1hour',
+                sessionDuration: '30sec',
+            };
+
+            castValuesToTypes(config, { parseUnits: true });
+
+            expect(config.timeout).to.equal(300000);  // 5 minutes
+            expect(config.cacheExpiry).to.equal(3600000);  // 1 hour
+            expect(config.sessionDuration).to.equal(30000);  // 30 seconds
+        });
+
+        it('should parse byte size units when parseUnits is true', () => {
+
+            const config: any = {
+                maxUploadSize: '10mb',
+                diskQuota: '100gb',
+                bufferSize: '64kb',
+            };
+
+            castValuesToTypes(config, { parseUnits: true });
+
+            expect(config.maxUploadSize).to.equal(10485760);  // 10 megabytes
+            expect(config.diskQuota).to.equal(107374182400);  // 100 gigabytes
+            expect(config.bufferSize).to.equal(65536);  // 64 kilobytes
+        });
+
+        it('should not parse units when parseUnits is false', () => {
+
+            const config: any = {
+                timeout: '5m',
+                maxUploadSize: '10mb',
+            };
+
+            castValuesToTypes(config, { parseUnits: false });
+
+            expect(config.timeout).to.equal('5m');  // Stays as string
+            expect(config.maxUploadSize).to.equal('10mb');  // Stays as string
+        });
+
+        it('should skip conversion for specified keys', () => {
+
+            const config: any = {
+                apiKey: '12345',
+                secretToken: '67890',
+                port: '3000',
+                debug: 'true',
+            };
+
+            castValuesToTypes(config, {
+                skipConversion: (key) => key.toLowerCase().includes('key') || key.toLowerCase().includes('token')
+            });
+
+            expect(config.apiKey).to.equal('12345');  // Skipped
+            expect(config.secretToken).to.equal('67890');  // Skipped
+            expect(config.port).to.equal(3000);  // Converted
+            expect(config.debug).to.equal(true);  // Converted
+        });
+
+        it('should skip conversion recursively in nested objects', () => {
+
+            const config: any = {
+                auth: {
+                    apiKey: '12345',
+                    timeout: '5000',
+                },
+                server: {
+                    port: '3000',
+                },
+            };
+
+            castValuesToTypes(config, {
+                skipConversion: (key) => key === 'apiKey'
+            });
+
+            expect(config.auth.apiKey).to.equal('12345');  // Skipped
+            expect(config.auth.timeout).to.equal(5000);  // Converted
+            expect(config.server.port).to.equal(3000);  // Converted
+        });
+
+        it('should combine parseUnits and skipConversion', () => {
+
+            const config: any = {
+                timeout: '5m',
+                apiKey: '12345',
+                maxUploadSize: '10mb',
+                port: '3000',
+            };
+
+            castValuesToTypes(config, {
+                parseUnits: true,
+                skipConversion: (key) => key.toLowerCase().includes('key')
+            });
+
+            expect(config.timeout).to.equal(300000);  // Parsed unit
+            expect(config.apiKey).to.equal('12345');  // Skipped
+            expect(config.maxUploadSize).to.equal(10485760);  // Parsed unit
+            expect(config.port).to.equal(3000);  // Converted number
+        });
+    });
+
+    describe('misc: makeNestedConfig', () => {
+
+        it('should convert flat config to nested object', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const result: any = config();
+
+            expect(result.db.host).to.equal('localhost');
+            expect(result.db.port).to.equal(5432);
+            expect(result.debug).to.equal(true);
+        });
+
+        it('should handle mixed casing with forceAllCapToLower', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_WORKER_maxRetries: '5',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                forceAllCapToLower: true,
+            });
+
+            const result: any = config();
+
+            expect(result.db.host).to.equal('localhost');
+            expect(result.worker.maxRetries).to.equal(5);
+        });
+
+        it('should preserve casing when forceAllCapToLower is false', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                forceAllCapToLower: false,
+            });
+
+            const result: any = config();
+
+            expect(result.DB.HOST).to.equal('localhost');
+            expect(result.DEBUG).to.equal(true);
+        });
+
+        it('should handle custom separator', () => {
+
+            const flatConfig = {
+                APP_DB__HOST: 'localhost',
+                APP_DB__PORT: '5432',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                separator: '__',
+            });
+
+            const result: any = config();
+
+            expect(result.db.host).to.equal('localhost');
+            expect(result.db.port).to.equal(5432);
+        });
+
+        it('should handle numeric prefix stripping', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                stripPrefix: 4, // Strip first 4 characters ("APP_")
+            });
+
+            const result: any = config();
+
+            expect(result.db.host).to.equal('localhost');
+            expect(result.db.port).to.equal(5432);
+        });
+
+        it('should work without stripPrefix', () => {
+
+            const flatConfig = {
+                DB_HOST: 'localhost',
+                DB_PORT: '5432',
+            };
+
+            const config = makeNestedConfig(flatConfig, {});
+
+            const result: any = config();
+
+            expect(result.db.host).to.equal('localhost');
+            expect(result.db.port).to.equal(5432);
+        });
+
+        it('should filter keys correctly', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                OTHER_VALUE: 'ignored',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const result: any = config();
+
+            expect(result.db.host).to.equal('localhost');
+            expect(result.debug).to.equal(true);
+            expect(result.other).to.be.undefined;
+        });
+
+        it('should handle deeply nested paths', () => {
+
+            const flatConfig = {
+                APP_SERVER_API_V1_ENDPOINT: '/api/v1',
+                APP_SERVER_API_V1_TIMEOUT: '5000',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const result: any = config();
+
+            expect(result.server.api.v1.endpoint).to.equal('/api/v1');
+            expect(result.server.api.v1.timeout).to.equal(5000);
+        });
+
+        it('should throw when trying to set property on primitive value', () => {
+
+            const flatConfig = {
+                APP_DB: 'somestring',
+                APP_DB_HOST: 'localhost', // Trying to nest under APP_DB which is already a string
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            expect(() => config()).to.throw('on primitive value');
+        });
+
+        it('should sort keys before processing', () => {
+
+            // Keys are sorted, so APP_DB_HOST should be processed before APP_DB_HOST_TEST
+            const flatConfig = {
+                APP_Z_VAL: 'z',
+                APP_A_VAL: 'a',
+                APP_M_VAL: 'm',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const result: any = config();
+
+            expect(result.a.val).to.equal('a');
+            expect(result.m.val).to.equal('m');
+            expect(result.z.val).to.equal('z');
+        });
+
+        it('should handle empty flat config', () => {
+
+            const flatConfig = {};
+
+            const config = makeNestedConfig(flatConfig, {});
+
+            const result = config();
+
+            expect(result).to.deep.equal({});
+        });
+
+        it('should handle string prefix that does not match', () => {
+
+            const flatConfig = {
+                MY_APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                stripPrefix: 'APP_', // Prefix doesn't match, so it won't be stripped
+            });
+
+            const result: any = config();
+
+            // The key won't be stripped, so it will be processed as-is
+            expect(result.my.app.db.host).to.equal('localhost');
+        });
+
+        it('should parse time duration units when parseUnits is true', () => {
+
+            const flatConfig = {
+                APP_SESSION_TIMEOUT: '15m',
+                APP_CACHE_TTL: '1hour',
+                APP_HEARTBEAT: '30sec',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                parseUnits: true,
+            });
+
+            const result: any = config();
+
+            expect(result.session.timeout).to.equal(900000);  // 15 minutes
+            expect(result.cache.ttl).to.equal(3600000);  // 1 hour
+            expect(result.heartbeat).to.equal(30000);  // 30 seconds
+        });
+
+        it('should parse byte size units when parseUnits is true', () => {
+
+            const flatConfig = {
+                APP_MAX_UPLOAD_SIZE: '10mb',
+                APP_DISK_QUOTA: '100gb',
+                APP_BUFFER_SIZE: '64kb',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                parseUnits: true,
+            });
+
+            const result: any = config();
+
+            expect(result.max.upload.size).to.equal(10485760);  // 10 megabytes
+            expect(result.disk.quota).to.equal(107374182400);  // 100 gigabytes
+            expect(result.buffer.size).to.equal(65536);  // 64 kilobytes
+        });
+
+        it('should not parse units when parseUnits is false', () => {
+
+            const flatConfig = {
+                APP_TIMEOUT: '5m',
+                APP_MAX_SIZE: '10mb',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                parseUnits: false,
+            });
+
+            const result: any = config();
+
+            expect(result.timeout).to.equal('5m');  // Stays as string
+            expect(result.max.size).to.equal('10mb');  // Stays as string
+        });
+
+        it('should skip conversion for specified keys', () => {
+
+            const flatConfig = {
+                APP_API_KEY: '12345',
+                APP_SECRET_TOKEN: '67890',
+                APP_PORT: '3000',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                skipConversion: (key) => key.toLowerCase().includes('key') || key.toLowerCase().includes('token'),
+            });
+
+            const result: any = config();
+
+            expect(result.api.key).to.equal('12345');  // Skipped
+            expect(result.secret.token).to.equal('67890');  // Skipped
+            expect(result.port).to.equal(3000);  // Converted
+            expect(result.debug).to.equal(true);  // Converted
+        });
+
+        it('should combine parseUnits and skipConversion', () => {
+
+            const flatConfig = {
+                APP_TIMEOUT: '5m',
+                APP_API_KEY: '12345',
+                APP_MAX_SIZE: '10mb',
+                APP_PORT: '3000',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                parseUnits: true,
+                skipConversion: (key) => key.toLowerCase().includes('key'),
+            });
+
+            const result: any = config();
+
+            expect(result.timeout).to.equal(300000);  // Parsed unit (5 minutes)
+            expect(result.api.key).to.equal('12345');  // Skipped
+            expect(result.max.size).to.equal(10485760);  // Parsed unit (10 megabytes)
+            expect(result.port).to.equal(3000);  // Converted number
+        });
     });
 });
