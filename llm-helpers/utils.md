@@ -753,7 +753,7 @@ const makeNestedConfig: <C extends object, F extends Record<string, string>>(
     skipConversion?: (key: string, value: unknown) => boolean
     memoizeOpts?: MemoizeOptions | false
   }
-) => () => C
+) => <P extends PathLeaves<C>>(path?: P, defaultValue?: PathValue<C, P>) => C
 
 const castValuesToTypes: (
   obj: object,
@@ -789,7 +789,14 @@ This eliminates manual environment variable parsing and reduces configuration bo
 //   APP_FEATURE_X_ENABLED: 'false'
 // }
 
-const config = makeNestedConfig(process.env, {
+// Define expected config shape for type safety
+type AppConfig = {
+  db: { host: string; port: number };
+  debug: boolean;
+  feature: { x: { enabled: boolean } };
+}
+
+const config = makeNestedConfig<AppConfig>(process.env, {
   filter: (key) => key.startsWith('APP_'),
   stripPrefix: 'APP_',
   forceAllCapToLower: true,
@@ -802,6 +809,15 @@ console.log(config())
 //   debug: true,
 //   feature: { x: { enabled: false } }
 // }
+
+// Reach into config with path parameter
+const dbHost = config('db.host')  // 'localhost'
+const dbPort = config('db.port')  // 5432
+const debug = config('debug')     // true
+
+// Use default values for missing paths
+const timeout = config('api.timeout', 5000)  // 5000 (uses default)
+const retries = config('api.retries', 3)     // 3 (uses default)
 
 // Memoized configuration - prevents repeated processing
 const getCachedConfig = makeNestedConfig(process.env, {
@@ -954,6 +970,45 @@ if (isDisabledValue(process.env.FEATURE_FLAG)) {
 // Validate configuration values
 const hasValidToggle = hasEnabledOrDisabledValue(config.toggle)
 ```
+
+#### Using the Path Parameter
+
+The returned config function accepts optional `path` and `defaultValue` parameters. When you provide a type parameter to `makeNestedConfig`, the path parameter is type-checked and autocompletes:
+
+```ts
+// Define config shape for type safety
+type AppConfig = {
+  db: { host: string; port: number };
+  api: { timeout: number };
+}
+
+const getConfig = makeNestedConfig<AppConfig>(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_'
+})
+
+// Get entire config object
+const fullConfig = getConfig()  // Type: AppConfig
+
+// Get specific value by path (type-safe with autocomplete)
+const host = getConfig('db.host')          // Type: string
+const port = getConfig('db.port')          // Type: number
+const timeout = getConfig('api.timeout')   // Type: number
+
+// Get specific value with fallback for missing paths
+const maxRetries = getConfig('api.timeout', 5000)  // Type: number (uses default if missing)
+```
+
+**When to use path parameter:**
+- Accessing single config values in hot paths (avoids processing entire config)
+- Providing default values for optional configuration
+- Building config getters with fallback logic
+- Type-safe access to deeply nested values
+
+**When to get full config:**
+- Initializing application with all settings
+- Passing config to subsystems that need multiple values
+- Validating entire configuration structure
 
 #### When to Use Each Pattern
 

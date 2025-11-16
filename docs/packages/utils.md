@@ -1073,7 +1073,7 @@ function makeNestedConfig<C extends object, F extends Record<string, string>>(
         skipConversion?: (key: string, value: unknown) => boolean
         memoizeOpts?: MemoizeOptions | false
     }
-): () => C
+): <P extends PathLeaves<C>>(path?: P, defaultValue?: PathValue<C, P>) => C
 ```
 
 **Example:**
@@ -1090,7 +1090,15 @@ import { makeNestedConfig } from '@logosdx/utils'
 //   APP_WORKER_EMAILS_maxRunsPerMin: '100'
 // }
 
-const config = makeNestedConfig(process.env, {
+// Define expected config shape for type safety
+type AppConfig = {
+    db: { host: string; port: number };
+    debug: boolean;
+    feature: { x: { enabled: boolean } };
+    worker: { emails: { maxRunsPerMin: number } };
+}
+
+const config = makeNestedConfig<AppConfig>(process.env, {
     filter: (key) => key.startsWith('APP_'),
     stripPrefix: 'APP_',
     forceAllCapToLower: true
@@ -1105,6 +1113,17 @@ console.log(config())
 // }
 
 // Note: maxRunsPerMin preserved because it's not all-caps
+
+// Reach into config with type-safe path parameter
+const dbHost = config('db.host')              // 'localhost'
+const dbPort = config('db.port')              // 5432
+const isDebug = config('debug')               // true
+const maxRuns = config('worker.emails.maxRunsPerMin')  // 100
+
+// Use default values for missing configuration
+const apiTimeout = config('api.timeout', 5000)        // 5000 (default)
+const maxRetries = config('api.retries', 3)           // 3 (default)
+const logLevel = config('logging.level', 'info')      // 'info' (default)
 
 // Memoized configuration for repeated access
 const getCachedConfig = makeNestedConfig(process.env, {
@@ -1138,6 +1157,56 @@ const configWithSkip = makeNestedConfig(process.env, {
 })
 // { api: { key: '12345' }, port: 3000 }
 ```
+
+**Using the path parameter:**
+
+The returned config function accepts optional `path` and `defaultValue` parameters for direct access to nested values. When you provide a type parameter to `makeNestedConfig`, paths are type-checked and autocomplete in your editor:
+
+```ts
+// Define expected config shape for type safety
+type AppConfig = {
+    db: { host: string; port: number };
+    api: { timeout: number };
+    logging: { level: string };
+}
+
+const getConfig = makeNestedConfig<AppConfig>(process.env, {
+    filter: (key) => key.startsWith('APP_'),
+    stripPrefix: 'APP_'
+})
+
+// Get entire config object (processes all environment variables)
+const fullConfig = getConfig()  // Type: AppConfig
+
+// Get specific value by path (type-safe with autocomplete)
+const dbHost = getConfig('db.host')      // Type: string
+const dbPort = getConfig('db.port')      // Type: number
+const apiTimeout = getConfig('api.timeout')  // Type: number
+
+// Get specific value with fallback for optional settings
+const timeout = getConfig('api.timeout', 5000)        // Type: number (default if missing)
+const logLevel = getConfig('logging.level', 'info')   // Type: string (default if missing)
+```
+
+**Benefits of type parameter:**
+
+- Autocomplete for all available paths in your editor
+- Compile-time type checking prevents typos in path strings
+- Return type is inferred from the path (e.g., `'db.port'` returns `number`)
+- Default values must match the expected type
+
+**When to use path parameter:**
+
+- Accessing individual config values in different parts of your application
+- Providing sensible defaults for optional configuration
+- Hot paths where you only need specific values
+- Building config getter utilities with fallback logic
+
+**When to get full config:**
+
+- Application initialization where you need all settings
+- Validation of entire configuration structure
+- Passing complete config to subsystems
 
 ---
 

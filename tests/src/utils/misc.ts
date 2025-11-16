@@ -1284,5 +1284,273 @@ describe('@logosdx/utils', () => {
             expect(result.max.size).to.equal(10485760);  // Parsed unit (10 megabytes)
             expect(result.port).to.equal(3000);  // Converted number
         });
+
+        it('should reach into config with path parameter', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const dbHost = config('db.host');
+            const dbPort = config('db.port');
+            const debug = config('debug');
+
+            expect(dbHost).to.equal('localhost');
+            expect(dbPort).to.equal(5432);
+            expect(debug).to.equal(true);
+        });
+
+        it('should reach into deeply nested config paths', () => {
+
+            type ExpectedConfig = {
+                server: {
+                    api: {
+                        v1: {
+                            endpoint: string;
+                            timeout: number;
+                        };
+                    };
+                };
+                worker: {
+                    emails: {
+                        max: {
+                            runs: number;
+                        };
+                    };
+                };
+            };
+
+            const flatConfig = {
+                APP_SERVER_API_V1_ENDPOINT: '/api/v1',
+                APP_SERVER_API_V1_TIMEOUT: '5000',
+                APP_WORKER_EMAILS_MAX_RUNS: '100',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const endpoint = config('server.api.v1.endpoint');
+            const timeout = config('server.api.v1.timeout');
+            const maxRuns = config('worker.emails.max.runs');
+
+            expect(endpoint).to.equal('/api/v1');
+            expect(timeout).to.equal(5000);
+            expect(maxRuns).to.equal(100);
+        });
+
+        it('should return undefined for non-existent paths', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            // @ts-expect-error - Testing non-existent path
+            const missing = config('does.not.exist');
+
+            expect(missing).to.be.undefined;
+        });
+
+        it('should return default value when path does not exist', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+
+            // @ts-expect-error - Testing non-existent path with default
+            const apiTimeout = config('api.timeout', 5000);
+            // @ts-expect-error - Testing non-existent path with default
+            const maxRetries = config('api.retries', 3);
+            // @ts-expect-error - Testing non-existent path with default
+            const logLevel = config('logging.level', 'info');
+
+            expect(apiTimeout).to.equal(5000);
+            expect(maxRetries).to.equal(3);
+            expect(logLevel).to.equal('info');
+        });
+
+        it('should return actual value when path exists, ignoring default', () => {
+
+            type ExpectedConfig = {
+                api: {
+                    timeout: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_API_TIMEOUT: '10000',
+                APP_DEBUG: 'false',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const timeout = config('api.timeout', 5000);
+            const debug = config('debug', true);
+
+            expect(timeout).to.equal(10000);  // Uses actual value, not default
+            expect(debug).to.equal(false);    // Uses actual value, not default
+        });
+
+        it('should work with path parameter and parseUnits', () => {
+
+            type ExpectedConfig = {
+                session: {
+                    timeout: number;
+                };
+                max: {
+                    upload: {
+                        size: number;
+                    };
+                };
+                cache: {
+                    expiry: number;
+                };
+            }
+
+            const flatConfig = {
+                APP_SESSION_TIMEOUT: '15m',
+                APP_MAX_UPLOAD_SIZE: '10mb',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                parseUnits: true,
+            });
+
+            const timeout = config('session.timeout');
+            const maxSize = config('max.upload.size');
+            const cacheExpiry = config('cache.expiry', 60000);  // Default
+
+            expect(timeout).to.equal(900000);  // 15 minutes in ms
+            expect(maxSize).to.equal(10485760);  // 10 MB in bytes
+            expect(cacheExpiry).to.equal(60000);  // Default used
+        });
+
+        it('should get full config when no path provided', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const fullConfig: any = config();
+
+            expect(fullConfig.db.host).to.equal('localhost');
+            expect(fullConfig.db.port).to.equal(5432);
+            expect(fullConfig.debug).to.equal(true);
+        });
+
+        it('should work with path parameter after getting full config', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            // Get full config first
+            const fullConfig: any = config();
+            expect(fullConfig.db.host).to.equal('localhost');
+
+            // Then use path parameter
+            const dbHost = config('db.host');
+            const debug = config('debug');
+
+            expect(dbHost).to.equal('localhost');
+            expect(debug).to.equal(true);
+        });
+
+        it('should work with path parameter and skipConversion', () => {
+
+            type ExpectedConfig = {
+                api: {
+                    key: string;
+                };
+                port: number;
+            }
+
+            const flatConfig = {
+                APP_API_KEY: '12345',
+                APP_PORT: '3000',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+                skipConversion: (key) => key.toLowerCase().includes('key'),
+            });
+
+            const apiKey = config('api.key');
+            const port = config('port');
+
+            expect(apiKey).to.equal('12345');  // Skipped conversion, stays as string
+            expect(port).to.equal(3000);  // Converted to number
+        });
     });
 });

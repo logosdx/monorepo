@@ -1,7 +1,7 @@
 import { clone } from './data-structures/clone.ts';
 import { attemptSync } from './flow-control/attempt.ts';
 import { MemoizeOptions, memoizeSync } from './flow-control/index.ts';
-import type { Func, PathNames, PathValue } from './types.ts';
+import type { Func, PathLeaves, PathNames, PathValue } from './types.ts';
 import { parseTimeDuration, parseByteSize } from './units.ts';
 import { assert, isEnabledValue, isDisabledValue } from './validation.ts';
 
@@ -901,7 +901,10 @@ export const castValuesToTypes = (
  * // }
  *
  */
-export const makeNestedConfig = <C extends object, F extends Record<string, string>>(
+export const makeNestedConfig = <
+    C extends object,
+    F extends Record<string, string> = Record<string, string>
+>(
     _flatConfig: F,
     opts: {
         filter?: (key: string, value: string) => boolean,
@@ -972,7 +975,7 @@ export const makeNestedConfig = <C extends object, F extends Record<string, stri
         ).join('.');
     }
 
-    const extractConfig = (): C => {
+    const extractConfig = <P extends PathLeaves<C>>(path?: P, defaultValue?: PathValue<C, P>): C => {
 
         const flatConfig = clone(_flatConfig);
         const config = {} as C;
@@ -1028,6 +1031,17 @@ export const makeNestedConfig = <C extends object, F extends Record<string, stri
         }
 
         if (err) throw err;
+
+        if (path) {
+
+            const value = reach(config, path as PathNames<C>);
+
+            if (value === undefined || value === null) {
+                return defaultValue as C;
+            }
+
+            return value as C;
+        }
 
         return config;
     }
