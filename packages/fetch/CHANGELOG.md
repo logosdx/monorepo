@@ -1,5 +1,12 @@
 # @logosdx/fetch
 
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [8fda604]
+  - @logosdx/utils@2.4.0
+
 ## 5.0.0
 
 ### Major Changes
