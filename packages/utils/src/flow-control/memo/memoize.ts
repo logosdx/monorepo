@@ -1,7 +1,7 @@
 import type { AsyncFunc } from '../../types.ts';
-import { assert, assertOptional, isFunction, isOptional } from '../../validation.ts';
-import { attempt, attemptSync } from '../attempt.ts';
-import { withInflightDedup } from '../inflight.ts';
+import { assert, assertOptional, isFunction, isOptional } from '../../validation/index.ts';
+import { attempt, attemptSync } from '../../async/attempt.ts';
+import { withInflightDedup } from '../../async/inflight.ts';
 import { wait } from '../misc.ts';
 import { serializer } from '../_helpers.ts';
 

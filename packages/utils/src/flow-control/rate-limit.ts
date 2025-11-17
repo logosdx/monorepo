@@ -1,5 +1,5 @@
 import { wait } from './misc.ts';
-import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
 import { type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
 
 /**

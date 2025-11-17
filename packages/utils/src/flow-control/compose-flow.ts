@@ -1,18 +1,21 @@
 import {
     rateLimit,
     circuitBreaker,
-    makeRetryable,
     withTimeout,
-    withInflightDedup,
     type RateLimitOptions,
     type CircuitBreakerOptions,
-    type RetryOptions,
     type WithTimeoutOptions,
-    type InflightOptions,
 } from './index.ts';
 
+import {
+    makeRetryable,
+    withInflightDedup,
+    type RetryOptions,
+    type InflightOptions,
+} from '../async/index.ts';
+
 import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
-import { assert, isPlainObject } from '../validation.ts';
+import { assert, isPlainObject } from '../validation/index.ts';
 
 const flowFunctions = {
     rateLimit,

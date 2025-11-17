@@ -1,6 +1,6 @@
 import type { Func } from '../../types.ts';
-import { assert, assertOptional, isFunction, isOptional } from '../../validation.ts';
-import { attemptSync } from '../attempt.ts';
+import { assert, assertOptional, isFunction, isOptional } from '../../validation/index.ts';
+import { attemptSync } from '../../async/attempt.ts';
 import { serializer } from '../_helpers.ts';
 
 import type { MemoizeOptions, EnhancedMemoizedFunction, CacheStats, CacheItem } from './types.ts';

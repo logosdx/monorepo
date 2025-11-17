@@ -1,6 +1,6 @@
-import { attempt, attemptSync } from './attempt.ts';
+import { attempt, attemptSync } from '../async/attempt.ts';
 import { AnyFunc, markWrapped, assertNotWrapped } from './_helpers.ts';
-import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
 
 const DEFAULT_MAX_FAILURES = 3;
 const DEFAULT_RESET_AFTER = 1000;

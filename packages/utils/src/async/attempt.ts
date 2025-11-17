@@ -1,4 +1,4 @@
-import { assert, isFunction } from '../validation.ts';
+import { assert, isFunction } from '../validation/index.ts';
 
 type ResultTuple<T> = [T, null] | [null, Error];
 

@@ -1,13 +1,13 @@
-import { wait } from './misc.ts';
+import { wait } from '../flow-control/misc.ts';
 import { attempt } from './attempt.ts';
 import {
     assert,
     isFunction,
     assertOptional,
     isPlainObject,
-} from '../validation.ts';
+} from '../validation/index.ts';
 
-import { AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { AnyFunc, assertNotWrapped, markWrapped } from '../flow-control/_helpers.ts';
 
 /**
  * Error thrown when the maximum number of retries is reached.

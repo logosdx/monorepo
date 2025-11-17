@@ -1,7 +1,7 @@
 import type { AsyncFunc } from '../types.ts';
 
 import { attemptSync } from './attempt.ts';
-import { serializer } from './_helpers.ts';
+import { serializer } from '../flow-control/_helpers.ts';
 
 /**
  * Lifecycle hooks for in-flight promise deduplication.

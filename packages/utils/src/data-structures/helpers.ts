@@ -1,4 +1,4 @@
-import { assert, isFunction } from '../validation.ts';
+import { assert, isFunction } from '../validation/index.ts';
 
 import { type MergeOptions } from './merge.ts';
 

@@ -1,4 +1,4 @@
-import { isObject } from '../../validation.ts';
+import { isObject } from '../../validation/index.ts';
 import type { CacheItem } from './types.ts';
 
 /**

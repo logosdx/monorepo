@@ -1,4 +1,4 @@
-import { assert, isOptional } from '../../validation.ts';
+import { assert, isOptional } from '../../validation/index.ts';
 import type { CacheAdapter, CacheItem, MapCacheAdapterOptions } from './types.ts';
 import { isExpired, evictLRU } from './helpers.ts';
 

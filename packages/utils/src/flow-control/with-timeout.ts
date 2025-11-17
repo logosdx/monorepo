@@ -1,7 +1,7 @@
 import { wait } from './misc.ts';
-import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
 import { type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
-import { attempt } from './attempt.ts';
+import { attempt } from '../async/attempt.ts';
 
 /**
  * Error thrown when a function wrapped with withTimeout exceeds its specified timeout duration.

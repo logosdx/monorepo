@@ -980,7 +980,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.db.host).to.equal('localhost');
             expect(result.db.port).to.equal(5432);
@@ -1000,7 +1000,7 @@ describe('@logosdx/utils', () => {
                 forceAllCapToLower: true,
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.db.host).to.equal('localhost');
             expect(result.worker.maxRetries).to.equal(5);
@@ -1019,7 +1019,7 @@ describe('@logosdx/utils', () => {
                 forceAllCapToLower: false,
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.DB.HOST).to.equal('localhost');
             expect(result.DEBUG).to.equal(true);
@@ -1038,7 +1038,7 @@ describe('@logosdx/utils', () => {
                 separator: '__',
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.db.host).to.equal('localhost');
             expect(result.db.port).to.equal(5432);
@@ -1055,7 +1055,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 4, // Strip first 4 characters ("APP_")
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.db.host).to.equal('localhost');
             expect(result.db.port).to.equal(5432);
@@ -1070,7 +1070,7 @@ describe('@logosdx/utils', () => {
 
             const config = makeNestedConfig(flatConfig, {});
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.db.host).to.equal('localhost');
             expect(result.db.port).to.equal(5432);
@@ -1089,7 +1089,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.db.host).to.equal('localhost');
             expect(result.debug).to.equal(true);
@@ -1108,7 +1108,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.server.api.v1.endpoint).to.equal('/api/v1');
             expect(result.server.api.v1.timeout).to.equal(5000);
@@ -1126,7 +1126,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            expect(() => config()).to.throw('on primitive value');
+            expect(() => config.allConfigs()).to.throw('on primitive value');
         });
 
         it('should sort keys before processing', () => {
@@ -1143,7 +1143,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.a.val).to.equal('a');
             expect(result.m.val).to.equal('m');
@@ -1156,7 +1156,7 @@ describe('@logosdx/utils', () => {
 
             const config = makeNestedConfig(flatConfig, {});
 
-            const result = config();
+            const result = config.allConfigs();
 
             expect(result).to.deep.equal({});
         });
@@ -1171,7 +1171,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_', // Prefix doesn't match, so it won't be stripped
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             // The key won't be stripped, so it will be processed as-is
             expect(result.my.app.db.host).to.equal('localhost');
@@ -1191,7 +1191,7 @@ describe('@logosdx/utils', () => {
                 parseUnits: true,
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.session.timeout).to.equal(900000);  // 15 minutes
             expect(result.cache.ttl).to.equal(3600000);  // 1 hour
@@ -1212,7 +1212,7 @@ describe('@logosdx/utils', () => {
                 parseUnits: true,
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.max.upload.size).to.equal(10485760);  // 10 megabytes
             expect(result.disk.quota).to.equal(107374182400);  // 100 gigabytes
@@ -1232,7 +1232,7 @@ describe('@logosdx/utils', () => {
                 parseUnits: false,
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.timeout).to.equal('5m');  // Stays as string
             expect(result.max.size).to.equal('10mb');  // Stays as string
@@ -1253,7 +1253,7 @@ describe('@logosdx/utils', () => {
                 skipConversion: (key) => key.toLowerCase().includes('key') || key.toLowerCase().includes('token'),
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.api.key).to.equal('12345');  // Skipped
             expect(result.secret.token).to.equal('67890');  // Skipped
@@ -1277,7 +1277,7 @@ describe('@logosdx/utils', () => {
                 skipConversion: (key) => key.toLowerCase().includes('key'),
             });
 
-            const result: any = config();
+            const result: any = config.allConfigs();
 
             expect(result.timeout).to.equal(300000);  // Parsed unit (5 minutes)
             expect(result.api.key).to.equal('12345');  // Skipped
@@ -1306,9 +1306,9 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const dbHost = config('db.host');
-            const dbPort = config('db.port');
-            const debug = config('debug');
+            const dbHost = config.getConfig('db.host');
+            const dbPort = config.getConfig('db.port');
+            const debug = config.getConfig('debug');
 
             expect(dbHost).to.equal('localhost');
             expect(dbPort).to.equal(5432);
@@ -1346,9 +1346,9 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const endpoint = config('server.api.v1.endpoint');
-            const timeout = config('server.api.v1.timeout');
-            const maxRuns = config('worker.emails.max.runs');
+            const endpoint = config.getConfig('server.api.v1.endpoint');
+            const timeout = config.getConfig('server.api.v1.timeout');
+            const maxRuns = config.getConfig('worker.emails.max.runs');
 
             expect(endpoint).to.equal('/api/v1');
             expect(timeout).to.equal(5000);
@@ -1375,7 +1375,7 @@ describe('@logosdx/utils', () => {
             });
 
             // @ts-expect-error - Testing non-existent path
-            const missing = config('does.not.exist');
+            const missing = config.getConfig('does.not.exist');
 
             expect(missing).to.be.undefined;
         });
@@ -1401,11 +1401,11 @@ describe('@logosdx/utils', () => {
 
 
             // @ts-expect-error - Testing non-existent path with default
-            const apiTimeout = config('api.timeout', 5000);
+            const apiTimeout = config.getConfig('api.timeout', 5000);
             // @ts-expect-error - Testing non-existent path with default
-            const maxRetries = config('api.retries', 3);
+            const maxRetries = config.getConfig('api.retries', 3);
             // @ts-expect-error - Testing non-existent path with default
-            const logLevel = config('logging.level', 'info');
+            const logLevel = config.getConfig('logging.level', 'info');
 
             expect(apiTimeout).to.equal(5000);
             expect(maxRetries).to.equal(3);
@@ -1431,8 +1431,8 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const timeout = config('api.timeout', 5000);
-            const debug = config('debug', true);
+            const timeout = config.getConfig('api.timeout', 5000);
+            const debug = config.getConfig('debug', true);
 
             expect(timeout).to.equal(10000);  // Uses actual value, not default
             expect(debug).to.equal(false);    // Uses actual value, not default
@@ -1465,9 +1465,9 @@ describe('@logosdx/utils', () => {
                 parseUnits: true,
             });
 
-            const timeout = config('session.timeout');
-            const maxSize = config('max.upload.size');
-            const cacheExpiry = config('cache.expiry', 60000);  // Default
+            const timeout = config.getConfig('session.timeout');
+            const maxSize = config.getConfig('max.upload.size');
+            const cacheExpiry = config.getConfig('cache.expiry', 60000);  // Default
 
             expect(timeout).to.equal(900000);  // 15 minutes in ms
             expect(maxSize).to.equal(10485760);  // 10 MB in bytes
@@ -1487,7 +1487,7 @@ describe('@logosdx/utils', () => {
                 stripPrefix: 'APP_',
             });
 
-            const fullConfig: any = config();
+            const fullConfig: any = config.allConfigs();
 
             expect(fullConfig.db.host).to.equal('localhost');
             expect(fullConfig.db.port).to.equal(5432);
@@ -1515,12 +1515,12 @@ describe('@logosdx/utils', () => {
             });
 
             // Get full config first
-            const fullConfig: any = config();
+            const fullConfig: any = config.allConfigs();
             expect(fullConfig.db.host).to.equal('localhost');
 
             // Then use path parameter
-            const dbHost = config('db.host');
-            const debug = config('debug');
+            const dbHost = config.getConfig('db.host');
+            const debug = config.getConfig('debug');
 
             expect(dbHost).to.equal('localhost');
             expect(debug).to.equal(true);
@@ -1546,8 +1546,8 @@ describe('@logosdx/utils', () => {
                 skipConversion: (key) => key.toLowerCase().includes('key'),
             });
 
-            const apiKey = config('api.key');
-            const port = config('port');
+            const apiKey = config.getConfig('api.key');
+            const port = config.getConfig('port');
 
             expect(apiKey).to.equal('12345');  // Skipped conversion, stays as string
             expect(port).to.equal(3000);  // Converted to number

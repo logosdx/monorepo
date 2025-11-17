@@ -1,6 +1,6 @@
-import { assert, isFunction } from '../validation.ts';
+import { assert, isFunction } from '../validation/index.ts';
 import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
-import { attempt } from './attempt.ts';
+import { attempt } from '../async/attempt.ts';
 
 /**
  * Creates a deferred promise that can be resolved or rejected externally.

@@ -32,7 +32,7 @@ import {
     isDisabledValue,
     hasEnabledOrDisabledValue,
     allItemsValid,
-} from '../../../packages/utils/src/validation.ts';
+} from '../../../packages/utils/src/validation/index.ts';
 
 /**
  * Type tests for PathValue with Maps and Sets

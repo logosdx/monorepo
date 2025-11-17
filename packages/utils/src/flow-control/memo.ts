@@ -1,8 +1,8 @@
-import { attempt, attemptSync } from './attempt.ts';
+import { attempt, attemptSync } from '../async/attempt.ts';
 import { wait } from './misc.ts';
 import { type AnyAsyncFunc, type AnyFunc, assertNotWrapped, markWrapped, serializer } from './_helpers.ts';
-import { assert, assertOptional, isFunction, isPlainObject } from '../validation.ts';
-import { noop } from '../misc.ts';
+import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
+import { noop } from '../misc/index.ts';
 
 /**
  * Configuration options for memoization functions.
