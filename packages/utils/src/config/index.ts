@@ -443,17 +443,17 @@ export const makeNestedConfig = <
 
         const [, err] = attemptSync(() => {
 
+            setDeepMany<C>(
+                config,
+                keys.map((k) => [handleCasing(k), flatConfig[k as keyof typeof flatConfig]]) as never
+            );
+
             castValuesToTypes(
-                flatConfig as Record<string, string>,
+                config as Record<string, string>,
                 {
                     parseUnits,
                     skipConversion
                 }
-            );
-
-            setDeepMany<C>(
-                config,
-                keys.map((k) => [handleCasing(k), flatConfig[k as keyof typeof flatConfig]]) as never
             );
 
         });

@@ -79,6 +79,10 @@ curl -L "https://codeload.github.com/logosdx/monorepo/tar.gz/refs/heads/master" 
 - Debuggable, testable, and well-documented
 - Zero external dependencies
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development workflow and release process.
+
 ## License
 
 MIT © [LogosDX](https://logosdx.dev)
