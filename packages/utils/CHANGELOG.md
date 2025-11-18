@@ -1,5 +1,11 @@
 # @logosdx/utils
 
+## 3.0.1
+
+### Patch Changes
+
+- e6b07d8: Fix `makeNestedConfig` type coercion order - now applies `castValuesToTypes` to the config object after setting deep values, ensuring proper type conversion of nested configuration values
+
 ## 3.0.0
 
 ### Major Changes
