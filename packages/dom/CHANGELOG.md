@@ -1,5 +1,12 @@
 # @logosdx/dom
 
+## 2.0.13
+
+### Patch Changes
+
+- Updated dependencies [e6b07d8]
+  - @logosdx/utils@3.0.1
+
 ## 2.0.12
 
 ### Patch Changes
