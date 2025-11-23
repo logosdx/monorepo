@@ -4,7 +4,8 @@ import {
     definePrivateProps,
     clone,
     type MaybePromise,
-    isFunction
+    isFunction,
+    noop
 } from '@logosdx/utils';
 
 import {
@@ -49,6 +50,10 @@ export class ObserverEngine<
     // original spy function when debugging is disabled.
     #__spy?: ObserverEngine.Spy<Shape>;
 
+    // Instance-level AbortController for cleanup
+    #instanceController = new AbortController();
+    #instanceSignal: AbortSignal;
+
 
     constructor(options?: ObserverEngine.Options<Shape>) {
 
@@ -74,6 +79,25 @@ export class ObserverEngine<
             );
 
             this.#spy = options.spy!;
+        }
+
+        // Setup instance-level signal
+        // We use the internal controller's signal directly and listen separately
+        // to user signals to avoid AbortSignal.any() memory retention issues
+        this.#instanceSignal = this.#instanceController.signal;
+
+        const userSignal = options?.signal;
+
+        // Handler that clears all listeners when any abort occurs
+        const clearOnAbort = () => this.clear();
+
+        // Listen for internal abort
+        this.#instanceSignal.addEventListener('abort', clearOnAbort, { once: true });
+
+        // If user provided a signal, also listen on that
+        if (userSignal) {
+
+            userSignal.addEventListener('abort', clearOnAbort, { once: true });
         }
 
         // Make these functions non-enumerable
@@ -232,6 +256,7 @@ export class ObserverEngine<
     /**
      * Observes given component as an extension of this observable instance.
      * @param component Component to wrap events around
+     * @param options Optional configuration including signal for cleanup
      *
      * @example
      *
@@ -248,9 +273,26 @@ export class ObserverEngine<
      *
      * modal.cleanup(); // clears all event listeners
      */
-    observe<C>(component: C) {
+    observe<C>(component: C, options?: ObserverEngine.ObserveOptions) {
 
         const self = this;
+
+        // Check if signal is already aborted - set up noop child
+        const userSignal = options?.signal;
+
+        if (userSignal?.aborted) {
+
+            definePrivateProps(component, {
+                on: noop,
+                once: noop,
+                off: noop,
+                emit: noop,
+                clear: noop,
+                cleanup: noop
+            });
+
+            return component as ObserverEngine.Child<C, Shape>;
+        }
 
         const track = new Map<string, Set<Func>>;
 
@@ -324,11 +366,30 @@ export class ObserverEngine<
 
         const clear = () => rmAll();
 
+        // Mutable controller for managing abort listener lifecycle
+        let observeAbortCtrl: AbortController | undefined;
+
         const cleanup = () => {
 
             rmAll();
             self.#internalListener.removeEventListener(InternalEvs.off, afterOff as Func);
             self.#internalListener.removeEventListener(InternalEvs.clear, rmAll as Func);
+            observeAbortCtrl?.abort();
+        }
+
+        // Compose signal with instance signal for automatic cleanup
+        if (userSignal) {
+
+            observeAbortCtrl = new AbortController();
+
+            const composedSignal = AbortSignal.any([
+                this.#instanceSignal,
+                userSignal
+            ]);
+
+            composedSignal.addEventListener('abort', cleanup, {
+                signal: observeAbortCtrl.signal
+            });
         }
 
         definePrivateProps(component, {
@@ -418,8 +479,8 @@ export class ObserverEngine<
      *
      * something.cleanup(); // stops listening for events
      */
-    on <E extends Events<Shape>>(event: E): EventGenerator<Shape, E>;
-    on <E extends string>(event: E): EventGenerator<Record<E, any>>;
+    on <E extends Events<Shape>>(event: E, options?: ObserverEngine.ListenerOptions): EventGenerator<Shape, E>;
+    on <E extends string>(event: E, options?: ObserverEngine.ListenerOptions): EventGenerator<Record<E, any>>;
 
     /**
      * Listens for the specified event and executes the given callback
@@ -432,8 +493,14 @@ export class ObserverEngine<
      *    console.log(data);
      * });
      */
-    on <E extends Events<Shape>>(event: E, listener: ObserverEngine.EventCallback<Shape[E]>): ObserverEngine.Cleanup;
-    on <E extends string>(event: E, listener: ObserverEngine.EventCallback<Record<E, any>>): ObserverEngine.Cleanup;
+    on <E extends Events<Shape>>(
+        event: E, listener: ObserverEngine.EventCallback<Shape[E]>,
+        options?: ObserverEngine.ListenerOptions
+    ): ObserverEngine.Cleanup;
+    on <E extends string>(
+        event: E, listener: ObserverEngine.EventCallback<Record<E, any>>,
+        options?: ObserverEngine.ListenerOptions
+    ): ObserverEngine.Cleanup;
 
     /**
      * Returns an event generator that will listen for all events matching the regex
@@ -448,7 +515,7 @@ export class ObserverEngine<
      *
      * onEvent.cleanup(); // stops listening for events
      */
-    on (event: RegExp): EventGenerator<Shape, RegExp>;
+    on (event: RegExp, options?: ObserverEngine.ListenerOptions): EventGenerator<Shape, RegExp>;
 
     /**
      * Listens for all events matching the regex and executes the given callback
@@ -461,28 +528,41 @@ export class ObserverEngine<
      *     console.log(event, data);
      * });
      */
-    on (event: RegExp, listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
+    on (
+        event: RegExp,
+        listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>,
+        options?: ObserverEngine.ListenerOptions
+    ): ObserverEngine.Cleanup;
 
     /**
      * Listen for an event
      * @param event
-     * @param listener
+     * @param listenerOrOptions - Either a callback function or options object
+     * @param options
      */
     on (
         event: RegExp | Events<Shape> | string,
-        listener?: (
+        listenerOrOptions?: (
             ObserverEngine.EventCallback<Shape[Events<Shape>]> |
             ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>> |
-            ObserverEngine.EventCallback<Record<string, any>>
+            ObserverEngine.EventCallback<Record<string, any>> |
+            ObserverEngine.ListenerOptions
         ),
-        _opts?: { once: boolean }
+        options?: ObserverEngine.ListenerOptions & { once?: boolean }
     ): (
         ObserverEngine.Cleanup |
         EventGenerator<Shape, Events<Shape>> |
         EventGenerator<Shape, RegExp>
     ) {
 
-        if (!_opts?.once) {
+        // Determine if second arg is listener or options
+        const isListenerFn = typeof listenerOrOptions === 'function';
+        const listener = isListenerFn ? listenerOrOptions : undefined;
+        const resolvedOptions = isListenerFn
+            ? options
+            : (listenerOrOptions as ObserverEngine.ListenerOptions | undefined);
+
+        if (!(resolvedOptions as { once?: boolean })?.once) {
 
             validateEvent('on', { event, listener } as never);
             validateListener('on', { event, listener } as never);
@@ -492,8 +572,17 @@ export class ObserverEngine<
 
             return new EventGenerator<Shape, Events<Shape>>(
                 this,
-                event as never
+                event as never,
+                resolvedOptions
             );
+        }
+
+        // Check if signal is already aborted
+        const userSignal = resolvedOptions?.signal;
+
+        if (userSignal?.aborted) {
+
+            return () => {};
         }
 
         const { eventName, isRgx } = this.#eventInfo(event);
@@ -501,7 +590,7 @@ export class ObserverEngine<
 
         this.#currentSpy({
             event,
-            fn: _opts?.once ? 'once' : 'on',
+            fn: (resolvedOptions as { once?: boolean })?.once ? 'once' : 'on',
             data: null,
             listener,
             context: this
@@ -525,7 +614,13 @@ export class ObserverEngine<
             new InternalEvent(InternalEvs.on, [event as string, listener])
         );
 
-        return () => {
+        // Track if cleanup has been called to prevent double-cleanup
+        let cleanedUp = false;
+
+        const cleanup = () => {
+
+            if (cleanedUp) return;
+            cleanedUp = true;
 
             this.#currentSpy({
                 event,
@@ -545,14 +640,45 @@ export class ObserverEngine<
             this.#internalListener.dispatchEvent(
                 new InternalEvent(InternalEvs.off, [event as string, listener])
             );
+        };
+
+        // Add abort listeners directly to avoid AbortSignal.any() memory retention
+        // Each signal gets its own listener that we can remove independently
+        if (userSignal) {
+
+            const abortHandler = () => {
+                cleanup();
+                // Remove self from the other signal to prevent retention
+                this.#instanceSignal.removeEventListener('abort', abortHandler);
+            };
+
+            // Listen on user signal
+            userSignal.addEventListener('abort', abortHandler, { once: true });
+
+            // Listen on instance signal
+            this.#instanceSignal.addEventListener('abort', abortHandler, { once: true });
+
+            // Wrap cleanup to also remove abort listeners
+            const originalCleanup = cleanup;
+            const wrappedCleanup = () => {
+
+                originalCleanup();
+                // Remove abort handlers to prevent them from firing after manual cleanup
+                userSignal.removeEventListener('abort', abortHandler);
+                this.#instanceSignal.removeEventListener('abort', abortHandler);
+            };
+
+            return wrappedCleanup;
         }
+
+        return cleanup;
     }
 
     /**
      * Returns an event promise that resolves when
      * the specified event is emitted
      */
-    once <E extends Events<Shape>>(event: E): EventPromise<Shape[E]>;
+    once <E extends Events<Shape>>(event: E, options?: ObserverEngine.ListenerOptions): EventPromise<Shape[E]>;
 
     /**
      * Returns an event promise that resolves when
@@ -560,13 +686,17 @@ export class ObserverEngine<
      * is untyped and can be used to listen for any
      * event that is emitted.
      */
-    once <E extends string>(event: E): EventPromise<Record<E, any>>;
+    once <E extends string>(event: E, options?: ObserverEngine.ListenerOptions): EventPromise<Record<E, any>>;
 
     /**
      * Executes a callback once when the specified
      * event is emitted
      */
-    once <E extends Events<Shape>>(event: E, listener: ObserverEngine.EventCallback<Shape[E]>): ObserverEngine.Cleanup;
+    once <E extends Events<Shape>>(
+        event: E,
+        listener: ObserverEngine.EventCallback<Shape[E]>,
+        options?: ObserverEngine.ListenerOptions
+    ): ObserverEngine.Cleanup;
 
     /**
      * Executes a callback once when the specified
@@ -574,19 +704,27 @@ export class ObserverEngine<
      * and can be used to listen for any event that
      * is emitted.
      */
-    once <E extends string>(event: E, listener: ObserverEngine.EventCallback<Record<E, any>>): ObserverEngine.Cleanup;
+    once <E extends string>(
+        event: E,
+        listener: ObserverEngine.EventCallback<Record<E, any>>,
+        options?: ObserverEngine.ListenerOptions
+    ): ObserverEngine.Cleanup;
 
     /**
      * Returns an event promise that resolves when
      * any events matching the regex are emitted
      */
-    once (event: RegExp): EventPromise<ObserverEngine.RgxEmitData<Shape>>;
+    once (event: RegExp, options?: ObserverEngine.ListenerOptions): EventPromise<ObserverEngine.RgxEmitData<Shape>>;
 
     /**
      * Executes a callback once when any events
      * matching the regex are emitted
      */
-    once (event: RegExp, listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>): ObserverEngine.Cleanup;
+    once (
+        event: RegExp,
+        listener: ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>>,
+        options?: ObserverEngine.ListenerOptions
+    ): ObserverEngine.Cleanup;
 
     /**
      * Executes a callback once when the specified
@@ -595,11 +733,13 @@ export class ObserverEngine<
      */
     once (
         event: RegExp | Events<Shape> | string,
-        listener?: (
+        listenerOrOptions?: (
             ObserverEngine.EventCallback<Shape[Events<Shape>]> |
             ObserverEngine.EventCallback<ObserverEngine.RgxEmitData<Shape>> |
-            ObserverEngine.EventCallback<Record<string, any>>
-        )
+            ObserverEngine.EventCallback<Record<string, any>> |
+            ObserverEngine.ListenerOptions
+        ),
+        options?: ObserverEngine.ListenerOptions
     ): (
         ObserverEngine.Cleanup |
         EventPromise<Shape[Events<Shape>]> |
@@ -607,19 +747,62 @@ export class ObserverEngine<
         EventPromise<Record<string, any>>
     ) {
 
+        // Determine if second arg is listener or options
+        const isListenerFn = typeof listenerOrOptions === 'function';
+        const listener = isListenerFn ? listenerOrOptions : undefined;
+        const resolvedOptions = isListenerFn
+            ? options
+            : (listenerOrOptions as ObserverEngine.ListenerOptions | undefined);
+
         validateEvent('once', { event, listener } as never);
         validateListener('once', { event, listener } as never);
 
         if (!listener) {
 
             const defer = new DeferredEvent<unknown>();
+            const userSignal = resolvedOptions?.signal;
+
+            // If signal already aborted, reject immediately
+            if (userSignal?.aborted) {
+
+                defer.reject(userSignal.reason ?? new DOMException('Aborted', 'AbortError'));
+                defer.promise.cleanup = () => {};
+
+                return defer.promise as (
+                    ObserverEngine.Cleanup |
+                    EventPromise<Shape[Events<Shape>]> |
+                    EventPromise<ObserverEngine.RgxEmitData<Shape>> |
+                    EventPromise<Record<string, any>>
+                )
+            }
+
+            // Mutable controller for managing abort listener lifecycle
+            let promiseAbortCtrl: AbortController | undefined;
 
             const cleanup = this.once(
                 event as never,
-                ((data: unknown) => defer.resolve(data)) as never
+                ((data: unknown) => {
+                    defer.resolve(data);
+                    promiseAbortCtrl?.abort();
+                }) as never,
+                resolvedOptions
             );
 
-            defer.promise.cleanup = cleanup;
+            // Wire up signal to reject promise on abort
+            if (userSignal) {
+
+                promiseAbortCtrl = new AbortController();
+
+                userSignal.addEventListener('abort', () => {
+                    cleanup();
+                    defer.reject(userSignal.reason ?? new DOMException('Aborted', 'AbortError'));
+                }, { signal: promiseAbortCtrl.signal });
+            }
+
+            defer.promise.cleanup = () => {
+                cleanup();
+                promiseAbortCtrl?.abort();
+            };
 
             return defer.promise as (
                 ObserverEngine.Cleanup |
@@ -648,10 +831,9 @@ export class ObserverEngine<
         }
 
         return this.on(
-            event,
-            runOnce,
-            // @ts-expect-error
-            { once: true }
+            event as Events<Shape>,
+            runOnce as ObserverEngine.EventCallback<Shape[Events<Shape>]>,
+            { once: true, ...resolvedOptions } as ObserverEngine.ListenerOptions
         );
     }
 

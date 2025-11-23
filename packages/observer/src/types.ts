@@ -25,7 +25,8 @@ declare module './engine.ts' {
         };
 
         export type Child<C, Ev extends Record<string, any>> = C & Component<Ev> & {
-            cleanup: Cleanup
+            cleanup: Cleanup,
+            clear: Cleanup
         }
 
         export type Instance<Ev extends Record<string, any>> = Component<Ev> & {
@@ -68,7 +69,16 @@ declare module './engine.ts' {
         export type Options<Ev extends Record<string, any>> = {
             name?: string | undefined,
             spy?: Spy<Ev> | undefined,
-            emitValidator?: EmitValidator<Ev> | undefined
+            emitValidator?: EmitValidator<Ev> | undefined,
+            signal?: AbortSignal | undefined
+        };
+
+        export type ListenerOptions = {
+            signal?: AbortSignal | undefined
+        };
+
+        export type ObserveOptions = {
+            signal?: AbortSignal | undefined
         };
     }
 }

@@ -7,5 +7,6 @@ typedoc
 tmp/*
 !tmp/.gitkeep
 packages/test
-tests/src/experiments
+tests/src/experiments/*
+!tests/src/experiments/memory-tests/
 docs/.vitepress/cache/*

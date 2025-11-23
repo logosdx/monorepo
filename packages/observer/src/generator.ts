@@ -4,6 +4,10 @@ import { type EventData, EventPromise, EventError } from './helpers.ts';
 import { type ObserverEngine } from './engine.ts';
 import { type Events } from './types.ts';
 
+export interface EventGeneratorOptions {
+    signal?: AbortSignal | undefined;
+}
+
 export class DeferredEvent<T> extends Deferred<T> {
 
     declare promise: EventPromise<T>;
@@ -39,7 +43,8 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
 
     constructor(
         observer: ObserverEngine<S>,
-        event: E | RegExp
+        event: E | RegExp,
+        options?: EventGeneratorOptions
     ) {
 
         this.#observer = observer;
@@ -61,8 +66,10 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
         const off = observer.on(
             event as never,
             this.#listener! as never
-        );
+        ) as unknown as ObserverEngine.Cleanup;
 
+        // Mutable controller for managing abort listener lifecycle
+        let generatorAbortCtrl: AbortController | undefined;
 
         this.next = () => {
 
@@ -73,7 +80,7 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
 
         this.cleanup = () => {
 
-            this.#assertNotDestroyed();
+            if (this.#done) return;
 
             off();
             this.#done = true;
@@ -87,6 +94,27 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
             // Cleanup the set
             this.#_iterPromise.clear();
             this.#lastValue = null;
+
+            // Abort the generator's abort controller if it exists
+            generatorAbortCtrl?.abort();
+        }
+
+        // Wire up signal to auto-cleanup
+        const userSignal = options?.signal;
+
+        if (userSignal) {
+
+            if (userSignal.aborted) {
+
+                this.#done = true;
+                return;
+            }
+
+            generatorAbortCtrl = new AbortController();
+
+            userSignal.addEventListener('abort', this.cleanup, {
+                signal: generatorAbortCtrl.signal
+            });
         }
 
     }

@@ -11,6 +11,7 @@ export {
 export {
     EventGenerator,
     DeferredEvent,
+    type EventGeneratorOptions,
 } from './generator.ts';
 
 export {

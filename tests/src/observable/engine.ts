@@ -845,5 +845,909 @@ describe('@logosdx/observer', function () {
 
         });
     });
+
+    describe('AbortController signal support', () => {
+
+        afterEach(() => {
+
+            sandbox.resetHistory();
+        });
+
+        describe('instance-level signal', () => {
+
+            it('should accept signal in constructor options', () => {
+
+                const controller = new AbortController();
+                const observer = new ObserverEngine<AppEvents>({
+                    signal: controller.signal
+                });
+
+                expect(observer).to.be.instanceOf(ObserverEngine);
+            });
+
+            it('should cleanup all listeners when instance signal aborts', () => {
+
+                const controller = new AbortController();
+                const observer = new ObserverEngine<AppEvents>({
+                    signal: controller.signal
+                });
+
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+
+                observer.on('test', fake1);
+                observer.on('test1', fake2);
+
+                observer.emit('test', 'before');
+                observer.emit('test1', 'before');
+
+                expect(fake1.callCount).to.eq(1);
+                expect(fake2.callCount).to.eq(1);
+
+                controller.abort();
+
+                observer.emit('test', 'after');
+                observer.emit('test1', 'after');
+
+                expect(fake1.callCount).to.eq(1);
+                expect(fake2.callCount).to.eq(1);
+            });
+
+            it('should cleanup regex listeners when instance signal aborts', () => {
+
+                const controller = new AbortController();
+                const observer = new ObserverEngine<AppEvents>({
+                    signal: controller.signal
+                });
+
+                const fake = sandbox.stub();
+                observer.on(/test/, fake);
+
+                observer.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                controller.abort();
+
+                observer.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+
+            it('should cleanup observed children when instance signal aborts', () => {
+
+                const controller = new AbortController();
+                const observer = new ObserverEngine<AppEvents>({
+                    signal: controller.signal
+                });
+
+                const child: any = {};
+                observer.observe(child);
+
+                const fake = sandbox.stub();
+                child.on('test', fake);
+
+                child.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                controller.abort();
+
+                child.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+        });
+
+        describe('listener-level signal', () => {
+
+            it('should accept signal option in on() method', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fake = sandbox.stub();
+
+                const cleanup = observer.on('test', fake, { signal: controller.signal });
+
+                expect(typeof cleanup).to.eq('function');
+            });
+
+            it('should cleanup listener when its signal aborts', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fake = sandbox.stub();
+
+                observer.on('test', fake, { signal: controller.signal });
+
+                observer.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                controller.abort();
+
+                observer.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+
+            it('should only cleanup specific listener, not others on same event', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fakeWithSignal = sandbox.stub();
+                const fakeWithoutSignal = sandbox.stub();
+
+                observer.on('test', fakeWithSignal, { signal: controller.signal });
+                observer.on('test', fakeWithoutSignal);
+
+                observer.emit('test', 'before');
+                expect(fakeWithSignal.callCount).to.eq(1);
+                expect(fakeWithoutSignal.callCount).to.eq(1);
+
+                controller.abort();
+
+                observer.emit('test', 'after');
+                expect(fakeWithSignal.callCount).to.eq(1);
+                expect(fakeWithoutSignal.callCount).to.eq(2);
+            });
+
+            it('should accept signal option in once() method', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fake = sandbox.stub();
+
+                const cleanup = observer.once('test', fake, { signal: controller.signal });
+
+                expect(typeof cleanup).to.eq('function');
+            });
+
+            it('should cleanup once listener when its signal aborts before emit', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fake = sandbox.stub();
+
+                observer.once('test', fake, { signal: controller.signal });
+
+                controller.abort();
+
+                observer.emit('test', 'after');
+                expect(fake.callCount).to.eq(0);
+            });
+
+            it('should accept signal option in on() with regex', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fake = sandbox.stub();
+
+                observer.on(/test/, fake, { signal: controller.signal });
+
+                observer.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                controller.abort();
+
+                observer.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+        });
+
+        describe('observe-level signal', () => {
+
+            it('should accept signal option in observe() method', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const child: any = {};
+
+                const observed = observer.observe(child, { signal: controller.signal });
+
+                expect(observed).to.eq(child);
+                expect(typeof child.on).to.eq('function');
+            });
+
+            it('should cleanup all child listeners when observe signal aborts', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const child: any = {};
+
+                observer.observe(child, { signal: controller.signal });
+
+                const fake = sandbox.stub();
+                child.on('test', fake);
+                child.on('test1', fake);
+
+                child.emit('test', 'before');
+                child.emit('test1', 'before');
+                expect(fake.callCount).to.eq(2);
+
+                controller.abort();
+
+                child.emit('test', 'after');
+                child.emit('test1', 'after');
+                expect(fake.callCount).to.eq(2);
+            });
+
+            it('should not affect other observed children when one signal aborts', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller1 = new AbortController();
+                const controller2 = new AbortController();
+
+                const child1: any = {};
+                const child2: any = {};
+
+                observer.observe(child1, { signal: controller1.signal });
+                observer.observe(child2, { signal: controller2.signal });
+
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+
+                child1.on('test', fake1);
+                child2.on('test', fake2);
+
+                observer.emit('test', 'before');
+                expect(fake1.callCount).to.eq(1);
+                expect(fake2.callCount).to.eq(1);
+
+                controller1.abort();
+
+                observer.emit('test', 'after');
+                expect(fake1.callCount).to.eq(1);
+                expect(fake2.callCount).to.eq(2);
+            });
+
+            it('should not affect parent listeners when observe signal aborts', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+
+                const child: any = {};
+                observer.observe(child, { signal: controller.signal });
+
+                const parentFake = sandbox.stub();
+                const childFake = sandbox.stub();
+
+                observer.on('test', parentFake);
+                child.on('test', childFake);
+
+                observer.emit('test', 'before');
+                expect(parentFake.callCount).to.eq(1);
+                expect(childFake.callCount).to.eq(1);
+
+                controller.abort();
+
+                observer.emit('test', 'after');
+                expect(parentFake.callCount).to.eq(2);
+                expect(childFake.callCount).to.eq(1);
+            });
+        });
+
+        describe('signal composition (cascading)', () => {
+
+            it('should cleanup listener when instance signal aborts (instance > listener)', () => {
+
+                const instanceController = new AbortController();
+                const listenerController = new AbortController();
+
+                const observer = new ObserverEngine<AppEvents>({
+                    signal: instanceController.signal
+                });
+
+                const fake = sandbox.stub();
+                observer.on('test', fake, { signal: listenerController.signal });
+
+                observer.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                instanceController.abort();
+
+                observer.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+
+            it('should cleanup observed child when instance signal aborts (instance > observe)', () => {
+
+                const instanceController = new AbortController();
+                const observeController = new AbortController();
+
+                const observer = new ObserverEngine<AppEvents>({
+                    signal: instanceController.signal
+                });
+
+                const child: any = {};
+                observer.observe(child, { signal: observeController.signal });
+
+                const fake = sandbox.stub();
+                child.on('test', fake);
+
+                child.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                instanceController.abort();
+
+                child.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+
+            it('listener signal abort should not affect other listeners (independent)', () => {
+
+                const instanceController = new AbortController();
+                const listener1Controller = new AbortController();
+                const listener2Controller = new AbortController();
+
+                const observer = new ObserverEngine<AppEvents>({
+                    signal: instanceController.signal
+                });
+
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+
+                observer.on('test', fake1, { signal: listener1Controller.signal });
+                observer.on('test', fake2, { signal: listener2Controller.signal });
+
+                observer.emit('test', 'before');
+                expect(fake1.callCount).to.eq(1);
+                expect(fake2.callCount).to.eq(1);
+
+                listener1Controller.abort();
+
+                observer.emit('test', 'after');
+                expect(fake1.callCount).to.eq(1);
+                expect(fake2.callCount).to.eq(2);
+
+                instanceController.abort();
+
+                observer.emit('test', 'final');
+                expect(fake1.callCount).to.eq(1);
+                expect(fake2.callCount).to.eq(2);
+            });
+        });
+
+        describe('internal AbortController cleanup', () => {
+
+            it('off() should internally abort controller for listener', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake = sandbox.stub();
+
+                observer.on('test', fake);
+                observer.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                observer.off('test', fake);
+
+                observer.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+
+            it('clear() should internally abort all controllers', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake = sandbox.stub();
+
+                observer.on('test', fake);
+                observer.on('test1', fake);
+                observer.on(/test/, fake);
+
+                observer.emit('test', 'before');
+                expect(fake.callCount).to.eq(2);
+
+                observer.clear();
+
+                observer.emit('test', 'after');
+                observer.emit('test1', 'after');
+                expect(fake.callCount).to.eq(2);
+            });
+
+            it('cleanup() on observed child should internally abort controller', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const child: any = {};
+
+                observer.observe(child);
+
+                const fake = sandbox.stub();
+                child.on('test', fake);
+
+                child.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                child.cleanup();
+
+                child.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+
+            it('returned cleanup function should abort internal controller', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake = sandbox.stub();
+
+                const cleanup = observer.on('test', fake);
+
+                observer.emit('test', 'before');
+                expect(fake.callCount).to.eq(1);
+
+                cleanup();
+
+                observer.emit('test', 'after');
+                expect(fake.callCount).to.eq(1);
+            });
+        });
+
+        describe('already aborted signals', () => {
+
+            it('should not register listener if signal is already aborted', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                controller.abort();
+
+                const fake = sandbox.stub();
+                observer.on('test', fake, { signal: controller.signal });
+
+                observer.emit('test', 'test');
+                expect(fake.callCount).to.eq(0);
+            });
+
+            it('should not observe if signal is already aborted', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                controller.abort();
+
+                const child: any = {};
+                observer.observe(child, { signal: controller.signal });
+
+                const fake = sandbox.stub();
+                child.on('test', fake);
+
+                observer.emit('test', 'test');
+                expect(fake.callCount).to.eq(0);
+            });
+        });
+    });
+
+    describe('cleanup guarantees', () => {
+
+        /**
+         * These tests verify internal cleanup mechanics to ensure
+         * no memory leaks occur. They use $facts() to inspect internal state.
+         */
+
+        afterEach(() => {
+
+            sandbox.resetHistory();
+        });
+
+        describe('G1: listener removal from maps', () => {
+
+            it('cleanup() removes listener from listenerMap', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake = sandbox.stub();
+
+                const cleanup = observer.on('test', fake);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                cleanup();
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+                expect(observer.$facts().listeners).to.not.include('test');
+            });
+
+            it('cleanup() removes listener from rgxListenerMap', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake = sandbox.stub();
+
+                const cleanup = observer.on(/test/, fake);
+
+                expect(observer.$facts().listenerCounts['/test/']).to.eq(1);
+
+                cleanup();
+
+                expect(observer.$facts().listenerCounts['/test/']).to.be.undefined;
+                expect(observer.$facts().rgxListeners).to.not.include('/test/');
+            });
+
+            it('off() removes specific listener from listenerMap', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake = sandbox.stub();
+
+                observer.on('test', fake);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                observer.off('test', fake);
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('signal abort removes listener from listenerMap', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fake = sandbox.stub();
+
+                observer.on('test', fake, { signal: controller.signal });
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                controller.abort();
+
+                // Allow microtask to process
+                await wait(1);
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+        });
+
+        describe('G2: empty Set cleanup (Map key deletion)', () => {
+
+            it('removes Map key when last listener is removed via cleanup()', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+
+                const cleanup1 = observer.on('test', fake1);
+                const cleanup2 = observer.on('test', fake2);
+
+                expect(observer.$facts().listeners).to.include('test');
+                expect(observer.$facts().listenerCounts['test']).to.eq(2);
+
+                cleanup1();
+
+                expect(observer.$facts().listeners).to.include('test');
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                cleanup2();
+
+                // Key should be completely removed, not just empty
+                expect(observer.$facts().listeners).to.not.include('test');
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('removes Map key when last regex listener is removed', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+
+                const cleanup1 = observer.on(/test/, fake1);
+                const cleanup2 = observer.on(/test/, fake2);
+
+                expect(observer.$facts().rgxListeners).to.include('/test/');
+                expect(observer.$facts().listenerCounts['/test/']).to.eq(2);
+
+                cleanup1();
+                cleanup2();
+
+                expect(observer.$facts().rgxListeners).to.not.include('/test/');
+                expect(observer.$facts().listenerCounts['/test/']).to.be.undefined;
+            });
+
+            it('off() without specific listener removes entire event key', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+
+                observer.on('test', fake1);
+                observer.on('test', fake2);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(2);
+
+                observer.off('test');
+
+                expect(observer.$facts().listeners).to.not.include('test');
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+        });
+
+        describe('G4: observe() child cleanup', () => {
+
+            it('child cleanup() removes all child listeners from parent', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const child: any = {};
+
+                observer.observe(child);
+
+                const fake = sandbox.stub();
+                child.on('test', fake);
+                child.on('test1', fake);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+                expect(observer.$facts().listenerCounts['test1']).to.eq(1);
+
+                child.cleanup();
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+                expect(observer.$facts().listenerCounts['test1']).to.be.undefined;
+            });
+
+            it('child clear() removes only child listeners, not parent listeners', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const child: any = {};
+
+                observer.observe(child);
+
+                const parentFake = sandbox.stub();
+                const childFake = sandbox.stub();
+
+                observer.on('test', parentFake);
+                child.on('test', childFake);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(2);
+
+                child.clear();
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+            });
+
+            it('observe signal abort cleans up child listeners', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const child: any = {};
+
+                observer.observe(child, { signal: controller.signal });
+
+                const fake = sandbox.stub();
+                child.on('test', fake);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                controller.abort();
+
+                await wait(1);
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('multiple children cleanup independently', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const child1: any = {};
+                const child2: any = {};
+
+                observer.observe(child1);
+                observer.observe(child2);
+
+                const fake1 = sandbox.stub();
+                const fake2 = sandbox.stub();
+
+                child1.on('test', fake1);
+                child2.on('test', fake2);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(2);
+
+                child1.cleanup();
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                child2.cleanup();
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+        });
+
+        describe('G5: EventGenerator cleanup', () => {
+
+            it('generator cleanup() removes listener from map', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const generator = observer.on('test');
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                generator.cleanup();
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('generator cleanup() with regex removes listener from map', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const generator = observer.on(/test/);
+
+                expect(observer.$facts().listenerCounts['/test/']).to.eq(1);
+
+                generator.cleanup();
+
+                expect(observer.$facts().listenerCounts['/test/']).to.be.undefined;
+            });
+
+            it('generator signal abort removes listener from map', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const generator = observer.on('test', { signal: controller.signal });
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                controller.abort();
+
+                await wait(1);
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+                expect(generator.done).to.be.true;
+            });
+
+            it('generator cleanup() is idempotent', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const generator = observer.on('test');
+
+                generator.cleanup();
+                generator.cleanup();
+                generator.cleanup();
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+        });
+
+        describe('G6: once() cleanup', () => {
+
+            it('once() listener auto-removes after event fires', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const fake = sandbox.stub();
+
+                observer.once('test', fake);
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                observer.emit('test', 'data');
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('once() promise auto-removes after event fires', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+
+                const promise = observer.once('test');
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                observer.emit('test', 'data');
+
+                await promise;
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('once() promise cleanup() removes before event fires', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+
+                const promise = observer.once('test');
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                promise.cleanup!();
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('once() signal abort removes listener', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const fake = sandbox.stub();
+
+                observer.once('test', fake, { signal: controller.signal });
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                controller.abort();
+
+                await wait(1);
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+                expect(fake.callCount).to.eq(0);
+            });
+
+            it('once() promise signal abort removes listener and rejects', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+
+                const promise = observer.once('test', { signal: controller.signal });
+
+                // Attach catch handler before aborting to avoid unhandled rejection
+                const catchPromise = promise.catch((err) => {
+
+                    expect((err as Error).name).to.eq('AbortError');
+                    return 'caught';
+                });
+
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+
+                controller.abort();
+
+                await wait(1);
+
+                expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+
+                const result = await catchPromise;
+                expect(result).to.eq('caught');
+            });
+        });
+
+        describe('cleanup under churn (memory test simulation)', () => {
+
+            it('rapid subscribe/unsubscribe leaves no listeners', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+
+                for (let i = 0; i < 1000; i++) {
+
+                    const cleanup = observer.on('test', () => {});
+                    cleanup();
+                }
+
+                expect(observer.$facts().listeners).to.have.length(0);
+                expect(observer.$facts().rgxListeners).to.have.length(0);
+            });
+
+            it('rapid subscribe/unsubscribe with signals leaves no listeners', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+
+                for (let i = 0; i < 100; i++) {
+
+                    const controller = new AbortController();
+                    observer.on('test', () => {}, { signal: controller.signal });
+                    controller.abort();
+                }
+
+                await wait(10);
+
+                expect(observer.$facts().listeners).to.have.length(0);
+            });
+
+            it('rapid child observe/cleanup leaves no listeners', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+
+                for (let i = 0; i < 100; i++) {
+
+                    const child: any = {};
+                    observer.observe(child);
+                    child.on('test', () => {});
+                    child.cleanup();
+                }
+
+                expect(observer.$facts().listeners).to.have.length(0);
+            });
+
+            it('mixed operations leave expected listener count', () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const permanentFake = sandbox.stub();
+
+                // Add one permanent listener
+                observer.on('test', permanentFake);
+
+                // Churn through many temporary listeners
+                for (let i = 0; i < 100; i++) {
+
+                    const cleanup = observer.on('test', () => {});
+                    observer.on(/test/, () => {})();
+                    cleanup();
+                }
+
+                // Only permanent listener should remain
+                expect(observer.$facts().listenerCounts['test']).to.eq(1);
+                expect(observer.$facts().rgxListeners).to.have.length(0);
+            });
+        });
+    });
 });
 
