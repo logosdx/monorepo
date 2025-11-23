@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Test Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f5f5f5;
+            --bg-card: #ffffff;
+            --bg-hover: #e8e8e8;
+            --text: #1a1a1a;
+            --text-muted: #666;
+            --accent: #0066cc;
+            --success: #16a34a;
+            --warning: #ca8a04;
+            --danger: #dc2626;
+            --border: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 210mm; /* A4 width */
+            margin: 0 auto;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+                background: white;
+                color: black;
+            }
+            .container {
+                max-width: 100%;
+            }
+            .scenario.expanded .scenario-body {
+                display: block;
+            }
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .file-select {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        select, button {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        select:hover, button:hover {
+            background: var(--bg-hover);
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent);
+        }
+
+        .meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .meta-card {
+            background: var(--bg-card);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .meta-card label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .meta-card .value {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .scenarios {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .scenario {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .scenario-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: var(--bg-hover);
+            cursor: pointer;
+        }
+
+        .scenario-header:hover {
+            background: #d8d8d8;
+        }
+
+        .scenario-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .scenario-title h2 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .scenario-title .desc {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .health-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .health-badge.pass {
+            background: rgba(22, 163, 74, 0.15);
+            color: var(--success);
+        }
+
+        .health-badge.fail {
+            background: rgba(220, 38, 38, 0.15);
+            color: var(--danger);
+        }
+
+        .scenario-body {
+            padding: 20px;
+            display: none;
+        }
+
+        .scenario.expanded .scenario-body {
+            display: block;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 8px;
+        }
+
+        .metric .value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .metric .label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-bottom: 16px;
+            position: relative;
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .warnings {
+            margin-top: 16px;
+            padding: 12px;
+            background: rgba(202, 138, 4, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 8px;
+        }
+
+        .warnings h4 {
+            color: var(--warning);
+            font-size: 0.875rem;
+            margin-bottom: 8px;
+        }
+
+        .warnings ul {
+            list-style: none;
+            font-size: 0.875rem;
+        }
+
+        .warnings li {
+            padding: 4px 0;
+            color: var(--text-muted);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state h2 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+        }
+
+        .hide-charts .chart-container {
+            display: none;
+        }
+
+        .file-upload-btn {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .file-upload-btn:hover {
+            background: var(--bg-hover);
+        }
+
+        .loaded-file-name {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-left: 8px;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Memory Test Results</h1>
+            <div class="file-select">
+                <select id="fileSelect">
+                    <option value="">-- Select a file --</option>
+                </select>
+                <button onclick="loadFiles()" title="Refresh file list">Refresh</button>
+                <span style="color: var(--text-muted); margin: 0 8px;">or</span>
+                <label class="file-upload-btn">
+                    <input type="file" id="fileUpload" accept=".json" onchange="handleFileUpload(event)" style="display: none;">
+                    <span>Browse...</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-left: 12px;">
+                    <input type="checkbox" id="showCharts" checked onchange="toggleCharts()">
+                    <span>Charts</span>
+                </label>
+            </div>
+        </header>
+
+        <div id="content">
+            <div class="empty-state">
+                <h2>No Data Loaded</h2>
+                <p>Select a result file from the dropdown or run the memory test harness.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+        const charts = {}; // Store chart instances for cleanup
+
+        // Format bytes to human readable
+        function formatBytes(bytes) {
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        }
+
+        // Format percentage
+        function formatPercent(value) {
+            return `${(value * 100).toFixed(1)}%`;
+        }
+
+        // Format duration
+        function formatDuration(ms) {
+            if (ms < 1000) return `${ms.toFixed(1)}ms`;
+            return `${(ms / 1000).toFixed(2)}s`;
+        }
+
+        // Load available files
+        async function loadFiles() {
+            try {
+                const res = await fetch('/api/files');
+                const files = await res.json();
+                const select = document.getElementById('fileSelect');
+
+                // Clear existing options except first
+                select.innerHTML = '<option value="">-- Select a file --</option>';
+
+                files.forEach(file => {
+                    const opt = document.createElement('option');
+                    opt.value = file;
+                    opt.textContent = file;
+                    select.appendChild(opt);
+                });
+
+                // Auto-select first file if available
+                if (files.length > 0) {
+                    select.value = files[0];
+                    loadData(files[0]);
+                }
+            } catch (err) {
+                console.error('Failed to load files:', err);
+            }
+        }
+
+        // Load data from file
+        async function loadData(filename) {
+            try {
+                const url = filename ? `/api/data?file=${filename}` : '/api/data';
+                const res = await fetch(url);
+
+                if (!res.ok) {
+                    throw new Error('Failed to load data');
+                }
+
+                currentData = await res.json();
+                renderData(currentData);
+            } catch (err) {
+                console.error('Failed to load data:', err);
+                document.getElementById('content').innerHTML = `
+                    <div class="empty-state">
+                        <h2>Error Loading Data</h2>
+                        <p>${err.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Render the data
+        function renderData(data) {
+            // Destroy existing charts
+            Object.values(charts).forEach(chart => chart.destroy());
+            Object.keys(charts).forEach(key => delete charts[key]);
+
+            const content = document.getElementById('content');
+
+            if (!data || !data.scenarios || data.scenarios.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No Scenarios Found</h2>
+                        <p>The selected file contains no scenario data.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = `
+                <div class="meta">
+                    <div class="meta-card">
+                        <label>Suite</label>
+                        <div class="value">${data.suite || 'Unknown'}</div>
+                    </div>
+                    <div class="meta-card">
+                        <label>Node Version</label>
+                        <div class="value">${data.nodeVersion || 'Unknown'}</div>
+                    </div>
+                    <div class="meta-card">
+                        <label>Platform</label>
+                        <div class="value">${data.platform || 'Unknown'}</div>
+                    </div>
+                    <div class="meta-card">
+                        <label>Duration</label>
+                        <div class="value">${formatTestDuration(data.startTime, data.endTime)}</div>
+                    </div>
+                </div>
+
+                <div class="scenarios">
+                    ${data.scenarios.map((scenario, idx) => renderScenario(scenario, idx)).join('')}
+                </div>
+            `;
+
+            content.innerHTML = html;
+
+            // Create charts after DOM is ready
+            requestAnimationFrame(() => {
+                data.scenarios.forEach((scenario, idx) => {
+                    if (scenario.snapshots && scenario.snapshots.length > 0) {
+                        createChart(scenario, idx);
+                    }
+                });
+            });
+        }
+
+        // Format test duration
+        function formatTestDuration(start, end) {
+            if (!start || !end) return 'Unknown';
+            const ms = new Date(end) - new Date(start);
+            if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+            return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+        }
+
+        // Render a single scenario
+        function renderScenario(scenario, idx) {
+            const m = scenario.metrics || {};
+
+            return `
+                <div class="scenario" id="scenario-${idx}">
+                    <div class="scenario-header" onclick="toggleScenario(${idx})">
+                        <div class="scenario-title">
+                            <h2>${scenario.name}</h2>
+                            <span class="desc">${scenario.description}</span>
+                        </div>
+                        <span class="health-badge ${scenario.healthy ? 'pass' : 'fail'}">
+                            ${scenario.healthy ? 'PASS' : 'FAIL'}
+                        </span>
+                    </div>
+                    <div class="scenario-body">
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <div class="value">${scenario.iterations || 0}</div>
+                                <div class="label">Iterations</div>
+                            </div>
+                            <div class="metric">
+                                <div class="value">${formatBytes(m.baselineHeap || 0)}</div>
+                                <div class="label">Baseline Heap</div>
+                            </div>
+                            <div class="metric">
+                                <div class="value">${formatBytes(m.peakHeap || 0)}</div>
+                                <div class="label">Peak Heap</div>
+                            </div>
+                            <div class="metric">
+                                <div class="value">${formatBytes(m.finalHeap || 0)}</div>
+                                <div class="label">Final Heap</div>
+                            </div>
+                            <div class="metric">
+                                <div class="value">${formatPercent(m.gcRecoveryRate || 0)}</div>
+                                <div class="label">GC Recovery</div>
+                            </div>
+                            <div class="metric">
+                                <div class="value">${formatDuration(m.avgIterationMs || 0)}</div>
+                                <div class="label">Avg Iteration</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-container">
+                            <canvas id="chart-${idx}"></canvas>
+                        </div>
+
+                        ${scenario.warnings && scenario.warnings.length > 0 ? `
+                            <div class="warnings">
+                                <h4>Warnings</h4>
+                                <ul>
+                                    ${scenario.warnings.map(w => `<li>${w}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Toggle scenario expansion
+        function toggleScenario(idx) {
+            const el = document.getElementById(`scenario-${idx}`);
+            el.classList.toggle('expanded');
+
+            // Resize chart when expanded (Chart.js needs this)
+            if (charts[idx]) {
+                setTimeout(() => charts[idx].resize(), 100);
+            }
+        }
+
+        // Create Chart.js chart
+        function createChart(scenario, idx) {
+            const canvas = document.getElementById(`chart-${idx}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const snapshots = scenario.snapshots;
+            const metrics = scenario.metrics || {};
+
+            // Prepare data
+            const labels = snapshots.map((s, i) => {
+                if (s.phase === 'baseline') return 'Baseline';
+                if (s.phase === 'before-gc') return `Pre-GC`;
+                if (s.phase === 'after-gc') return `Post-GC`;
+                if (s.phase === 'before-run') return `Before #${s.iteration}`;
+                if (s.phase === 'after-run') return `After #${s.iteration}`;
+                return `#${i}`;
+            });
+
+            const heapData = snapshots.map(s => s.heap.used / (1024 * 1024)); // Convert to MB
+
+            // Color points based on phase
+            const pointColors = snapshots.map(s => {
+                if (s.phase === 'after-gc') return '#16a34a';
+                if (s.phase === 'baseline') return '#666';
+                if (s.phase === 'before-gc') return '#ca8a04';
+                return '#0066cc';
+            });
+
+            const pointRadius = snapshots.map(s => {
+                if (s.phase === 'after-gc' || s.phase === 'baseline') return 6;
+                return 4;
+            });
+
+            // Baseline annotation
+            const baselineMB = (metrics.baselineHeap || 0) / (1024 * 1024);
+
+            charts[idx] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Heap Used (MB)',
+                            data: heapData,
+                            borderColor: '#0066cc',
+                            backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                            fill: true,
+                            tension: 0.2,
+                            pointBackgroundColor: pointColors,
+                            pointBorderColor: pointColors,
+                            pointRadius: pointRadius,
+                            pointHoverRadius: 8,
+                        },
+                        {
+                            label: 'Baseline',
+                            data: new Array(snapshots.length).fill(baselineMB),
+                            borderColor: '#999',
+                            borderDash: [5, 5],
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            fill: false,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#666',
+                                font: { family: 'monospace', size: 11 },
+                                usePointStyle: true,
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#ffffff',
+                            titleColor: '#1a1a1a',
+                            bodyColor: '#666',
+                            borderColor: '#ddd',
+                            borderWidth: 1,
+                            titleFont: { family: 'monospace' },
+                            bodyFont: { family: 'monospace' },
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.datasetIndex === 1) return `Baseline: ${context.raw.toFixed(2)} MB`;
+                                    const snapshot = snapshots[context.dataIndex];
+                                    return [
+                                        `Heap: ${context.raw.toFixed(2)} MB`,
+                                        `Phase: ${snapshot.phase}`,
+                                        `Iteration: ${snapshot.iteration}`,
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#666',
+                                font: { family: 'monospace', size: 10 },
+                                maxRotation: 45,
+                            },
+                            grid: {
+                                color: '#eee',
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Heap (MB)',
+                                color: '#666',
+                                font: { family: 'monospace' },
+                            },
+                            ticks: {
+                                color: '#666',
+                                font: { family: 'monospace', size: 11 },
+                                callback: function(value) {
+                                    return value.toFixed(1) + ' MB';
+                                }
+                            },
+                            grid: {
+                                color: '#eee',
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Toggle charts visibility
+        function toggleCharts() {
+            const showCharts = document.getElementById('showCharts').checked;
+            document.getElementById('content').classList.toggle('hide-charts', !showCharts);
+        }
+
+        // Handle local file upload
+        function handleFileUpload(event) {
+
+            const file = event.target.files[0];
+
+            if (!file) return;
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+
+                try {
+
+                    const data = JSON.parse(e.target.result);
+                    currentData = data;
+
+                    // Clear server file selection
+                    document.getElementById('fileSelect').value = '';
+
+                    // Update button to show loaded file name
+                    const btn = document.querySelector('.file-upload-btn span');
+                    btn.textContent = file.name.length > 20
+                        ? file.name.substring(0, 17) + '...'
+                        : file.name;
+                    btn.title = file.name;
+
+                    renderData(data);
+                }
+                catch (err) {
+
+                    console.error('Failed to parse JSON:', err);
+                    document.getElementById('content').innerHTML = `
+                        <div class="empty-state">
+                            <h2>Error Parsing File</h2>
+                            <p>The selected file is not valid JSON: ${err.message}</p>
+                        </div>
+                    `;
+                }
+            };
+
+            reader.onerror = () => {
+
+                console.error('Failed to read file');
+                document.getElementById('content').innerHTML = `
+                    <div class="empty-state">
+                        <h2>Error Reading File</h2>
+                        <p>Could not read the selected file.</p>
+                    </div>
+                `;
+            };
+
+            reader.readAsText(file);
+        }
+
+        // Event listeners
+        document.getElementById('fileSelect').addEventListener('change', (e) => {
+
+            if (e.target.value) {
+
+                // Reset the file upload button text
+                document.querySelector('.file-upload-btn span').textContent = 'Browse...';
+                loadData(e.target.value);
+            }
+        });
+
+        // Initial load
+        loadFiles();
+    </script>
+</body>
+</html>
