@@ -4,19 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Memory Test Results</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <style>
         :root {
-            --bg: #f5f5f5;
-            --bg-card: #ffffff;
-            --bg-hover: #e8e8e8;
-            --text: #1a1a1a;
-            --text-muted: #666;
-            --accent: #0066cc;
-            --success: #16a34a;
-            --warning: #ca8a04;
-            --danger: #dc2626;
-            --border: #ddd;
+            --bg: #0d1117;
+            --bg-dark: #010409;
+            --bg-card: #161b22;
+            --bg-hover: #21262d;
+            --text: #e6edf3;
+            --text-muted: #7d8590;
+            --accent: #58a6ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --border: #30363d;
+            --border-dark: #21262d;
+            --green: #3fb950;
+            --cyan: #39c5cf;
+            --purple: #a371f7;
         }
 
         * {
@@ -26,7 +40,7 @@
         }
 
         body {
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-family: 'IBM Plex Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
@@ -52,6 +66,15 @@
             }
         }
 
+        .terminal-prompt {
+            color: var(--green);
+        }
+
+        .terminal-prompt::before {
+            content: '❯ ';
+            color: var(--cyan);
+        }
+
         header {
             display: flex;
             justify-content: space-between;
@@ -64,7 +87,7 @@
         h1 {
             font-size: 1.5rem;
             font-weight: 600;
-            color: var(--accent);
+            color: var(--text);
         }
 
         .file-select {
@@ -96,7 +119,7 @@
 
         .meta {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 16px;
             margin-bottom: 24px;
         }
@@ -144,13 +167,13 @@
         }
 
         .scenario-header:hover {
-            background: #d8d8d8;
+            background: var(--bg-hover);
         }
 
         .scenario-title {
             display: flex;
-            align-items: center;
-            gap: 12px;
+            flex-direction: column;
+            gap: 4px;
         }
 
         .scenario-title h2 {
@@ -163,6 +186,33 @@
             color: var(--text-muted);
         }
 
+        .scenario-summary {
+            display: flex;
+            gap: 16px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .scenario.expanded .scenario-summary {
+            display: none;
+        }
+
+        .scenario-summary .stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .scenario-summary .stat-value {
+            color: var(--cyan);
+            font-weight: 600;
+        }
+
+        .scenario-summary .stat-label {
+            opacity: 0.7;
+        }
+
         .health-badge {
             padding: 4px 12px;
             border-radius: 20px;
@@ -172,13 +222,15 @@
         }
 
         .health-badge.pass {
-            background: rgba(22, 163, 74, 0.15);
+            background: rgba(63, 185, 80, 0.15);
             color: var(--success);
+            border: 1px solid var(--success);
         }
 
         .health-badge.fail {
-            background: rgba(220, 38, 38, 0.15);
+            background: rgba(248, 81, 73, 0.15);
             color: var(--danger);
+            border: 1px solid var(--danger);
         }
 
         .scenario-body {
@@ -200,14 +252,15 @@
         .metric {
             text-align: center;
             padding: 12px;
-            background: var(--bg);
+            background: var(--bg-dark);
             border-radius: 8px;
+            border: 1px solid var(--border-dark);
         }
 
         .metric .value {
             font-size: 1.25rem;
             font-weight: 700;
-            color: var(--accent);
+            color: var(--cyan);
         }
 
         .metric .label {
@@ -220,15 +273,21 @@
             height: 300px;
             margin-bottom: 16px;
             position: relative;
-            background: var(--bg);
+            background: var(--bg-dark);
             border-radius: 8px;
             padding: 16px;
+            border: 1px solid var(--border-dark);
+        }
+
+        .chart-container > div {
+            width: 100%;
+            height: 100%;
         }
 
         .warnings {
             margin-top: 16px;
             padding: 12px;
-            background: rgba(202, 138, 4, 0.1);
+            background: rgba(210, 153, 34, 0.1);
             border: 1px solid var(--warning);
             border-radius: 8px;
         }
@@ -239,6 +298,10 @@
             margin-bottom: 8px;
         }
 
+        .warnings h4::before {
+            content: '⚠ ';
+        }
+
         .warnings ul {
             list-style: none;
             font-size: 0.875rem;
@@ -247,6 +310,11 @@
         .warnings li {
             padding: 4px 0;
             color: var(--text-muted);
+        }
+
+        .warnings li::before {
+            content: '› ';
+            color: var(--warning);
         }
 
         .empty-state {
@@ -289,28 +357,86 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
+        .file-source-bar {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: none;
+        }
+
+        .file-source-bar.visible {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-source-bar i {
+            color: var(--accent);
+        }
+
+        .file-source-bar .path {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .hotkey-help {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-align: right;
+            margin-top: -12px;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+
+        .hotkey-help:hover {
+            opacity: 1;
+        }
+
+        .hotkey-help kbd {
+            display: inline-block;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 1px 4px;
+            font-family: inherit;
+            font-size: 0.6rem;
+            margin: 0 1px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Memory Test Results</h1>
+            <h1><span class="terminal-prompt">memory-tests</span></h1>
             <div class="file-select">
                 <select id="fileSelect">
                     <option value="">-- Select a file --</option>
                 </select>
-                <button onclick="loadFiles()" title="Refresh file list">Refresh</button>
+                <button onclick="loadFiles()" data-tippy-content="Refresh file list (R)"><i class="fa-solid fa-rotate-right"></i></button>
                 <span style="color: var(--text-muted); margin: 0 8px;">or</span>
-                <label class="file-upload-btn">
+                <label class="file-upload-btn" data-tippy-content="Browse local files (O)">
                     <input type="file" id="fileUpload" accept=".json" onchange="handleFileUpload(event)" style="display: none;">
-                    <span>Browse...</span>
+                    <i class="fa-solid fa-folder-open"></i>
                 </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-left: 12px;">
-                    <input type="checkbox" id="showCharts" checked onchange="toggleCharts()">
-                    <span>Charts</span>
-                </label>
+                <button onclick="toggleCharts()" id="toggleChartsBtn" data-tippy-content="Toggle charts (E)"><i class="fa-solid fa-chart-line"></i></button>
+                <button onclick="toggleAllSections()" id="toggleAllBtn" data-tippy-content="Expand all sections (A)"><i class="fa-solid fa-angles-down"></i></button>
             </div>
         </header>
+
+        <div class="hotkey-help">
+            <kbd>N</kbd> next <kbd>P</kbd> prev <kbd>R</kbd> refresh <kbd>O</kbd> open <kbd>E</kbd> charts <kbd>A</kbd> expand
+        </div>
+
+        <div id="fileSourceBar" class="file-source-bar">
+            <i class="fa-solid fa-file"></i>
+            <span>Source:</span>
+            <span class="path" id="fileSourcePath"></span>
+        </div>
 
         <div id="content">
             <div class="empty-state">
@@ -323,6 +449,50 @@
     <script>
         let currentData = null;
         const charts = {}; // Store chart instances for cleanup
+
+        // Toast notification helper
+        function toast(message, type = 'info') {
+
+            const styles = {
+                info: { background: '#161b22', border: '1px solid #58a6ff', color: '#58a6ff' },
+                success: { background: '#161b22', border: '1px solid #3fb950', color: '#3fb950' },
+                warning: { background: '#161b22', border: '1px solid #d29922', color: '#d29922' },
+                error: { background: '#161b22', border: '1px solid #f85149', color: '#f85149' }
+            };
+
+            const style = styles[type] || styles.info;
+
+            Toastify({
+                text: message,
+                duration: 3000,
+                gravity: 'bottom',
+                position: 'right',
+                style: {
+                    ...style,
+                    borderRadius: '6px',
+                    fontFamily: 'IBM Plex Mono, SF Mono, Monaco, Inconsolata, Roboto Mono, monospace',
+                    fontSize: '0.85rem',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
+                }
+            }).showToast();
+        }
+
+        // Update file source indicator
+        function setFileSource(source, isLocal = false) {
+
+            const bar = document.getElementById('fileSourceBar');
+            const pathEl = document.getElementById('fileSourcePath');
+            const icon = bar.querySelector('i');
+
+            if (source) {
+                pathEl.textContent = source;
+                icon.className = isLocal ? 'fa-solid fa-laptop-file' : 'fa-solid fa-server';
+                bar.classList.add('visible');
+            }
+            else {
+                bar.classList.remove('visible');
+            }
+        }
 
         // Format bytes to human readable
         function formatBytes(bytes) {
@@ -380,6 +550,7 @@
                 }
 
                 currentData = await res.json();
+                setFileSource(filename ? `tmp/memory-tests/${filename}` : 'live data', false);
                 renderData(currentData);
             } catch (err) {
                 console.error('Failed to load data:', err);
@@ -394,8 +565,8 @@
 
         // Render the data
         function renderData(data) {
-            // Destroy existing charts
-            Object.values(charts).forEach(chart => chart.destroy());
+            // Destroy existing Plotly charts
+            Object.values(charts).forEach(container => Plotly.purge(container));
             Object.keys(charts).forEach(key => delete charts[key]);
 
             const content = document.getElementById('content');
@@ -437,13 +608,15 @@
 
             content.innerHTML = html;
 
-            // Create charts after DOM is ready
-            requestAnimationFrame(() => {
-                data.scenarios.forEach((scenario, idx) => {
-                    if (scenario.snapshots && scenario.snapshots.length > 0) {
-                        createChart(scenario, idx);
-                    }
-                });
+            // Store scenario data for lazy chart creation
+            window.scenarioData = data.scenarios;
+
+            // Create charts for all expanded sections
+            data.scenarios.forEach((scenario, idx) => {
+
+                if (scenario.snapshots && scenario.snapshots.length > 0) {
+                    setTimeout(() => createChart(scenario, idx), 50 + idx * 20);
+                }
             });
         }
 
@@ -465,6 +638,24 @@
                         <div class="scenario-title">
                             <h2>${scenario.name}</h2>
                             <span class="desc">${scenario.description}</span>
+                            <div class="scenario-summary">
+                                <span class="stat">
+                                    <span class="stat-value">${scenario.iterations || 0}</span>
+                                    <span class="stat-label">iter</span>
+                                </span>
+                                <span class="stat">
+                                    <span class="stat-value">${formatPercent(m.gcRecoveryRate || 0)}</span>
+                                    <span class="stat-label">GC</span>
+                                </span>
+                                <span class="stat">
+                                    <span class="stat-value">${formatBytes(m.peakHeap || 0)}</span>
+                                    <span class="stat-label">peak</span>
+                                </span>
+                                <span class="stat">
+                                    <span class="stat-value">${formatDuration(m.avgIterationMs || 0)}</span>
+                                    <span class="stat-label">avg</span>
+                                </span>
+                            </div>
                         </div>
                         <span class="health-badge ${scenario.healthy ? 'pass' : 'fail'}">
                             ${scenario.healthy ? 'PASS' : 'FAIL'}
@@ -499,7 +690,7 @@
                         </div>
 
                         <div class="chart-container">
-                            <canvas id="chart-${idx}"></canvas>
+                            <div id="chart-${idx}"></div>
                         </div>
 
                         ${scenario.warnings && scenario.warnings.length > 0 ? `
@@ -517,156 +708,206 @@
 
         // Toggle scenario expansion
         function toggleScenario(idx) {
+
             const el = document.getElementById(`scenario-${idx}`);
+            const isExpanding = !el.classList.contains('expanded');
             el.classList.toggle('expanded');
 
-            // Resize chart when expanded (Chart.js needs this)
-            if (charts[idx]) {
-                setTimeout(() => charts[idx].resize(), 100);
+            if (isExpanding) {
+
+                // Create chart lazily on first expand (Plotly needs visible container)
+                if (!charts[idx] && window.scenarioData && window.scenarioData[idx]) {
+
+                    const scenario = window.scenarioData[idx];
+                    if (scenario.snapshots && scenario.snapshots.length > 0) {
+                        setTimeout(() => createChart(scenario, idx), 50);
+                    }
+                }
+                else if (charts[idx]) {
+
+                    // Resize existing chart
+                    setTimeout(() => Plotly.Plots.resize(charts[idx]), 100);
+                }
             }
         }
 
-        // Create Chart.js chart
+        // Create Plotly chart
         function createChart(scenario, idx) {
-            const canvas = document.getElementById(`chart-${idx}`);
-            if (!canvas) return;
 
-            const ctx = canvas.getContext('2d');
+            const container = document.getElementById(`chart-${idx}`);
+            if (!container) return;
+
             const snapshots = scenario.snapshots;
             const metrics = scenario.metrics || {};
 
-            // Prepare data
-            const labels = snapshots.map((s, i) => {
-                if (s.phase === 'baseline') return 'Baseline';
-                if (s.phase === 'before-gc') return `Pre-GC`;
-                if (s.phase === 'after-gc') return `Post-GC`;
-                if (s.phase === 'before-run') return `Before #${s.iteration}`;
-                if (s.phase === 'after-run') return `After #${s.iteration}`;
-                return `#${i}`;
-            });
+            // Prepare data - use numeric indices for x-axis to ensure continuous line
+            const xValues = snapshots.map((_, i) => i);
 
             const heapData = snapshots.map(s => s.heap.used / (1024 * 1024)); // Convert to MB
 
             // Color points based on phase
             const pointColors = snapshots.map(s => {
-                if (s.phase === 'after-gc') return '#16a34a';
-                if (s.phase === 'baseline') return '#666';
-                if (s.phase === 'before-gc') return '#ca8a04';
-                return '#0066cc';
+
+                if (s.phase === 'after-gc') return '#3fb950';
+                if (s.phase === 'baseline') return '#7d8590';
+                if (s.phase === 'before-gc') return '#d29922';
+                return '#58a6ff';
             });
 
-            const pointRadius = snapshots.map(s => {
-                if (s.phase === 'after-gc' || s.phase === 'baseline') return 6;
-                return 4;
+            const pointSizes = snapshots.map(s => {
+
+                if (s.phase === 'after-gc' || s.phase === 'baseline') return 10;
+                return 6;
             });
 
-            // Baseline annotation
+            // Baseline value
             const baselineMB = (metrics.baselineHeap || 0) / (1024 * 1024);
 
-            charts[idx] = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Heap Used (MB)',
-                            data: heapData,
-                            borderColor: '#0066cc',
-                            backgroundColor: 'rgba(0, 102, 204, 0.1)',
-                            fill: true,
-                            tension: 0.2,
-                            pointBackgroundColor: pointColors,
-                            pointBorderColor: pointColors,
-                            pointRadius: pointRadius,
-                            pointHoverRadius: 8,
-                        },
-                        {
-                            label: 'Baseline',
-                            data: new Array(snapshots.length).fill(baselineMB),
-                            borderColor: '#999',
-                            borderDash: [5, 5],
-                            borderWidth: 1,
-                            pointRadius: 0,
-                            fill: false,
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index',
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                color: '#666',
-                                font: { family: 'monospace', size: 11 },
-                                usePointStyle: true,
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: '#ffffff',
-                            titleColor: '#1a1a1a',
-                            bodyColor: '#666',
-                            borderColor: '#ddd',
-                            borderWidth: 1,
-                            titleFont: { family: 'monospace' },
-                            bodyFont: { family: 'monospace' },
-                            callbacks: {
-                                label: function(context) {
-                                    if (context.datasetIndex === 1) return `Baseline: ${context.raw.toFixed(2)} MB`;
-                                    const snapshot = snapshots[context.dataIndex];
-                                    return [
-                                        `Heap: ${context.raw.toFixed(2)} MB`,
-                                        `Phase: ${snapshot.phase}`,
-                                        `Iteration: ${snapshot.iteration}`,
-                                    ];
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            ticks: {
-                                color: '#666',
-                                font: { family: 'monospace', size: 10 },
-                                maxRotation: 45,
-                            },
-                            grid: {
-                                color: '#eee',
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Heap (MB)',
-                                color: '#666',
-                                font: { family: 'monospace' },
-                            },
-                            ticks: {
-                                color: '#666',
-                                font: { family: 'monospace', size: 11 },
-                                callback: function(value) {
-                                    return value.toFixed(1) + ' MB';
-                                }
-                            },
-                            grid: {
-                                color: '#eee',
-                            }
-                        }
-                    }
-                }
+            // Custom hover text with label info
+            const hoverText = snapshots.map((s, i) => {
+
+                let label = `#${i}`;
+                if (s.phase === 'baseline') label = 'Baseline';
+                else if (s.phase === 'before-gc') label = 'Pre-GC';
+                else if (s.phase === 'after-gc') label = 'Post-GC';
+                else if (s.phase === 'before-run') label = `Before #${s.iteration}`;
+                else if (s.phase === 'after-run') label = `After #${s.iteration}`;
+
+                return `${label}<br>Heap: ${heapData[i].toFixed(2)} MB<br>Phase: ${s.phase}`;
             });
+
+            // Plotly traces - baseline first so heap line renders on top
+            const traces = [
+                {
+                    x: xValues,
+                    y: new Array(snapshots.length).fill(baselineMB),
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Baseline',
+                    line: {
+                        color: '#7d8590',
+                        width: 2,
+                        dash: 'dot'
+                    },
+                    hovertemplate: 'Baseline: %{y:.2f} MB<extra></extra>'
+                },
+                {
+                    x: xValues,
+                    y: heapData,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Heap Used (MB)',
+                    line: {
+                        color: '#58a6ff',
+                        width: 2,
+                        shape: 'spline',
+                        smoothing: 0.3
+                    },
+                    marker: {
+                        color: pointColors,
+                        size: pointSizes,
+                        line: { color: '#161b22', width: 1 }
+                    },
+                    text: hoverText,
+                    hoverinfo: 'text'
+                }
+            ];
+
+            // Plotly layout
+            const layout = {
+                autosize: true,
+                margin: { l: 60, r: 20, t: 10, b: 40 },
+                font: { family: 'IBM Plex Mono, SF Mono, Monaco, Inconsolata, Roboto Mono, monospace', size: 11, color: '#7d8590' },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                legend: {
+                    orientation: 'h',
+                    x: 1,
+                    xanchor: 'right',
+                    y: 1,
+                    yanchor: 'bottom',
+                    font: { size: 11, color: '#7d8590' }
+                },
+                xaxis: {
+                    showticklabels: false,
+                    gridcolor: '#30363d',
+                    linecolor: '#30363d',
+                    showgrid: false
+                },
+                yaxis: {
+                    title: { text: 'Heap (MB)', font: { size: 10, color: '#7d8590' }, standoff: 10 },
+                    tickfont: { size: 10, color: '#7d8590' },
+                    gridcolor: '#30363d',
+                    linecolor: '#30363d',
+                    zeroline: false
+                },
+                hoverlabel: {
+                    bgcolor: '#161b22',
+                    bordercolor: '#30363d',
+                    font: { family: 'IBM Plex Mono, monospace', size: 11, color: '#e6edf3' }
+                },
+                hovermode: 'closest'
+            };
+
+            // Plotly config
+            const config = {
+                responsive: true,
+                displayModeBar: false
+            };
+
+            Plotly.newPlot(container, traces, layout, config);
+            charts[idx] = container;
         }
 
         // Toggle charts visibility
+        let chartsVisible = true;
         function toggleCharts() {
-            const showCharts = document.getElementById('showCharts').checked;
-            document.getElementById('content').classList.toggle('hide-charts', !showCharts);
+
+            chartsVisible = !chartsVisible;
+            document.getElementById('content').classList.toggle('hide-charts', !chartsVisible);
+
+            const btn = document.getElementById('toggleChartsBtn');
+            btn.querySelector('i').className = chartsVisible ? 'fa-solid fa-chart-line' : 'fa-solid fa-chart-line fa-fade';
+            btn._tippy.setContent(chartsVisible ? 'Hide charts (E)' : 'Show charts (E)');
+        }
+
+        // Toggle all sections open/closed
+        function toggleAllSections() {
+
+            const scenarios = document.querySelectorAll('.scenario');
+            const btn = document.getElementById('toggleAllBtn');
+            const anyExpanded = document.querySelector('.scenario.expanded');
+
+            if (anyExpanded) {
+
+                // Collapse all
+                scenarios.forEach(el => el.classList.remove('expanded'));
+                btn.querySelector('i').className = 'fa-solid fa-angles-down';
+                btn._tippy.setContent('Expand all sections (A)');
+            }
+            else {
+
+                // Expand all
+                scenarios.forEach((el, idx) => {
+
+                    el.classList.add('expanded');
+
+                    // Create charts lazily
+                    if (!charts[idx] && window.scenarioData && window.scenarioData[idx]) {
+
+                        const scenario = window.scenarioData[idx];
+                        if (scenario.snapshots && scenario.snapshots.length > 0) {
+                            setTimeout(() => createChart(scenario, idx), 50 + idx * 20);
+                        }
+                    }
+                    else if (charts[idx]) {
+
+                        setTimeout(() => Plotly.Plots.resize(charts[idx]), 100);
+                    }
+                });
+                btn.querySelector('i').className = 'fa-solid fa-angles-up';
+                btn._tippy.setContent('Collapse all sections (A)');
+            }
         }
 
         // Handle local file upload
@@ -688,12 +929,8 @@
                     // Clear server file selection
                     document.getElementById('fileSelect').value = '';
 
-                    // Update button to show loaded file name
-                    const btn = document.querySelector('.file-upload-btn span');
-                    btn.textContent = file.name.length > 20
-                        ? file.name.substring(0, 17) + '...'
-                        : file.name;
-                    btn.title = file.name;
+                    // Show file source
+                    setFileSource(file.name, true);
 
                     renderData(data);
                 }
@@ -728,14 +965,168 @@
 
             if (e.target.value) {
 
-                // Reset the file upload button text
-                document.querySelector('.file-upload-btn span').textContent = 'Browse...';
+                // Reset the file upload button tooltip
+                const uploadBtn = document.querySelector('.file-upload-btn');
+                if (uploadBtn._tippy) {
+                    uploadBtn._tippy.setContent('Browse local files');
+                }
                 loadData(e.target.value);
+            }
+        });
+
+        // Initialize tooltips
+        tippy('[data-tippy-content]', {
+            placement: 'bottom',
+            delay: [200, 0]
+        });
+
+        // Track known files to detect new ones
+        let knownFiles = new Set();
+
+        // Update file select dropdown
+        function updateFileSelect(files, showToast = false) {
+
+            const select = document.getElementById('fileSelect');
+            const currentValue = select.value;
+
+            // Detect new files
+            if (showToast) {
+
+                const newFiles = files.filter(f => !knownFiles.has(f));
+                if (newFiles.length > 0) {
+                    toast(`New result: ${newFiles[0]}`, 'success');
+                }
+            }
+
+            // Update known files
+            knownFiles = new Set(files);
+
+            // Clear existing options except first
+            select.innerHTML = '<option value="">-- Select a file --</option>';
+
+            files.forEach(file => {
+                const opt = document.createElement('option');
+                opt.value = file;
+                opt.textContent = file;
+                select.appendChild(opt);
+            });
+
+            // Restore selection if still valid
+            if (currentValue && files.includes(currentValue)) {
+                select.value = currentValue;
+            }
+        }
+
+        // Setup SSE connection for real-time file updates
+        function setupSSE() {
+
+            const eventSource = new EventSource('/api/events');
+
+            eventSource.addEventListener('files', (event) => {
+
+                const files = JSON.parse(event.data);
+                updateFileSelect(files, true);
+            });
+
+            eventSource.addEventListener('error', () => {
+
+                console.warn('SSE connection lost, will auto-reconnect...');
+            });
+
+            return eventSource;
+        }
+
+        // Navigate to next file in dropdown
+        function selectNextFile() {
+
+            const select = document.getElementById('fileSelect');
+            const options = Array.from(select.options);
+
+            if (options.length <= 1) return;
+
+            const currentIdx = select.selectedIndex;
+            const nextIdx = currentIdx < options.length - 1 ? currentIdx + 1 : 1; // Skip placeholder, wrap to first file
+
+            select.selectedIndex = nextIdx;
+
+            if (select.value) {
+                loadData(select.value);
+                toast(`Loaded: ${select.value}`, 'info');
+            }
+        }
+
+        // Navigate to previous file in dropdown
+        function selectPrevFile() {
+
+            const select = document.getElementById('fileSelect');
+            const options = Array.from(select.options);
+
+            if (options.length <= 1) return;
+
+            const currentIdx = select.selectedIndex;
+            const prevIdx = currentIdx <= 1 ? options.length - 1 : currentIdx - 1; // Wrap to last file
+
+            select.selectedIndex = prevIdx;
+
+            if (select.value) {
+                loadData(select.value);
+                toast(`Loaded: ${select.value}`, 'info');
+            }
+        }
+
+        // Open file dialog
+        function openFileDialog() {
+
+            document.getElementById('fileUpload').click();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+
+            // Ignore if typing in an input field
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
+            const key = e.key.toLowerCase();
+
+            switch (key) {
+                case 'n':
+                    e.preventDefault();
+                    selectNextFile();
+                    break;
+                case 'p':
+                    e.preventDefault();
+                    selectPrevFile();
+                    break;
+                case 'r':
+                    e.preventDefault();
+                    loadFiles();
+                    toast('Refreshed file list', 'info');
+                    break;
+                case 'o':
+                    e.preventDefault();
+                    openFileDialog();
+                    break;
+                case 'e':
+                    e.preventDefault();
+                    toggleCharts();
+                    toast(chartsVisible ? 'Charts visible' : 'Charts hidden', 'info');
+                    break;
+                case 'a':
+                    e.preventDefault();
+                    toggleAllSections();
+                    const anyExpanded = document.querySelector('.scenario.expanded');
+                    toast(anyExpanded ? 'Sections expanded' : 'Sections collapsed', 'info');
+                    break;
             }
         });
 
         // Initial load
         loadFiles();
+
+        // Start SSE connection
+        setupSSE();
     </script>
 </body>
 </html>

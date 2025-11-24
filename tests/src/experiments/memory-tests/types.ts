@@ -138,6 +138,9 @@ export interface ScenarioContext<T = unknown> {
 
     /** Log a message to console */
     log: (message: string) => void;
+
+    /** Force garbage collection (if available) */
+    gc: () => void;
 }
 
 export interface Scenario<T = unknown> {

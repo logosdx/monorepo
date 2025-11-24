@@ -75,7 +75,7 @@ export const importTestFiles = async (
         args.some(
             (arg) => join(from, file).includes(arg)
         )
-    )
+    );
 
     const importable = files.filter(
         (file) => (
@@ -89,6 +89,8 @@ export const importTestFiles = async (
     );
 
     for (const folder of folders) {
+
+        if (folder.includes('experiments')) continue;
 
         await importTestFiles(
             join(from, folder),
