@@ -36,11 +36,13 @@ function generateOutputPath(suiteName: string): string {
 // Import scenario registries
 import { observerScenarios } from './scenarios/observer/index.ts';
 import { utilsScenarios } from './scenarios/utils/index.ts';
+import { fetchScenarios } from './scenarios/fetch/index.ts';
 
 const suites: Record<string, typeof observerScenarios> = {
     observer: observerScenarios,
     utils: utilsScenarios,
-    // Future: fetch, state-machine, storage, dom
+    fetch: fetchScenarios,
+    // Future: state-machine, storage, dom
 };
 
 async function main() {

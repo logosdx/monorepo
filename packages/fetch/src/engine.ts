@@ -2229,9 +2229,25 @@ export class FetchEngine<
             return;
         }
 
-        // Clear state references to allow garbage collection
+        // Abort any ongoing requests first (also removes listeners added via on())
+        this.#instanceAbortController.abort();
+
+        // Clear all internal references to allow garbage collection
         this.#state = {} as S;
-        this.#instanceAbortController.abort(); // Abort any ongoing requests
+        this.#headers = {} as FetchEngine.Headers<H>;
+        this.#methodHeaders = {};
+        this.#params = {} as FetchEngine.Params<P>;
+        this.#methodParams = {};
+        this.#options = {};
+        this.#baseUrl = new URL('about:blank');
+
+        // Clear function references (closures may capture large data)
+        this.#modifyOptions = undefined;
+        this.#modifyMethodOptions = undefined as never;
+        this.#validate = undefined;
+
+        // Clear retry config
+        this.#retry = undefined as never;
     }
 
     /**
