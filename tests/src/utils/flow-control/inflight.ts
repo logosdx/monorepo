@@ -869,6 +869,175 @@ describe('@logosdx/utils', () => {
             });
         });
 
+        describe('conditional deduplication (shouldDedupe)', () => {
+
+            it('should bypass deduplication when shouldDedupe returns false', async () => {
+
+                let callCount = 0;
+
+                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+
+                    callCount++;
+                    await wait(10);
+                    return `result-${id}-${callCount}`;
+                });
+
+                const deduped = withInflightDedup(producer, {
+                    shouldDedupe: (id, opts) => !opts?.bustCache
+                });
+
+                // Normal calls should dedupe
+                const [r1, r2] = await Promise.all([
+                    deduped('42'),
+                    deduped('42')
+                ]);
+
+                expect(r1).to.equal('result-42-1');
+                expect(r2).to.equal('result-42-1');
+                calledExactly(producer, 1, 'normal calls deduped');
+
+                await wait(20);
+
+                // Cache-busting calls should NOT dedupe (each executes independently)
+                const results = await Promise.all([
+                    deduped('42', { bustCache: true }),
+                    deduped('42', { bustCache: true })
+                ]);
+
+                // Both should have executed independently (can't predict exact order)
+                expect(results).to.have.lengthOf(2);
+                expect(producer.mock.calls.length).to.equal(3);
+            });
+
+            it('should not invoke serializer when shouldDedupe returns false', async () => {
+
+                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+
+                    await wait(10);
+                    return `result-${id}`;
+                });
+
+                const keyFn = mock.fn((id: string) => id);
+
+                const deduped = withInflightDedup(producer, {
+                    keyFn,
+                    shouldDedupe: (id, opts) => !opts?.bustCache
+                });
+
+                // Cache-busting call
+                await deduped('42', { bustCache: true });
+
+                // keyFn should not have been called
+                calledExactly(keyFn, 0, 'keyFn not called when shouldDedupe returns false');
+            });
+
+            it('should not fire hooks when bypassing deduplication', async () => {
+
+                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+
+                    await wait(10);
+                    return `result-${id}`;
+                });
+
+                const onStart = mock.fn();
+                const onJoin = mock.fn();
+
+                const deduped = withInflightDedup(producer, {
+                    shouldDedupe: (id, opts) => !opts?.bustCache,
+                    hooks: { onStart, onJoin }
+                });
+
+                // Bypassed call
+                await deduped('42', { bustCache: true });
+
+                calledExactly(onStart, 0, 'onStart not called when bypassed');
+                calledExactly(onJoin, 0, 'onJoin not called when bypassed');
+            });
+
+            it('should allow mixing normal and bypassed calls', async () => {
+
+                let callCount = 0;
+
+                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+
+                    callCount++;
+                    await wait(10);
+                    return `result-${id}-${callCount}`;
+                });
+
+                const deduped = withInflightDedup(producer, {
+                    shouldDedupe: (id, opts) => !opts?.bustCache
+                });
+
+                // Mix of normal and bypassed concurrent calls
+                const results = await Promise.all([
+                    deduped('42'),                      // Normal: will be deduped
+                    deduped('42'),                      // Normal: joins first
+                    deduped('42', { bustCache: true }), // Bypassed: executes independently
+                    deduped('42', { bustCache: true })  // Bypassed: executes independently
+                ]);
+
+                // First two should be deduped (same value)
+                expect(results[0]).to.equal(results[1]);
+
+                // All four results should be present
+                expect(results).to.have.lengthOf(4);
+
+                // Should have made 3 calls total (1 deduped + 2 bypassed)
+                expect(producer.mock.calls.length).to.equal(3);
+            });
+
+            it('should handle shouldDedupe errors gracefully', async () => {
+
+                const producer = mock.fn(async (id: string) => {
+
+                    await wait(10);
+                    return `result-${id}`;
+                });
+
+                const shouldDedupe = mock.fn(() => {
+
+                    throw new Error('shouldDedupe error');
+                });
+
+                const deduped = withInflightDedup(producer, {
+                    shouldDedupe
+                });
+
+                // Should proceed with normal deduplication when shouldDedupe throws
+                const [r1, r2] = await Promise.all([
+                    deduped('42'),
+                    deduped('42')
+                ]);
+
+                expect(r1).to.equal('result-42');
+                expect(r2).to.equal('result-42');
+                calledExactly(producer, 1, 'falls back to deduplication on error');
+            });
+
+            it('should pass all arguments to shouldDedupe', async () => {
+
+                const producer = mock.fn(async (a: string, b: number, c: boolean) => {
+
+                    await wait(10);
+                    return `${a}-${b}-${c}`;
+                });
+
+                const shouldDedupe = mock.fn(() => true);
+
+                const deduped = withInflightDedup(producer, {
+                    shouldDedupe
+                });
+
+                await deduped('test', 42, true);
+
+                const call = shouldDedupe.mock.calls[0];
+                expect(call?.arguments[0]).to.equal('test');
+                expect(call?.arguments[1]).to.equal(42);
+                expect(call?.arguments[2]).to.equal(true);
+            });
+        });
+
         describe('hooks call order and arguments', () => {
 
             it('should call hooks in correct order for success', async () => {

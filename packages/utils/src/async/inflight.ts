@@ -50,6 +50,22 @@ export interface InflightOptions<Args extends any[] = any[], Key = string, Value
      */
     keyFn?: (...args: Args) => Key;
 
+    /**
+     * Pre-serialization check. Return false to bypass deduplication
+     * and execute the producer directly.
+     *
+     * This is called BEFORE key generation/serialization. Use this for conditional
+     * deduplication based on request context or parameters.
+     *
+     * @example
+     * ```typescript
+     * const fetcher = withInflightDedup(fetchData, {
+     *     shouldDedupe: (url, opts) => !opts?.bustCache
+     * });
+     * ```
+     */
+    shouldDedupe?: (...args: Args) => boolean;
+
     /** Optional lifecycle hooks; all are no-ops by default. Must be synchronous. */
     hooks?: InflightHooks<Key, Value>;
 }
@@ -140,6 +156,24 @@ export interface InflightOptions<Args extends any[] = any[], Key = string, Value
  *   keyFn: (url) => url  // Only dedupe by URL, ignore transform function
  * });
  * ```
+ *
+ * @example
+ * ```typescript
+ * // Conditional deduplication - bypass for cache-busting requests
+ * const fetchData = async (url: string, opts?: { bustCache?: boolean }) => { };
+ * const smartFetch = withInflightDedup(fetchData, {
+ *   shouldDedupe: (url, opts) => !opts?.bustCache
+ * });
+ *
+ * // These two calls are deduped
+ * await Promise.all([
+ *   smartFetch('/api/data'),
+ *   smartFetch('/api/data')
+ * ]);
+ *
+ * // This call bypasses deduplication and executes directly
+ * await smartFetch('/api/data', { bustCache: true });
+ * ```
  */
 export function withInflightDedup<Args extends any[], Value, Key = string>(
     producer: AsyncFunc<Args, Value>,
@@ -149,6 +183,16 @@ export function withInflightDedup<Args extends any[], Value, Key = string>(
     const inflight = new Map<Key, Promise<Value>>();
 
     const wrapped = async (...args: Args): Promise<Value> => {
+
+        if (opts?.shouldDedupe) {
+
+            const [shouldDedupeResult, shouldDedupeError] = attemptSync(() => opts.shouldDedupe!(...args));
+
+            if (!shouldDedupeError && !shouldDedupeResult) {
+
+                return producer(...args);
+            }
+        }
 
         const key = opts?.keyFn ? opts.keyFn(...args) : serializer(args) as Key;
 
