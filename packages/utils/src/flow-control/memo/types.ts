@@ -114,6 +114,22 @@ export interface MemoizeOptions<T extends Func | AsyncFunc> {
 
     /** Custom cache adapter (Redis, etc.). Default: MapCacheAdapter */
     adapter?: CacheAdapter<string, CacheItem<ReturnType<T>>>;
+
+    /**
+     * Pre-serialization check. Return false to bypass cache and execute the function directly.
+     * (Still deduped if deduplication is enabled separately)
+     *
+     * This is called BEFORE key generation/serialization. Use this for conditional
+     * caching based on request context or parameters.
+     *
+     * @example
+     * ```typescript
+     * const fetcher = memoize(fetchData, {
+     *     shouldCache: (url, opts) => !opts?.bustCache
+     * });
+     * ```
+     */
+    shouldCache?: (...args: Parameters<T>) => boolean;
 }
 
 /**

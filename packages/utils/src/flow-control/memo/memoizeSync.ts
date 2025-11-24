@@ -63,6 +63,22 @@ const memoizedFunctions = new WeakSet<Function>();
  *     ttl: 300000, // 5 minutes
  *     maxSize: 50
  * });
+ *
+ * @example
+ * // Conditional caching - bypass cache for specific calls
+ * const expensiveCalc = (value: number, opts?: { bustCache?: boolean }) => {
+ *     return value * 2 + Math.random();
+ * };
+ * const smartCalc = memoizeSync(expensiveCalc, {
+ *     shouldCache: (value, opts) => !opts?.bustCache,
+ *     ttl: 60000
+ * });
+ *
+ * // This call uses cache
+ * smartCalc(42);
+ *
+ * // This call bypasses cache and executes directly
+ * smartCalc(42, { bustCache: true });
  */
 export const memoizeSync = <T extends Func<any>>(
     fn: T,
@@ -81,7 +97,8 @@ export const memoizeSync = <T extends Func<any>>(
         staleIn,
         staleTimeout,
         useWeakRef = false,
-        adapter
+        adapter,
+        shouldCache
     } = opts;
 
     assert(ttl > 0, 'ttl must be greater than 0');
@@ -140,6 +157,16 @@ export const memoizeSync = <T extends Func<any>>(
     }
 
     const memoized = function (...args: Parameters<T>): ReturnType<T> {
+
+        if (shouldCache) {
+
+            const [shouldCacheResult, shouldCacheError] = attemptSync(() => shouldCache(...args));
+
+            if (!shouldCacheError && !shouldCacheResult) {
+
+                return fn(...args) as ReturnType<T>;
+            }
+        }
 
         const [key, keyError] = attemptSync(() =>
             generateKey ? generateKey(args) : serializer(args as unknown[])

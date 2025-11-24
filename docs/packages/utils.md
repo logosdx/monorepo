@@ -1488,6 +1488,7 @@ interface MemoizeOptions<T> {
     maxSize?: number                   // Max cache entries (default: 1000)
     cleanupInterval?: number          // Background cleanup interval (default: 60000, 0 to disable)
     generateKey?: (args: Parameters<T>) => string  // Custom key generator
+    shouldCache?: (...args: Parameters<T>) => boolean  // Pre-check: return false to bypass cache (still deduped)
     useWeakRef?: boolean              // Use WeakRef for values (default: false)
     staleIn?: number                   // Time in ms after which data is stale (enables SWR)
     staleTimeout?: number              // Max wait for fresh data when stale (default: undefined)
@@ -1645,6 +1646,21 @@ const cacheLargeObjects = memoize(fetchLargeData, {
     useWeakRef: true,  // Objects can be GC'd if memory is needed
     ttl: 300000
 })
+
+// Conditional caching - bypass cache for specific requests
+const fetchData = async (url: string, opts?: { bustCache?: boolean }) => {
+
+    const response = await fetch(url)
+    return response.json()
+}
+
+const smartFetch = memoize(fetchData, {
+    shouldCache: (url, opts) => !opts?.bustCache,  // Bypass if bustCache is true
+    ttl: 60000
+})
+
+await smartFetch('/api/data')  // Uses cache
+await smartFetch('/api/data', { bustCache: true })  // Bypasses cache (still deduped though!)
 ```
 
 **When to use:**
@@ -1652,6 +1668,7 @@ const cacheLargeObjects = memoize(fetchLargeData, {
 - **`memoize`**: Expensive async operations (API calls, DB queries, file I/O)
 - **`memoizeSync`**: Expensive pure computations (parsing, transformations)
 - **Custom `generateKey`**: Hot paths with complex arguments or functions as parameters
+- **`shouldCache`**: Conditional caching based on request context (e.g., cache-busting, user preferences)
 - **`staleIn` + `staleTimeout`**: Fast responses more important than 100% fresh data
 - **`useWeakRef`**: Large cached objects in long-running processes
 - **Custom `adapter`**: Distributed caching across multiple servers
@@ -1791,6 +1808,7 @@ function withInflightDedup<Args extends any[], Value, Key = string>(
 
 interface InflightOptions<Args extends any[] = any[], Key = string, Value = unknown> {
     keyFn?: (...args: Args) => Key
+    shouldDedupe?: (...args: Args) => boolean  // Pre-check: return false to bypass deduplication
     hooks?: InflightHooks<Key, Value>
 }
 
@@ -1819,6 +1837,7 @@ interface InflightHooks<Key = string, Value = unknown> {
 
 - `producer` - Async function to wrap with deduplication
 - `opts.keyFn` - Optional custom key function (defaults to built-in serializer)
+- `opts.shouldDedupe` - Optional pre-check to conditionally bypass deduplication (return false to bypass)
 - `opts.hooks` - Optional lifecycle hooks for observability
 
 **Returns:** Wrapped function with in-flight deduplication
@@ -1860,6 +1879,20 @@ const fetchData = async (id: string, opts: { timestamp?: number }) => {
 const dedupedFetch = withInflightDedup(fetchData, {
     keyFn: (id) => id  // Only dedupe by id, ignore opts
 })
+
+// Conditional deduplication - bypass for cache-busting requests
+const smartFetch = withInflightDedup(fetchData, {
+    shouldDedupe: (id, opts) => !opts?.bustCache
+})
+
+// Normal calls are deduped
+await Promise.all([
+    smartFetch("42"),
+    smartFetch("42")
+])  // → one request
+
+// Cache-busting calls bypass deduplication
+await smartFetch("42", { bustCache: true })  // → executes independently
 
 // Hot path optimization - extract discriminating field only
 const getProfile = async (req: { userId: string; meta: LargeObject }) => {

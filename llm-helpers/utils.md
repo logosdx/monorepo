@@ -171,7 +171,8 @@ const withInflightDedup: <Args extends any[], Value, Key = string>(
 ) => AsyncFunc<Args, Value>
 
 interface InflightOptions<Args, Key, Value> {
-  keyFn?: (...args: Args) => Key
+  keyFn?: (...args: Args) => Key                // Spread args: (arg1, arg2, ...)
+  shouldDedupe?: (...args: Args) => boolean     // Spread args: (arg1, arg2, ...)
   hooks?: InflightHooks<Key, Value>
 }
 
@@ -208,6 +209,15 @@ const getProfile = withInflightDedup(fetchProfile, {
   keyFn: (req) => req.userId  // Extract only discriminating field
 })
 
+// Conditional deduplication - bypass for cache-busting
+const smartFetch = withInflightDedup(fetchData, {
+  shouldDedupe: (url, opts) => !opts?.bustCache
+})
+// Normal calls are deduped:
+await Promise.all([smartFetch('/api/data'), smartFetch('/api/data')])  // → 1 network call
+// Cache-busting calls bypass deduplication:
+await smartFetch('/api/data', { bustCache: true })  // → executes independently
+
 // Key differences from memoize:
 // - No caching after settlement (each new request starts fresh)
 // - Only shares promise while in-flight
@@ -243,8 +253,9 @@ interface MemoizeOptions<T> {
   maxSize?: number                // Maximum cache size with LRU eviction (default: 1000)
   cleanupInterval?: number        // Background cleanup interval (default: 60000)
   useWeakRef?: boolean            // Use WeakRef for objects (memory-sensitive) (default: false)
-  generateKey?: (args: Parameters<T>) => string  // Custom key generator
-  onError?: (error: Error, args: Parameters<T>) => void  // Error handler
+  generateKey?: (args: Parameters<T>) => string         // Tuple args: ([arg1, arg2, ...])
+  onError?: (error: Error, args: Parameters<T>) => void // Tuple args: ([arg1, arg2, ...])
+  shouldCache?: (...args: Parameters<T>) => boolean     // Spread args: (arg1, arg2, ...)
   staleIn?: number                // Time after which data is stale (enables SWR)
   staleTimeout?: number           // Max wait for fresh data when stale (default: undefined)
   adapter?: CacheAdapter          // Custom cache adapter (Redis, Memcached, etc.)
@@ -287,6 +298,15 @@ const fetchUserProfile = async (req: { userId: string; timestamp: number }) => {
 const getProfile = memoize(fetchUserProfile, {
   generateKey: ([req]) => req.userId  // Ignore timestamp, cache by userId only
 })
+
+// Conditional caching - bypass cache for specific requests
+const fetchData = async (url: string, opts?: { bustCache?: boolean }) => { /* ... */ }
+const smartFetch = memoize(fetchData, {
+  shouldCache: (url, opts) => !opts?.bustCache,  // Spread args (matches shouldDedupe pattern)
+  ttl: 60000
+})
+await smartFetch('/api/data')  // Uses cache
+await smartFetch('/api/data', { bustCache: true })  // Bypasses cache (still deduped though!)
 
 // Sync memoization - no inflight deduplication, no stale-while-revalidate
 const fibonacci = (n: number): number => {

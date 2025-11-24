@@ -83,6 +83,20 @@ const memoizedFunctions = new WeakSet<Function>();
  * memoizedSearch.cache.stats(); // { hits: 10, misses: 3, hitRate: 0.77, ... }
  * memoizedSearch.cache.clear(); // Clear all cached results
  * memoizedSearch.cache.delete(someKey); // Remove specific entry
+ *
+ * @example
+ * // Conditional caching - bypass cache for specific requests
+ * const fetchData = async (url: string, opts?: { bustCache?: boolean }) => api.get(url);
+ * const smartFetch = memoize(fetchData, {
+ *     shouldCache: (url, opts) => !opts?.bustCache,
+ *     ttl: 60000
+ * });
+ *
+ * // This call uses cache
+ * await smartFetch('/api/data');
+ *
+ * // This call bypasses cache and executes directly (still deduped)
+ * await smartFetch('/api/data', { bustCache: true });
  */
 export const memoize = <T extends AsyncFunc<any>>(
     fn: T,
@@ -101,7 +115,8 @@ export const memoize = <T extends AsyncFunc<any>>(
         staleIn,
         staleTimeout,
         useWeakRef = false,
-        adapter
+        adapter,
+        shouldCache
     } = opts;
 
     assert(ttl > 0, 'ttl must be greater than 0');
@@ -208,6 +223,16 @@ export const memoize = <T extends AsyncFunc<any>>(
     };
 
     const memoized = async function (...args: Parameters<T>): Promise<ReturnType<T>> {
+
+        if (shouldCache) {
+
+            const [shouldCacheResult, shouldCacheError] = attemptSync(() => shouldCache(...args));
+
+            if (!shouldCacheError && !shouldCacheResult) {
+
+                return dedupedProducer(...args) as ReturnType<T>;
+            }
+        }
 
         const [key, keyError] = attemptSync(() =>
             generateKey ? generateKey(args) : serializer(args as unknown[])
