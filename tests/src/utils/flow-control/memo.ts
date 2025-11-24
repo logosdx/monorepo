@@ -922,5 +922,193 @@ describe('@logosdx/utils', () => {
             expect(result3).to.equal(true);
             expect(callCount).to.equal(2);
         });
+
+        describe('conditional caching (shouldCache)', () => {
+
+            it('should bypass cache when shouldCache returns false for memoize', async () => {
+
+                let callCount = 0;
+
+                const fn = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+
+                    callCount++;
+                    await wait(10);
+                    return `result-${id}-${callCount}`;
+                });
+
+                const memoized = memoize(fn, {
+                    shouldCache: (id, opts) => !opts?.bustCache,
+                    ttl: 1000
+                });
+
+                // Normal calls should cache
+                const result1 = await memoized('42');
+                expect(result1).to.equal('result-42-1');
+                calledExactly(fn, 1, 'first call executes');
+
+                const result2 = await memoized('42');
+                expect(result2).to.equal('result-42-1');
+                calledExactly(fn, 1, 'second call uses cache');
+
+                // Cache-busting calls should NOT cache
+                const result3 = await memoized('42', { bustCache: true });
+                expect(result3).to.equal('result-42-2');
+                calledExactly(fn, 2, 'cache-busting call executes');
+
+                const result4 = await memoized('42', { bustCache: true });
+                expect(result4).to.equal('result-42-3');
+                calledExactly(fn, 3, 'each cache-busting call executes');
+            });
+
+            it('should bypass cache when shouldCache returns false for memoizeSync', () => {
+
+                let callCount = 0;
+
+                const fn = mock.fn((id: string, opts?: { bustCache?: boolean }) => {
+
+                    callCount++;
+                    return `result-${id}-${callCount}`;
+                });
+
+                const memoized = memoizeSync(fn, {
+                    shouldCache: (id, opts) => !opts?.bustCache,
+                    ttl: 1000
+                });
+
+                // Normal calls should cache
+                const result1 = memoized('42');
+                expect(result1).to.equal('result-42-1');
+                calledExactly(fn, 1, 'first call executes');
+
+                const result2 = memoized('42');
+                expect(result2).to.equal('result-42-1');
+                calledExactly(fn, 1, 'second call uses cache');
+
+                // Cache-busting calls should NOT cache
+                const result3 = memoized('42', { bustCache: true });
+                expect(result3).to.equal('result-42-2');
+                calledExactly(fn, 2, 'cache-busting call executes');
+
+                const result4 = memoized('42', { bustCache: true });
+                expect(result4).to.equal('result-42-3');
+                calledExactly(fn, 3, 'each cache-busting call executes');
+            });
+
+            it('should still dedupe concurrent bypassed calls (memoize)', async () => {
+
+                let callCount = 0;
+
+                const fn = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+
+                    callCount++;
+                    await wait(10);
+                    return `result-${id}-${callCount}`;
+                });
+
+                const memoized = memoize(fn, {
+                    shouldCache: (id, opts) => !opts?.bustCache,
+                    ttl: 1000
+                });
+
+                // Concurrent cache-busting calls should still be deduped
+                const [r1, r2] = await Promise.all([
+                    memoized('42', { bustCache: true }),
+                    memoized('42', { bustCache: true })
+                ]);
+
+                expect(r1).to.equal('result-42-1');
+                expect(r2).to.equal('result-42-1');
+                calledExactly(fn, 1, 'concurrent bypassed calls deduped');
+            });
+
+            it('should not invoke cache lookup when shouldCache returns false', async () => {
+
+                let callCount = 0;
+
+                const fn = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+
+                    callCount++;
+                    await wait(10);
+                    return `result-${id}-${callCount}`;
+                });
+
+                const memoized = memoize(fn, {
+                    shouldCache: (id, opts) => !opts?.bustCache,
+                    ttl: 1000
+                });
+
+                // Normal call - should cache
+                const result1 = await memoized('42');
+                expect(result1).to.equal('result-42-1');
+
+                // Get cache size before bypass
+                const cacheSizeBefore = memoized.cache.size;
+                expect(cacheSizeBefore).to.equal(1);
+
+                // Cache-busting call - should bypass cache but still dedupe
+                const [r1, r2] = await Promise.all([
+                    memoized('42', { bustCache: true }),
+                    memoized('42', { bustCache: true })
+                ]);
+
+                // Should still dedupe (same result)
+                expect(r1).to.equal(r2);
+
+                // Cache size should not change (bypassed cache entirely)
+                const cacheSizeAfter = memoized.cache.size;
+                expect(cacheSizeAfter).to.equal(cacheSizeBefore);
+            });
+
+            it('should handle shouldCache errors gracefully', async () => {
+
+                const fn = mock.fn(async (id: string) => {
+
+                    await wait(10);
+                    return `result-${id}`;
+                });
+
+                const shouldCache = mock.fn(() => {
+
+                    throw new Error('shouldCache error');
+                });
+
+                const memoized = memoize(fn, {
+                    shouldCache,
+                    ttl: 1000
+                });
+
+                // Should proceed with normal caching when shouldCache throws
+                const result1 = await memoized('42');
+                expect(result1).to.equal('result-42');
+                calledExactly(fn, 1, 'first call executes');
+
+                const result2 = await memoized('42');
+                expect(result2).to.equal('result-42');
+                calledExactly(fn, 1, 'second call uses cache (falls back to caching on error)');
+            });
+
+            it('should pass all arguments to shouldCache', async () => {
+
+                const fn = mock.fn(async (a: string, b: number, c: boolean) => {
+
+                    await wait(10);
+                    return `${a}-${b}-${c}`;
+                });
+
+                const shouldCache = mock.fn(() => true);
+
+                const memoized = memoize(fn, {
+                    shouldCache,
+                    ttl: 1000
+                });
+
+                await memoized('test', 42, true);
+
+                const call = shouldCache.mock.calls[0];
+                expect(call?.arguments[0]).to.equal('test');
+                expect(call?.arguments[1]).to.equal(42);
+                expect(call?.arguments[2]).to.equal(true);
+            });
+        });
     })
 });
