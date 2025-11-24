@@ -15,12 +15,25 @@
 import * as http from 'node:http';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createSession, Session } from 'better-sse';
 
 const PORT = parseInt(process.argv[2] || '3456', 10);
-const DATA_DIR = path.join(process.cwd(), 'tmp');
+const FILE_CHECK_INTERVAL = 2000; // Check for new files every 2 seconds
+
+// Get monorepo root (5 levels up from this file: ui/server.ts -> memory-tests -> experiments -> src -> tests -> monorepo)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.resolve(__dirname, '../../../../../');
+const DATA_DIR = path.join(monorepoRoot, 'tmp', 'memory-tests');
 
 // In-memory storage for live data from harness
 let liveData: unknown = null;
+
+// Track connected SSE sessions
+const sseSessions: Set<Session> = new Set();
+
+// Track last known file list for change detection
+let lastFileList: string[] = [];
 
 /**
  * Get the HTML page content
@@ -57,7 +70,7 @@ function listResultFiles(): string[] {
     }
 
     return fs.readdirSync(DATA_DIR)
-        .filter(f => f.startsWith('memory-tests') && f.endsWith('.json'))
+        .filter(f => f.endsWith('.json'))
         .sort()
         .reverse();
 }
@@ -65,7 +78,7 @@ function listResultFiles(): string[] {
 /**
  * Handle HTTP requests
  */
-function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
 
@@ -155,9 +168,56 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): voi
         return;
     }
 
+    // SSE endpoint for file updates
+    if (url.pathname === '/api/events') {
+
+        const session = await createSession(req, res);
+
+        sseSessions.add(session);
+
+        // Send current file list immediately
+        session.push(listResultFiles(), 'files');
+
+        // Clean up on disconnect
+        session.on('disconnected', () => {
+            sseSessions.delete(session);
+        });
+
+        return;
+    }
+
     // 404 for everything else
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
+}
+
+/**
+ * Check for file changes and broadcast to connected clients
+ */
+function checkForFileChanges(): void {
+
+    const currentFiles = listResultFiles();
+    const currentSet = new Set(currentFiles);
+    const lastSet = new Set(lastFileList);
+
+    // Check if files changed
+    const hasChanges = currentFiles.length !== lastFileList.length ||
+        currentFiles.some(f => !lastSet.has(f)) ||
+        lastFileList.some(f => !currentSet.has(f));
+
+    if (hasChanges) {
+
+        lastFileList = currentFiles;
+
+        // Broadcast to all connected SSE clients
+        for (const session of sseSessions) {
+            session.push(currentFiles, 'files');
+        }
+
+        if (sseSessions.size > 0) {
+            console.log(`📡 Broadcasted file update to ${sseSessions.size} client(s)`);
+        }
+    }
 }
 
 // Create and start server
@@ -170,5 +230,10 @@ server.listen(PORT, () => {
     console.log(`API Endpoints:`);
     console.log(`   GET  /api/files     - List available result files`);
     console.log(`   GET  /api/data      - Get live data or ?file=<name>`);
-    console.log(`   POST /api/live      - Push live data from harness\n`);
+    console.log(`   POST /api/live      - Push live data from harness`);
+    console.log(`   GET  /api/events    - SSE stream for file updates\n`);
+
+    // Initialize file list and start watching
+    lastFileList = listResultFiles();
+    setInterval(checkForFileChanges, FILE_CHECK_INTERVAL);
 });

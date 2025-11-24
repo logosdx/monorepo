@@ -34,6 +34,7 @@
   "author": "Danilo Alonso <danilo@alonso.network>",
   "license": "BSD-3-Clause",
   "dependencies": {
+    "@logosdx/observer": "workspace:^",
     "@logosdx/utils": "workspace:^"
   }
 }

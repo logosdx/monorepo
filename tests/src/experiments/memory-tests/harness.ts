@@ -361,7 +361,12 @@ export class MemoryTestHarness {
             data,
             iteration: 0,
             snapshot: (phase) => this.#takeSnapshot(phase),
-            log: (message) => console.log(`[${scenario.name}] ${message}`)
+            log: (message) => console.log(`[${scenario.name}] ${message}`),
+            gc: () => {
+                this.#takeSnapshot('before-gc');
+                this.#forceGc();
+                this.#takeSnapshot('after-gc');
+            }
         };
 
         // Take baseline snapshot
