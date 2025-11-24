@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/fetch",
-  "version": "5.0.4",
+  "version": "6.0.0",
   "description": "A full-feature wrapper around the Fetch API",
   "exports": {
     ".": {
