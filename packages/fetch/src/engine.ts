@@ -1,5 +1,4 @@
 import {
-    type Func,
     assert,
     assertOptional,
     clone,
@@ -8,6 +7,8 @@ import {
     isPlainObject,
     isPrimitive,
 } from '@logosdx/utils';
+
+import { ObserverEngine } from '@logosdx/observer';
 
 import {
     type _InternalHttpMethods,
@@ -20,9 +21,6 @@ import {
 } from './types.ts';
 
 import {
-    type FetchEventName,
-    FetchEventNames,
-    FetchEvent,
     FetchError,
     fetchTypes,
     validateOptions,
@@ -85,7 +83,7 @@ export class FetchEngine<
     P = FetchEngine.InstanceParams,
     S = FetchEngine.InstanceState,
     RH = FetchEngine.InstanceResponseHeaders,
-> extends EventTarget {
+> extends ObserverEngine<FetchEngine.EventMap<S, H>> {
 
     /**
      * Symbol to use the default value or configuration
@@ -328,11 +326,15 @@ export class FetchEngine<
      */
     constructor(_opts: FetchEngine.Options<H, P, S>) {
 
-        super()
+        // Extract ObserverEngine options and pass to super
+        super({
+            name: _opts.name,
+            spy: _opts.spy as any
+        });
 
         validateOptions(_opts);
 
-        const { baseUrl, defaultType, ...opts } = _opts;
+        const { baseUrl, defaultType, name: _name, spy: _spy, ...opts } = _opts;
         let { retry } = _opts;
 
         if (retry === true) {
@@ -654,15 +656,11 @@ export class FetchEngine<
 
         if (aborted) {
 
-            this.dispatchEvent(
-                new FetchEvent(FetchEventNames['fetch-abort'], eventData)
-            );
+            this.emit('fetch-abort', eventData);
         }
         else {
 
-            this.dispatchEvent(
-                new FetchEvent(FetchEventNames['fetch-error'], eventData)
-            );
+            this.emit('fetch-error', eventData);
         }
 
         onError && onError(err);
@@ -757,18 +755,13 @@ export class FetchEngine<
             );
         }
 
-        this.dispatchEvent(
-            new FetchEvent(
-                FetchEventNames['fetch-before'],
-                {
-                    ...opts,
-                    payload,
-                    url,
-                    state: this.#state,
-                    attempt: attempNo
-                }
-            )
-        );
+        this.emit('fetch-before', {
+            ...opts,
+            payload,
+            url,
+            state: this.#state,
+            attempt: attempNo
+        } as any);
 
         onBeforeRequest && onBeforeRequest(opts);
 
@@ -795,16 +788,14 @@ export class FetchEngine<
             throw resErr;
         }
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-after'], {
-                ...opts,
-                payload,
-                url,
-                state: this.#state,
-                response: response.clone(),
-                attempt: attempNo
-            })
-        );
+        this.emit('fetch-after', {
+            ...opts,
+            payload,
+            url,
+            state: this.#state,
+            response: response.clone(),
+            attempt: attempNo
+        } as any);
 
         onAfterRequest && onAfterRequest(response.clone(), opts);
 
@@ -867,20 +858,15 @@ export class FetchEngine<
             throw new FetchError(response.statusText);
         }
 
-        this.dispatchEvent(
-            new FetchEvent(
-                FetchEventNames['fetch-response'],
-                {
-                    ...opts,
-                    payload,
-                    url,
-                    state: this.#state,
-                    response,
-                    data,
-                    attempt: attempNo
-                }
-            )
-        );
+        this.emit('fetch-response', {
+            ...opts,
+            payload,
+            url,
+            state: this.#state,
+            response,
+            data,
+            attempt: attempNo
+        } as any);
 
         // Build the configuration object for the response
         const mergedParams = this.#makeParams(params as FetchEngine.Params<P>, method);
@@ -974,15 +960,13 @@ export class FetchEngine<
                     this.#calculateRetryDelay(_attempt, mergedRetry)
                 );
 
-                this.dispatchEvent(
-                    new FetchEvent(FetchEventNames['fetch-retry'], {
-                        state: this.#state,
-                        error: fetchError,
-                        attempt: _attempt,
-                        nextAttempt: _attempt + 1,
-                        delay
-                    })
-                );
+                this.emit('fetch-retry', {
+                    state: this.#state,
+                    error: fetchError,
+                    attempt: _attempt,
+                    nextAttempt: _attempt + 1,
+                    delay
+                } as any);
 
                 await wait(delay);
 
@@ -1460,17 +1444,15 @@ export class FetchEngine<
             this.#headers = updated;
         }
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-header-add'], {
-                state: this.#state,
-                data: {
-                    headers,
-                    value,
-                    updated,
-                    method
-                }
-            })
-        );
+        this.emit('fetch-header-add', {
+            state: this.#state,
+            data: {
+                headers,
+                value,
+                updated,
+                method
+            }
+        });
     }
 
     /**
@@ -1550,16 +1532,14 @@ export class FetchEngine<
             this.#headers = updated;
         }
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-header-remove'], {
-                state: this.#state,
-                data: {
-                    headers,
-                    updated,
-                    method,
-                }
-            })
-        );
+        this.emit('fetch-header-remove', {
+            state: this.#state,
+            data: {
+                headers,
+                updated,
+                method,
+            }
+        });
     }
 
     /**
@@ -1709,17 +1689,15 @@ export class FetchEngine<
 
         this.#validateParams(updated);
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-param-add'], {
-                state: this.#state,
-                data: {
-                    params,
-                    value,
-                    updated,
-                    method
-                }
-            })
-        );
+        this.emit('fetch-param-add', {
+            state: this.#state,
+            data: {
+                params,
+                value,
+                updated,
+                method
+            }
+        });
     }
 
     /**
@@ -1796,16 +1774,14 @@ export class FetchEngine<
             this.#params = updated;
         }
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-param-remove'], {
-                state: this.#state,
-                data: {
-                    params,
-                    updated,
-                    method
-                }
-            })
-        );
+        this.emit('fetch-param-remove', {
+            state: this.#state,
+            data: {
+                params,
+                updated,
+                method
+            }
+        });
     }
 
     /**
@@ -1903,12 +1879,10 @@ export class FetchEngine<
 
         this.#state = updated as S;
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-state-set'], {
-                state: updated,
-                data: conf
-            })
-        );
+        this.emit('fetch-state-set', {
+            state: updated,
+            data: conf
+        });
     }
 
     /**
@@ -1929,11 +1903,9 @@ export class FetchEngine<
 
         this.#validateState(this.#state);
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-state-reset'], {
-                state: this.#state,
-            })
-        );
+        this.emit('fetch-state-reset', {
+            state: this.#state,
+        });
     }
 
     /**
@@ -1974,12 +1946,10 @@ export class FetchEngine<
 
         this.#baseUrl = new URL(url);
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-url-change'], {
-                state: this.#state,
-                data: url
-            })
-        );
+        this.emit('fetch-url-change', {
+            state: this.#state,
+            data: url
+        });
     }
 
     /**
@@ -2005,12 +1975,10 @@ export class FetchEngine<
 
         this.#modifyOptions = fn;
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-modify-options-change'], {
-                state: this.#state,
-                data: fn
-            })
-        );
+        this.emit('fetch-modify-options-change', {
+            state: this.#state,
+            data: fn
+        });
     }
 
     /**
@@ -2052,113 +2020,17 @@ export class FetchEngine<
             this.#modifyMethodOptions[normalizedMethod] = fn;
         }
 
-        this.dispatchEvent(
-            new FetchEvent(FetchEventNames['fetch-modify-method-options-change'], {
-                state: this.#state,
-                data: {
-                    method: normalizedMethod,
-                    fn
-                }
-            })
-        );
-    }
-
-    /**
-     * Registers event listeners for FetchEngine lifecycle events.
-     *
-     * Listens for various events like request start, completion, errors,
-     * and state changes. Supports listening to all events with '*' or
-     * specific event types.
-     *
-     * @param ev - Event name or '*' for all events
-     * @param listener - Event listener function
-     * @param once - Whether to remove listener after first call
-     *
-     * @example
-     * // Listen to all events
-     * api.on('*', (event) => {
-     *     console.log('Event:', event.type, event.detail);
-     * });
-     *
-     * // Listen to specific events
-     * api.on('fetch-error', (event) => {
-     *     console.error('Request failed:', event.detail.error);
-     * });
-     *
-     * // One-time listener
-     * api.on('fetch-response', (event) => {
-     *     console.log('First response received');
-     * }, true);
-     */
-    on(
-        ev: FetchEventName | '*',
-        listener: (
-            e: (
-                FetchEvent<S, H>
-            )
-        ) => void,
-        once = false
-    ) {
-
-        const signal = this.#instanceAbortController.signal;
-
-        if (ev === '*') {
-            for (const _e in FetchEventNames) {
-
-                this.addEventListener(_e, listener as Func, { once, signal });
+        this.emit('fetch-modify-method-options-change', {
+            state: this.#state,
+            data: {
+                method: normalizedMethod,
+                fn
             }
-
-            return () => {
-
-                for (const _e in FetchEventNames) {
-
-                    this.removeEventListener(_e, listener as Func);
-                }
-            };
-        }
-
-        this.addEventListener(ev, listener as Func, { once, signal });
-
-        return () => {
-
-            this.removeEventListener(ev, listener as Func);
-        };
+        });
     }
 
-    /**
-     * Removes event listeners from the FetchEngine instance.
-     *
-     * Unregisters previously added event listeners. Supports removing
-     * listeners for all events with '*' or specific event types.
-     *
-     * @param ev - Event name or '*' for all events
-     * @param listener - Event listener function to remove
-     *
-     * @example
-     * const errorHandler = (event) => console.error(event.detail.error);
-     *
-     * // Add listener
-     * api.on('fetch-error', errorHandler);
-     *
-     * // Remove specific listener
-     * api.off('fetch-error', errorHandler);
-     *
-     * // Remove all listeners
-     * api.off('*', errorHandler);
-     */
-    off (ev: FetchEventName | '*', listener: EventListenerOrEventListenerObject) {
-
-        if (ev === '*') {
-            for (const _e in FetchEventNames) {
-
-                this.removeEventListener(_e, listener);
-            }
-
-            return;
-        }
-
-        this.removeEventListener(ev, listener);
-    }
+    // Note: on() and off() are inherited from ObserverEngine
+    // Use this.on('fetch-error', handler) or this.on(/fetch-.*/, handler) for wildcard
 
     /**
      * Destroys the FetchEngine instance and cleans up all resources.
@@ -2168,58 +2040,18 @@ export class FetchEngine<
      *
      * **Memory Leak Prevention:**
      * - Prevents new requests from being made (throws error if attempted)
+     * - Clears all event listeners via ObserverEngine's clear()
      * - Clears internal state references
      * - Marks instance as destroyed
      *
-     * **Important:** EventTarget API doesn't expose listeners for removal.
-     * Users must manually call `api.off()` for each listener they added,
-     * or use AbortSignal pattern for automatic cleanup:
-     *
      * @example
-     * // Manual cleanup approach
      * const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
-     * const errorHandler = (e) => console.error(e);
-     * const responseHandler = (e) => console.log(e);
      *
-     * api.on('fetch-error', errorHandler);
-     * api.on('fetch-response', responseHandler);
+     * api.on('fetch-error', (data) => console.error(data.error));
+     * api.on('fetch-response', (data) => console.log(data));
      *
-     * // Clean up listeners before destroying
-     * api.off('fetch-error', errorHandler);
-     * api.off('fetch-response', responseHandler);
+     * // destroy() automatically clears all listeners
      * api.destroy();
-     *
-     * @example
-     * // AbortSignal pattern (recommended for automatic cleanup)
-     * const controller = new AbortController();
-     *
-     * api.addEventListener('fetch-error', errorHandler, { signal: controller.signal });
-     * api.addEventListener('fetch-response', responseHandler, { signal: controller.signal });
-     *
-     * // All listeners removed at once
-     * controller.abort();
-     * api.destroy();
-     *
-     * @example
-     * // Component lifecycle cleanup
-     * class MyComponent {
-     *     constructor() {
-     *         this.api = new FetchEngine({ baseUrl: 'https://api.example.com' });
-     *         this.controller = new AbortController();
-     *
-     *         // Use signal for auto-cleanup
-     *         this.api.addEventListener('fetch-error',
-     *             this.handleError,
-     *             { signal: this.controller.signal }
-     *         );
-     *     }
-     *
-     *     destroy() {
-     *         this.controller.abort(); // Remove all listeners
-     *         this.api.destroy();       // Destroy instance
-     *         this.api = null;
-     *     }
-     * }
      */
     destroy() {
 
@@ -2229,8 +2061,11 @@ export class FetchEngine<
             return;
         }
 
-        // Abort any ongoing requests first (also removes listeners added via on())
+        // Abort any ongoing requests first
         this.#instanceAbortController.abort();
+
+        // Clear all event listeners via ObserverEngine
+        this.clear();
 
         // Clear all internal references to allow garbage collection
         this.#state = {} as S;

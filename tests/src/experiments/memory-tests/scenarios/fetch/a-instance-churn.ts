@@ -19,9 +19,9 @@
  * ~2-3 KB to undici's internal connection pool and request metadata.
  * This is expected behavior for HTTP client performance optimization.
  *
- * The diagnostic scenario (z-diagnostic.ts) confirms that EventTarget,
- * FetchEvent, and FetchEngine's internal state ARE properly garbage
- * collected. The retained memory is from undici, not our code.
+ * The diagnostic scenario (z-diagnostic.ts) confirms that ObserverEngine
+ * and FetchEngine's internal state ARE properly garbage collected.
+ * The retained memory is from undici, not our code.
  */
 
 import { FetchEngine } from '../../../../../../packages/fetch/src/index.ts';

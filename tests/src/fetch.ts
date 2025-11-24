@@ -19,13 +19,25 @@ import Joi from 'joi';
 
 import {
     FetchError,
-    FetchEvent,
     FetchEngine,
 } from '../../packages/fetch/src/index.ts';
 
 import logosFetch from '../../packages/fetch/src/index.ts';
 import { attempt } from '../../packages/utils/src/index.ts';
 import { sandbox } from './_helpers';
+
+// Type aliases for event listener callback arguments
+// Non-regex listeners receive: (data: EventData, { event: string }) => void
+// Regex listeners receive: ({ event: string, data: EventData }) => void
+
+/** Event data type alias for FetchEngine events */
+type EventData = FetchEngine.EventData;
+
+/** Regex listener callback argument: { event, data } as first arg */
+interface RegexCallbackArg {
+    event: string;
+    data: EventData;
+}
 
 // Augment the FetchEngine module with custom response headers for testing
 declare module '../../packages/fetch/src/engine.ts' {
@@ -758,8 +770,9 @@ describe('@logosdx/fetch', () => {
         await anyReq('post');
         await anyReq('put');
 
+        // Non-regex listener: first arg is EventData directly
         const calls = onReq.getCalls().map(
-            c => (c.args[0] as FetchEvent).headers
+            c => (c.args[0] as EventData).headers
         );
 
         expect(calls.shift()).to.contain({ 'x-text-type': 'text/*' });
@@ -1313,8 +1326,9 @@ describe('@logosdx/fetch', () => {
 
         expect(modifyOptions.calledTwice).to.be.true;
 
+        // Non-regex listener: first arg is EventData directly
         const calls = onReq.getCalls().map(
-            c => (c.args[0] as FetchEvent).headers
+            c => (c.args[0] as EventData).headers
         );
 
         expect(calls.shift()).to.not.contain({ 'was-set': 'true' });
@@ -1380,29 +1394,37 @@ describe('@logosdx/fetch', () => {
             headers
         });
 
-        api.on('*', listener);
+        // Use regex to listen to all fetch events (ObserverEngine pattern)
+        // Regex listeners receive ({ event, data }) as first arg
+        api.on(/fetch-.*/, listener);
 
-        const assertNonRemoteEv = (ev: FetchEvent) => {
+        // Helper to get event name from ObserverEngine regex callback
+        // Regex callbacks receive { event, data } as first arg
+        const getEventName = (args: [RegexCallbackArg]) => args[0]?.event || 'unknown';
+        const getData = (args: [RegexCallbackArg]) => args[0]?.data;
 
-            expect(ev.state, `${ev.type} state`).to.exist;
-            expect(ev.state, `${ev.type} specific state`).to.contain(state);
+        const assertNonRemoteEv = (data: EventData, eventName: string) => {
+
+            expect(data.state, `${eventName} state`).to.exist;
+            expect(data.state, `${eventName} specific state`).to.contain(state);
         }
 
         const assertRemoteEv = (
             path: string,
             method: string,
-            ev: FetchEvent
+            data: EventData,
+            eventName: string
         ) => {
 
-            assertNonRemoteEv(ev);
+            assertNonRemoteEv(data, eventName);
 
-            expect(ev.method, `${ev.type} method`).to.exist;
-            expect(ev.url, `${ev.type} url`).to.exist;
-            expect(ev.headers, `${ev.type} headers`).to.exist;
+            expect(data.method, `${eventName} method`).to.exist;
+            expect(data.url, `${eventName} url`).to.exist;
+            expect(data.headers, `${eventName} headers`).to.exist;
 
-            expect(ev.url, `${ev.type} specific url`).to.eq(`${testUrl}${path}`);
-            expect(ev.method, `${ev.type} specific method`).to.eq(method);
-            expect(ev.headers, `${ev.type} specific headers`).to.contain(headers);
+            expect(data.url, `${eventName} specific url`).to.eq(`${testUrl}${path}`);
+            expect(data.method, `${eventName} specific method`).to.eq(method);
+            expect(data.headers, `${eventName} specific headers`).to.contain(headers);
         }
 
         /**
@@ -1414,15 +1436,15 @@ describe('@logosdx/fetch', () => {
 
         expect(listener.calledThrice).to.be.true
 
-        const [[evBefore1], [evAfter1], [evError1]] = listener.args as [[FetchEvent],[FetchEvent],[FetchEvent]];
+        const [args1, args2, args3] = listener.args as [[RegexCallbackArg], [RegexCallbackArg], [RegexCallbackArg]];
 
-        expect(evBefore1.type).to.eq('fetch-before');
-        expect(evAfter1.type).to.eq('fetch-after');
-        expect(evError1.type).to.eq('fetch-error');
+        expect(getEventName(args1)).to.eq('fetch-before');
+        expect(getEventName(args2)).to.eq('fetch-after');
+        expect(getEventName(args3)).to.eq('fetch-error');
 
-        for (const ev of [evBefore1, evAfter1, evError1] as FetchEvent[]) {
+        for (const args of [args1, args2, args3]) {
 
-            assertRemoteEv('/fail', 'GET', ev);
+            assertRemoteEv('/fail', 'GET', getData(args), getEventName(args));
         }
 
         /**
@@ -1436,14 +1458,14 @@ describe('@logosdx/fetch', () => {
 
         expect(listener.calledTwice).to.be.true
 
-        const [[evBefore2], [evAbort2]] = listener.args as [[FetchEvent],[FetchEvent]];
+        const [abortArgs1, abortArgs2] = listener.args as [[RegexCallbackArg], [RegexCallbackArg]];
 
-        expect(evBefore2.type).to.eq('fetch-before');
-        expect(evAbort2.type).to.eq('fetch-abort');
+        expect(getEventName(abortArgs1)).to.eq('fetch-before');
+        expect(getEventName(abortArgs2)).to.eq('fetch-abort');
 
-        for (const ev of [evBefore2, evAbort2] as FetchEvent[]) {
+        for (const args of [abortArgs1, abortArgs2]) {
 
-            assertRemoteEv('/wait', 'GET', ev);
+            assertRemoteEv('/wait', 'GET', getData(args), getEventName(args));
         }
 
         /**
@@ -1456,21 +1478,23 @@ describe('@logosdx/fetch', () => {
 
         expect(listener.calledThrice).to.be.true
 
-        const [[evBefore3], [evAfter3], [evResponse3]] = listener.args as [[FetchEvent],[FetchEvent],[FetchEvent]];
+        const [successArgs1, successArgs2, successArgs3] = listener.args as [[RegexCallbackArg], [RegexCallbackArg], [RegexCallbackArg]];
 
-        expect(evBefore3.type).to.eq('fetch-before');
-        expect(evAfter3.type).to.eq('fetch-after');
-        expect(evResponse3.type).to.eq('fetch-response');
+        expect(getEventName(successArgs1)).to.eq('fetch-before');
+        expect(getEventName(successArgs2)).to.eq('fetch-after');
+        expect(getEventName(successArgs3)).to.eq('fetch-response');
 
-        for (const ev of [evBefore3, evAfter3, evResponse3] as FetchEvent[]) {
+        for (const args of [successArgs1, successArgs2, successArgs3]) {
 
-            assertRemoteEv('/json', 'POST', ev);
-            expect(ev.payload, `${ev.type} payload`).to.exist;
-            expect(ev.payload, `${ev.type} specific payload`).to.contain(payload);
+            const data = getData(args);
+            const eventName = getEventName(args);
 
+            assertRemoteEv('/json', 'POST', data, eventName);
+            expect(data.payload, `${eventName} payload`).to.exist;
+            expect(data.payload, `${eventName} specific payload`).to.contain(payload);
         }
 
-        expect(evResponse3.data, `${evResponse3.type} data`).to.contain({ ok: true });
+        expect(getData(successArgs3).data, `fetch-response data`).to.contain({ ok: true });
 
         /**
          * Test Non-request events
@@ -1486,69 +1510,72 @@ describe('@logosdx/fetch', () => {
         api.changeBaseUrl('http://pope.pepe');
 
         const [
-            [evResetState],
-            [evSetState],
-            [evAddHeader],
-            [evRmHeader],
-            [evChangeUrl]
-        ] = listener.args as [
-            [FetchEvent],
-            [FetchEvent],
-            [FetchEvent],
-            [FetchEvent],
-            [FetchEvent]
+            stateResetArgs,
+            stateSetArgs,
+            headerAddArgs,
+            headerRmArgs,
+            urlChangeArgs
+        ] = listener.args as [RegexCallbackArg][];
+
+        const nonRemoteEvs = [
+            stateSetArgs,
+            headerAddArgs,
+            headerRmArgs,
+            urlChangeArgs
         ];
 
-        const evs = [
-            evSetState,
-            evAddHeader,
-            evRmHeader,
-            evChangeUrl
-        ];
+        expect(getData(stateResetArgs!).state).to.exist;
+        expect(getData(stateResetArgs!).state).to.be.empty;
 
-        expect(evResetState.state).to.exist;
-        expect(evResetState.state).to.be.empty;
+        for (const args of nonRemoteEvs) {
 
-        for (const ev of evs as FetchEvent[]) {
-
-            assertNonRemoteEv(ev);
+            assertNonRemoteEv(getData(args!), getEventName(args!));
         }
 
-        expect(evResetState.type).to.eq('fetch-state-reset');
-        expect(evSetState.type).to.eq('fetch-state-set');
-        expect(evAddHeader.type).to.eq('fetch-header-add');
-        expect(evRmHeader.type).to.eq('fetch-header-remove');
-        expect(evChangeUrl.type).to.eq('fetch-url-change');
+        expect(getEventName(stateResetArgs!)).to.eq('fetch-state-reset');
+        expect(getEventName(stateSetArgs!)).to.eq('fetch-state-set');
+        expect(getEventName(headerAddArgs!)).to.eq('fetch-header-add');
+        expect(getEventName(headerRmArgs!)).to.eq('fetch-header-remove');
+        expect(getEventName(urlChangeArgs!)).to.eq('fetch-url-change');
 
         /**
-         * Test off event function
+         * Test cleanup function (replaces off)
          */
 
         listener.reset();
-        api.off('*', listener);
 
-        expect(listener.called).to.be.false
+        // Create a new api and listener to test cleanup
+        const api2 = new FetchEngine<any>({ baseUrl: testUrl, headers });
+        const listener2 = sandbox.stub();
 
-        listener.reset();
+        // on() returns a cleanup function
+        const cleanup = api2.on(/fetch-.*/, listener2);
 
-        api.resetState();
-        (state as any).flowers = true;
+        // Trigger an event
+        api2.resetState();
+        expect(listener2.called, 'listener called before cleanup').to.be.true;
 
-        api.setState({ flowers: true });
-        api.addHeader({ wee: 'woo' });
-        api.rmHeader(['wee']);
-        api.changeBaseUrl(testUrl);
+        // Call cleanup to remove listener
+        listener2.reset();
+        cleanup();
 
-        await api.post('/json', payload);
+        // These should NOT trigger the listener
+        api2.setState({ flowers: true });
+        api2.addHeader({ wee: 'woo' });
+        api2.rmHeader(['wee']);
+        api2.changeBaseUrl(testUrl);
 
-        try { await api.get('/fail'); }
+        await api2.post('/json', payload);
+
+        try { await api2.get('/fail'); }
         catch (e) {}
 
-        try { await api.get('/wait', { timeout: 1 }); }
+        try { await api2.get('/wait', { timeout: 1 }); }
         catch (e) {}
 
-        expect(listener.called).to.be.false
+        expect(listener2.called, 'listener not called after cleanup').to.be.false;
 
+        api2.destroy();
     });
 
     it('handles empty responses', async () => {
@@ -2244,7 +2271,8 @@ describe('@logosdx/fetch', () => {
         api.changeModifyOptions(modifyOptions);
 
         expect(onModifyOptionsChange.calledOnce).to.be.true;
-        expect(onModifyOptionsChange.firstCall.args[0].data).to.equal(modifyOptions);
+        // Non-regex listener: first arg is EventData directly
+        expect((onModifyOptionsChange.firstCall.args[0] as EventData).data).to.equal(modifyOptions);
 
         // Make a request to verify the modifier is applied
         await api.get('/json');
@@ -2255,7 +2283,7 @@ describe('@logosdx/fetch', () => {
         api.changeModifyOptions(undefined);
 
         expect(onModifyOptionsChange.calledTwice).to.be.true;
-        expect(onModifyOptionsChange.secondCall.args[0].data).to.be.undefined;
+        expect((onModifyOptionsChange.secondCall.args[0] as EventData).data).to.be.undefined;
 
         // Make another request to verify the modifier is no longer applied
         await api.get('/json');
@@ -2292,15 +2320,18 @@ describe('@logosdx/fetch', () => {
         api.changeModifyMethodOptions('POST', postModifyOptions);
 
         expect(onModifyMethodOptionsChange.calledOnce).to.be.true;
-        expect(onModifyMethodOptionsChange.firstCall.args[0].data.method).to.equal('POST');
-        expect(onModifyMethodOptionsChange.firstCall.args[0].data.fn).to.equal(postModifyOptions);
+        // Non-regex listener: first arg is EventData directly, data property contains { method, fn }
+        const firstCallData = (onModifyMethodOptionsChange.firstCall.args[0] as EventData).data as { method: string; fn: unknown };
+        expect(firstCallData.method).to.equal('POST');
+        expect(firstCallData.fn).to.equal(postModifyOptions);
 
         // Set GET modifyOptions function
         api.changeModifyMethodOptions('GET', getModifyOptions);
 
         expect(onModifyMethodOptionsChange.calledTwice).to.be.true;
-        expect(onModifyMethodOptionsChange.secondCall.args[0].data.method).to.equal('GET');
-        expect(onModifyMethodOptionsChange.secondCall.args[0].data.fn).to.equal(getModifyOptions);
+        const secondCallData = (onModifyMethodOptionsChange.secondCall.args[0] as EventData).data as { method: string; fn: unknown };
+        expect(secondCallData.method).to.equal('GET');
+        expect(secondCallData.fn).to.equal(getModifyOptions);
 
         // Make a GET request to verify only GET modifier is applied
         await api.get('/json');
@@ -2318,8 +2349,9 @@ describe('@logosdx/fetch', () => {
         api.changeModifyMethodOptions('POST', undefined);
 
         expect(onModifyMethodOptionsChange.callCount).to.equal(3);
-        expect(onModifyMethodOptionsChange.thirdCall.args[0].data.method).to.equal('POST');
-        expect(onModifyMethodOptionsChange.thirdCall.args[0].data.fn).to.be.undefined;
+        const thirdCallData = (onModifyMethodOptionsChange.thirdCall.args[0] as EventData).data as { method: string; fn: unknown };
+        expect(thirdCallData.method).to.equal('POST');
+        expect(thirdCallData.fn).to.be.undefined;
 
         // Make another POST request to verify the modifier is no longer applied
         await api.post('/json', {});

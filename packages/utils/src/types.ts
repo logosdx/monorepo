@@ -5,10 +5,10 @@
  * where function parameters need to be strongly typed.
  *
  * @example
- * function memoize<A extends unknown[], R>(fn: Func<A, R>): Func<A, R>
- * function debounce<A extends unknown[]>(fn: Func<A, void>, ms: number): Func<A, void>
+ * function memoize<A extends any[], R>(fn: Func<A, R>): Func<A, R>
+ * function debounce<A extends any[]>(fn: Func<A, void>, ms: number): Func<A, void>
  */
-export type Func<A extends unknown[] = unknown[], R = unknown> = (...args: A) => R;
+export type Func<A extends any[] = any[], R = any> = (...args: A) => R;
 
 /**
  * Generic async function type for type-safe async function signatures.
@@ -17,10 +17,10 @@ export type Func<A extends unknown[] = unknown[], R = unknown> = (...args: A) =>
  * that work with async operations.
  *
  * @example
- * function retry<A extends unknown[], R>(fn: AsyncFunc<A, R>, attempts: number): AsyncFunc<A, R>
- * function withTimeout<A extends unknown[], R>(fn: AsyncFunc<A, R>, ms: number): AsyncFunc<A, R>
+ * function retry<A extends any[], R>(fn: AsyncFunc<A, R>, attempts: number): AsyncFunc<A, R>
+ * function withTimeout<A extends any[], R>(fn: AsyncFunc<A, R>, ms: number): AsyncFunc<A, R>
  */
-export type AsyncFunc<A extends unknown[] = unknown[], R = unknown> = (...args: A) => Promise<R>;
+export type AsyncFunc<A extends any[] = any[], R = any> = (...args: A) => Promise<R>;
 
 /**
  * Generic constructor type for class-based type operations.

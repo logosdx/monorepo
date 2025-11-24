@@ -13,18 +13,13 @@
  * optimization, NOT a memory leak in FetchEngine.
  *
  * FetchEngine adds ~50KB overhead on top of undici due to:
- * - FetchEvent objects with response/data references
+ * - Event data objects with response/data references
  * - Response cloning for event dispatching
  *
- * The EventTarget and FetchEvent classes themselves ARE properly garbage
- * collected - diagnostic tests confirm this. The memory retention is from
- * undici's connection pool, TLS session cache, and request metadata.
- *
- * ## Future Optimization
- *
- * Consider replacing EventTarget with @logosdx/observer's ObserverEngine
- * for potentially better memory characteristics and more control over
- * event lifecycle.
+ * FetchEngine now extends ObserverEngine for event handling, which provides
+ * proper garbage collection of listeners via the `clear()` method called
+ * during `destroy()`. The memory retention is from undici's connection pool,
+ * TLS session cache, and request metadata - not from the event system.
  */
 
 import type { Scenario } from '../../types.ts';

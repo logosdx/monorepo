@@ -1,6 +1,5 @@
 import {
     assert,
-    definePublicProps,
     assertOptional,
     isObject,
     isFunction,
@@ -26,80 +25,6 @@ export class FetchError<T = {}> extends Error {}
 export const isFetchError = (error: unknown): error is FetchError<any, any> => {
     return error instanceof FetchError;
 }
-
-
-export class  FetchEvent<
-    InstanceHeaders = FetchEngine.InstanceHeaders,
-    Params = FetchEngine.Params,
-    State = {},
-> extends Event {
-    state!: State
-    url?: string | undefined
-    method?: HttpMethods | undefined
-    headers?: InstanceHeaders | undefined
-    params?: Params | undefined
-    options?: FetchEngine.RequestOpts | undefined
-    data?: unknown | undefined
-    payload?: unknown | undefined
-    response?: Response | undefined
-    error?: FetchError<any, InstanceHeaders> | undefined
-    attempt?: number | undefined
-    nextAttempt?: number | undefined
-    delay?: number | undefined
-    step?: 'fetch' | 'parse' | 'response' | undefined
-    status?: number | undefined
-    path?: string | undefined
-    aborted?: boolean | undefined
-
-    constructor(
-        event: FetchEventName,
-        opts: {
-            state: State,
-            url?: string | undefined,
-            method?: HttpMethods | undefined,
-            headers?: InstanceHeaders | undefined,
-            params?: Params | undefined,
-            error?: FetchError<any, InstanceHeaders> | undefined,
-            response?: Response | undefined,
-            data?: unknown | undefined,
-            payload?: unknown | undefined,
-            attempt?: number | undefined,
-            nextAttempt?: number | undefined,
-            delay?: number | undefined,
-            step?: 'fetch' | 'parse' | 'response' | undefined,
-            status?: number | undefined,
-            path?: string | undefined,
-            aborted?: boolean | undefined,
-        },
-        initDict?: EventInit | undefined
-    ) {
-
-        super(event, initDict);
-
-        definePublicProps(this, opts);
-    }
-}
-
-export enum FetchEventNames {
-
-    'fetch-before' = 'fetch-before',
-    'fetch-after' = 'fetch-after',
-    'fetch-abort' = 'fetch-abort',
-    'fetch-error' = 'fetch-error',
-    'fetch-response' = 'fetch-response',
-    'fetch-header-add' = 'fetch-header-add',
-    'fetch-header-remove' = 'fetch-header-remove',
-    'fetch-param-add' = 'fetch-param-add',
-    'fetch-param-remove' = 'fetch-param-remove',
-    'fetch-state-set' = 'fetch-state-set',
-    'fetch-state-reset' = 'fetch-state-reset',
-    'fetch-url-change' = 'fetch-url-change',
-    'fetch-modify-options-change' = 'fetch-modify-options-change',
-    'fetch-modify-method-options-change' = 'fetch-modify-method-options-change',
-    'fetch-retry' = 'fetch-retry',
-};
-
-export type FetchEventName = keyof typeof FetchEventNames;
 
 export const fetchTypes = [
     'arrayBuffer',

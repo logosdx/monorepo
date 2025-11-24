@@ -198,6 +198,49 @@ declare module './engine.ts' {
         export type Type = 'arrayBuffer' | 'blob' | 'formData' | 'json' | 'text';
 
         /**
+         * Event data payload for FetchEngine events
+         */
+        export interface EventData<S = InstanceState, H = InstanceHeaders> {
+            state: S;
+            url?: string | undefined;
+            method?: HttpMethods | undefined;
+            headers?: H | undefined;
+            params?: InstanceParams | undefined;
+            error?: FetchError<any, H> | undefined;
+            response?: Response | undefined;
+            data?: unknown;
+            payload?: unknown;
+            attempt?: number | undefined;
+            nextAttempt?: number | undefined;
+            delay?: number | undefined;
+            step?: 'fetch' | 'parse' | 'response' | undefined;
+            status?: number | undefined;
+            path?: string | undefined;
+            aborted?: boolean | undefined;
+        }
+
+        /**
+         * Event map for ObserverEngine - maps event names to their data types
+         */
+        export interface EventMap<S = InstanceState, H = InstanceHeaders> {
+            'fetch-before': EventData<S, H>;
+            'fetch-after': EventData<S, H>;
+            'fetch-abort': EventData<S, H>;
+            'fetch-error': EventData<S, H>;
+            'fetch-response': EventData<S, H>;
+            'fetch-header-add': EventData<S, H>;
+            'fetch-header-remove': EventData<S, H>;
+            'fetch-param-add': EventData<S, H>;
+            'fetch-param-remove': EventData<S, H>;
+            'fetch-state-set': EventData<S, H>;
+            'fetch-state-reset': EventData<S, H>;
+            'fetch-url-change': EventData<S, H>;
+            'fetch-modify-options-change': EventData<S, H>;
+            'fetch-modify-method-options-change': EventData<S, H>;
+            'fetch-retry': EventData<S, H>;
+        }
+
+        /**
          * Override this interface with the headers you intend
          * to use and set throughout your app. These are the
          * universal headers that will be set on all requests.
@@ -426,6 +469,32 @@ declare module './engine.ts' {
                         params?: boolean | undefined,
                     } | undefined
                 },
+
+                /**
+                 * Optional name for this FetchEngine instance.
+                 * Useful for debugging when using multiple instances.
+                 */
+                name?: string | undefined,
+
+                /**
+                 * Spy function that receives all event emissions.
+                 * Useful for debugging and logging event flow.
+                 *
+                 * @example
+                 * const api = new FetchEngine({
+                 *     baseUrl: 'https://api.example.com',
+                 *     spy: ({ event, fn, data }) => {
+                 *         console.log(`[${event}] ${fn}:`, data);
+                 *     }
+                 * });
+                 */
+                spy?: ((action: {
+                    event: keyof EventMap<S, H> | RegExp | '*',
+                    fn: 'on' | 'once' | 'off' | 'emit' | 'cleanup',
+                    data?: unknown,
+                    listener?: Function | null,
+                    context: any
+                }) => void) | undefined,
             }
         );
 

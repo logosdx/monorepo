@@ -60,6 +60,9 @@ importers:
 
   packages/fetch:
     dependencies:
+      '@logosdx/observer':
+        specifier: workspace:^
+        version: link:../observer
       '@logosdx/utils':
         specifier: workspace:^
         version: link:../utils

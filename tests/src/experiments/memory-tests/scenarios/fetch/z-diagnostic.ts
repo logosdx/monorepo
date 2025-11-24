@@ -6,15 +6,14 @@
  *
  * ## What DOES get garbage collected (no leak):
  * - EventTarget with/without listeners (~2 KB overhead)
- * - FetchEngine dispatching CustomEvent (~4 KB overhead)
- * - FetchEvent on plain EventTarget (properly freed)
- * - FetchEvent with shared state references (properly freed)
+ * - FetchEngine emitting events via ObserverEngine (~4 KB overhead)
+ * - ObserverEngine listeners (properly freed via clear())
  *
  * ## What retains memory:
  * - Raw `fetch()` calls: ~50 KB per 20 requests
  *   → This is Node.js undici's connection pooling, NOT a leak
  * - FetchEngine requests: ~100 KB per 20 requests
- *   → ~50 KB from undici + ~50 KB from FetchEvent/response objects
+ *   → ~50 KB from undici + ~50 KB from event data/response objects
  *
  * ## Conclusion:
  * The memory retention is from Node.js's HTTP client (undici) keeping
@@ -98,7 +97,7 @@ export const diagnostic: Scenario<DiagnosticContext> = {
             results['2-EventTarget-WithListener'] = { before, after, diff: after - before };
         }
 
-        // === Test 3: FetchEngine extends EventTarget - is it the class? ===
+        // === Test 3: FetchEngine extends ObserverEngine - is it the class? ===
         {
             context.gc();
             const before = process.memoryUsage().heapUsed;
@@ -107,12 +106,8 @@ export const diagnostic: Scenario<DiagnosticContext> = {
 
                 const engine = new FetchEngine({ baseUrl: BASE_URL });
 
-                // Dispatch custom event (not FetchEvent)
-                const event = new CustomEvent('test', {
-                    detail: { data: 'x'.repeat(10000), index: i }
-                });
-
-                engine.dispatchEvent(event);
+                // Emit custom event via ObserverEngine
+                engine.emit('test' as any, { data: 'x'.repeat(10000), index: i });
                 engine.destroy();
             }
 
@@ -121,60 +116,49 @@ export const diagnostic: Scenario<DiagnosticContext> = {
             results['3-FetchEngine-CustomEvent'] = { before, after, diff: after - before };
         }
 
-        // === Test 4: Check if it's the FetchEvent class itself ===
+        // === Test 4: ObserverEngine emit/on pattern ===
         {
             context.gc();
             const before = process.memoryUsage().heapUsed;
 
-            const { FetchEvent, FetchEventNames } = await import('../../../../../../packages/fetch/src/helpers.ts');
+            const { ObserverEngine } = await import('../../../../../../packages/observer/src/index.ts');
 
             for (let i = 0; i < 100; i++) {
 
-                const et = new EventTarget();
+                const obs = new ObserverEngine();
 
-                // Use FetchEvent on plain EventTarget
-                const event = new FetchEvent(FetchEventNames['fetch-response'], {
-                    state: {},
-                    data: { large: 'x'.repeat(10000) },
-                    url: 'http://test.com',
-                    method: 'GET'
-                });
-
-                et.dispatchEvent(event);
+                // Emit event with large data
+                obs.emit('test', { large: 'x'.repeat(10000) });
+                obs.clear();
             }
 
             context.gc();
             const after = process.memoryUsage().heapUsed;
-            results['4-FetchEvent-PlainTarget'] = { before, after, diff: after - before };
+            results['4-ObserverEngine-Emit'] = { before, after, diff: after - before };
         }
 
-        // === Test 5: Is it the state reference? ===
+        // === Test 5: ObserverEngine with listeners ===
         {
             context.gc();
             const before = process.memoryUsage().heapUsed;
 
-            const { FetchEvent, FetchEventNames } = await import('../../../../../../packages/fetch/src/helpers.ts');
+            const { ObserverEngine } = await import('../../../../../../packages/observer/src/index.ts');
 
             const sharedState = { token: 'abc', user: { id: 1 } };
 
             for (let i = 0; i < 100; i++) {
 
-                const et = new EventTarget();
+                const obs = new ObserverEngine();
 
-                // FetchEvent with reference to shared state
-                const event = new FetchEvent(FetchEventNames['fetch-response'], {
-                    state: sharedState,  // Shared reference
-                    data: { index: i },
-                    url: 'http://test.com',
-                    method: 'GET'
-                });
-
-                et.dispatchEvent(event);
+                // Add listener and emit
+                obs.on('test', () => {});
+                obs.emit('test', { state: sharedState, index: i });
+                obs.clear();
             }
 
             context.gc();
             const after = process.memoryUsage().heapUsed;
-            results['5-FetchEvent-SharedState'] = { before, after, diff: after - before };
+            results['5-ObserverEngine-WithListener'] = { before, after, diff: after - before };
         }
 
         // === Test 6: Raw fetch baseline ===

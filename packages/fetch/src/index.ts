@@ -2,8 +2,6 @@ import { FetchEngine } from './engine.ts';
 
 export {
     FetchError,
-    FetchEvent,
-    FetchEventNames,
     isFetchError
 } from './helpers.ts';
 
