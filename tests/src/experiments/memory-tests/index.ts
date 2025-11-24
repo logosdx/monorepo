@@ -10,13 +10,36 @@
  *   pnpm tsx --expose-gc --inspect src/experiments/memory-tests/index.ts observer
  */
 
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { MemoryTestHarness } from './harness.ts';
+
+// Get monorepo root (4 levels up from this file)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.resolve(__dirname, '../../../../');
+
+// Generate timestamped filename: YYMMDD-HHMM-{suite}.json
+function generateOutputPath(suiteName: string): string {
+
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+
+    const filename = `${yy}${mm}${dd}-${hh}${min}-${suiteName}.json`;
+    return path.join(monorepoRoot, 'tmp', 'memory-tests', filename);
+}
 
 // Import scenario registries
 import { observerScenarios } from './scenarios/observer/index.ts';
+import { utilsScenarios } from './scenarios/utils/index.ts';
 
 const suites: Record<string, typeof observerScenarios> = {
     observer: observerScenarios,
+    utils: utilsScenarios,
     // Future: fetch, state-machine, storage, dom
 };
 
@@ -78,7 +101,7 @@ async function main() {
     const harness = new MemoryTestHarness({
         suite: suiteName,
         scenarios: selectedScenarios,
-        outputPath: outputPath ?? `tmp/memory-tests-${suiteName}.json`,
+        outputPath: outputPath ?? generateOutputPath(suiteName),
         autoGc,
         autoMode,
         autoModeIterations: iterations

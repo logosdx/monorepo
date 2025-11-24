@@ -155,7 +155,7 @@ When running the harness:
 | `s` | Show current stats (heap, listener counts)       |
 | `d` | Dump current snapshots to console                |
 | `?` | Show help and scenario list                      |
-| `q` | Stop and save results to `tmp/memory-tests.json` |
+| `q` | Stop and save results to `tmp/memory-tests/` |
 
 
 ## Running the Harness
@@ -216,7 +216,7 @@ pnpm tsx --expose-gc src/experiments/memory-tests/index.ts observer --auto --sce
 ## Output Format
 
 
-Results are written to `tmp/memory-tests.json`:
+Results are written to `tmp/memory-tests/YYMMDD-HHMM-{suite}.json`:
 
 ```json
 {

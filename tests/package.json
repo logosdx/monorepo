@@ -9,7 +9,9 @@
         "test:coverage": "NODE_ENV=test tsx --experimental-test-coverage --expose-gc src/index.ts",
         "test:only": "NODE_ENV=test tsx --test-only --expose-gc src/index.ts",
         "__ci": "NODE_ENV=test tsx --expose-gc --test-reporter spec --test-reporter-destination stdout --test-reporter node-test-github-reporter --test-reporter-destination stdout",
-        "test:ci": "pnpm run __ci src/index.ts"
+        "test:ci": "pnpm run __ci src/index.ts",
+        "memory": "tsx --expose-gc src/experiments/memory-tests/index.ts",
+        "memory:ui": "tsx src/experiments/memory-tests/ui/server.ts"
     },
     "keywords": [],
     "homepage": "https://logosdx.dev/",
@@ -25,6 +27,7 @@
         "@hapi/hoek": "^11.0.7",
         "@types/chai": "^5.2.2",
         "@types/sinon": "^17",
+        "better-sse": "^0.15.1",
         "chai": "^5.2.0",
         "fast-check": "^4.1.1",
         "joi": "^17.13.3",

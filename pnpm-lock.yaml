@@ -128,6 +128,9 @@ importers:
       '@types/sinon':
         specifier: ^17
         version: 17.0.4
+      better-sse:
+        specifier: ^0.15.1
+        version: 0.15.1
       chai:
         specifier: ^5.2.0
         version: 5.2.0
@@ -1154,6 +1157,10 @@ packages:
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
+
+  better-sse@0.15.1:
+    resolution: {integrity: sha512-E8YmmIs7P2T5nHM8VG5Pmtp8CgDsIhT+6CYhg+8Gmke5kJb11ohN1jtEXn/2taSr7WkcU3yNTgoqNYvZ/GQ4sw==}
+    engines: {node: '>=20', pnpm: '>=9'}
 
   bin-version-check@5.1.0:
     resolution: {integrity: sha512-bYsvMqJ8yNGILLz1KP9zKLzQ6YpljV3ln1gqhuLkUtyfGi3qXKGuK2p+U4NAvjVFzDFiBBtOpCOSFNuYYEGZ5g==}
@@ -3462,6 +3469,8 @@ snapshots:
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
+
+  better-sse@0.15.1: {}
 
   bin-version-check@5.1.0:
     dependencies:
