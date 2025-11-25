@@ -4,32 +4,12 @@ import { attemptSync } from './attempt.ts';
 import { serializer } from '../flow-control/_helpers.ts';
 
 /**
- * Lifecycle hooks for in-flight promise deduplication.
- * All hooks are optional and must be synchronous.
- * Hook errors are silently caught to prevent breaking deduplication logic.
- */
-export interface InflightHooks<Key = string, Value = unknown> {
-
-    /** Called when first caller starts producer for this key (before producer executes) */
-    onStart?: (key: Key) => void;
-
-    /** Called when subsequent caller joins existing in-flight promise */
-    onJoin?: (key: Key) => void;
-
-    /** Called when shared promise resolves successfully */
-    onResolve?: (key: Key, value: Value) => void;
-
-    /** Called when shared promise rejects */
-    onReject?: (key: Key, error: unknown) => void;
-}
-
-/**
  * Configuration options for in-flight promise deduplication.
  */
 export interface InflightOptions<Args extends any[] = any[], Key = string, Value = unknown> {
 
     /**
-     * Optional key function. If omitted, uses a built-in serializer that handles:
+     * Optional key generation function. If omitted, uses a built-in serializer that handles:
      * - Primitives (string, number, boolean, null, undefined, bigint)
      * - Objects (plain objects with sorted keys for consistency)
      * - Arrays (preserves order)
@@ -45,10 +25,10 @@ export interface InflightOptions<Args extends any[] = any[], Key = string, Value
      * - Errors: Serialized by name and message only
      *
      * For identity-based deduplication, functions as arguments, or performance-critical
-     * hot paths, provide a custom keyFn that extracts only discriminating fields
+     * hot paths, provide a custom generateKey that extracts only discriminating fields
      * (e.g., `(id, _opts) => id`).
      */
-    keyFn?: (...args: Args) => Key;
+    generateKey?: (...args: Args) => Key;
 
     /**
      * Pre-serialization check. Return false to bypass deduplication
@@ -66,8 +46,29 @@ export interface InflightOptions<Args extends any[] = any[], Key = string, Value
      */
     shouldDedupe?: (...args: Args) => boolean;
 
-    /** Optional lifecycle hooks; all are no-ops by default. Must be synchronous. */
-    hooks?: InflightHooks<Key, Value>;
+    /**
+     * Called when first caller starts producer for this key (before producer executes).
+     * Must be synchronous. Errors are silently caught.
+     */
+    onStart?: (key: Key) => void;
+
+    /**
+     * Called when subsequent caller joins existing in-flight promise.
+     * Must be synchronous. Errors are silently caught.
+     */
+    onJoin?: (key: Key) => void;
+
+    /**
+     * Called when shared promise resolves successfully.
+     * Must be synchronous. Errors are silently caught.
+     */
+    onResolve?: (key: Key, value: Value) => void;
+
+    /**
+     * Called when shared promise rejects.
+     * Must be synchronous. Errors are silently caught.
+     */
+    onReject?: (key: Key, error: unknown) => void;
 }
 
 /**
@@ -121,12 +122,10 @@ export interface InflightOptions<Args extends any[] = any[], Key = string, Value
  * // With hooks for observability
  * const search = async (q: string) => api.search(q);
  * const dedupedSearch = withInflightDedup(search, {
- *   hooks: {
- *     onStart: (k) => logger.debug("search started", k),
- *     onJoin: (k) => logger.debug("joined existing search", k),
- *     onResolve: (k) => logger.debug("search completed", k),
- *     onReject: (k, e) => logger.error("search failed", k, e),
- *   },
+ *   onStart: (k) => logger.debug("search started", k),
+ *   onJoin: (k) => logger.debug("joined existing search", k),
+ *   onResolve: (k) => logger.debug("search completed", k),
+ *   onReject: (k, e) => logger.error("search failed", k, e),
  * });
  * ```
  *
@@ -135,7 +134,7 @@ export interface InflightOptions<Args extends any[] = any[], Key = string, Value
  * // Custom key - ignore volatile parameters
  * const fetchData = async (id: string, opts: { timestamp?: number }) => { };
  * const dedupedFetch = withInflightDedup(fetchData, {
- *   keyFn: (id) => id  // Only dedupe by id, ignore opts
+ *   generateKey: (id) => id  // Only dedupe by id, ignore opts
  * });
  * ```
  *
@@ -144,16 +143,16 @@ export interface InflightOptions<Args extends any[] = any[], Key = string, Value
  * // Hot path optimization - extract discriminating field only
  * const getProfile = async (req: { userId: string; meta: LargeObject }) => { };
  * const dedupedGetProfile = withInflightDedup(getProfile, {
- *   keyFn: (req) => req.userId  // Avoid serializing large meta object
+ *   generateKey: (req) => req.userId  // Avoid serializing large meta object
  * });
  * ```
  *
  * @example
  * ```typescript
- * // Functions as arguments - MUST use custom keyFn
+ * // Functions as arguments - MUST use custom generateKey
  * const fetchWithTransform = async (url: string, transform: (data: any) => any) => { };
  * const dedupedFetch = withInflightDedup(fetchWithTransform, {
- *   keyFn: (url) => url  // Only dedupe by URL, ignore transform function
+ *   generateKey: (url) => url  // Only dedupe by URL, ignore transform function
  * });
  * ```
  *
@@ -194,27 +193,27 @@ export function withInflightDedup<Args extends any[], Value, Key = string>(
             }
         }
 
-        const key = opts?.keyFn ? opts.keyFn(...args) : serializer(args) as Key;
+        const key = opts?.generateKey ? opts.generateKey(...args) : serializer(args) as Key;
 
         const existing = inflight.get(key);
 
         if (existing) {
 
-            safeHook(opts?.hooks?.onJoin, key);
+            safeHook(opts?.onJoin, key);
             return existing;
         }
 
-        safeHook(opts?.hooks?.onStart, key);
+        safeHook(opts?.onStart, key);
 
         const promise = producer(...args)
             .then(value => {
 
-                safeHook(opts?.hooks?.onResolve, key, value);
+                safeHook(opts?.onResolve, key, value);
                 return value;
             })
             .catch(error => {
 
-                safeHook(opts?.hooks?.onReject, key, error);
+                safeHook(opts?.onReject, key, error);
                 throw error;
             })
             .finally(() => {

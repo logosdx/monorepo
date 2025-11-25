@@ -59,7 +59,7 @@ const memoizedFunctions = new WeakSet<Function>();
  * // With custom key and TTL
  * const parseJSON = (str: string) => JSON.parse(str);
  * const memoizedParse = memoizeSync(parseJSON, {
- *     generateKey: ([str]) => str.substring(0, 100), // Cache by first 100 chars
+ *     generateKey: (str) => str.substring(0, 100), // Cache by first 100 chars
  *     ttl: 300000, // 5 minutes
  *     maxSize: 50
  * });
@@ -169,7 +169,7 @@ export const memoizeSync = <T extends Func<any>>(
         }
 
         const [key, keyError] = attemptSync(() =>
-            generateKey ? generateKey(args) : serializer(args as unknown[])
+            generateKey ? generateKey(...args) : serializer(args as unknown[])
         );
 
         if (keyError) {

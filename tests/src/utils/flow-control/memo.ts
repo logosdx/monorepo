@@ -354,8 +354,8 @@ describe('@logosdx/utils', () => {
         it('should handle custom key generators', () => {
             const fn = mock.fn((a: number, b: string) => a + b.length);
 
-            const customKeyGen = mock.fn((args: [number, string]) => {
-                return `custom:${args[0]}:${args[1]}`;
+            const customKeyGen = mock.fn((a: number, b: string) => {
+                return `custom:${a}:${b}`;
             });
 
             const memoized = memoizeSync(fn, {

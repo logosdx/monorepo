@@ -842,16 +842,14 @@ const [u1, u2, u3] = await Promise.all([
 
 // With observability hooks
 const search = withInflightDedup(searchAPI, {
-    hooks: {
-        onStart: (key) => logger.debug("started", key),
-        onJoin: (key) => logger.debug("joined", key),
-        onResolve: (key) => logger.debug("completed", key)
-    }
+    onStart: (key) => logger.debug("started", key),
+    onJoin: (key) => logger.debug("joined", key),
+    onResolve: (key) => logger.debug("completed", key)
 })
 
 // Custom key for hot paths
 const getProfile = withInflightDedup(fetchProfile, {
-    keyFn: (req) => req.userId  // Extract only discriminating field
+    generateKey: (req) => req.userId  // Extract only discriminating field
 })
 ```
 
@@ -896,7 +894,7 @@ const value = reach(obj, 'deep.nested.property') ?? defaultValue
 const cached = memoize(expensiveAsyncFn, {
     ttl: 300000,       // 5 min
     maxSize: 1000,
-    generateKey: (args) => args.join(':')
+    generateKey: (...args) => args.join(':')
 })
 
 // Stale-while-revalidate for instant responses

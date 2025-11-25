@@ -11,7 +11,6 @@ import { mockHelpers } from '../../_helpers';
 import {
     wait,
     withInflightDedup,
-    type InflightHooks,
 } from '../../../../packages/utils/src/index.ts';
 
 describe('@logosdx/utils', () => {
@@ -59,7 +58,7 @@ describe('@logosdx/utils', () => {
                 const onJoin = mock.fn();
 
                 const deduped = withInflightDedup(producer, {
-                    hooks: { onStart, onJoin }
+                    onStart, onJoin
                 });
 
                 // Three concurrent calls
@@ -109,7 +108,7 @@ describe('@logosdx/utils', () => {
                 const onResolve = mock.fn();
 
                 const deduped = withInflightDedup(producer, {
-                    hooks: { onResolve }
+                    onResolve
                 });
 
                 await Promise.all([
@@ -201,7 +200,7 @@ describe('@logosdx/utils', () => {
                 const onReject = mock.fn();
 
                 const deduped = withInflightDedup(producer, {
-                    hooks: { onReject }
+                    onReject
                 });
 
                 // All should reject with same error
@@ -357,7 +356,7 @@ describe('@logosdx/utils', () => {
                 });
 
                 const deduped = withInflightDedup(producer, {
-                    hooks: { onStart }
+                    onStart
                 });
 
                 // Should not throw despite hook error
@@ -385,7 +384,7 @@ describe('@logosdx/utils', () => {
                 });
 
                 const deduped = withInflightDedup(producer, {
-                    hooks: { onJoin }
+                    onJoin
                 });
 
                 const [r1, r2, r3] = await Promise.all([
@@ -415,7 +414,7 @@ describe('@logosdx/utils', () => {
                 });
 
                 const deduped = withInflightDedup(producer, {
-                    hooks: { onResolve }
+                    onResolve
                 });
 
                 const [r1, r2] = await Promise.all([
@@ -447,7 +446,7 @@ describe('@logosdx/utils', () => {
                 });
 
                 const deduped = withInflightDedup(producer, {
-                    hooks: { onReject }
+                    onReject
                 });
 
                 const results = await Promise.allSettled([
@@ -468,7 +467,7 @@ describe('@logosdx/utils', () => {
 
         describe('custom key function', () => {
 
-            it('should use custom keyFn when provided', async () => {
+            it('should use custom generateKey when provided', async () => {
 
                 const producer = mock.fn(async (id: string, _opts: { timestamp: number }) => {
 
@@ -478,7 +477,7 @@ describe('@logosdx/utils', () => {
 
                 // Dedupe only by id, ignore opts
                 const deduped = withInflightDedup(producer, {
-                    keyFn: (id) => id
+                    generateKey: (id) => id
                 });
 
                 // Different opts but same id - should dedupe
@@ -492,7 +491,7 @@ describe('@logosdx/utils', () => {
                 calledExactly(producer, 1, 'deduped despite different opts');
             });
 
-            it('should handle function arguments with custom keyFn', async () => {
+            it('should handle function arguments with custom generateKey', async () => {
 
                 const producer = mock.fn(async (url: string, transform: (x: any) => any) => {
 
@@ -502,7 +501,7 @@ describe('@logosdx/utils', () => {
 
                 // Only dedupe by url, ignore transform function
                 const deduped = withInflightDedup(producer, {
-                    keyFn: (url) => url
+                    generateKey: (url) => url
                 });
 
                 const transform1 = (x: string) => `transformed1-${x}`;
@@ -536,7 +535,7 @@ describe('@logosdx/utils', () => {
 
                 // Extract only discriminating fields
                 const deduped = withInflightDedup(producer, {
-                    keyFn: (req) => `${req.userId}:${req.resource}`
+                    generateKey: (req) => `${req.userId}:${req.resource}`
                 });
 
                 const [r1, r2] = await Promise.all([
@@ -875,7 +874,7 @@ describe('@logosdx/utils', () => {
 
                 let callCount = 0;
 
-                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+                const producer = mock.fn(async (id: string, _opts?: { bustCache?: boolean }) => {
 
                     callCount++;
                     await wait(10);
@@ -883,13 +882,13 @@ describe('@logosdx/utils', () => {
                 });
 
                 const deduped = withInflightDedup(producer, {
-                    shouldDedupe: (id, opts) => !opts?.bustCache
+                    shouldDedupe: (_id, opts) => !opts?.bustCache
                 });
 
                 // Normal calls should dedupe
                 const [r1, r2] = await Promise.all([
-                    deduped('42'),
-                    deduped('42')
+                    deduped('42', undefined),
+                    deduped('42', undefined)
                 ]);
 
                 expect(r1).to.equal('result-42-1');
@@ -911,29 +910,29 @@ describe('@logosdx/utils', () => {
 
             it('should not invoke serializer when shouldDedupe returns false', async () => {
 
-                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+                const producer = mock.fn(async (id: string, _opts?: { bustCache?: boolean }) => {
 
                     await wait(10);
                     return `result-${id}`;
                 });
 
-                const keyFn = mock.fn((id: string) => id);
+                const generateKey = mock.fn((id: string, _opts?: { bustCache?: boolean }) => id);
 
                 const deduped = withInflightDedup(producer, {
-                    keyFn,
-                    shouldDedupe: (id, opts) => !opts?.bustCache
+                    generateKey,
+                    shouldDedupe: (_id, opts) => !opts?.bustCache
                 });
 
                 // Cache-busting call
                 await deduped('42', { bustCache: true });
 
-                // keyFn should not have been called
-                calledExactly(keyFn, 0, 'keyFn not called when shouldDedupe returns false');
+                // generateKey should not have been called
+                calledExactly(generateKey, 0, 'generateKey not called when shouldDedupe returns false');
             });
 
             it('should not fire hooks when bypassing deduplication', async () => {
 
-                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+                const producer = mock.fn(async (id: string, _opts?: { bustCache?: boolean }) => {
 
                     await wait(10);
                     return `result-${id}`;
@@ -943,8 +942,8 @@ describe('@logosdx/utils', () => {
                 const onJoin = mock.fn();
 
                 const deduped = withInflightDedup(producer, {
-                    shouldDedupe: (id, opts) => !opts?.bustCache,
-                    hooks: { onStart, onJoin }
+                    shouldDedupe: (_id, opts) => !opts?.bustCache,
+                    onStart, onJoin
                 });
 
                 // Bypassed call
@@ -958,7 +957,7 @@ describe('@logosdx/utils', () => {
 
                 let callCount = 0;
 
-                const producer = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+                const producer = mock.fn(async (id: string, _opts?: { bustCache?: boolean }) => {
 
                     callCount++;
                     await wait(10);
@@ -966,13 +965,13 @@ describe('@logosdx/utils', () => {
                 });
 
                 const deduped = withInflightDedup(producer, {
-                    shouldDedupe: (id, opts) => !opts?.bustCache
+                    shouldDedupe: (_id, opts) => !opts?.bustCache
                 });
 
                 // Mix of normal and bypassed concurrent calls
                 const results = await Promise.all([
-                    deduped('42'),                      // Normal: will be deduped
-                    deduped('42'),                      // Normal: joins first
+                    deduped('42', undefined),           // Normal: will be deduped
+                    deduped('42', undefined),           // Normal: joins first
                     deduped('42', { bustCache: true }), // Bypassed: executes independently
                     deduped('42', { bustCache: true })  // Bypassed: executes independently
                 ]);
@@ -1023,7 +1022,7 @@ describe('@logosdx/utils', () => {
                     return `${a}-${b}-${c}`;
                 });
 
-                const shouldDedupe = mock.fn(() => true);
+                const shouldDedupe = mock.fn((_a: string, _b: number, _c: boolean) => true);
 
                 const deduped = withInflightDedup(producer, {
                     shouldDedupe
@@ -1051,7 +1050,7 @@ describe('@logosdx/utils', () => {
                     return `result-${id}`;
                 });
 
-                const hooks: InflightHooks = {
+                const deduped = withInflightDedup(producer, {
                     onStart: (key) => {
 
                         callOrder.push(`onStart:${key}`);
@@ -1064,9 +1063,7 @@ describe('@logosdx/utils', () => {
 
                         callOrder.push(`onResolve:${key}:${value}`);
                     }
-                };
-
-                const deduped = withInflightDedup(producer, { hooks });
+                });
 
                 await Promise.all([
                     deduped('42'),
@@ -1091,7 +1088,7 @@ describe('@logosdx/utils', () => {
                     throw new Error(`error-${id}`);
                 });
 
-                const hooks: InflightHooks = {
+                const deduped = withInflightDedup(producer, {
                     onStart: (key) => {
 
                         callOrder.push(`onStart:${key}`);
@@ -1104,9 +1101,7 @@ describe('@logosdx/utils', () => {
 
                         callOrder.push(`onReject:${key}:${error.message}`);
                     }
-                };
-
-                const deduped = withInflightDedup(producer, { hooks });
+                });
 
                 await Promise.allSettled([
                     deduped('42'),
