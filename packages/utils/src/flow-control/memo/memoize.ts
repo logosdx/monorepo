@@ -74,7 +74,7 @@ const memoizedFunctions = new WeakSet<Function>();
  * // With custom key and cache management
  * const search = async (query: string, opts: SearchOptions) => api.search(query, opts);
  * const memoizedSearch = memoize(search, {
- *     generateKey: ([query]) => query, // Only cache by query, ignore opts
+ *     generateKey: (query) => query, // Only cache by query, ignore opts
  *     maxSize: 100,
  *     ttl: 300000 // 5 minutes
  * });
@@ -152,10 +152,8 @@ export const memoize = <T extends AsyncFunc<any>>(
     const recordMiss = () => misses++;
 
     const dedupedProducer = withInflightDedup(fn, {
-        keyFn: generateKey || ((...args) => serializer(args)),
-        hooks: {
-            onJoin: () => recordHit()
-        }
+        generateKey: generateKey || ((...args) => serializer(args)),
+        onJoin: () => recordHit()
     }) as T;
 
     const handleStaleWhileRevalidate = async (
@@ -235,7 +233,7 @@ export const memoize = <T extends AsyncFunc<any>>(
         }
 
         const [key, keyError] = attemptSync(() =>
-            generateKey ? generateKey(args) : serializer(args as unknown[])
+            generateKey ? generateKey(...args) : serializer(args as unknown[])
         );
 
         if (keyError) {

@@ -1487,7 +1487,7 @@ interface MemoizeOptions<T> {
     ttl?: number                       // Time to live in ms (default: 60000)
     maxSize?: number                   // Max cache entries (default: 1000)
     cleanupInterval?: number          // Background cleanup interval (default: 60000, 0 to disable)
-    generateKey?: (args: Parameters<T>) => string  // Custom key generator
+    generateKey?: (...args: Parameters<T>) => string  // Custom key generator
     shouldCache?: (...args: Parameters<T>) => boolean  // Pre-check: return false to bypass cache (still deduped)
     useWeakRef?: boolean              // Use WeakRef for values (default: false)
     staleIn?: number                   // Time in ms after which data is stale (enables SWR)
@@ -1590,7 +1590,7 @@ const fetchProfile = async (req: { userId: string; timestamp: number }) => {
 }
 
 const getProfile = memoize(fetchProfile, {
-    generateKey: ([req]) => req.userId  // Ignore timestamp, cache by userId only
+    generateKey: (req) => req.userId  // Ignore timestamp, cache by userId only
 })
 
 // Synchronous memoization - no inflight dedup, no SWR
@@ -1807,12 +1807,8 @@ function withInflightDedup<Args extends any[], Value, Key = string>(
 ): AsyncFunc<Args, Value>
 
 interface InflightOptions<Args extends any[] = any[], Key = string, Value = unknown> {
-    keyFn?: (...args: Args) => Key
-    shouldDedupe?: (...args: Args) => boolean  // Pre-check: return false to bypass deduplication
-    hooks?: InflightHooks<Key, Value>
-}
-
-interface InflightHooks<Key = string, Value = unknown> {
+    generateKey?: (...args: Args) => Key
+    shouldDedupe?: (...args: Args) => boolean
     onStart?: (key: Key) => void
     onJoin?: (key: Key) => void
     onResolve?: (key: Key, value: Value) => void
@@ -1836,9 +1832,12 @@ interface InflightHooks<Key = string, Value = unknown> {
 **Parameters:**
 
 - `producer` - Async function to wrap with deduplication
-- `opts.keyFn` - Optional custom key function (defaults to built-in serializer)
+- `opts.generateKey` - Optional custom key function (defaults to built-in serializer)
 - `opts.shouldDedupe` - Optional pre-check to conditionally bypass deduplication (return false to bypass)
-- `opts.hooks` - Optional lifecycle hooks for observability
+- `opts.onStart` - Called when first caller starts producer for this key
+- `opts.onJoin` - Called when subsequent caller joins existing in-flight promise
+- `opts.onResolve` - Called when shared promise resolves successfully
+- `opts.onReject` - Called when shared promise rejects
 
 **Returns:** Wrapped function with in-flight deduplication
 
@@ -1861,12 +1860,10 @@ const [user1, user2, user3] = await Promise.all([
 // With hooks for observability
 const search = async (q: string) => api.search(q)
 const dedupedSearch = withInflightDedup(search, {
-    hooks: {
-        onStart: (k) => logger.debug("search started", k),
-        onJoin: (k) => logger.debug("joined existing search", k),
-        onResolve: (k) => logger.debug("search completed", k),
-        onReject: (k, e) => logger.error("search failed", k, e),
-    },
+    onStart: (k) => logger.debug("search started", k),
+    onJoin: (k) => logger.debug("joined existing search", k),
+    onResolve: (k) => logger.debug("search completed", k),
+    onReject: (k, e) => logger.error("search failed", k, e),
 })
 
 // Custom key - ignore volatile parameters
@@ -1877,7 +1874,7 @@ const fetchData = async (id: string, opts: { timestamp?: number }) => {
 }
 
 const dedupedFetch = withInflightDedup(fetchData, {
-    keyFn: (id) => id  // Only dedupe by id, ignore opts
+    generateKey: (id) => id  // Only dedupe by id, ignore opts
 })
 
 // Conditional deduplication - bypass for cache-busting requests
@@ -1902,10 +1899,10 @@ const getProfile = async (req: { userId: string; meta: LargeObject }) => {
 }
 
 const dedupedGetProfile = withInflightDedup(getProfile, {
-    keyFn: (req) => req.userId  // Avoid serializing large meta object
+    generateKey: (req) => req.userId  // Avoid serializing large meta object
 })
 
-// Functions as arguments - MUST use custom keyFn
+// Functions as arguments - MUST use custom generateKey
 const fetchWithTransform = async (url: string, transform: (data: any) => any) => {
 
     const response = await fetch(url)
@@ -1914,7 +1911,7 @@ const fetchWithTransform = async (url: string, transform: (data: any) => any) =>
 }
 
 const dedupedFetch = withInflightDedup(fetchWithTransform, {
-    keyFn: (url) => url  // Only dedupe by URL, ignore transform function
+    generateKey: (url) => url  // Only dedupe by URL, ignore transform function
 })
 ```
 
@@ -1928,8 +1925,8 @@ const dedupedFetch = withInflightDedup(fetchWithTransform, {
 **Performance notes:**
 
 - Default key generation: O(n) in argument structure size
-- For hot paths or complex args, use custom `keyFn` to extract only discriminating fields
-- For functions as arguments, MUST use custom `keyFn` (functions always collide in default serializer)
+- For hot paths or complex args, use custom `generateKey` to extract only discriminating fields
+- For functions as arguments, MUST use custom `generateKey` (functions always collide in default serializer)
 
 **Key differences from memoize:**
 

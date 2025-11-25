@@ -229,7 +229,7 @@ interface MemoizeOptions<T> {
     maxSize?: number                // Default: 1000 (must be > 0)
     staleIn?: number                // Default: undefined (must be >= 0, < ttl)
     staleTimeout?: number           // Default: undefined (>= 0)
-    generateKey?: (args: Parameters<T>) => string
+    generateKey?: (...args: Parameters<T>) => string
     onError?: (error: Error, args: Parameters<T>) => void
 }
 
@@ -415,7 +415,7 @@ if (err) return handleError(err)
 
 // Edge case: Custom key for complex arguments
 const getData = memoize(fetchResource, {
-    keyFn: ([opts]) => `${opts.userId}:${opts.type}`
+    generateKey: (opts) => `${opts.userId}:${opts.type}`
 })
 
 await getData({ userId: '42', type: 'profile', metadata: {...} })
@@ -437,7 +437,7 @@ const fn3 = memoize(..., { maxSize: 100 })
 const fn4 = memoize(..., { ttl: 60000, maxSize: 100 })
 
 // Example 5: With custom key
-const fn5 = memoize(..., { keyFn: ... })
+const fn5 = memoize(..., { generateKey: ... })
 
 // Example 6: With error handler
 const fn6 = memoize(..., { onError: ... })
@@ -534,7 +534,7 @@ const getPrice = memoize(fetchPrice, {
 
 // Custom key for hot paths
 const getData = memoize(fetch, {
-    keyFn: ([opts]) => opts.userId
+    generateKey: ([opts]) => opts.userId
 })
 ```
 

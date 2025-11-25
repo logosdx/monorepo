@@ -144,16 +144,14 @@ export const inflightDedupScenario: Scenario<InflightDedupContext> = {
                 return id;
             },
             {
-                hooks: {
-                    onStart: () => {
+                onStart: () => {
 
-                        hookStartCalls++;
-                        // Capture large context (shouldn't leak)
-                        const _ = largeHookContext.key_0;
-                    },
-                    onJoin: () => hookJoinCalls++,
-                    onResolve: () => hookResolveCalls++
-                }
+                    hookStartCalls++;
+                    // Capture large context (shouldn't leak)
+                    void largeHookContext.key_0;
+                },
+                onJoin: () => hookJoinCalls++,
+                onResolve: () => hookResolveCalls++
             }
         );
 
@@ -203,7 +201,7 @@ export const inflightDedupScenario: Scenario<InflightDedupContext> = {
                 return obj.id;
             },
             {
-                keyFn: (obj) => `id-${obj.id}` // Ignore timestamp
+                generateKey: (obj) => `id-${obj.id}` // Ignore timestamp
             }
         );
 

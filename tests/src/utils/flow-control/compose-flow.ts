@@ -561,7 +561,7 @@ describe('@logosdx/utils', () => {
             calledExactly(flakyFetch, 2, 'inflight+retry: shared retry across concurrent calls');
         });
 
-        it('should use custom keyFn with inflight in compose', async () => {
+        it('should use custom generateKey with inflight in compose', async () => {
 
             const fetchWithOpts = mock.fn(async (id: string, _opts: { timestamp: number }) => {
 
@@ -572,7 +572,7 @@ describe('@logosdx/utils', () => {
             // Dedupe only by id, ignore opts
             const deduped = composeFlow(fetchWithOpts, {
                 inflight: {
-                    keyFn: (id) => id
+                    generateKey: (id: string) => id
                 },
                 withTimeout: { timeout: 50 }
             });
@@ -585,7 +585,7 @@ describe('@logosdx/utils', () => {
 
             expect(r1).to.equal('data-123');
             expect(r2).to.equal('data-123');
-            calledExactly(fetchWithOpts, 1, 'custom keyFn: deduped despite different opts');
+            calledExactly(fetchWithOpts, 1, 'custom generateKey: deduped despite different opts');
         });
 
         it('should handle inflight with circuit breaker', async () => {
