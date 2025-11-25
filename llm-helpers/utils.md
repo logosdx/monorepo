@@ -171,16 +171,12 @@ const withInflightDedup: <Args extends any[], Value, Key = string>(
 ) => AsyncFunc<Args, Value>
 
 interface InflightOptions<Args, Key, Value> {
-  keyFn?: (...args: Args) => Key                // Spread args: (arg1, arg2, ...)
+  generateKey?: (...args: Args) => Key          // Spread args: (arg1, arg2, ...)
   shouldDedupe?: (...args: Args) => boolean     // Spread args: (arg1, arg2, ...)
-  hooks?: InflightHooks<Key, Value>
-}
-
-interface InflightHooks<Key, Value> {
-  onStart?: (key: Key) => void
-  onJoin?: (key: Key) => void
-  onResolve?: (key: Key, value: Value) => void
-  onReject?: (key: Key, error: unknown) => void
+  onStart?: (key: Key) => void                  // First caller starts
+  onJoin?: (key: Key) => void                   // Subsequent caller joins
+  onResolve?: (key: Key, value: Value) => void  // Promise resolved
+  onReject?: (key: Key, error: unknown) => void // Promise rejected
 }
 
 // Basic usage - deduplicate concurrent calls
@@ -197,16 +193,14 @@ const [u1, u2, u3] = await Promise.all([
 
 // With observability hooks
 const search = withInflightDedup(searchAPI, {
-  hooks: {
-    onStart: (key) => logger.debug("started", key),
-    onJoin: (key) => logger.debug("joined", key),
-    onResolve: (key) => logger.debug("completed", key)
-  }
+  onStart: (key) => logger.debug("started", key),
+  onJoin: (key) => logger.debug("joined", key),
+  onResolve: (key) => logger.debug("completed", key)
 })
 
 // Custom key function for hot paths
 const getProfile = withInflightDedup(fetchProfile, {
-  keyFn: (req) => req.userId  // Extract only discriminating field
+  generateKey: (req) => req.userId  // Extract only discriminating field
 })
 
 // Conditional deduplication - bypass for cache-busting
@@ -253,8 +247,8 @@ interface MemoizeOptions<T> {
   maxSize?: number                // Maximum cache size with LRU eviction (default: 1000)
   cleanupInterval?: number        // Background cleanup interval (default: 60000)
   useWeakRef?: boolean            // Use WeakRef for objects (memory-sensitive) (default: false)
-  generateKey?: (args: Parameters<T>) => string         // Tuple args: ([arg1, arg2, ...])
-  onError?: (error: Error, args: Parameters<T>) => void // Tuple args: ([arg1, arg2, ...])
+  generateKey?: (...args: Parameters<T>) => string       // Spread args: (arg1, arg2, ...)
+  onError?: (error: Error, args: Parameters<T>) => void  // Tuple args: ([arg1, arg2, ...])
   shouldCache?: (...args: Parameters<T>) => boolean     // Spread args: (arg1, arg2, ...)
   staleIn?: number                // Time after which data is stale (enables SWR)
   staleTimeout?: number           // Max wait for fresh data when stale (default: undefined)
@@ -296,7 +290,7 @@ const getPrices = memoize(fetchPrices, {
 // Custom key function for hot paths - extract only discriminating fields
 const fetchUserProfile = async (req: { userId: string; timestamp: number }) => { }
 const getProfile = memoize(fetchUserProfile, {
-  generateKey: ([req]) => req.userId  // Ignore timestamp, cache by userId only
+  generateKey: (req) => req.userId  // Ignore timestamp, cache by userId only
 })
 
 // Conditional caching - bypass cache for specific requests

@@ -95,7 +95,7 @@ export interface MemoizeOptions<T extends Func | AsyncFunc> {
     maxSize?: number;
 
     /** Custom key generator from function arguments. Default: enhanced serializer */
-    generateKey?: (args: Parameters<T>) => string;
+    generateKey?: (...args: Parameters<T>) => string;
 
     /** Error handler for key generation or execution failures */
     onError?: (error: Error, args: Parameters<T>) => void;
