@@ -6,6 +6,12 @@ on:
   push:
     branches:
       - "master"
+    paths:
+      - "packages/**"
+      - "tests/**"
+      - ".changeset/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
 
 jobs:
   build:
