@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/state-machine",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "A powerful, stream-based, strongly-typed state management library",
   "exports": {
     ".": {
