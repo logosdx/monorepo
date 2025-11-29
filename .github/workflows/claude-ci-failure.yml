@@ -80,52 +80,80 @@ jobs:
             --max-turns 15
             --allowedTools "Bash(gh run view:*),Bash(gh run list:*),Bash(gh pr comment:*),Bash(gh issue create:*),Read,Glob,Grep,Write"
 
-      - name: Read Claude Summary
-        id: read-summary
+      - name: Read Claude Summary and Build Payload
+        id: slack-payload
         run: |
           if [ -f /tmp/slack_summary.txt ]; then
-            SUMMARY=$(cat /tmp/slack_summary.txt)
-            echo "summary<<EOF" >> $GITHUB_OUTPUT
-            echo "$SUMMARY" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            SUMMARY=$(cat /tmp/slack_summary.txt | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-500)
           else
-            echo "summary=CI failure in ${{ github.event.workflow_run.name }} on branch ${{ github.event.workflow_run.head_branch }}. Check the workflow run for details." >> $GITHUB_OUTPUT
+            SUMMARY="CI failure in ${{ github.event.workflow_run.name }} on branch ${{ github.event.workflow_run.head_branch }}. Check the workflow run for details."
           fi
+
+          cat > /tmp/slack_payload.json << 'PAYLOAD_EOF'
+          {
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "🔴 CI Pipeline Failed",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Workflow:*\n${{ github.event.workflow_run.name }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Branch:*\n${{ github.event.workflow_run.head_branch }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Claude's Analysis:*\nPLACEHOLDER_SUMMARY"
+                }
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View Failed Run",
+                      "emoji": true
+                    },
+                    "url": "${{ github.event.workflow_run.html_url }}",
+                    "style": "danger"
+                  },
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View Repository",
+                      "emoji": true
+                    },
+                    "url": "${{ github.server_url }}/${{ github.repository }}"
+                  }
+                ]
+              }
+            ]
+          }
+          PAYLOAD_EOF
+
+          sed -i "s|PLACEHOLDER_SUMMARY|$SUMMARY|g" /tmp/slack_payload.json
+          echo "payload_file=/tmp/slack_payload.json" >> $GITHUB_OUTPUT
 
       - name: Send Slack Notification
         uses: slackapi/slack-github-action@v2.1.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
-          payload: |
-            blocks:
-              - type: "header"
-                text:
-                  type: "plain_text"
-                  text: "🔴 CI Pipeline Failed"
-                  emoji: true
-              - type: "section"
-                fields:
-                  - type: "mrkdwn"
-                    text: "*Workflow:*\n${{ github.event.workflow_run.name }}"
-                  - type: "mrkdwn"
-                    text: "*Branch:*\n${{ github.event.workflow_run.head_branch }}"
-              - type: "section"
-                text:
-                  type: "mrkdwn"
-                  text: "*Claude's Analysis:*\n${{ steps.read-summary.outputs.summary }}"
-              - type: "actions"
-                elements:
-                  - type: "button"
-                    text:
-                      type: "plain_text"
-                      text: "View Failed Run"
-                      emoji: true
-                    url: "${{ github.event.workflow_run.html_url }}"
-                    style: "danger"
-                  - type: "button"
-                    text:
-                      type: "plain_text"
-                      text: "View Repository"
-                      emoji: true
-                    url: "${{ github.server_url }}/${{ github.repository }}"
+          payload-file-path: ${{ steps.slack-payload.outputs.payload_file }}
