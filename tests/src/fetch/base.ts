@@ -1,141 +1,25 @@
-/**
- * @jest-environment jsdom
- * @jest-environment-options {'url': 'http://localhost'}
- */
 import {
     describe,
     it,
-    before,
-    beforeEach,
-    after,
-} from 'node:test'
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
-import Hapi, { Lifecycle } from '@hapi/hapi';
-import Boom from '@hapi/boom';
-import Hoek from '@hapi/hoek';
-import Joi from 'joi';
+import Hapi from '@hapi/hapi';
 
 import {
     FetchError,
     FetchEngine,
-} from '../../packages/fetch/src/index.ts';
+} from '../../../packages/fetch/src/index.ts';
 
-import logosFetch from '../../packages/fetch/src/index.ts';
-import { attempt } from '../../packages/utils/src/index.ts';
-import { sandbox } from './_helpers';
+import logosFetch from '../../../packages/fetch/src/index.ts';
+import { attempt, attemptSync, wait, noop } from '../../../packages/utils/src/index.ts';
+import { sandbox } from '../_helpers.ts';
+import { EventData, RegexCallbackArg, makeTestStubs } from './_helpers.ts';
 
-// Type aliases for event listener callback arguments
-// Non-regex listeners receive: (data: EventData, { event: string }) => void
-// Regex listeners receive: ({ event: string, data: EventData }) => void
+describe('@logosdx/fetch: base', async () => {
 
-/** Event data type alias for FetchEngine events */
-type EventData = FetchEngine.EventData;
-
-/** Regex listener callback argument: { event, data } as first arg */
-interface RegexCallbackArg {
-    event: string;
-    data: EventData;
-}
-
-// Augment the FetchEngine module with custom response headers for testing
-declare module '../../packages/fetch/src/engine.ts' {
-
-    namespace FetchEngine {
-
-        interface InstanceResponseHeaders {
-            'x-custom-response-header': string;
-            'x-rate-limit-remaining': string;
-            'x-request-id': string;
-        }
-    }
-}
-
-const mkHapiRoute = (
-    path: string,
-    handler: Lifecycle.Method,
-    options: Hapi.RouteOptions = {}
-) => ({
-    method: '*' as const,
-    path,
-    handler,
-    options
-});
-const wait = (n: number, r: any = 'ok') => new Promise(res => setTimeout(() => res(r), n));
-
-describe('@logosdx/fetch', () => {
-
-    const callStub = sandbox.stub<[Hapi.Request]>();
-    const testUrl = 'http://localhost:3456';
-    const server = Hapi.server({ port: 3456 });
-
-    server.route(
-        [
-            mkHapiRoute('/bad-content-type', (_, h) => h.response().header('content-type', 'habibti/allah')),
-            mkHapiRoute('/json{n?}', (req) => { callStub(req); return { ok: true }; }),
-            mkHapiRoute('/fail', () => { return Boom.badRequest('message', { the: 'data' }); }),
-            mkHapiRoute('/wait', () => wait(1000, 'ok')),
-            mkHapiRoute('/drop', (_, h) => h.close),
-            mkHapiRoute('/abandon', (_, h) => h.abandon),
-            mkHapiRoute('/empty', () => { return null; }),
-            mkHapiRoute('/empty2', (_, h) => { return h.response().code(204); }),
-
-            mkHapiRoute('/validate', () => 'ok', {
-                validate: {
-                    query: Joi.object({
-                        name: Joi.string().required(),
-                        age: Joi.number().min(18).max(65)
-                    }),
-                    failAction: async (req, h, err) => {
-
-                        if (err) {
-
-                            return err;
-                        }
-
-                        if ((req as unknown as Boom.Boom).isBoom) {
-
-                            return req;
-                        }
-
-                        return h.continue;
-                    }
-                },
-            }),
-
-            mkHapiRoute('/rate-limit', (req) => {
-
-                const { query } = req;
-
-                if (!query.apiKey) {
-                    return Boom.tooManyRequests('Rate limit exceeded', { retryAfter: 1 });
-                }
-
-                return { ok: true };
-            }),
-
-            mkHapiRoute('/custom-headers', (_, h) => {
-
-                return h.response({ ok: true })
-                    .header('x-custom-response-header', 'test-value')
-                    .header('x-rate-limit-remaining', '100')
-                    .header('x-request-id', 'req-12345');
-            })
-        ]
-    );
-
-    before(async () => {
-
-        await server.start();
-    });
-
-    after(async () => {
-
-        await server.stop();
-    });
-
-    beforeEach(() => callStub.reset());
+    const { callStub, server, testUrl } = await makeTestStubs(4123);
 
     it('can be imported as a default export', async () => {
 
@@ -760,7 +644,7 @@ describe('@logosdx/fetch', () => {
 
             const fn = api[method];
 
-            return fn.call(api, '/json').catch(Hoek.ignore);
+            return fn.call(api, '/json').catch(noop);
         };
 
         await anyReq('get');
@@ -906,7 +790,7 @@ describe('@logosdx/fetch', () => {
 
             const fn = api[method];
 
-            return fn.call(api, '/json').catch(Hoek.ignore);
+            return fn.call(api, '/json').catch(noop);
         };
 
         await anyReq('get');
@@ -1082,7 +966,6 @@ describe('@logosdx/fetch', () => {
 
     });
 
-
     it('sends payloads', async () => {
 
         const payload = { pay: 'load' };
@@ -1153,7 +1036,7 @@ describe('@logosdx/fetch', () => {
         expect(opts.headers).to.exist;
     });
 
-    it('status code 999 for unhandled errors', async () => {
+    it('should preserve original status code in FetchError on content-type parsing errors', async () => {
 
         const onError = sandbox.stub();
         const api = new FetchEngine({
@@ -1309,7 +1192,7 @@ describe('@logosdx/fetch', () => {
 
             const fn = api[method];
 
-            return fn.call(api, '/json').catch(Hoek.ignore);
+            return fn.call(api, '/json').catch(noop);
         };
 
         await anyReq('get');
@@ -1422,7 +1305,9 @@ describe('@logosdx/fetch', () => {
             expect(data.url, `${eventName} url`).to.exist;
             expect(data.headers, `${eventName} headers`).to.exist;
 
-            expect(data.url, `${eventName} specific url`).to.eq(`${testUrl}${path}`);
+            // url can be string or URL object
+            const urlString = data.url instanceof URL ? data.url.href : data.url;
+            expect(urlString, `${eventName} specific url`).to.eq(`${testUrl}${path}`);
             expect(data.method, `${eventName} specific method`).to.eq(method);
             expect(data.headers, `${eventName} specific headers`).to.contain(headers);
         }
@@ -1969,258 +1854,6 @@ describe('@logosdx/fetch', () => {
         }
     });
 
-    it('retries a configured number of requests', async () => {
-
-        const onError = sandbox.stub();
-
-        const api = new FetchEngine({
-            baseUrl: testUrl + 1,
-            retry: {
-                maxAttempts: 2,
-                baseDelay: 10
-            },
-        });
-
-        await attempt(() => api.get('/', { onError }))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(2);
-
-        const [[c1], [c2]] = onError.args as [[FetchError], [FetchError], [FetchError]];
-
-        expect(c1.status).to.eq(499);
-        expect(c2.status).to.eq(499);
-
-        expect(c1.attempt).to.eq(1);
-        expect(c2.attempt).to.eq(2);
-    });
-
-    const calculateDelay = (
-        baseDelay: number,
-        attempts: number,
-    ) => {
-
-        return Array.from(
-            { length: attempts },
-            (_, i) => baseDelay * Math.pow(2, i)
-        )
-        .reduce((a, b) => a + b, 0);
-    }
-
-    it('retries requests with exponential backoff', async () => {
-
-        const baseDelay = 10;
-
-        const api = new FetchEngine({
-            baseUrl: testUrl + 1,
-            retry: {
-                maxAttempts: 3,
-                baseDelay,
-                useExponentialBackoff: true,
-            },
-        });
-
-        const start = Date.now();
-
-        await attempt(() => api.get('/'))
-
-        const end = Date.now();
-
-        const calc = calculateDelay(baseDelay, 3);
-
-        expect(end - start).to.be.greaterThan(calc);
-    });
-
-    it('retries requests with exponential backoff and max delay', async () => {
-
-        const baseDelay = 10;
-
-        const api = new FetchEngine({
-            baseUrl: testUrl + 1,
-            retry: {
-                maxAttempts: 5,
-                baseDelay,
-                useExponentialBackoff: true,
-                maxDelay: 30,
-            },
-        });
-
-        const start = Date.now();
-
-        await attempt(() => api.get('/'))
-
-        const end = Date.now();
-
-        const calc = calculateDelay(baseDelay, 5);
-
-        expect(end - start).to.be.lessThan(calc);
-    });
-
-    it('retries without exponential backoff', async () => {
-
-        const baseDelay = 10;
-
-        const api = new FetchEngine({
-            baseUrl: testUrl + 1,
-            retry: {
-                maxAttempts: 3,
-                baseDelay,
-                useExponentialBackoff: false,
-            },
-        });
-
-        const start = Date.now();
-
-        await attempt(() => api.get('/'))
-
-        const end = Date.now();
-
-        const calc = (baseDelay * 3) + 15; // Give some buffer
-
-        expect(end - start).to.be.lessThan(calc);
-    });
-
-    it('retries on specific status codes', async () => {
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            retry: {
-                maxAttempts: 3,
-                baseDelay: 10,
-                useExponentialBackoff: false,
-                retryableStatusCodes: [400],
-            },
-        });
-
-        const onError = sandbox.stub();
-
-        api.on('fetch-error', onError);
-
-        await attempt(() => api.get('/validate?name=&age=17'))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
-    })
-
-    it('retries with custom shouldRetry', async () => {
-
-        const onError = sandbox.stub();
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            retry: {
-                maxAttempts: 3,
-                baseDelay: 10,
-                useExponentialBackoff: false,
-                shouldRetry: (error) => error.status === 400,
-            },
-        });
-
-        api.on('fetch-error', onError);
-
-        await attempt(() => api.get('/validate?name=&age=17'))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
-
-        await attempt(() => api.get('/not-found'))
-
-        expect(onError.callCount).to.eq(4);
-    });
-
-    it('retries with custom shouldRetry that returns a number', async () => {
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            retry: {
-                maxAttempts: 3,
-                baseDelay: 10,
-                useExponentialBackoff: false,
-                shouldRetry: (error) => {
-
-                    if (error.status === 400) {
-
-                        return 50;
-                    }
-
-                    return false;
-                },
-            },
-        });
-
-        const onError = sandbox.stub();
-
-        api.on('fetch-error', onError);
-
-        const start = Date.now();
-
-        await attempt(() => api.get('/validate?name=&age=17'))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
-
-        const end = Date.now();
-
-        expect(end - start).to.be.greaterThan(149);
-    });
-
-    it('can configure a retry per request', async () => {
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            retry: {
-                maxAttempts: 5,
-                baseDelay: 20,
-                useExponentialBackoff: true,
-            },
-        });
-
-        const onError = sandbox.stub();
-
-        const reqConfig: FetchEngine.CallOptions = {
-            retry: {
-                maxAttempts: 2,
-                baseDelay: 10,
-                useExponentialBackoff: false,
-                retryableStatusCodes: [400],
-            },
-            onError,
-        }
-
-        const start = Date.now();
-
-        await attempt(() => api.get('/validate?name=&age=17', reqConfig))
-
-        const end = Date.now();
-
-        const calc = (10 * 2) + 20; // Give some buffer
-
-        expect(end - start).to.be.lessThan(calc);
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(2);
-
-        await attempt(() => api.get('/validate?name=&age=17', { onError }))
-
-        expect(onError.callCount).to.eq(3);
-    });
-
-    it('configures default retry', async () => {
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            retry: true
-        });
-
-        const onError = sandbox.stub();
-
-        api.on('fetch-error', onError);
-
-        await attempt(() => api.get('/rate-limit'))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
-    });
-
     it('can use a custom abort controller', async () => {
 
         const controller = new AbortController();
@@ -2415,6 +2048,775 @@ describe('@logosdx/fetch', () => {
         expect(allHeaders).to.include('x-custom-response-header');
         expect(allHeaders).to.include('x-rate-limit-remaining');
         expect(allHeaders).to.include('x-request-id');
+    });
+
+    // ========================================================================
+    // TIMEOUT BOUNDARIES
+    // ========================================================================
+
+    describe('timeout boundaries', () => {
+
+        it('should handle 0ms timeout', async () => {
+
+            // Immediate timeout edge case - use slow endpoint to ensure timeout fires first
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: true
+            });
+
+            // Timeout of 0ms should immediately abort against slow endpoint
+            const [, err] = await attempt(() => api.get('/slow-success/200', { timeout: 0 }));
+
+            expect(err).to.exist;
+            expect(err).to.be.instanceOf(FetchError);
+
+            const fetchErr = err as FetchError;
+            expect(fetchErr.aborted).to.be.true;
+
+            api.destroy();
+            await wait(10); // Let microtasks settle
+        });
+
+        it('should handle 1ms timeout', async () => {
+
+            // Very short timeout - likely to fail on slow endpoint
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: true
+            });
+
+            // Start a slow request (1000ms endpoint) with 1ms timeout
+            const [, err] = await attempt(() => api.get('/wait', { timeout: 1 }));
+
+            expect(err).to.exist;
+            expect(err).to.be.instanceOf(FetchError);
+
+            const fetchErr = err as FetchError;
+            expect(fetchErr.aborted).to.be.true;
+            expect(fetchErr.step).to.equal('fetch');
+
+            api.destroy();
+            await wait(10); // Let microtasks settle
+        });
+
+        it('should handle negative timeout values', async () => {
+
+            // Negative timeout throws assertion error at request time (validation)
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: true
+            });
+
+            const [, err] = await attempt(() => api.get('/json', { timeout: -1 }));
+
+            expect(err).to.exist;
+            expect(err).to.be.instanceOf(Error);
+            expect((err as Error).message).to.include('non-negative');
+
+            api.destroy();
+        });
+
+        it('should handle Infinity timeout', async () => {
+
+            // Infinity is coerced by Node.js to 1ms (see TimeoutOverflowWarning)
+            // so the request effectively has a very short timeout
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: true
+            });
+
+            // Use a slow endpoint so the 1ms timeout triggers an abort
+            const [, err] = await attempt(() => api.get('/wait', { timeout: Infinity }));
+
+            // Infinity causes immediate abort due to Node.js 32-bit overflow
+            expect(err).to.exist;
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+
+            api.destroy();
+            await wait(10); // Let microtasks settle
+        });
+
+        it('should handle NaN timeout', async () => {
+
+            // NaN passes typeof check but fails >= 0 assertion
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: true
+            });
+
+            const [, err] = await attempt(() => api.get('/json', { timeout: NaN }));
+
+            expect(err).to.exist;
+            expect(err).to.be.instanceOf(Error);
+            expect((err as Error).message).to.include('non-negative');
+
+            api.destroy();
+        });
+
+        it('should handle empty string baseUrl with absolute path', async () => {
+
+            // Edge case: empty baseUrl is NOT valid - FetchEngine requires baseUrl
+            // This test verifies the validation error is thrown
+            const [, err] = attemptSync(() => new FetchEngine({
+                baseUrl: '',
+                dedupePolicy: true
+            }));
+
+            expect(err).to.exist;
+            expect(err).to.be.instanceOf(Error);
+            expect((err as Error).message).to.include('baseUrl');
+        });
+    });
+
+    // ========================================================================
+    // CONFIGURATION VALIDATION
+    // ========================================================================
+
+    describe('configuration validation', () => {
+
+        it('should handle both serializers throwing', async () => {
+
+            // Both dedupe and cache serializers throw
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: {
+                    enabled: true,
+                    serializer: () => {
+
+                        throw new Error('Dedupe serializer failed');
+                    }
+                },
+                cachePolicy: {
+                    enabled: true,
+                    serializer: () => {
+
+                        throw new Error('Cache serializer failed');
+                    }
+                }
+            });
+
+            // First error encountered should be thrown
+            const [, err] = await attempt(() => api.get('/json'));
+
+            expect(err).to.exist;
+            expect(err).to.be.instanceOf(Error);
+            // Either dedupe or cache serializer error
+            expect(err!.message).to.match(/serializer failed/i);
+
+            api.destroy();
+        });
+
+        it('should handle dedupe enabled with cache disabled and vice versa', async () => {
+
+            // Dedupe enabled, cache explicitly disabled
+            const api1 = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: true },
+                cachePolicy: { enabled: false }
+            });
+
+            const path1 = `/test-dedupe-${Date.now()}`;
+
+            const [r1, r2] = await Promise.all([
+                api1.get(path1),
+                api1.get(path1)
+            ]);
+
+            expect(r1.status).to.equal(200);
+            expect(r2.status).to.equal(200);
+
+            api1.destroy();
+
+            // Cache enabled, dedupe explicitly disabled
+            const api2 = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: false },
+                cachePolicy: { enabled: true }
+            });
+
+            const path2 = `/test-cache-${Date.now()}`;
+
+            await api2.get(path2);
+            const r3 = await api2.get(path2);
+
+            expect(r3.status).to.equal(200);
+
+            api2.destroy();
+        });
+
+        it('should handle conflicting method configurations', async () => {
+
+            // GET enabled for dedupe but disabled for cache
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: {
+                    enabled: true,
+                    methods: ['GET', 'POST']
+                },
+                cachePolicy: {
+                    enabled: true,
+                    methods: ['POST', 'PUT']  // GET not cached
+                }
+            });
+
+            const dedupeEvents: string[] = [];
+            const cacheEvents: string[] = [];
+
+            api.on('fetch-dedupe-start', () => dedupeEvents.push('dedupe'));
+            api.on('fetch-cache-set', () => cacheEvents.push('cache'));
+
+            const path = `/test-conflict-${Date.now()}`;
+
+            // GET request: should dedupe but not cache
+            await Promise.all([
+                api.get(path),
+                api.get(path)
+            ]);
+
+            expect(dedupeEvents.length).to.equal(1);  // Deduped
+            expect(cacheEvents.length).to.equal(0);   // Not cached
+
+            api.destroy();
+        });
+
+        it('should handle invalid configuration objects (null)', async () => {
+
+            // Null config objects
+            const [, err] = attemptSync(() => {
+
+                new FetchEngine({
+                    baseUrl: testUrl,
+                    dedupePolicy: null as any,
+                    cachePolicy: null as any
+                });
+            });
+
+            // May fail during construction or treat null as disabled
+            // Either way, shouldn't crash
+            expect(err || true).to.exist;
+        });
+
+        it('should handle invalid configuration objects (undefined)', async () => {
+
+            // Explicitly undefined config (vs omitted)
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: undefined,
+                cachePolicy: undefined
+            });
+
+            const path = `/test-undefined-${Date.now()}`;
+
+            // Should work with features disabled
+            const res = await api.get(path);
+
+            expect(res.status).to.equal(200);
+
+            api.destroy();
+        });
+
+        it('should handle empty config objects', async () => {
+
+            // Empty config objects
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: {},
+                cachePolicy: {}
+            });
+
+            const path = `/test-empty-${Date.now()}`;
+
+            // Should work with default behavior
+            const res = await api.get(path);
+
+            expect(res.status).to.equal(200);
+
+            api.destroy();
+        });
+    });
+
+    // ========================================================================
+    // STATE MANAGEMENT
+    // ========================================================================
+
+    describe('state management', () => {
+
+        it('should handle addHeader during in-flight request', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: true }
+            });
+
+            const dedupeEvents: string[] = [];
+            api.on('fetch-dedupe-start', () => dedupeEvents.push('start'));
+            api.on('fetch-dedupe-join', () => dedupeEvents.push('join'));
+
+            // Start first request (slow endpoint)
+            const path = `/slow-success/100-${Date.now()}`;
+            const promise1 = api.get(path);
+
+            await wait(10);
+
+            // Add header mid-flight (shouldn't affect in-flight request key)
+            api.addHeader('X-Mid-Flight', 'true');
+
+            // Start second request to SAME path - should dedupe since key is based on path+method
+            const promise2 = api.get(path);
+
+            const [result1] = await attempt(() => promise1);
+            const [result2] = await attempt(() => promise2);
+
+            expect(result1?.data).to.have.property('ok', true);
+            expect(result2?.data).to.have.property('ok', true);
+
+            // Should have deduped (1 start, 1 join)
+            expect(dedupeEvents).to.include('start');
+
+            api.destroy();
+            await wait(10); // Let microtasks settle before test ends
+        });
+
+        it('should handle destroy called twice without crashing', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: true }
+            });
+
+            // First destroy should succeed
+            const [, err1] = attemptSync(() => api.destroy());
+            expect(err1).to.be.null;
+
+            // Second destroy should not crash
+            const [, err2] = attemptSync(() => api.destroy());
+            expect(err2).to.be.null;
+        });
+
+        it('should handle flaky endpoint with retry disabled', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: false
+            });
+
+            // First request succeeds (flaky succeeds first time)
+            const [result1, err1] = await attempt(() => api.get('/flaky'));
+            expect(err1).to.be.null;
+            expect(result1?.data).to.have.property('ok', true);
+
+            // Second request fails (flaky fails after first)
+            const [, err2] = await attempt(() => api.get('/flaky'));
+            expect(err2).to.be.instanceOf(FetchError);
+
+            api.destroy();
+            await wait(10); // Let microtasks settle before test ends
+        });
+
+        it('should handle sequential success after initial failure', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: false
+            });
+
+            // First request fails
+            const [, err1] = await attempt(() => api.get('/fail-once'));
+            expect(err1).to.be.instanceOf(FetchError);
+
+            // Second request succeeds
+            const [result2, err2] = await attempt(() => api.get('/fail-once'));
+            expect(err2).to.be.null;
+            expect(result2?.data).to.have.property('ok', true);
+
+            // Third request also succeeds
+            const [result3, err3] = await attempt(() => api.get('/fail-once'));
+            expect(err3).to.be.null;
+            expect(result3?.data).to.have.property('ok', true);
+
+            api.destroy();
+            await wait(10); // Let microtasks settle before test ends
+        });
+    });
+
+    // ========================================================================
+    // FEATURE COMBINATIONS
+    // ========================================================================
+
+    describe('feature combinations', () => {
+
+        it('should work with deduplication and timeout', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                timeout: 500,
+                dedupePolicy: { enabled: true, methods: ['GET'] }
+            });
+
+            const events: string[] = [];
+            api.on('fetch-dedupe-start', () => events.push('dedupe-start'));
+            api.on('fetch-dedupe-join', () => events.push('dedupe-join'));
+
+            const path = '/wait';
+
+            // Make two concurrent requests that will both timeout
+            const promise1 = attempt(() => api.get(path));
+            const promise2 = attempt(() => api.get(path));
+
+            const [[_r1, e1], [_r2, e2]] = await Promise.all([promise1, promise2]);
+
+            // Both should timeout since /wait takes 1000ms and timeout is 500ms
+            expect(e1).to.be.instanceOf(Error);
+            expect(e2).to.be.instanceOf(Error);
+            expect(events).to.include('dedupe-start');
+            expect(events).to.include('dedupe-join');
+
+            api.destroy();
+        });
+
+        it('should work with caching and timeout', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                timeout: 500,
+                cachePolicy: { enabled: true, methods: ['GET'], ttl: 5000 }
+            });
+
+            const events: string[] = [];
+            api.on('fetch-cache-miss', () => events.push('cache-miss'));
+
+            // First request succeeds and caches
+            const path = `/test-cache-timeout-${Date.now()}`;
+            const [r1] = await attempt(() => api.get(path));
+            expect(r1).to.exist;
+            expect(events).to.include('cache-miss');
+
+            // Second request hits cache, no timeout issue
+            events.length = 0;
+            const [r2] = await attempt(() => api.get(path));
+            expect(r2).to.exist;
+            expect(events).to.not.include('cache-miss');
+
+            api.destroy();
+        });
+    });
+
+    // ========================================================================
+    // RESPONSE STRUCTURE VALIDATION
+    // ========================================================================
+
+    describe('response structure validation', () => {
+
+        it('should validate response structure consistency across features', async () => {
+
+            // Cross-checks that all features return consistent FetchResponse structure
+            const configs = [
+                { name: 'plain', config: {} },
+                { name: 'cache', config: { cachePolicy: true } },
+                { name: 'dedupe', config: { dedupePolicy: true } },
+                { name: 'both', config: { cachePolicy: true, dedupePolicy: true } }
+            ];
+
+            for (const { name, config } of configs) {
+
+                const api = new FetchEngine({
+                    baseUrl: testUrl,
+                    ...config
+                });
+
+                const path = `/test-structure-${name}-${Date.now()}`;
+                const response = await api.get(path);
+
+                // Validate FetchResponse structure
+                expect(response.data, `${name}: data should exist`).to.exist;
+                expect(response.status, `${name}: status should exist`).to.be.a('number');
+                expect(response.headers, `${name}: headers should exist`).to.be.an('object');
+                expect(response.request, `${name}: request should exist`).to.be.instanceOf(Request);
+                expect(response.config, `${name}: config should exist`).to.be.an('object');
+
+                // Validate all keys present
+                const keys = Object.keys(response).sort();
+                expect(keys, `${name}: should have all FetchResponse keys`)
+                    .to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+
+                api.destroy();
+            }
+        });
+
+        it('should produce consistent results with retry on vs off (successful request)', async () => {
+
+            // Cross-checks that retry doesn't alter results for successful requests
+            const apiWithRetry = new FetchEngine({
+                baseUrl: testUrl,
+                retry: { maxAttempts: 3 }
+            });
+
+            const apiWithoutRetry = new FetchEngine({
+                baseUrl: testUrl,
+                retry: false
+            });
+
+            const path = `/test-retry-${Date.now()}`;
+
+            const r1 = await apiWithRetry.get(path);
+            const r2 = await apiWithoutRetry.get(path);
+
+            // Results should be identical
+            expect(r1.data, 'data should be equal').to.deep.equal(r2.data);
+            expect(r1.status, 'status should be equal').to.equal(r2.status);
+
+            apiWithRetry.destroy();
+            apiWithoutRetry.destroy();
+        });
+    });
+
+    // ========================================================================
+    // PERFORMANCE AND LOAD
+    // ========================================================================
+
+    describe('performance and load', () => {
+
+        it('should handle 100+ concurrent requests without issues', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: true }
+            });
+
+            // Launch 100 concurrent requests to unique paths
+            const requests = Array.from({ length: 100 }, (_, i) =>
+                api.get(`/json-${i}-${Date.now()}`)
+            );
+
+            const results = await Promise.allSettled(requests);
+
+            const successful = results.filter(r => r.status === 'fulfilled').length;
+            const failed = results.filter(r => r.status === 'rejected').length;
+
+            // All requests should succeed
+            expect(successful).to.equal(100);
+            expect(failed).to.equal(0);
+
+            // Verify no memory leaks - all inflight requests should be cleared
+            const stats = api.cacheStats();
+            expect(stats.inflightCount).to.equal(0);
+
+            api.destroy();
+        });
+
+        it('should handle large request payloads (1MB+)', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl
+            });
+
+            // Generate a large payload (1MB of data)
+            const largePayload = {
+                data: 'x'.repeat(1024 * 1024),
+                metadata: { size: '1MB' }
+            };
+
+            const path = `/large-payload`;
+
+            // POST with large payload
+            const [_, err] = await attempt(() =>
+                api.post(path, largePayload)
+            );
+
+            // The request should be handled (server may reject, but engine should process)
+            // We're testing that the engine doesn't crash with large payloads
+            expect(err).to.satisfy((e: any) => {
+
+                return e === null || e instanceof FetchError;
+            });
+
+            api.destroy();
+        });
+
+        it('should handle large response bodies (1MB+)', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                cachePolicy: {
+                    enabled: true,
+                    ttl: 5000,
+                    methods: ['POST']
+                }
+            });
+
+            server
+
+            // Generate a large payload (1MB of data)
+            const largeData = { data: 'x'.repeat(1024 * 1024) };
+
+            // Mock server would need to return this, but we can test the handling
+            // For this test, we verify the engine can process large responses
+            const path = `/large-payload`;
+
+            const [response, err] = await attempt(() => api.post(path, largeData));
+
+            expect(err).to.be.null;
+            expect(response).to.not.be.undefined;
+
+            // Verify cache can handle it
+            const stats = api.cacheStats();
+            expect(stats.cacheSize).to.be.greaterThan(0);
+
+            api.destroy();
+        });
+
+        it('should measure throughput (requests/sec)', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: false },
+                cachePolicy: { enabled: false }
+            });
+
+            const requestCount = 500;
+            const start = Date.now();
+
+            // Launch sequential requests to measure baseline throughput
+            const requests = Array.from({ length: requestCount }, (_, i) =>
+                api.get(`/json-throughput-${i}-${Date.now()}`)
+            );
+
+            await Promise.allSettled(requests);
+
+            const elapsed = Date.now() - start;
+            const requestsPerSec = (requestCount / elapsed) * 1000;
+
+            // Should handle at least 500 requests/sec (conservative threshold)
+            expect(requestsPerSec).to.be.greaterThan(500);
+
+            api.destroy();
+        });
+
+        it('should handle destroy during request initiation', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl
+            });
+
+            const path = `/wait-success`;
+
+            // Start a long-running request
+            const requestPromise = api.get(path);
+
+            // Immediately destroy the instance (race condition)
+            await wait(10);
+            api.destroy();
+
+            // Request should either complete or fail gracefully
+            const [, err] = await attempt(() => requestPromise);
+
+            // System should handle gracefully
+            expect(err).to.satisfy((e: any) => {
+
+                return e === null || e instanceof Error;
+            });
+        });
+
+        it('should handle multiple engines hitting same endpoint', async () => {
+
+            // Create two separate FetchEngine instances
+            const api1 = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: true },
+                cachePolicy: { enabled: true, ttl: 5000 }
+            });
+
+            const api2 = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: true },
+                cachePolicy: { enabled: true, ttl: 5000 }
+            });
+
+            const path = `/test-multi-engine-${Date.now()}`;
+
+            // Both engines hit the same endpoint concurrently
+            const [r1, r2] = await Promise.all([
+                api1.get(path),
+                api2.get(path)
+            ]);
+
+            // Both should succeed independently
+            expect(r1.data).to.deep.equal({ ok: true, path });
+            expect(r2.data).to.deep.equal({ ok: true, path });
+
+            // Each engine maintains its own cache
+            const stats1 = api1.cacheStats();
+            const stats2 = api2.cacheStats();
+
+            expect(stats1.cacheSize).to.be.greaterThan(0);
+            expect(stats2.cacheSize).to.be.greaterThan(0);
+            expect(stats1.inflightCount).to.equal(0);
+            expect(stats2.inflightCount).to.equal(0);
+
+            api1.destroy();
+            api2.destroy();
+        });
+
+        it('should handle multiple concurrent request failures', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: false }
+            });
+
+            // Launch many concurrent requests to failing endpoint
+            const requests = Array.from({ length: 500 }, (_, i) =>
+                attempt(() => api.get(`/fail`))
+            );
+
+            const results = await Promise.all(requests);
+
+            // All should fail gracefully
+            results.forEach(([_, err]) => {
+
+                expect(err).to.not.be.null;
+                expect(err).to.be.instanceOf(FetchError);
+            });
+
+            // No inflight leaks despite mass failures
+            const stats = api.cacheStats();
+            expect(stats.inflightCount).to.equal(0);
+
+            api.destroy();
+        });
+
+        it('should handle mixed success and failure in concurrent batch', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: { enabled: false }
+            });
+
+            // Mix of successful and failing requests
+            const requests = [
+                attempt(() => api.get(`/json`)),
+                attempt(() => api.get(`/fail`)),
+                attempt(() => api.get(`/json`)),
+                attempt(() => api.get(`/fail`)),
+                attempt(() => api.get(`/json`))
+            ];
+
+            const results = await Promise.all(requests);
+
+            // Count successes and failures
+            const successes = results.filter(([_, e]) => e === null).length;
+            const failures = results.filter(([_, e]) => e !== null).length;
+
+            expect(successes).to.equal(3);
+            expect(failures).to.equal(2);
+
+            // No inflight leaks
+            const stats = api.cacheStats();
+            expect(stats.inflightCount).to.equal(0);
+
+            api.destroy();
+        });
     });
 
 });

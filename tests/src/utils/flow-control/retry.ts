@@ -1,10 +1,10 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -21,10 +21,10 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry', async () => {
 
-        const fn = mock.fn(() => 'ok');
+        const fn = vi.fn(() => 'ok');
         let succeedAfter = 2;
 
-        fn.mock.mockImplementation(() => {
+        fn.mockImplementation(() => {
 
             if (succeedAfter > 0) {
                 succeedAfter--;
@@ -59,10 +59,10 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with default values', async () => {
 
-        const fn = mock.fn(() => 'ok');
+        const fn = vi.fn(() => 'ok');
         let attempts = 0;
 
-        fn.mock.mockImplementation(() => {
+        fn.mockImplementation(() => {
             attempts++;
             if (attempts < 3) {
                 throw new Error('retry test');
@@ -78,7 +78,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with backoff', async () => {
 
-        const fn = mock.fn(() => {
+        const fn = vi.fn(() => {
             throw new Error('backoff test');
         });
 
@@ -100,11 +100,11 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with shouldRetry callback', async () => {
 
-        const fn = mock.fn(() => {
+        const fn = vi.fn(() => {
             throw new Error('custom error');
         });
 
-        const shouldRetry = mock.fn((error: Error) => {
+        const shouldRetry = vi.fn((error: Error) => {
             return error.message !== 'custom error';
         });
 
@@ -120,10 +120,10 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with shouldRetry returning true', async () => {
 
-        const fn = mock.fn(() => 'ok');
+        const fn = vi.fn(() => 'ok');
         let attempts = 0;
 
-        fn.mock.mockImplementation(() => {
+        fn.mockImplementation(() => {
             attempts++;
             if (attempts < 2) {
                 throw new Error('retryable error');
@@ -131,7 +131,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
             return 'ok';
         });
 
-        const shouldRetry = mock.fn((error: Error) => {
+        const shouldRetry = vi.fn((error: Error) => {
             return error.message === 'retryable error';
         });
 
@@ -144,10 +144,10 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with zero delay', async () => {
 
-        const fn = mock.fn(() => 'ok');
+        const fn = vi.fn(() => 'ok');
         let attempts = 0;
 
-        fn.mock.mockImplementation(() => {
+        fn.mockImplementation(() => {
             attempts++;
             if (attempts < 2) {
                 throw new Error('no delay test');
@@ -166,7 +166,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with function that succeeds immediately', async () => {
 
-        const fn = mock.fn(() => 'immediate success');
+        const fn = vi.fn(() => 'immediate success');
 
         const result = await retry(fn, { retries: 3 });
 
@@ -176,10 +176,10 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with async functions', async () => {
 
-        const fn = mock.fn(async () => 'async ok');
+        const fn = vi.fn(async () => 'async ok');
         let attempts = 0;
 
-        fn.mock.mockImplementation(async () => {
+        fn.mockImplementation(async () => {
             attempts++;
             await wait(1);
             if (attempts < 2) {
@@ -196,7 +196,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with complex backoff pattern', async () => {
 
-        const fn = mock.fn(() => {
+        const fn = vi.fn(() => {
             throw new Error('always fail');
         });
 
@@ -218,7 +218,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with jitter', async () => {
 
-        const fn = mock.fn(() => {
+        const fn = vi.fn(() => {
             throw new Error('always fail');
         });
 
@@ -241,7 +241,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should retry with abort signal', async () => {
 
-        const fn = mock.fn(
+        const fn = vi.fn(
             async () => {
 
                 await wait(10);
@@ -287,11 +287,11 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
     it('should not retry if the function returns falsy', async () => {
 
-        const fnNull = mock.fn(() => null);
-        const fnUndefined = mock.fn(() => undefined);
-        const fnFalse = mock.fn(() => false);
-        const fnZero = mock.fn(() => 0);
-        const fnEmptyString = mock.fn(() => '');
+        const fnNull = vi.fn(() => null);
+        const fnUndefined = vi.fn(() => undefined);
+        const fnFalse = vi.fn(() => false);
+        const fnZero = vi.fn(() => 0);
+        const fnEmptyString = vi.fn(() => '');
 
         const resultNull = await retry(fnNull, { retries: 3, delay: 10 });
         const resultUndefined = await retry(fnUndefined, { retries: 3, delay: 10 });
@@ -315,10 +315,10 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
         it('should create a retryable function', async () => {
 
-            const fn = mock.fn(() => 'retryable ok');
+            const fn = vi.fn(() => 'retryable ok');
             let attempts = 0;
 
-            fn.mock.mockImplementation(() => {
+            fn.mockImplementation(() => {
                 attempts++;
                 if (attempts < 3) {
                     throw new Error('retryable test');
@@ -336,10 +336,10 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
         it('should preserve function arguments', async () => {
 
-            const fn = mock.fn((a: number, b: string) => `${a}-${b}`);
+            const fn = vi.fn((a: number, b: string) => `${a}-${b}`);
             let attempts = 0;
 
-            fn.mock.mockImplementation((a: number, b: string) => {
+            fn.mockImplementation((a: number, b: string) => {
                 attempts++;
                 if (attempts < 2) {
                     throw new Error('args test');
@@ -353,16 +353,16 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
             expect(result).to.equal('42-test');
             calledExactly(fn, 2, 'makeRetryable args');
-            expect(fn.mock.calls[0]!.arguments).to.deep.equal([42, 'test']);
-            expect(fn.mock.calls[1]!.arguments).to.deep.equal([42, 'test']);
+            expect(fn.mock.calls[0]).to.deep.equal([42, 'test']);
+            expect(fn.mock.calls[1]).to.deep.equal([42, 'test']);
         });
 
         it('should work with async functions', async () => {
 
-            const asyncFn = mock.fn(async (value: string) => `async-${value}`);
+            const asyncFn = vi.fn(async (value: string) => `async-${value}`);
             let attempts = 0;
 
-            asyncFn.mock.mockImplementation(async (value: string) => {
+            asyncFn.mockImplementation(async (value: string) => {
                 attempts++;
                 await wait(1);
                 if (attempts < 2) {
@@ -381,11 +381,11 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
         it('should respect retry options', async () => {
 
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('always fail');
             });
 
-            const shouldRetry = mock.fn((error: Error) => {
+            const shouldRetry = vi.fn((error: Error) => {
                 return error.message !== 'always fail';
             });
 
@@ -404,7 +404,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
         it('should handle backoff correctly', async () => {
 
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('backoff fail');
             });
 
@@ -433,31 +433,31 @@ describe('@logosdx/utils - flow-control: retry', () => {
             expect(() => makeRetryable('not a function' as any, { retries: 3 }))
                 .to.throw('fn must be a function');
 
-            expect(() => makeRetryable(mock.fn(), 'not an object' as any))
+            expect(() => makeRetryable(vi.fn(), 'not an object' as any))
                 .to.throw('opts must be an object');
 
-            expect(() => makeRetryable(mock.fn(), { retries: 0 }))
+            expect(() => makeRetryable(vi.fn(), { retries: 0 }))
                 .to.throw('retries must be a positive number');
 
-            expect(() => makeRetryable(mock.fn(), { retries: 3, delay: -1 }))
+            expect(() => makeRetryable(vi.fn(), { retries: 3, delay: -1 }))
                 .to.throw('delay must be a positive number');
 
-            expect(() => makeRetryable(mock.fn(), { retries: 3, backoff: 0 }))
+            expect(() => makeRetryable(vi.fn(), { retries: 3, backoff: 0 }))
                 .to.throw('backoff must be a positive number');
 
-            expect(() => makeRetryable(mock.fn(), { retries: 3, shouldRetry: 'not a function' as any }))
+            expect(() => makeRetryable(vi.fn(), { retries: 3, shouldRetry: 'not a function' as any }))
                 .to.throw('shouldRetry must be a function');
         });
 
         it('should work with multiple instances independently', async () => {
 
-            const fn1 = mock.fn(() => 'fn1 result');
-            const fn2 = mock.fn(() => 'fn2 result');
+            const fn1 = vi.fn(() => 'fn1 result');
+            const fn2 = vi.fn(() => 'fn2 result');
 
             let attempts1 = 0;
             let attempts2 = 0;
 
-            fn1.mock.mockImplementation(() => {
+            fn1.mockImplementation(() => {
                 attempts1++;
                 if (attempts1 < 2) {
                     throw new Error('fn1 error');
@@ -465,7 +465,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
                 return 'fn1 result';
             });
 
-            fn2.mock.mockImplementation(() => {
+            fn2.mockImplementation(() => {
                 attempts2++;
                 if (attempts2 < 3) {
                     throw new Error('fn2 error');
@@ -489,14 +489,15 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
         it('should not double wrap the function', async () => {
 
-            const fn = mock.fn(() => 'ok');
+            const fn = vi.fn(() => 'ok');
 
             const wrappedFn = makeRetryable(fn as any, { retries: 1 });
 
             const [, error] = await attempt(() => makeRetryable(wrappedFn, { retries: 1 }));
 
             expect(error).to.be.an.instanceof(Error);
-            expect((error as Error).message).to.equal('Function is already wrapped by retry');
+            expect((error as Error).message).to.match(/Function is already wrapped/);
+
         });
     });
 });

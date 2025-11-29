@@ -1,7 +1,9 @@
 import { readdirSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import Sinon from 'sinon';
-import { Mock, mock } from 'node:test';
+import { Mock, vi } from 'vitest';
+import { Func } from '../../packages/utils/src';
+
 
 const globalConsole = globalThis.console;
 const globalLog = console.log;
@@ -57,29 +59,36 @@ export const teardown = () => {
 
 export const importTestFiles = async (
     from: string,
-    args: string[]
+    __args: string[]
 ) => {
 
     const dirResults = readdirSync(
         from
-    );
+    )
+        .map(f => f.trim())
+        .map(f => join(from, f))
 
-    const files = dirResults.filter((f) => statSync(join(from, f)).isFile());
-    const folders = dirResults.filter((f) => statSync(join(from, f)).isDirectory());
+    const _args = __args.map(a => a.trim());
+    const args = _args.filter(a => a.includes('--') === false);
 
-    const inArgs = (file: string) => (
-        args.length === 0 ||
-        args.includes(
-            basename(file, '.ts')
-        ) ||
-        args.some(
-            (arg) => join(from, file).includes(arg)
-        )
-    );
+    const files = dirResults.filter((f) => statSync(f).isFile());
+    const folders = dirResults.filter((f) => statSync(f).isDirectory());
+
+    const inArgs = (file: string) => {
+        if (args.length === 0) return true;
+        if (args.includes(basename(file, '.ts'))) return true;
+        if (args.some((arg) => join(from, file).includes(arg))) return true;
+
+        const matches = args.length > 1
+            ? (new RegExp(`(${args.join('|')})`))
+            : (new RegExp(args[0]!))
+
+        return matches.test(file);
+    };
 
     const importable = files.filter(
         (file) => (
-            statSync(join(from, file)).isFile() &&
+            statSync(file).isFile() &&
             file.endsWith('.ts') &&
             !file.endsWith('.d.ts') &&
             !file.startsWith('index') &&
@@ -93,34 +102,32 @@ export const importTestFiles = async (
         if (folder.includes('experiments')) continue;
 
         await importTestFiles(
-            join(from, folder),
+            folder,
             args
         );
     }
 
     for (const file of importable) {
 
-        await import(
-            join(from, file)
-        );
+        await import(file);
     }
 }
 
 export const mockHelpers = (expect: Chai.ExpectStatic) => {
 
-    const calledExactly = (mock: Mock<any>, n: number, desc?: string) => {
+    const calledExactly = (mock: Mock<Func>, n: number, desc?: string) => {
 
-        expect(mock.mock.callCount(), desc).to.equal(n);
+        expect(mock.mock.calls.length, desc).to.equal(n);
     }
 
-    const calledMoreThan = (mock: Mock<any>, n: number, desc?: string) => {
+    const calledMoreThan = (mock: Mock<Func>, n: number, desc?: string) => {
 
-        expect(mock.mock.callCount(), desc).to.be.greaterThan(n);
+        expect(mock.mock.calls.length, desc).to.be.greaterThan(n);
     }
 
-    const calledAtLeast = (mock: Mock<any>, n: number, desc?: string) => {
+    const calledAtLeast = (mock: Mock<Func>, n: number, desc?: string) => {
 
-        expect(mock.mock.callCount(), desc).to.be.at.least(n);
+        expect(mock.mock.calls.length, desc).to.be.at.least(n);
     }
 
     return {
@@ -147,7 +154,7 @@ export const runTimers = async (tickTime: number | number[] = 0, nTimes = 1) => 
             for (const t of tickTime) {
 
                 if (t > 0) {
-                    mock.timers.tick(t);
+                    vi.advanceTimersByTime(t);
                     await nextTick();
                 }
             }
@@ -156,9 +163,10 @@ export const runTimers = async (tickTime: number | number[] = 0, nTimes = 1) => 
         }
 
         if (tickTime > 0) {
-            mock.timers.tick(tickTime);
+            vi.advanceTimersByTime(tickTime);
         }
 
         await nextTick();
     }
 }
+

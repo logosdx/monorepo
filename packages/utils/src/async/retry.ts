@@ -1,4 +1,5 @@
 import { wait } from '../flow-control/misc.ts';
+import { markWrapped, assertNotWrapped } from '../_helpers.ts';
 import { attempt } from './attempt.ts';
 import {
     assert,
@@ -6,8 +7,8 @@ import {
     assertOptional,
     isPlainObject,
 } from '../validation/index.ts';
+import { Func } from '../types.ts';
 
-import { AnyFunc, assertNotWrapped, markWrapped } from '../flow-control/_helpers.ts';
 
 /**
  * Error thrown when the maximum number of retries is reached.
@@ -126,7 +127,7 @@ const validateOpts = (opts: RetryOptions) => {
  * const data = await fetchData();
  *
  */
-export const retry = async <T extends AnyFunc>(
+export const retry = async <T extends Func>(
     fn: T,
     opts: RetryOptions
 ): Promise<ReturnType<T>> => {
@@ -180,13 +181,12 @@ export const retry = async <T extends AnyFunc>(
  * @param opts options
  * @returns retryable function
  */
-export const makeRetryable = <T extends AnyFunc>(
+export const makeRetryable = <T extends Func>(
     fn: T,
     opts: RetryOptions
 ) => {
 
     assert(isFunction(fn), 'fn must be a function');
-    assertNotWrapped(fn, 'retry');
     validateOpts(opts);
 
     const retryableFunction = function(...args: Parameters<T>) {
@@ -194,7 +194,9 @@ export const makeRetryable = <T extends AnyFunc>(
         return retry(fn.bind(fn, ...args), opts)
     } as T;
 
-    markWrapped(retryableFunction, 'retry');
+    markWrapped(fn, retryableFunction, 'retry');
 
     return retryableFunction;
 }
+
+

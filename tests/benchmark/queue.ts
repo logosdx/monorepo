@@ -1,6 +1,5 @@
-import { describe, it, after, afterEach } from 'node:test'
+import { describe, it, after, afterEach, expect } from 'vitest'
 
-import { expect } from 'chai';
 
 import { attempt, throttle } from '../../packages/utils/src/index.ts';
 import { ObserverEngine, EventQueue } from '../../packages/observer/src/index.ts';
@@ -18,7 +17,7 @@ describe('Queue: stress and memory leak tests', async () => {
         return queue
     }
 
-    after(() => {
+    afterAll(() => {
 
         for (const queue of _queues) {
 

@@ -5,9 +5,6 @@
   "scripts": {
     "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
     "test": "cd tests; pnpm run test",
-    "test:only": "cd tests; pnpm run test:only",
-    "tdd": "cd tests; pnpm run tdd $@",
-    "tdd:only": "cd tests; pnpm run tdd:only $@",
     "test:coverage": "cd tests; pnpm run test:coverage",
     "clear": "rm -r packages/*/dist packages/*/node_modules tests/node_modules node_modules;",
     "new": "sh ./scripts/new-pkg.zsh",
@@ -23,8 +20,7 @@
     "@changesets/cli": "^2.29.4",
     "@swc/cli": "^0.7.7",
     "@swc/core": "^1.11.29",
-    "@types/node": "^22.15.21",
-    "tslib": "^2.8.1",
+    "@types/node": "^24.10.1",
     "tsx": "^4.19.4",
     "typedoc": "^0.28.4",
     "typescript": "^5.8.2"
@@ -57,7 +53,7 @@
     "type-coverage": "^2.29.7",
     "typedoc-plugin-mdn-links": "^5.0.3",
     "typedoc-plugin-missing-exports": "^4.0.0",
-    "vite": "^6.3.5",
-    "vitepress": "2.0.0-alpha.9"
+    "vite": "^7",
+    "vitepress": "2.0.0-alpha.15"
   }
 }

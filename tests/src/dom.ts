@@ -1,6 +1,5 @@
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import { describe, it, beforeAll, beforeEach, afterAll, afterEach, expect } from 'vitest'
 
-import { expect } from 'chai';
 import Sinon from 'sinon';
 
 import * as Lib from '../../packages/dom/src/index.ts';
@@ -235,12 +234,12 @@ describe('@logosdx/dom', () => {
 
             const originalScrollTo = window.scrollTo;
 
-            before(function () {
+            beforeAll(function () {
 
                 window.scrollTo = fakeScrollTo as any;
             });
 
-            after(function () {
+            afterAll(function () {
 
                 window.scrollTo = originalScrollTo;
             });
@@ -684,7 +683,7 @@ describe('@logosdx/dom', () => {
 
         let testContainer: HTMLDivElement;
 
-        before(function () {
+        beforeAll(function () {
             testContainer = document.createElement('div');
             testContainer.className = 'test-container';
 
@@ -697,7 +696,7 @@ describe('@logosdx/dom', () => {
             document.body.appendChild(testContainer);
         });
 
-        after(function () {
+        afterAll(function () {
             if (testContainer && testContainer.parentNode) {
                 testContainer.parentNode.removeChild(testContainer);
             }

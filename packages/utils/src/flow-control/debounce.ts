@@ -1,12 +1,13 @@
 import { assert, isFunction, isPlainObject } from '../index.ts';
-import { type AnyFunc, markWrapped, assertNotWrapped } from './_helpers.ts';
+import { markWrapped } from '../_helpers.ts';
+import { Func } from '../types.ts';
 
 export interface DebounceOptions {
     delay: number;
     maxWait?: number;
 }
 
-export interface DebouncedFunction<T extends AnyFunc> {
+export interface DebouncedFunction<T extends Func> {
     (...args: Parameters<T>): void;
     flush(): ReturnType<T> | undefined;
     cancel(): void;
@@ -33,7 +34,7 @@ export interface DebouncedFunction<T extends AnyFunc> {
  * const result = debouncedFn.flush(); // execute immediately
  * debouncedFn.cancel(); // prevent execution
  */
-export const debounce = <T extends AnyFunc>(fn: T, opts: DebounceOptions): DebouncedFunction<T> => {
+export const debounce = <T extends Func>(fn: T, opts: DebounceOptions): DebouncedFunction<T> => {
 
     const store: {
         delayTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -48,7 +49,6 @@ export const debounce = <T extends AnyFunc>(fn: T, opts: DebounceOptions): Debou
     };
 
     assert(isFunction(fn), 'fn must be a function');
-    assertNotWrapped(fn, 'debounce');
     assert(isPlainObject(opts), 'opts must be an object');
 
     assert(
@@ -125,7 +125,7 @@ export const debounce = <T extends AnyFunc>(fn: T, opts: DebounceOptions): Debou
         store.lastArgs = undefined;
     };
 
-    markWrapped(debouncedFunction, 'debounce');
+    markWrapped(fn, debouncedFunction as any, 'debounce');
 
     return debouncedFunction as DebouncedFunction<T>;
 }

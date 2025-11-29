@@ -76,7 +76,7 @@ monorepo/
 ├── tests/                       # Comprehensive test suite
 │   ├── src/                    # Test files mirroring package structure
 │   ├── benchmark/              # Performance tests (250k ops, memory monitoring)
-│   └── package.json            # Test dependencies (chai, sinon, jsdom, fast-check)
+│   └── package.json            # Test dependencies (vitest, sinon, jsdom, fast-check)
 │
 ├── docs/                       # VitePress documentation + TypeDoc integration
 │   ├── packages/               # Individual package documentation
@@ -255,7 +255,7 @@ export class Utils {
 - Use relative imports to validate implementation
 - Test all paths (success, error, edge cases)
 - `describe('module: feature', () => {})` naming
-- Use `mock.fn()` and `calledExactly(fn, count, msg)`
+- Use `vi.fn()` and `calledExactly(fn, count, msg)`
 
 ```ts
 const [result, err] = await attempt(() => riskyOperation());

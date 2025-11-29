@@ -1,10 +1,10 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -24,10 +24,10 @@ describe('@logosdx/utils', () => {
 
             let i = 0;
 
-            const shouldRetry = mock.fn(() => true);
-            const onError = mock.fn(() => { });
+            const shouldRetry = vi.fn(() => true);
+            const onError = vi.fn(() => { });
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = vi.fn(async (x: number) => {
 
                 i++;
 
@@ -60,10 +60,10 @@ describe('@logosdx/utils', () => {
         it('should apply flow controls in order of options object keys', async () => {
 
             let i = 0;
-            const shouldRetry = mock.fn(() => true);
-            const onError = mock.fn(() => { });
+            const shouldRetry = vi.fn(() => true);
+            const onError = vi.fn(() => { });
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = vi.fn(async (x: number) => {
 
                 i++;
 
@@ -134,7 +134,7 @@ describe('@logosdx/utils', () => {
 
         it('should work with all valid flow control functions', async () => {
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = vi.fn(async (x: number) => {
 
                 await wait(5);
                 return x * 3;
@@ -153,7 +153,7 @@ describe('@logosdx/utils', () => {
 
         it('should handle rate limiting in composition', async () => {
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = vi.fn(async (x: number) => {
 
                 await wait(5);
                 return x + 10;
@@ -181,7 +181,7 @@ describe('@logosdx/utils', () => {
 
         it('should handle circuit breaker in composition', async () => {
 
-            const originalFn = mock.fn(async (_x: number) => {
+            const originalFn = vi.fn(async (_x: number) => {
 
                 await wait(5);
                 throw new Error('Service error');
@@ -212,7 +212,7 @@ describe('@logosdx/utils', () => {
 
         it('should handle timeout in composition', async () => {
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = vi.fn(async (x: number) => {
 
                 await wait(100); // Longer than timeout
                 return x * 2;
@@ -252,7 +252,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const originalFn = mock.fn(async (_x: number) => {
+            const originalFn = vi.fn(async (_x: number) => {
 
                 callCount++;
 
@@ -279,7 +279,7 @@ describe('@logosdx/utils', () => {
 
         it('should work with all four flow controls together', async () => {
 
-            const originalFn = mock.fn(async (x: number) => {
+            const originalFn = vi.fn(async (x: number) => {
 
                 await wait(5);
                 return x + 100;
@@ -308,7 +308,7 @@ describe('@logosdx/utils', () => {
             let flakyCount = 0;
 
             // Mock fetch-like function that simulates real network behavior
-            const mockFetch = mock.fn(async (url: string) => {
+            const mockFetch = vi.fn(async (url: string) => {
 
                 callCount++;
 
@@ -406,7 +406,7 @@ describe('@logosdx/utils', () => {
             let orderCallCount = 0;
             let paymentCallCount = 0;
 
-            const mockApiCall = mock.fn(async (endpoint: string) => {
+            const mockApiCall = vi.fn(async (endpoint: string) => {
 
                 // Simulate realistic API patterns with separate counters
                 if (endpoint === '/api/orders/123') {
@@ -493,7 +493,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const fetchData = mock.fn(async (id: string) => {
+            const fetchData = vi.fn(async (id: string) => {
 
                 callCount++;
                 await wait(20);
@@ -529,7 +529,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const flakyFetch = mock.fn(async (id: string) => {
+            const flakyFetch = vi.fn(async (id: string) => {
 
                 callCount++;
 
@@ -563,7 +563,7 @@ describe('@logosdx/utils', () => {
 
         it('should use custom generateKey with inflight in compose', async () => {
 
-            const fetchWithOpts = mock.fn(async (id: string, _opts: { timestamp: number }) => {
+            const fetchWithOpts = vi.fn(async (id: string, _opts: { timestamp: number }) => {
 
                 await wait(10);
                 return `data-${id}`;
@@ -590,7 +590,7 @@ describe('@logosdx/utils', () => {
 
         it('should handle inflight with circuit breaker', async () => {
 
-            const failingFn = mock.fn(async (id: string) => {
+            const failingFn = vi.fn(async (id: string) => {
 
                 await wait(10);
                 throw new Error(`service unavailable for ${id}`);
@@ -639,7 +639,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const complexFn = mock.fn(async (id: string) => {
+            const complexFn = vi.fn(async (id: string) => {
 
                 callCount++;
                 await wait(15);

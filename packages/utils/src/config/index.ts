@@ -513,6 +513,6 @@ export const makeNestedConfig = <
 
     return {
         allConfigs: memoizeSync(allConfigs, memoizeOpts),
-        getConfig: memoizeSync(getConfig, memoizeOpts)
+        getConfig: memoizeSync(getConfig, memoizeOpts) as typeof getConfig
     }
 }

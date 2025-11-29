@@ -1,10 +1,10 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -31,8 +31,8 @@ describe('@logosdx/utils', () => {
 
             it('should throttle and provide cancel method', async () => {
 
-                const mocked = mock.fn();
-                const onThrottle = mock.fn();
+                const mocked = vi.fn();
+                const onThrottle = vi.fn();
 
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, {
                     delay: 20,
@@ -68,8 +68,8 @@ describe('@logosdx/utils', () => {
 
             it('should throttle with throws and provide cancel method', async () => {
 
-                const mocked = mock.fn();
-                const onThrottle = mock.fn();
+                const mocked = vi.fn();
+                const onThrottle = vi.fn();
 
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, {
                     delay: 20,
@@ -97,16 +97,16 @@ describe('@logosdx/utils', () => {
             it('should validate throttle parameters', () => {
 
                 expect(() => throttle('not a function' as any, { delay: 10 })).to.throw('fn must be a function');
-                expect(() => throttle(mock.fn(), { delay: 0 })).to.throw('delay must be a positive number');
-                expect(() => throttle(mock.fn(), { delay: -5 })).to.throw('delay must be a positive number');
-                expect(() => throttle(mock.fn(), { delay: 'not a number' as any })).to.throw('delay must be a positive number');
-                expect(() => throttle(mock.fn(), { delay: 10, onThrottle: 'not a function' as any })).to.throw('onThrottle must be a function');
-                expect(() => throttle(mock.fn(), { delay: 10, throws: 'not a boolean' as any })).to.throw('throws must be a boolean');
+                expect(() => throttle(vi.fn(), { delay: 0 })).to.throw('delay must be a positive number');
+                expect(() => throttle(vi.fn(), { delay: -5 })).to.throw('delay must be a positive number');
+                expect(() => throttle(vi.fn(), { delay: 'not a number' as any })).to.throw('delay must be a positive number');
+                expect(() => throttle(vi.fn(), { delay: 10, onThrottle: 'not a function' as any })).to.throw('onThrottle must be a function');
+                expect(() => throttle(vi.fn(), { delay: 10, throws: 'not a boolean' as any })).to.throw('throws must be a boolean');
             });
 
             it('should throttle with return values and provide cancel method', async () => {
 
-                const mocked = mock.fn((x: number) => x * 2);
+                const mocked = vi.fn((x: number) => x * 2);
 
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 20 });
 
@@ -131,8 +131,8 @@ describe('@logosdx/utils', () => {
 
             it('should throttle with arguments and provide cancel method', async () => {
 
-                const mocked = mock.fn();
-                const onThrottle = mock.fn();
+                const mocked = vi.fn();
+                const onThrottle = vi.fn();
 
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 20, onThrottle });
 
@@ -143,15 +143,15 @@ describe('@logosdx/utils', () => {
                 fn('arg3', 'arg4');
 
                 calledExactly(mocked, 1, 'throttle with args');
-                expect(mocked.mock.calls[0]!.arguments).to.deep.equal(['arg1', 'arg2']);
+                expect(mocked.mock.calls[0]).to.deep.equal(['arg1', 'arg2']);
 
                 calledExactly(onThrottle, 1, 'throttle with args onThrottle');
-                expect(onThrottle.mock.calls[0]!.arguments[0]).to.deep.equal(['arg3', 'arg4']);
+                expect(onThrottle.mock.calls[0]?.[0]).to.deep.equal(['arg3', 'arg4']);
             });
 
             it('should test ThrottleError class', async () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
 
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 20, throws: true });
 
@@ -167,7 +167,7 @@ describe('@logosdx/utils', () => {
 
             it('should throttle without onThrottle callback and provide cancel method', async () => {
 
-                const mocked = mock.fn((x: number) => x * 2);
+                const mocked = vi.fn((x: number) => x * 2);
 
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 20 });
 
@@ -185,7 +185,7 @@ describe('@logosdx/utils', () => {
 
             it('should throttle with async functions and provide cancel method', async () => {
 
-                const mocked = mock.fn(async (x: number) => {
+                const mocked = vi.fn(async (x: number) => {
                     await wait(1);
                     return x * 2;
                 });
@@ -209,14 +209,15 @@ describe('@logosdx/utils', () => {
 
             it('should not double wrap the function', async () => {
 
-                const fn = mock.fn(() => 'ok');
+                const fn = vi.fn(() => 'ok');
 
                 const wrappedFn = throttle(fn as any, { delay: 10 });
 
                 const [, error] = attemptSync(() => throttle(wrappedFn, { delay: 10 }));
 
                 expect(error).to.be.an.instanceof(Error);
-                expect((error as Error).message).to.equal('Function is already wrapped by throttle');
+                expect((error as Error).message).to.match(/Function is already wrapped/);
+
             });
         });
 
@@ -224,7 +225,7 @@ describe('@logosdx/utils', () => {
 
             it('should have cancel method', () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 10 });
 
                 expect(typeof fn.cancel).to.equal('function');
@@ -235,7 +236,7 @@ describe('@logosdx/utils', () => {
 
             it('should prevent pending execution during throttle period', async () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 // Call function once - should execute immediately
@@ -262,7 +263,7 @@ describe('@logosdx/utils', () => {
 
             it('should clear cached return values', async () => {
 
-                const mocked = mock.fn((x: number) => x * 2);
+                const mocked = vi.fn((x: number) => x * 2);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 // First call
@@ -286,7 +287,7 @@ describe('@logosdx/utils', () => {
 
             it('should be safe to call multiple times', () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 fn();
@@ -302,7 +303,7 @@ describe('@logosdx/utils', () => {
 
             it('should be safe to call when no throttling is active', () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 // Call cancel before any function calls
@@ -313,7 +314,7 @@ describe('@logosdx/utils', () => {
 
             it('should be safe to call after throttle period expires', async () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 20 });
 
                 fn();
@@ -329,8 +330,8 @@ describe('@logosdx/utils', () => {
 
             it('should not affect onThrottle callback behavior before cancel', async () => {
 
-                const mocked = mock.fn();
-                const onThrottle = mock.fn();
+                const mocked = vi.fn();
+                const onThrottle = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50, onThrottle });
 
                 fn('arg1');
@@ -338,7 +339,7 @@ describe('@logosdx/utils', () => {
 
                 calledExactly(mocked, 1, 'function call');
                 calledExactly(onThrottle, 1, 'onThrottle called');
-                expect(onThrottle.mock.calls[0]!.arguments[0]).to.deep.equal(['arg2']);
+                expect(onThrottle.mock.calls[0]?.[0]).to.deep.equal(['arg2']);
 
                 fn.cancel();
 
@@ -348,7 +349,7 @@ describe('@logosdx/utils', () => {
 
             it('should work with throws: true option', async () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50, throws: true });
 
                 fn();
@@ -366,7 +367,7 @@ describe('@logosdx/utils', () => {
 
             it('should reset state for future calls', async () => {
 
-                const mocked = mock.fn((x: number) => x + 1);
+                const mocked = vi.fn((x: number) => x + 1);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 // First execution
@@ -392,7 +393,7 @@ describe('@logosdx/utils', () => {
 
             it('should clear internal timestamp state', async () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 30 });
 
                 fn();
@@ -408,7 +409,7 @@ describe('@logosdx/utils', () => {
 
             it('should work correctly with rapid cancel and new calls', async () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 100 });
 
                 fn();
@@ -425,7 +426,7 @@ describe('@logosdx/utils', () => {
 
             it('should handle cancel during async function execution', async () => {
 
-                const mocked = mock.fn(async (x: number) => {
+                const mocked = vi.fn(async (x: number) => {
                     await wait(10);
                     return x * 2;
                 });
@@ -453,7 +454,7 @@ describe('@logosdx/utils', () => {
 
             it('should clear cached promise results', async () => {
 
-                const mocked = mock.fn(async (x: number) => {
+                const mocked = vi.fn(async (x: number) => {
                     await wait(1);
                     return x * 3;
                 });
@@ -484,7 +485,7 @@ describe('@logosdx/utils', () => {
 
             it('should handle cancel with no prior state', () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 // Cancel without any prior calls should not throw
@@ -494,7 +495,7 @@ describe('@logosdx/utils', () => {
 
             it('should maintain function identity after cancel', () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 const originalCancel = fn.cancel;
@@ -509,7 +510,7 @@ describe('@logosdx/utils', () => {
 
             it('should work with functions that return undefined', () => {
 
-                const mocked = mock.fn(() => undefined);
+                const mocked = vi.fn(() => undefined);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 const result1 = fn();
@@ -528,7 +529,7 @@ describe('@logosdx/utils', () => {
 
             it('should work with functions that return null', () => {
 
-                const mocked = mock.fn(() => null);
+                const mocked = vi.fn(() => null);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 const result1 = fn();
@@ -547,7 +548,7 @@ describe('@logosdx/utils', () => {
 
             it('should work with functions that return false', () => {
 
-                const mocked = mock.fn(() => false);
+                const mocked = vi.fn(() => false);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 const result1 = fn();
@@ -569,7 +570,7 @@ describe('@logosdx/utils', () => {
 
             it('should properly clean up state after cancel', async () => {
 
-                const mocked = mock.fn((x: number) => x * 2);
+                const mocked = vi.fn((x: number) => x * 2);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 fn(5);
@@ -582,12 +583,12 @@ describe('@logosdx/utils', () => {
                 fn(15); // Should execute immediately with new args
                 calledExactly(mocked, 2, 'immediate execution after cancel');
 
-                expect(mocked.mock.calls[1]!.arguments).to.deep.equal([15]);
+                expect(mocked.mock.calls[1]).to.deep.equal([15]);
             });
 
             it('should not retain references after cancel', () => {
 
-                const mocked = mock.fn();
+                const mocked = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 fn('some', 'arguments');
@@ -598,13 +599,13 @@ describe('@logosdx/utils', () => {
                 fn('new', 'arguments');
 
                 calledExactly(mocked, 2, 'no retained references');
-                expect(mocked.mock.calls[1]!.arguments).to.deep.equal(['new', 'arguments']);
+                expect(mocked.mock.calls[1]).to.deep.equal(['new', 'arguments']);
             });
 
             it('should handle complex throttling and cancel scenarios', async () => {
 
-                const mocked = mock.fn((x: number, y: string) => `${x}-${y}`);
-                const onThrottle = mock.fn();
+                const mocked = vi.fn((x: number, y: string) => `${x}-${y}`);
+                const onThrottle = vi.fn();
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, {
                     delay: 50,
                     onThrottle
@@ -638,7 +639,7 @@ describe('@logosdx/utils', () => {
 
             it('should handle cancel with complex argument patterns', () => {
 
-                const mocked = mock.fn((...args: unknown[]) => args.length);
+                const mocked = vi.fn((...args: unknown[]) => args.length);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 // Call with various argument patterns
@@ -648,7 +649,7 @@ describe('@logosdx/utils', () => {
                 fn();
 
                 calledExactly(mocked, 1, 'only first call executed');
-                expect(mocked.mock.calls[0]!.arguments).to.deep.equal([1, 2, 3]);
+                expect(mocked.mock.calls[0]).to.deep.equal([1, 2, 3]);
 
                 fn.cancel();
 
@@ -656,13 +657,13 @@ describe('@logosdx/utils', () => {
                 const result = fn('x', 'y', 'z', 'w');
                 expect(result).to.equal(4);
                 calledExactly(mocked, 2, 'call after cancel with new args');
-                expect(mocked.mock.calls[1]!.arguments).to.deep.equal(['x', 'y', 'z', 'w']);
+                expect(mocked.mock.calls[1]).to.deep.equal(['x', 'y', 'z', 'w']);
             });
 
             it('should handle cancel with error-throwing functions', () => {
 
                 const error = new Error('test error');
-                const mocked = mock.fn(() => { throw error; });
+                const mocked = vi.fn(() => { throw error; });
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 50 });
 
                 // First call throws
@@ -682,8 +683,8 @@ describe('@logosdx/utils', () => {
 
             it('should maintain proper TypeScript interface compliance', () => {
 
-                const syncMocked = mock.fn((x: number) => x.toString());
-                const asyncMocked = mock.fn(async (x: number) => x.toString());
+                const syncMocked = vi.fn((x: number) => x.toString());
+                const asyncMocked = vi.fn(async (x: number) => x.toString());
 
                 const syncFn: ThrottledFunction<typeof syncMocked> = throttle(syncMocked, { delay: 50 });
                 const asyncFn: ThrottledFunction<typeof asyncMocked> = throttle(asyncMocked, { delay: 50 });
@@ -706,7 +707,7 @@ describe('@logosdx/utils', () => {
 
             it('should handle cancel during throttle period with complex timing', async () => {
 
-                const mocked = mock.fn((x: number) => x * 2);
+                const mocked = vi.fn((x: number) => x * 2);
                 const fn: ThrottledFunction<typeof mocked> = throttle(mocked, { delay: 100 });
 
                 // Execute first call

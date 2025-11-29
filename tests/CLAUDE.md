@@ -6,27 +6,40 @@ This file provides context about the test structure, patterns, and conventions u
 
 ```
 tests/
-├── benchmark/          # Performance tests (250k ops, memory leak detection)
+├── benchmark/         # Performance tests (250k ops, memory leak detection)
+├── experiments/       # Gitignored playground for test ideas
+├── _memory-tests/     # Memory leak detection tests (not regular tests)
 ├── src/               # Main test files mirroring package structure
 │   ├── _helpers.ts    # Centralized test utilities and mocking
 │   ├── _playground.ts # Example code and experiments
-│   ├── index.ts       # Test runner entry point
+│   ├── setup.ts       # Global test setup (beforeEach/afterEach hooks)
 │   └── [modules]/     # Tests organized by package
-├── package.json       # Test dependencies (chai, sinon, fast-check, jsdom)
+├── package.json       # Test dependencies (vitest, sinon, fast-check, jsdom)
+├── vitest.config.ts   # Vitest configuration
 └── tsconfig.json      # TypeScript config extending monorepo base
 ```
 
 ## Testing Framework & Tools
 
-- **Core**: Node.js built-in test runner (`node:test`)
-- **Assertions**: Chai with `expect` syntax
-- **Mocking**: Sinon with sandbox pattern
+- **Core**: Vitest (`vitest`) - Vite-native testing framework
+- **Assertions**: Vitest's built-in `expect` API (Jest-compatible, built on Chai)
+- **Mocking**: Vitest's `vi` object + Sinon sandbox for stubs
 - **Property Testing**: fast-check (10,000+ test runs)
-- **DOM Testing**: JSDOM for browser environment simulation
+- **DOM Testing**: JSDOM environment (configured in vitest.config.ts)
+- **Coverage**: V8 provider via `@vitest/coverage-v8`
+
+## Memory & Performance Testing
+
+- Separate memory tests in `tests/_memory-tests/`
+- Uses `--expose-gc` for garbage collection control
+- The place to visualize memory usage and test for leaks
+- Uses a custom test harness for manual or automated runs
+- Exposed via `pnpm memory` and `pnpm memory:ui` scripts
 
 ## Import Strategy (CRITICAL)
 
 **Tests use relative imports to validate actual implementation:**
+
 ```typescript
 // ✅ Test imports (bypasses build, validates source)
 import { attempt } from '../../../packages/utils/src/index.ts';
@@ -40,100 +53,273 @@ This follows the monorepo CLAUDE.md directive to ensure tests validate actual so
 ## Test Structure Patterns
 
 ### Standard Test Organization
+
 ```typescript
 describe('@logosdx/[package-name]', () => {
-    describe('module: feature', () => {
-        it('should [specific behavior]', () => {
-            // Test implementation
-        });
+    it('should [specific behavior]', () => {
+        // Test implementation
     });
 });
 ```
 
 ### Mock Management Pattern
+
 ```typescript
+import { vi, beforeEach, afterEach } from 'vitest';
+import Sinon from 'sinon';
+
 const sandbox = Sinon.createSandbox();
 
 beforeEach(() => {
-    mockHelpers(); // Setup console mocks with forwarding
+    // Console mocks are set up globally via setup.ts
 });
 
 afterEach(() => {
-    sandbox.restore(); // Clean up all mocks
+    sandbox.restore(); // Clean up Sinon stubs
+    vi.restoreAllMocks(); // Clean up Vitest mocks
 });
 ```
 
 ## Test Coverage Requirements
 
 Each exported function MUST test:
+
 - ✅ **Happy path**: Expected usage scenarios
 - ✅ **Error paths**: Network failures, invalid responses, I/O errors
 - ✅ **Bad inputs**: null, undefined, wrong types, malformed data
 - ✅ **Edge cases**: Empty arrays, circular refs, large datasets
 - ✅ **Security**: Prototype pollution prevention, input sanitization
 
-## Helper Utilities (`_helpers.ts`)
 
-- `mockHelpers()` - Console mocking with real console forwarding
-- `calledExactly(fn, count, msg)` - Sinon call count validation
-- `calledMoreThan(fn, count, msg)` - Minimum call validation
-- `calledAtLeast(fn, count, msg)` - Minimum call validation
-- `runTimers()` - Mock timer advancement for timing tests
-- `nextTick()` - Event loop testing helper
+## Testing Strategy Framework
 
-## Performance Testing
+Use these 9 strategies to systematically identify missing test cases:
 
-**Benchmark Structure:**
-- **Queue stress tests**: 250,000 operations across 5 rounds
-- **Memory leak detection**: Heap monitoring with `gc()` calls
-- **Operation rate tracking**: ops/sec calculations
-- **Cleanup verification**: Ensures no memory leaks
 
-**Memory Testing Pattern:**
+### 1. Happy Path / Representative Examples
+
+> "If everything is normal, what should this do?"
+
+Test typical usage with valid inputs. The obvious cases that documentation would show.
+
+
+### 2. Boundary & Corner Cases
+
+> "Where is the function most fragile in its input space?"
+
+| Boundary Type | Examples                                          |
+| ------------- | ------------------------------------------------- |
+| Empty values  | `""`, `[]`, `{}`, `0`, `null`, `undefined`        |
+| Limits        | Max int, very long strings, deeply nested objects |
+| Edge values   | First/last element, exactly at threshold          |
+| Type edges    | `NaN`, `Infinity`, `-0`                           |
+
 ```typescript
-for (let round = 1; round <= 5; round++) {
-    // Force garbage collection
-    if (global.gc) global.gc();
-
-    // Run operations
-    for (let i = 0; i < 250000; i++) {
-        // Test operations
-    }
-
-    // Verify cleanup
-    expect(queue.size).to.equal(0);
-}
+// Example: testing timeout boundaries
+it('should handle 0ms timeout', ...);
+it('should handle negative timeout', ...);
+it('should handle Infinity timeout', ...);
 ```
 
-## Package-Specific Testing Notes
 
-### @logosdx/utils (Most Comprehensive)
-- **Flow Control**: retry, circuit-breaker, batch, memoization, rate limiting
-- **Data Structures**: clone, equals, merge with extensive type support
-- **Validation**: Environment detection, type guards, assertions
-- **Security**: Prototype pollution prevention, circular reference handling
+### 3. Invalid Input & Robustness (Negative Testing)
 
-### @logosdx/fetch (HTTP Client)
-- **Lifecycle Testing**: Full request/response cycle validation
-- **Error Handling**: Network failures, timeout scenarios
-- **Configuration**: Headers, params, method-specific options
-- **Type Safety**: Generic response types and validation
+> "How should this fail when used incorrectly?"
 
-### @logosdx/observer (Event System)
-- **Regex Event Matching**: Pattern-based event subscription
-- **Queue Management**: Priority, concurrency, rate limiting
-- **Async Iteration**: EventGenerator testing with for-await loops
-- **Cleanup**: Observer lifecycle and memory management
+- Wrong types passed to parameters
+- Callbacks that throw errors
+- Functions returning unexpected types
+- Missing required fields
 
-### @logosdx/dom (Browser Utilities)
-- **JSDOM Environment**: Full DOM simulation for testing
-- **Viewport Calculations**: Scroll, visibility, positioning
-- **Event Management**: Click, form submission, clipboard operations
-- **Behavior System**: MutationObserver integration testing
+```typescript
+it('should handle serializer that throws', async () => {
+
+    const api = new FetchEngine({
+        serializer: () => { throw new Error('Failed'); }
+    });
+    // What's the expected behavior?
+});
+```
+
+### Vitest Mocking with `vi`
+
+```typescript
+import { vi, expect, it, beforeEach, afterEach } from 'vitest';
+
+// Create mock functions
+const mockFn = vi.fn();
+const mockImpl = vi.fn(() => 'mocked value');
+
+// Spying on methods
+const spy = vi.spyOn(object, 'method');
+
+// Fake timers
+beforeEach(() => {
+    vi.useFakeTimers();
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+});
+
+it('should advance timers', async () => {
+
+    const callback = vi.fn();
+    setTimeout(callback, 1000);
+
+    vi.advanceTimersByTime(1000);
+    expect(callback).toHaveBeenCalledTimes(1);
+});
+```
+
+### 4. State & Sequence Tests
+
+> "What if behavior depends on what happened before?"
+
+- Order of operations matters
+- State changes mid-operation
+- Repeated calls with same/different inputs
+- Resource lifecycle (create → use → destroy)
+
+```typescript
+it('should handle addHeader during in-flight request', ...);
+it('should handle destroy called twice', ...);
+it('should NOT join a failed in-flight request', ...);
+```
+
+
+### 5. Structural / White-Box Coverage
+
+> "Have I exercised the implementation's interesting paths?"
+
+- Every `if/else` branch
+- Every `catch` block
+- Cache hit vs miss paths
+- Fallback/default paths
+
+Review the implementation and ensure each code path has a test that exercises it.
+
+
+### 6. Property-Based & Invariant Testing
+
+> "What rules must always hold, regardless of input?"
+
+| Invariant Type | Example                                    |
+| -------------- | ------------------------------------------ |
+| Determinism    | Same input always produces same output     |
+| Uniqueness     | Different inputs produce different outputs |
+| Bounds         | `count >= 0` always                        |
+| Equality       | `clone(x)` equals `x`                      |
+
+```typescript
+import fc from 'fast-check';
+
+it('should produce deterministic keys', () => {
+
+    fc.assert(fc.property(
+        fc.string(),
+        (path) => {
+            const key1 = serialize({ path });
+            const key2 = serialize({ path });
+            return key1 === key2;
+        }
+    ));
+});
+```
+
+
+### 7. Combinatorial / Parameterized Testing
+
+> "What combinations of parameters matter?"
+
+- Config option combinations (enabled × methods × rules)
+- HTTP methods × features
+- Multiple flags that interact
+
+```typescript
+const methods = ['GET', 'POST', 'PUT', 'DELETE'];
+const configs = [{ cache: true }, { cache: false }];
+
+configs.forEach(config => {
+
+    methods.forEach(method => {
+
+        it(`should handle ${method} with ${JSON.stringify(config)}`, ...);
+    });
+});
+```
+
+
+### 8. Cross-Checks & Oracles
+
+> "How do I know the result is truly correct?"
+
+- Compare with known-good implementation
+- Verify output format matches specification
+- Behavior equivalence (same result with feature on vs off)
+
+```typescript
+it('should produce identical results with and without cache (first request)', async () => {
+
+    const r1 = await apiWithCache.get('/json');
+    const r2 = await apiWithoutCache.get('/json');
+    expect(r1.data).to.deep.equal(r2.data);
+});
+```
+
+
+### 9. Non-Functional Testing
+
+> "What happens under stress or weird conditions?"
+
+| Category           | Tests                                    |
+| ------------------ | ---------------------------------------- |
+| **Load**           | 100+ concurrent requests, large payloads |
+| **Concurrency**    | Race conditions, concurrent mutations    |
+| **Memory**         | No leaks under sustained load            |
+| **Error Recovery** | Network failures, timeouts mid-operation |
+
+```typescript
+it('should handle 100 concurrent requests', async () => {
+
+    const promises = Array.from({ length: 100 }, () => api.get('/json'));
+    const results = await Promise.all(promises);
+    expect(api.cacheStats().inflightCount).to.equal(0); // No leaks
+});
+```
+
+
+### Quick Checklist
+
+For each function/feature, verify:
+
+- [ ] **Normal**: Works for typical inputs?
+- [ ] **Boundaries**: Empty, zero, max, unicode?
+- [ ] **Invalids**: Callbacks throw, wrong types?
+- [ ] **Sequence**: Order matters? State changes?
+- [ ] **Branches**: All code paths covered?
+- [ ] **Properties**: Invariants always hold?
+- [ ] **Combinations**: Parameter interactions?
+- [ ] **Cross-check**: Results verifiably correct?
+- [ ] **Non-functional**: Load, concurrency, errors?
+
+
+## Helper Utilities (`_helpers.ts`)
+
+- `setup()` / `teardown()` - Console mocking with real console forwarding (called via setup.ts)
+- `mockHelpers(expect)` - Returns Vitest mock call count validators:
+  - `calledExactly(mock, count, msg)` - Exact call count validation
+  - `calledMoreThan(mock, count, msg)` - Minimum call validation
+  - `calledAtLeast(mock, count, msg)` - At least N calls validation
+- `runTimers(tickTime, nTimes)` - Advance fake timers with `vi.advanceTimersByTime()`
+- `nextTick()` - Event loop testing helper (`process.nextTick` wrapper)
+- `sandbox` - Sinon sandbox for stubs (exported for direct use)
+- `stubLog`, `stubError`, `stubWarn`, etc. - Pre-configured console stubs
 
 ## Advanced Testing Patterns
 
 ### Property-Based Testing
+
 ```typescript
 import fc from 'fast-check';
 
@@ -148,23 +334,6 @@ it('should handle all array types', () => {
 });
 ```
 
-### Error Object Testing
-Comprehensive error handling validation:
-- Custom error types (FetchError, EventError, etc.)
-- Error cloning and equality
-- Stack trace preservation
-- Error chaining and causation
-
-## Key Testing Insights
-
-1. **Validation-First**: Tests validate actual source using relative imports
-2. **Comprehensive Coverage**: Extensive edge case and error testing
-3. **Performance-Aware**: Memory leak prevention and benchmarking
-4. **Security-Conscious**: Prototype pollution and injection prevention
-5. **Type-Safe**: Heavy TypeScript validation throughout
-6. **Real-World**: Uses actual browser environment (JSDOM)
-7. **Maintainable**: Centralized helpers, consistent patterns
-
 ## Running Tests
 
 ```bash
@@ -177,11 +346,26 @@ pnpm tdd
 # Coverage report
 pnpm test:coverage
 
-# Specific test file (filename contains "filepart")
+# Specific test files (filename contains "filepart")
 pnpm test filepart
 
-# Only marked tests (it.only)
+# Run tests matching a pattern
+pnpm test --grep "pattern"
+
+# Only marked tests (it.only, describe.only)
 pnpm test:only
+
+# CI mode with GitHub Actions reporter
+pnpm test:ci
 ```
 
-This testing approach demonstrates enterprise-level quality standards with comprehensive coverage, performance monitoring, security considerations, and maintainable patterns throughout the codebase.
+## Vitest Configuration Highlights
+
+Key settings from `vitest.config.ts`:
+
+- **Environment**: JSDOM (browser globals available)
+- **Globals**: `true` (no need to import `describe`, `it`, `expect`)
+- **Pool**: `forks` (isolated test processes)
+- **Timeouts**: 10s for tests and hooks
+- **Mocks**: Auto-cleared and restored between tests
+- **Setup**: `src/setup.ts` runs before each test file

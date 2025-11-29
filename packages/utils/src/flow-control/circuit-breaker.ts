@@ -1,6 +1,7 @@
 import { attempt, attemptSync } from '../async/attempt.ts';
-import { AnyFunc, markWrapped, assertNotWrapped } from './_helpers.ts';
+import { markWrapped, assertNotWrapped } from '../_helpers.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
+import { Func } from '../types.ts';
 
 const DEFAULT_MAX_FAILURES = 3;
 const DEFAULT_RESET_AFTER = 1000;
@@ -41,7 +42,7 @@ class CircuitBreakerStore {
  *
  * @template T - The function type being protected
  */
-export type CircuitBreakerOptions<T extends AnyFunc> = {
+export type CircuitBreakerOptions<T extends Func> = {
     /**
      * Maximum number of consecutive failures before tripping the circuit
      *
@@ -110,7 +111,7 @@ export const isCircuitBreakerError = (error: unknown): error is CircuitBreakerEr
  * @param opts - Configuration options to validate
  * @throws {Error} When validation fails
  */
-const validateOpts = <T extends AnyFunc>(opts: CircuitBreakerOptions<T>) => {
+const validateOpts = <T extends Func>(opts: CircuitBreakerOptions<T>) => {
 
     assert(isPlainObject(opts), 'opts must be an object');
 
@@ -167,7 +168,7 @@ const resetStore = (
  * @param opts - Options containing store, arguments, and configuration
  * @throws {CircuitBreakerError} When circuit breaker is in open state or half-open limits exceeded
  */
-const preAttempt = <T extends AnyFunc>(
+const preAttempt = <T extends Func>(
     opts: {
         store: CircuitBreakerStore,
         args: Parameters<T>,
@@ -239,7 +240,7 @@ const preAttempt = <T extends AnyFunc>(
  * @returns The function result if successful
  * @throws {Error} The original error if function failed
  */
-const postAttempt = <T extends AnyFunc>(
+const postAttempt = <T extends Func>(
     opts: {
         value?: ReturnType<T> | null,
         error?: Error | null,
@@ -367,13 +368,12 @@ const postAttempt = <T extends AnyFunc>(
  * }
  * ```
  */
-export const circuitBreakerSync = <T extends AnyFunc>(
+export const circuitBreakerSync = <T extends Func>(
     fn: T,
     opts: CircuitBreakerOptions<T> = {}
 ) => {
 
     assert(isFunction(fn), 'fn must be a function');
-    assertNotWrapped(fn, 'circuitBreaker');
     validateOpts(opts);
 
     const store = new CircuitBreakerStore();
@@ -397,7 +397,7 @@ export const circuitBreakerSync = <T extends AnyFunc>(
         });
     }
 
-    markWrapped(circuitBreakerSyncFunction, 'circuitBreaker');
+    markWrapped(fn, circuitBreakerSyncFunction as T, 'circuitBreaker');
 
     return circuitBreakerSyncFunction;
 }
@@ -464,7 +464,7 @@ export const circuitBreakerSync = <T extends AnyFunc>(
  * }
  * ```
  */
-export const circuitBreaker = <T extends AnyFunc>(
+export const circuitBreaker = <T extends Func>(
     fn: T,
     opts: CircuitBreakerOptions<T> = {}
 ) => {
@@ -494,7 +494,7 @@ export const circuitBreaker = <T extends AnyFunc>(
         });
     }
 
-    markWrapped(circuitBreakerFunction, 'circuitBreaker');
+    markWrapped(fn, circuitBreakerFunction as T, 'circuitBreaker');
 
     return circuitBreakerFunction;
 }

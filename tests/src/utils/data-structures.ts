@@ -1,12 +1,12 @@
 import {
     describe,
     it,
-    before,
+    beforeAll,
     after,
     afterEach,
-} from 'node:test'
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import * as fc from 'fast-check';
 
@@ -95,12 +95,12 @@ describe('@logosdx/utils', () => {
 
     describe('clone(...)', () => {
 
-        before(() => {
+        beforeAll(() => {
 
             stubWarn.resetHistory();
         });
 
-        after(() => {
+        afterAll(() => {
 
             expect(stubWarn.called);
         })

@@ -8,18 +8,19 @@ This file provides comprehensive context about the LogosDX documentation structu
 **VitePress-powered static site with TypeDoc API integration:**
 ```
 docs/
-├── index.md                 # VitePress home page (hero layout)
-├── getting-started.md       # Installation & basic usage
-├── what-is-logosdx.md      # Philosophy & core concepts
-├── cheat-sheet.md          # Comprehensive quick reference
-├── packages/               # Individual package documentation
-│   ├── observer.md
-│   ├── utils.md
-│   ├── fetch.md
+├── index.md                     # VitePress home page (hero layout)
+├── getting-started.md           # Installation & basic usage
+├── what-is-logosdx.md           # Philosophy & core concepts
+├── cheat-sheet.md               # Comprehensive quick reference
+├── documentation-guideline.md   # Documentation writing guide
+├── packages/                    # Individual package documentation
 │   ├── dom.md
+│   ├── fetch.md
+│   ├── localize.md
+│   ├── observer.md
 │   ├── storage.md
-│   └── localize.md
-└── public/images/          # Brand assets, logos, icons
+│   └── utils.md
+└── public/                      # Static assets, logos, icons
 ```
 
 ## Content Strategy & Organization

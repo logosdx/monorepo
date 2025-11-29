@@ -1,6 +1,5 @@
-import { describe, it, before, afterEach } from 'node:test'
+import { describe, it, beforeAll,afterEach, expect } from 'vitest'
 
-import { expect } from 'chai';
 
 import { ObserverEngine } from '../../../packages/observer/src/index.ts';
 import { wait } from '../../../packages/utils/src/index.ts';
@@ -660,7 +659,7 @@ describe('@logosdx/observer', function () {
 
     describe('observable.observe(...)', async () => {
 
-        before(() => {
+        beforeAll(() => {
 
             stub.observer = new ObserverEngine({
                 spy: stub.spy as any,

@@ -1,11 +1,321 @@
-import { type MaybePromise } from '@logosdx/utils';
+import { type MaybePromise, type CacheAdapter, RateLimitTokenBucket } from '@logosdx/utils';
 import { FetchError } from './helpers.ts';
 import { type FetchEngine } from './engine.ts';
+
+export type { CacheAdapter };
 
 export type _InternalHttpMethods = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'PATCH';
 export type HttpMethods = _InternalHttpMethods | string;
 
 export type HttpMethodOpts<T> = Partial<Record<_InternalHttpMethods, T>>;
+
+
+/**
+ * Match types for route-based configuration rules.
+ *
+ * These options determine how paths are matched for deduplication/cache rules.
+ * Multiple match types can be combined (AND logic), except for `is` which
+ * requires an exact match and cannot be combined with others.
+ */
+export interface MatchTypes {
+
+    /** Exact path match */
+    is?: string | undefined;
+
+    /** Path must start with this prefix */
+    startsWith?: string | undefined;
+
+    /** Path must end with this suffix */
+    endsWith?: string | undefined;
+
+    /** Path must contain this substring */
+    includes?: string | undefined;
+
+    /** Path must match this regular expression */
+    match?: RegExp | undefined;
+}
+
+
+/**
+ * Context object passed to request serializers for key generation.
+ *
+ * Note: H and P represent the header/param type arguments, but the actual
+ * values are DictOrT<H> and DictOrT<P> as stored by FetchEngine.
+ */
+export interface RequestKeyOptions<S = unknown, H = unknown, P = unknown> {
+
+    /** HTTP method (GET, POST, etc.) */
+    method: string;
+
+    /** Request path (original path without base URL) */
+    path: string;
+
+    /**
+     * Fully-constructed URL including base URL, path, and query parameters.
+     *
+     * Use `url.pathname + url.search` for cache/dedupe keys to exclude hash
+     * while including the full path and query string.
+     */
+    url: URL;
+
+    /** Request payload/body */
+    payload?: unknown | undefined;
+
+    /** Request headers (instance headers merged with method headers) */
+    headers?: DictOrT<H> | undefined;
+
+    /** URL parameters (extracted from url.searchParams for flat access) */
+    params?: DictOrT<P> | undefined;
+
+    /** Instance state */
+    state?: S | undefined;
+}
+
+
+/**
+ * Function that generates a unique string key from request context.
+ *
+ * Used for deduplication and caching to determine request identity.
+ */
+export type RequestSerializer<S = unknown, H = unknown, P = unknown> =
+    (ctx: RequestKeyOptions<S, H, P>) => string;
+
+
+/**
+ * Rule for matching specific routes in deduplication configuration.
+ */
+export interface DedupeRule<S = unknown, H = unknown, P = unknown> extends MatchTypes {
+
+    /** HTTP methods this rule applies to */
+    methods?: _InternalHttpMethods[] | undefined;
+
+    /** Enable/disable deduplication for matching routes */
+    enabled?: boolean | undefined;
+
+    /** Override serializer for this rule */
+    serializer?: RequestSerializer<S, H, P> | undefined;
+}
+
+
+/**
+ * Configuration for request deduplication.
+ *
+ * Deduplication prevents duplicate concurrent requests by sharing
+ * the same in-flight promise among callers with identical request keys.
+ */
+export interface DeduplicationConfig<S = unknown, H = unknown, P = unknown> {
+
+    /** Enable deduplication globally. Default: true */
+    enabled?: boolean | undefined;
+
+    /** HTTP methods to dedupe. Default: ['GET'] */
+    methods?: _InternalHttpMethods[] | undefined;
+
+    /** Custom serializer for generating request keys */
+    serializer?: RequestSerializer<S, H, P> | undefined;
+
+    /** Pre-serialization check. Return false to bypass deduplication. */
+    shouldDedupe?: (ctx: RequestKeyOptions<S, H, P>) => boolean | undefined;
+
+    /** Route-specific rules */
+    rules?: DedupeRule[] | undefined;
+}
+
+export interface DeduplicationInternalState<S, H, P> {
+    methods: Set<string>;
+    config: DeduplicationConfig<S, H, P>;
+    enabled: boolean;
+    serializer: RequestSerializer<S, H, P>;
+    rulesCache: Map<string, DedupeRule<S, H, P> | null>;
+}
+
+
+/**
+ * Rule for matching specific routes in cache configuration.
+ */
+export interface CacheRule<S = unknown, H = unknown, P = unknown> extends MatchTypes {
+
+    /** HTTP methods this rule applies to */
+    methods?: _InternalHttpMethods[] | undefined;
+
+    /** Enable/disable caching for matching routes */
+    enabled?: boolean | undefined;
+
+    /** TTL for cached responses (ms) */
+    ttl?: number | undefined;
+
+    /** Time until stale for SWR (ms) */
+    staleIn?: number | undefined;
+
+    /** Override serializer for this rule */
+    serializer?: RequestSerializer<S, H, P> | undefined;
+
+    /** Skip caching for this rule based on request context */
+    skip?: ((ctx: RequestKeyOptions<S, H, P>) => boolean) | undefined;
+}
+
+export interface CacheInternalState<S, H, P> {
+    methods: Set<string>;
+    config: CacheConfig<S, H, P>;
+    enabled: boolean;
+    ttl: number;
+    staleIn: number | undefined;
+    serializer: RequestSerializer<S, H, P>;
+    rulesCache: Map<string, CacheRule<S, H, P> | null>;
+    activeKeys: Set<string>;
+    revalidatingKeys: Set<string>;
+}
+
+
+/**
+ * Rule for matching specific routes in rate limit configuration.
+ */
+export interface RateLimitRule<S = unknown, H = unknown, P = unknown> extends MatchTypes {
+
+    /** HTTP methods this rule applies to */
+    methods?: _InternalHttpMethods[] | undefined;
+
+    /** Enable/disable rate limiting for matching routes */
+    enabled?: boolean | undefined;
+
+    /** Maximum calls allowed within the time window */
+    maxCalls?: number | undefined;
+
+    /** Time window in milliseconds */
+    windowMs?: number | undefined;
+
+    /** Override serializer for this rule's bucket key generation */
+    serializer?: RequestSerializer<S, H, P> | undefined;
+
+    /**
+     * Behavior when rate limit is exceeded.
+     * - true: Wait for token to become available (default)
+     * - false: Reject immediately with RateLimitError
+     */
+    waitForToken?: boolean | undefined;
+}
+
+
+/**
+ * Configuration for request rate limiting.
+ *
+ * Rate limiting controls the rate of outgoing requests using a token bucket
+ * algorithm. Each unique request key (generated by the serializer) gets its
+ * own rate limit bucket, allowing per-endpoint or per-user rate limiting.
+ */
+export interface RateLimitConfig<S = unknown, H = unknown, P = unknown> {
+
+    /** Enable rate limiting globally. Default: true */
+    enabled?: boolean | undefined;
+
+    /** HTTP methods to rate limit. Default: all methods */
+    methods?: _InternalHttpMethods[] | undefined;
+
+    /** Maximum calls allowed within the time window. Default: 100 */
+    maxCalls?: number | undefined;
+
+    /** Time window in milliseconds. Default: 60000 (1 minute) */
+    windowMs?: number | undefined;
+
+    /**
+     * Custom serializer for generating rate limit bucket keys.
+     * Default groups requests by method + pathname.
+     *
+     * @example
+     * // Per-user rate limiting
+     * serializer: (ctx) => `user:${ctx.headers?.['X-User-ID'] ?? 'anonymous'}`
+     *
+     * @example
+     * // Global rate limiting (all requests share one bucket)
+     * serializer: () => 'global'
+     */
+    serializer?: RequestSerializer<S, H, P> | undefined;
+
+    /**
+     * Pre-check callback. Return false to bypass rate limiting for this request.
+     * Useful for whitelisting certain requests or implementing dynamic bypass logic.
+     */
+    shouldRateLimit?: (ctx: RequestKeyOptions<S, H, P>) => boolean | undefined;
+
+    /**
+     * Behavior when rate limit is exceeded.
+     * - true: Wait for token to become available (default)
+     * - false: Reject immediately with RateLimitError
+     */
+    waitForToken?: boolean | undefined;
+
+    /**
+     * Callback invoked when a request is rate limited.
+     * Called before waiting (if waitForToken is true) or rejecting.
+     */
+    onRateLimit?: ((ctx: RequestKeyOptions<S, H, P>, waitTimeMs: number) => void | Promise<void>) | undefined;
+
+    /** Route-specific rules */
+    rules?: RateLimitRule<S, H, P>[] | undefined;
+}
+
+export interface RateLimitInternalState<S, H, P> {
+    methods: Set<string>;
+    config: RateLimitConfig<S, H, P>;
+    enabled: boolean;
+    maxCalls: number;
+    windowMs: number;
+    waitForToken: boolean;
+    serializer: RequestSerializer<S, H, P>;
+    rulesCache: Map<string, RateLimitRule<S, H, P> | null>;
+    rateLimiters: Map<string, RateLimitTokenBucket>;
+}
+
+/**
+ * Configuration for response caching.
+ *
+ * Caching stores responses and returns cached values for identical
+ * requests, reducing API load and improving response times.
+ * Supports stale-while-revalidate (SWR) for background refresh.
+ */
+export interface CacheConfig<S = unknown, H = unknown, P = unknown> {
+
+    /** Enable caching globally. Default: true */
+    enabled?: boolean | undefined;
+
+    /** HTTP methods to cache. Default: ['GET'] */
+    methods?: _InternalHttpMethods[] | undefined;
+
+    /** Default TTL for cached responses (ms). Default: 60000 */
+    ttl?: number | undefined;
+
+    /** Time until stale for SWR (ms). Default: undefined (no SWR) */
+    staleIn?: number | undefined;
+
+    /** Custom serializer for generating cache keys */
+    serializer?: RequestSerializer<S, H, P> | undefined;
+
+    /** Skip caching based on request context. Return true to skip. */
+    skip?: ((ctx: RequestKeyOptions<S, H, P>) => boolean) | undefined;
+
+    /** Route-specific rules */
+    rules?: CacheRule[] | undefined;
+
+    /**
+     * Custom cache adapter for external storage backends.
+     *
+     * Enables caching to Redis, IndexedDB, AsyncStorage, localStorage, etc.
+     * If omitted, uses in-memory MapCacheAdapter.
+     *
+     * @example
+     * // Redis adapter
+     * cachePolicy: {
+     *     adapter: new RedisCacheAdapter(redisClient)
+     * }
+     *
+     * @example
+     * // localStorage adapter
+     * cachePolicy: {
+     *     adapter: new LocalStorageCacheAdapter('api-cache')
+     * }
+     */
+    adapter?: CacheAdapter<unknown> | undefined;
+}
 
 export type RawRequestOptions = Omit<RequestInit, 'headers'>
 export type DictOrT<T> = Record<string, string> & Partial<T>;
@@ -202,7 +512,7 @@ declare module './engine.ts' {
          */
         export interface EventData<S = InstanceState, H = InstanceHeaders> {
             state: S;
-            url?: string | undefined;
+            url?: string | URL | undefined;
             method?: HttpMethods | undefined;
             headers?: H | undefined;
             params?: InstanceParams | undefined;
@@ -217,6 +527,54 @@ declare module './engine.ts' {
             status?: number | undefined;
             path?: string | undefined;
             aborted?: boolean | undefined;
+        }
+
+        /**
+         * Event data for deduplication events
+         */
+        export interface DedupeEventData<S = InstanceState, H = InstanceHeaders> extends EventData<S, H> {
+
+            /** The generated deduplication key */
+            key: string;
+
+            /** Number of callers waiting on this request (join events only) */
+            waitingCount?: number | undefined;
+        }
+
+        /**
+         * Event data for cache events
+         */
+        export interface CacheEventData<S = InstanceState, H = InstanceHeaders> extends EventData<S, H> {
+
+            /** The generated cache key */
+            key: string;
+
+            /** Whether the cache entry is stale (SWR) */
+            isStale?: boolean | undefined;
+
+            /** Time until expiration (ms) */
+            expiresIn?: number | undefined;
+        }
+
+        /**
+         * Event data for rate limit events
+         */
+        export interface RateLimitEventData<S = InstanceState, H = InstanceHeaders> extends EventData<S, H> {
+
+            /** The rate limit bucket key */
+            key: string;
+
+            /** Current tokens available in the bucket */
+            currentTokens: number;
+
+            /** Maximum capacity of the bucket */
+            capacity: number;
+
+            /** Time to wait before next token is available (ms) */
+            waitTimeMs: number;
+
+            /** When the next token will be available */
+            nextAvailable: Date;
         }
 
         /**
@@ -238,6 +596,17 @@ declare module './engine.ts' {
             'fetch-modify-options-change': EventData<S, H>;
             'fetch-modify-method-options-change': EventData<S, H>;
             'fetch-retry': EventData<S, H>;
+            'fetch-dedupe-start': DedupeEventData<S, H>;
+            'fetch-dedupe-join': DedupeEventData<S, H>;
+            'fetch-cache-hit': CacheEventData<S, H>;
+            'fetch-cache-stale': CacheEventData<S, H>;
+            'fetch-cache-miss': CacheEventData<S, H>;
+            'fetch-cache-set': CacheEventData<S, H>;
+            'fetch-cache-revalidate': CacheEventData<S, H>;
+            'fetch-cache-revalidate-error': CacheEventData<S, H>;
+            'fetch-ratelimit-wait': RateLimitEventData<S, H>;
+            'fetch-ratelimit-reject': RateLimitEventData<S, H>;
+            'fetch-ratelimit-acquire': RateLimitEventData<S, H>;
         }
 
         /**
@@ -332,13 +701,13 @@ declare module './engine.ts' {
             /**
              * Called before the fetch request is made
              */
-            onBeforeReq?: (opts: FetchEngine.RequestOpts<any, any>) => void | Promise<void> | undefined
+            onBeforeReq?: ((opts: FetchEngine.RequestOpts<any, any>) => void | Promise<void>) | undefined
 
             /**
              * Called after the fetch request is made. The response
              * object is cloned before it is passed to this function.
              */
-            onAfterReq?: (response: Response, opts: FetchEngine.RequestOpts<any, any>) => void | Promise<void> | undefined
+            onAfterReq?: ((response: Response, opts: FetchEngine.RequestOpts<any, any>) => void | Promise<void>) | undefined
         };
 
 
@@ -495,6 +864,87 @@ declare module './engine.ts' {
                     listener?: Function | null,
                     context: any
                 }) => void) | undefined,
+
+                /**
+                 * Deduplication policy configuration.
+                 *
+                 * - `true`: Enable with defaults (GET requests only)
+                 * - `false` | omitted: Disabled
+                 * - Object: Full configuration
+                 *
+                 * @example
+                 * // Enable with defaults (GET only)
+                 * dedupePolicy: true
+                 *
+                 * @example
+                 * // Custom configuration
+                 * dedupePolicy: {
+                 *     enabled: true,
+                 *     methods: ['GET', 'POST'],
+                 *     rules: [{ startsWith: '/admin', enabled: false }]
+                 * }
+                 */
+                dedupePolicy?: boolean | DeduplicationConfig<S, H, P> | undefined,
+
+                /**
+                 * Cache policy configuration.
+                 *
+                 * - `true`: Enable with defaults (GET requests, 60s TTL)
+                 * - `false` | omitted: Disabled
+                 * - Object: Full configuration
+                 *
+                 * @example
+                 * // Enable with defaults (GET only, 60s TTL)
+                 * cachePolicy: true
+                 *
+                 * @example
+                 * // Custom configuration with SWR
+                 * cachePolicy: {
+                 *     enabled: true,
+                 *     methods: ['GET'],
+                 *     ttl: 300000,     // 5 minutes
+                 *     staleIn: 60000,  // Stale after 1 minute
+                 *     rules: [
+                 *         { startsWith: '/static', ttl: 3600000 },
+                 *         { startsWith: '/admin', enabled: false }
+                 *     ]
+                 * }
+                 */
+                cachePolicy?: boolean | CacheConfig<S, H, P> | undefined,
+
+                /**
+                 * Rate limit policy configuration.
+                 *
+                 * - `true`: Enable with defaults (100 req/min for all methods)
+                 * - `false` | omitted: Disabled
+                 * - Object: Full configuration
+                 *
+                 * @example
+                 * // Enable with defaults (100 req/min)
+                 * rateLimitPolicy: true
+                 *
+                 * @example
+                 * // Custom configuration with per-route limits
+                 * rateLimitPolicy: {
+                 *     enabled: true,
+                 *     maxCalls: 60,
+                 *     windowMs: 60000,  // 60 req/min globally
+                 *     rules: [
+                 *         { startsWith: '/api/search', maxCalls: 10, windowMs: 1000 },  // 10/sec for search
+                 *         { startsWith: '/admin', enabled: false }  // No limit for admin
+                 *     ]
+                 * }
+                 *
+                 * @example
+                 * // Per-user rate limiting
+                 * rateLimitPolicy: {
+                 *     enabled: true,
+                 *     maxCalls: 100,
+                 *     windowMs: 60000,
+                 *     serializer: (ctx) => `user:${ctx.headers?.['X-User-ID'] ?? 'anonymous'}`
+                 * }
+                 */
+                rateLimitPolicy?: boolean | RateLimitConfig<S, H, P> | undefined,
             }
         );
 

@@ -5,23 +5,25 @@ import { isExpired, evictLRU } from './helpers.ts';
 /**
  * Map-based cache adapter with LRU eviction and background cleanup.
  *
- * Provides synchronous cache operations using a Map with:
+ * Provides cache operations using a Map with:
  * - LRU eviction when maxSize is reached
  * - Background cleanup of expired entries
- * - Optional WeakRef support for memory management
  * - Access statistics tracking
+ *
+ * All methods are async to conform to CacheAdapter interface,
+ * but operations are synchronous internally for performance.
  *
  * @example
  * const adapter = new MapCacheAdapter({ maxSize: 500, cleanupInterval: 30000 });
- * adapter.set('key', item, Date.now() + 60000);
- * const cached = adapter.get('key');
+ * await adapter.set('key', item, Date.now() + 60000);
+ * const cached = await adapter.get('key');
  */
-export class MapCacheAdapter<V extends CacheItem<any>> implements CacheAdapter<string, V> {
+export class MapCacheAdapter<T> implements CacheAdapter<T> {
 
-    #cache = new Map<string, V>();
+    #cache = new Map<string, CacheItem<T>>();
     #maxSize: number;
     #cleanupInterval: number;
-    #cleanupTimer?: NodeJS.Timeout | number;
+    #cleanupTimer?: NodeJS.Timeout | number | undefined;
     #stats = {
         evictions: 0
     };
@@ -45,25 +47,25 @@ export class MapCacheAdapter<V extends CacheItem<any>> implements CacheAdapter<s
         }
     }
 
-    get(key: string): V | undefined {
+    async get(key: string): Promise<CacheItem<T> | null> {
 
         const item = this.#cache.get(key);
 
         if (!item) {
 
-            return undefined;
+            return null;
         }
 
         if (isExpired(item)) {
 
             this.#cache.delete(key);
-            return undefined;
+            return null;
         }
 
         return item;
     }
 
-    set(key: string, value: V, _expiresAt: number): void {
+    async set(key: string, value: CacheItem<T>, _expiresAt?: number): Promise<void> {
 
         if (this.#cache.size >= this.#maxSize && !this.#cache.has(key)) {
 
@@ -74,22 +76,23 @@ export class MapCacheAdapter<V extends CacheItem<any>> implements CacheAdapter<s
         this.#cache.set(key, value);
     }
 
-    delete(key: string): boolean {
+    async delete(key: string): Promise<boolean> {
 
         return this.#cache.delete(key);
     }
 
-    clear(): void {
+    async clear(): Promise<void> {
 
         this.#cache.clear();
 
         if (this.#cleanupTimer !== undefined) {
 
             clearInterval(this.#cleanupTimer);
+            this.#cleanupTimer = undefined;
         }
     }
 
-    has(key: string): boolean {
+    async has(key: string): Promise<boolean> {
 
         const item = this.#cache.get(key);
 
@@ -107,6 +110,10 @@ export class MapCacheAdapter<V extends CacheItem<any>> implements CacheAdapter<s
         return true;
     }
 
+    /**
+     * Sync iterator over all cache keys.
+     * Kept for memoize compatibility.
+     */
     *keys(): IterableIterator<string> {
 
         for (const key of this.#cache.keys()) {
@@ -115,7 +122,11 @@ export class MapCacheAdapter<V extends CacheItem<any>> implements CacheAdapter<s
         }
     }
 
-    *entries(): IterableIterator<[string, V]> {
+    /**
+     * Sync iterator over all cache entries.
+     * Kept for memoize compatibility.
+     */
+    *entries(): IterableIterator<[string, CacheItem<T>]> {
 
         for (const entry of this.#cache.entries()) {
 

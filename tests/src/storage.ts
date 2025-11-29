@@ -1,7 +1,6 @@
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import { describe, it, beforeAll, beforeEach, afterAll, afterEach, expect } from 'vitest'
 import { SinonSpy } from 'sinon';
 
-import { expect } from 'chai';
 
 import {
     StorageEvent,
@@ -51,8 +50,8 @@ type StorageItems = {
 
 describe('@logosdx/storage', () => {
 
-    before(clearStores)
-    after(clearStores)
+    beforeAll(clearStores)
+    afterAll(clearStores)
 
     it('References localStorage or sessionStorage', () => {
 

@@ -7,8 +7,22 @@ export {
 
 export type {
     FetchResponse,
-    FetchConfig
+    FetchConfig,
+    DeduplicationConfig,
+    DedupeRule,
+    CacheConfig,
+    CacheRule,
+    RateLimitConfig,
+    RateLimitRule,
+    MatchTypes,
+    RequestKeyOptions,
+    RequestSerializer
 } from './types.ts';
+
+export {
+    defaultRequestSerializer,
+    defaultRateLimitSerializer
+} from './helpers.ts';
 
 export {
     FetchEngine

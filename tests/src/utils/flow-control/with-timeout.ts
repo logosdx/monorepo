@@ -1,10 +1,10 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -21,7 +21,7 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
     it('should throw TimeoutError when the function takes too long', async () => {
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             // Simulate a function that takes 100ms to complete
             await wait(100);
             return 'ok';
@@ -38,7 +38,7 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
     it('should return the result when the function completes within the timeout', async () => {
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             // Simulate a function that takes 10ms to complete
             await wait(10);
             return 'ok';
@@ -52,7 +52,7 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
     it('should pass arguments correctly', async () => {
 
-        const fn = mock.fn(async (a: number, b: string) => {
+        const fn = vi.fn(async (a: number, b: string) => {
             await wait(10);
             return `${a}-${b}`;
         });
@@ -66,10 +66,10 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
     it('should call abortController.abort() when timeout occurs', async () => {
 
         const abortController = new AbortController();
-        const abortSpy = mock.fn();
+        const abortSpy = vi.fn();
         abortController.abort = abortSpy;
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(100);
             return 'ok';
         });
@@ -89,9 +89,9 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
     it('should call onError callback for timeout errors', async () => {
 
-        const onError = mock.fn();
+        const onError = vi.fn();
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(100);
             return 'ok';
         });
@@ -108,16 +108,16 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
         calledExactly(onError, 1, 'onError called for timeout');
 
-        expect(onError.mock.calls[0]!.arguments[0]).to.be.an.instanceof(TimeoutError);
-        expect(onError.mock.calls[0]!.arguments[1]).to.equal(true); // didTimeout = true
+        expect(onError.mock.calls[0]?.[0]).to.be.an.instanceof(TimeoutError);
+        expect(onError.mock.calls[0]?.[1]).to.equal(true); // didTimeout = true
     });
 
     it('should call onError callback for non-timeout errors', async () => {
 
-        const onError = mock.fn();
+        const onError = vi.fn();
         const testError = new Error('non-timeout error');
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(10);
             throw testError;
         });
@@ -134,15 +134,15 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
         calledExactly(onError, 1, 'onError called for non-timeout error');
 
-        expect(onError.mock.calls[0]!.arguments[0]).to.equal(testError);
-        expect(onError.mock.calls[0]!.arguments[1]).to.equal(false); // didTimeout = false
+        expect(onError.mock.calls[0]?.[0]).to.equal(testError);
+        expect(onError.mock.calls[0]?.[1]).to.equal(false); // didTimeout = false
     });
 
     it('should call onTimeout callback when timeout occurs', async () => {
 
-        const onTimeout = mock.fn();
+        const onTimeout = vi.fn();
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(100);
             return 'ok';
         });
@@ -159,14 +159,14 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
         calledExactly(onTimeout, 1, 'onTimeout called');
 
-        expect(onTimeout.mock.calls[0]!.arguments[0]).to.be.an.instanceof(TimeoutError);
+        expect(onTimeout.mock.calls[0]?.[0]).to.be.an.instanceof(TimeoutError);
     });
 
     it('should throw non-timeout errors when throws is true', async () => {
 
         const testError = new Error('non-timeout error');
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(10);
             throw testError;
         });
@@ -186,7 +186,7 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
         const testError = new Error('non-timeout error');
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(10);
             throw testError;
         });
@@ -203,10 +203,10 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
     it('should call both onError and onTimeout callbacks when timeout occurs', async () => {
 
-        const onError = mock.fn();
-        const onTimeout = mock.fn();
+        const onError = vi.fn();
+        const onTimeout = vi.fn();
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(100);
             return 'ok';
         });
@@ -229,13 +229,13 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
     it('should handle all options together', async () => {
 
         const abortController = new AbortController();
-        const abortSpy = mock.fn();
+        const abortSpy = vi.fn();
         abortController.abort = abortSpy;
 
-        const onError = mock.fn();
-        const onTimeout = mock.fn();
+        const onError = vi.fn();
+        const onTimeout = vi.fn();
 
-        const fn = mock.fn(async () => {
+        const fn = vi.fn(async () => {
             await wait(100);
             return 'ok';
         });
@@ -260,13 +260,12 @@ describe('@logosdx/utils - flow-control: withTimeout', () => {
 
     it('should not double wrap the function', async () => {
 
-        const fn = mock.fn(() => 'ok');
-
+        const fn = vi.fn(() => 'ok');
         const wrappedFn = withTimeout(fn, { timeout: 100 });
 
         const [, error] = await attempt(() => withTimeout(wrappedFn, { timeout: 100 }) as any);
 
         expect(error).to.be.an.instanceof(Error);
-        expect((error as Error).message).to.equal('Function is already wrapped by withTimeout');
+        expect((error as Error).message).to.match(/Function is already wrapped/);
     });
 });

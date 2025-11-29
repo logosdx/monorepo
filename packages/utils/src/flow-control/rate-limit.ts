@@ -1,6 +1,7 @@
 import { wait } from './misc.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
-import { type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { assertNotWrapped, markWrapped } from '../_helpers.ts';
+import { Func } from '../types.ts';
 
 /**
  * Token bucket implementation of rate limiting
@@ -279,7 +280,7 @@ export const isRateLimitError = (error: unknown): error is RateLimitError => {
  *
  * @template T - The function type being rate limited
  */
-export type RateLimitOptions<T extends AnyFunc> = {
+export type RateLimitOptions<T extends Func> = {
     /** Maximum number of calls allowed within the time window */
     maxCalls: number,
     /** Time window in milliseconds for rate limiting (default: 1000) */
@@ -333,17 +334,17 @@ export type RateLimitOptions<T extends AnyFunc> = {
  * await rateLimitedWithoutThrowing();
  *
  */
-export function rateLimit<T extends AnyFunc>(
+export function rateLimit<T extends Func>(
     fn: T,
     opts: RateLimitOptions<T> & { throws: false }
 ): (...args: Parameters<T>) => Promise<ReturnType<T>>;
 
-export function rateLimit<T extends AnyFunc>(
+export function rateLimit<T extends Func>(
     fn: T,
     opts: RateLimitOptions<T> & { throws?: true }
 ): (...args: Parameters<T>) => Promise<ReturnType<T>>;
 
-export function rateLimit<T extends AnyFunc>(
+export function rateLimit<T extends Func>(
     fn: T,
     opts: RateLimitOptions<T>
 ): (...args: Parameters<T>) => Promise<ReturnType<T>> {
@@ -385,7 +386,7 @@ export function rateLimit<T extends AnyFunc>(
         return fn(...args);
     };
 
-    markWrapped(rateLimitedFunction, 'rateLimit');
+    markWrapped(fn, rateLimitedFunction as T, 'rateLimit');
 
     return rateLimitedFunction;
 }

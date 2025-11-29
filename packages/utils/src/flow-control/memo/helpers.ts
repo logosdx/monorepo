@@ -93,7 +93,7 @@ export const updateAccessMetadata = <T>(
 
     const now = Date.now();
     item.lastAccessed = now;
-    item.accessCount++;
+    item.accessCount = (item.accessCount ?? 0) + 1;
     item.accessSequence = sequence;
 };
 
@@ -117,14 +117,17 @@ export const evictLRU = <T>(cache: Map<string, CacheItem<T>>): string | null => 
 
     for (const [key, item] of cache.entries()) {
 
+        const itemLastAccessed = item.lastAccessed ?? 0;
+        const itemAccessSequence = item.accessSequence ?? 0;
+
         const isLessRecent =
-            item.lastAccessed < lruTime ||
-            (item.lastAccessed === lruTime && item.accessSequence < lruSequence);
+            itemLastAccessed < lruTime ||
+            (itemLastAccessed === lruTime && itemAccessSequence < lruSequence);
 
         if (isLessRecent) {
 
-            lruTime = item.lastAccessed;
-            lruSequence = item.accessSequence;
+            lruTime = itemLastAccessed;
+            lruSequence = itemAccessSequence;
             lruKey = key;
         }
     }

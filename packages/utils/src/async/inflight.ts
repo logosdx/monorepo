@@ -1,7 +1,9 @@
 import type { AsyncFunc } from '../types.ts';
-
+import { markWrapped } from '../_helpers.ts';
+import { serializer } from '../misc/index.ts';
 import { attemptSync } from './attempt.ts';
-import { serializer } from '../flow-control/_helpers.ts';
+import { SingleFlight } from './singleflight.ts';
+
 
 /**
  * Configuration options for in-flight promise deduplication.
@@ -179,7 +181,10 @@ export function withInflightDedup<Args extends any[], Value, Key = string>(
     opts?: InflightOptions<Args, Key, Value>
 ): AsyncFunc<Args, Value> {
 
-    const inflight = new Map<Key, Promise<Value>>();
+    const flight = new SingleFlight<Value>({
+        // Disable cleanup timer since we're only using inflight, not cache
+        cleanupInterval: 0
+    });
 
     const wrapped = async (...args: Args): Promise<Value> => {
 
@@ -193,38 +198,44 @@ export function withInflightDedup<Args extends any[], Value, Key = string>(
             }
         }
 
-        const key = opts?.generateKey ? opts.generateKey(...args) : serializer(args) as Key;
+        const key = opts?.generateKey ? String(opts.generateKey(...args)) : serializer(args);
 
-        const existing = inflight.get(key);
+        const existing = flight.getInflight(key);
 
         if (existing) {
 
-            safeHook(opts?.onJoin, key);
-            return existing;
+            flight.joinInflight(key);
+            safeHook(opts?.onJoin, opts?.generateKey ? opts.generateKey(...args) : key as Key);
+            return existing.promise;
         }
 
-        safeHook(opts?.onStart, key);
+        safeHook(opts?.onStart, opts?.generateKey ? opts.generateKey(...args) : key as Key);
+
+        // Store cleanup function in closure for use in finally
+        let cleanup: (() => void) | undefined;
 
         const promise = producer(...args)
             .then(value => {
 
-                safeHook(opts?.onResolve, key, value);
+                safeHook(opts?.onResolve, opts?.generateKey ? opts.generateKey(...args) : key as Key, value);
                 return value;
             })
             .catch(error => {
 
-                safeHook(opts?.onReject, key, error);
+                safeHook(opts?.onReject, opts?.generateKey ? opts.generateKey(...args) : key as Key, error);
                 throw error;
             })
             .finally(() => {
 
-                inflight.delete(key);
+                cleanup?.();
             });
 
-        inflight.set(key, promise);
+        cleanup = flight.trackInflight(key, promise);
 
         return promise;
     };
+
+    markWrapped(producer, wrapped, 'inflight');
 
     return wrapped;
 }
