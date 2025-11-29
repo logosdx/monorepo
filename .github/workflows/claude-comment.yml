@@ -12,6 +12,8 @@ on:
 
 jobs:
   claude-code-action:
+    # Skip release and master branches
+    if: ${{ !contains(fromJSON('["release", "master"]'), github.base_ref) && !contains(fromJSON('["refs/heads/release", "refs/heads/master"]'), github.ref) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
