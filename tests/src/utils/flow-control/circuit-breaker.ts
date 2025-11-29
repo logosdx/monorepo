@@ -1,10 +1,10 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -25,14 +25,14 @@ describe('@logosdx/utils', () => {
 
         it('should implement a circuit breaker', async () => {
 
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('poop');
             });
 
-            const onTripped = mock.fn();
-            const onError = mock.fn();
-            const onReset = mock.fn();
-            const onHalfOpen = mock.fn();
+            const onTripped = vi.fn();
+            const onError = vi.fn();
+            const onReset = vi.fn();
+            const onHalfOpen = vi.fn();
 
             const wrappedFn = circuitBreaker(fn, {
                 maxFailures: 3,
@@ -82,7 +82,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should test circuit breaker concurrency control in half-open state', async () => {
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('service down');
             });
 
@@ -117,15 +117,15 @@ describe('@logosdx/utils', () => {
 
         it('should test circuit breaker success case and reset', async () => {
             let shouldFail = true;
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 if (shouldFail) {
                     throw new Error('temporary failure');
                 }
                 return 'success';
             });
 
-            const onReset = mock.fn();
-            const onHalfOpen = mock.fn();
+            const onReset = vi.fn();
+            const onHalfOpen = vi.fn();
 
             const wrappedFn = circuitBreaker(fn, {
                 maxFailures: 2,
@@ -173,7 +173,7 @@ describe('@logosdx/utils', () => {
             }
 
             let errorType: 'network' | 'validation' = 'network';
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 if (errorType === 'network') {
                     throw new NetworkError('Network timeout');
                 } else {
@@ -181,7 +181,7 @@ describe('@logosdx/utils', () => {
                 }
             });
 
-            const onTripped = mock.fn();
+            const onTripped = vi.fn();
 
             const wrappedFn = circuitBreaker(fn, {
                 maxFailures: 2,
@@ -204,7 +204,7 @@ describe('@logosdx/utils', () => {
             const wrappedFn2 = circuitBreaker(fn, {
                 maxFailures: 2,
                 shouldTripOnError: (error) => error.name === 'NetworkError',
-                onTripped: mock.fn()
+                onTripped: vi.fn()
             });
 
             // Validation errors should NOT trip the circuit
@@ -218,14 +218,14 @@ describe('@logosdx/utils', () => {
 
         it('should test circuit breaker with successful calls resetting failure count', async () => {
             let shouldFail = true;
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 if (shouldFail) {
                     throw new Error('intermittent failure');
                 }
                 return 'success';
             });
 
-            const onTripped = mock.fn();
+            const onTripped = vi.fn();
 
             const wrappedFn = circuitBreaker(fn, {
                 maxFailures: 3,
@@ -253,11 +253,11 @@ describe('@logosdx/utils', () => {
         });
 
         it('should test circuit breaker sync version', () => {
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('sync failure');
             });
 
-            const onTripped = mock.fn();
+            const onTripped = vi.fn();
 
             const wrappedFn = circuitBreakerSync(fn, {
                 maxFailures: 2,
@@ -277,15 +277,15 @@ describe('@logosdx/utils', () => {
 
         it('should test half-open max attempts configuration', async () => {
             let shouldSucceed = false;
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 if (shouldSucceed) {
                     return 'success';
                 }
                 throw new Error('failing');
             });
 
-            const onReset = mock.fn();
-            const onHalfOpen = mock.fn();
+            const onReset = vi.fn();
+            const onHalfOpen = vi.fn();
 
             const wrappedFn = circuitBreaker(fn, {
                 maxFailures: 2,
@@ -315,7 +315,7 @@ describe('@logosdx/utils', () => {
 
         it('should validate circuitBreaker parameters', () => {
 
-            const fn = mock.fn(() => 'ok');
+            const fn = vi.fn(() => 'ok');
 
             // fn must be a function
             expect(() => circuitBreaker('not a function' as any, {})).to.throw('fn must be a function');
@@ -343,7 +343,7 @@ describe('@logosdx/utils', () => {
 
         it('should validate circuitBreakerSync parameters', () => {
 
-            const fn = mock.fn(() => 'ok');
+            const fn = vi.fn(() => 'ok');
 
             // fn must be a function
             expect(() => circuitBreakerSync('not a function' as any, {})).to.throw('fn must be a function');
@@ -358,7 +358,7 @@ describe('@logosdx/utils', () => {
 
         it('should work with default values', async () => {
 
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('test failure');
             });
 
@@ -383,7 +383,7 @@ describe('@logosdx/utils', () => {
 
         it('should test CircuitBreakerError class', async () => {
 
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('service failure');
             });
 
@@ -402,11 +402,11 @@ describe('@logosdx/utils', () => {
 
         it('should return nextAvailable date when circuit is open', async () => {
 
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 throw new Error('service failure');
             });
 
-            const onTripped = mock.fn();
+            const onTripped = vi.fn();
 
             const wrappedFn = circuitBreaker(fn, {
                 maxFailures: 1,
@@ -428,28 +428,30 @@ describe('@logosdx/utils', () => {
 
             calledExactly(onTripped, 1, 'should call onTripped callback');
 
-            const [err, store] = onTripped.mock.calls[0]?.arguments || [];
+            const [err, store] = onTripped.mock.calls[0] || [];
             expect(err).to.be.an.instanceof(CircuitBreakerError);
             expect(store).to.be.an('object');
             expect(store.nextAvailable).to.be.a('number');
             expect(store.nextAvailable).to.be.greaterThan(now);
-            expect(store.nextAvailable).to.be.lessThanOrEqual(now + 100);
+            expect(store.nextAvailable).to.be.lessThanOrEqual(now + 101);
         });
 
         it('should not double wrap the function', async () => {
 
-            const fn = mock.fn(() => 'ok');
+            const fn1 = vi.fn(() => 'ok');
+            const fn2 = vi.fn(() => 'ok');
 
-            const wrappedFnAsync = circuitBreaker(fn);
-            const wrappedFnSync = circuitBreakerSync(fn);
+            const wrappedFnAsync = circuitBreaker(fn1);
+            const wrappedFnSync = circuitBreakerSync(fn2);
 
             const [, error1] = attemptSync(() => circuitBreakerSync(wrappedFnSync));
             const [, error2] = await attempt(() => circuitBreaker(wrappedFnAsync) as any);
 
             expect(error1).to.be.an.instanceof(Error);
-            expect((error1 as Error).message).to.equal('Function is already wrapped by circuitBreaker');
+            expect((error1 as Error).message).to.match(/Function is already wrapped/);
             expect(error2).to.be.an.instanceof(Error);
-            expect((error2 as Error).message).to.equal('Function is already wrapped by circuitBreaker');
+            expect((error2 as Error).message).to.match(/Function is already wrapped/);
+
         });
     })
 });

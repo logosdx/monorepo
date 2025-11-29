@@ -14,8 +14,8 @@ import {
     type InflightOptions,
 } from '../async/index.ts';
 
-import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
 import { assert, isPlainObject } from '../validation/index.ts';
+import { AsyncFunc, Func } from '../types.ts';
 
 const flowFunctions = {
     rateLimit,
@@ -28,7 +28,7 @@ const flowFunctions = {
 type FlowFunctionKey = keyof typeof flowFunctions;
 
 
-type ComposeFlowOptions<T extends AnyAsyncFunc> = {
+type ComposeFlowOptions<T extends AsyncFunc> = {
 
     /**
      * Rate limit the function.
@@ -65,7 +65,7 @@ type ComposeFlowOptions<T extends AnyAsyncFunc> = {
  * @param opts - The options for the flow control functions
  * @returns The composed function
  */
-export const composeFlow = <T extends AnyAsyncFunc>(
+export const composeFlow = <T extends AsyncFunc>(
     fn: T,
     opts: ComposeFlowOptions<T>
 ): T => {
@@ -92,7 +92,7 @@ export const composeFlow = <T extends AnyAsyncFunc>(
 
         if (key in flowFunctions && options) {
 
-            const flowFunction = flowFunctions[key] as AnyFunc;
+            const flowFunction = flowFunctions[key] as Func;
 
             const newFunction = flowFunction(
                 finalFunction as T,

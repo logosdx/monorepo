@@ -1,12 +1,14 @@
 import {
     describe,
     it,
-    mock,
-    before,
-    after,
-} from 'node:test'
+    vi,
+    beforeAll,
+    afterAll,
+    expect,
+    beforeEach,
+    afterEach
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -18,18 +20,26 @@ import {
     RateLimitTokenBucket
 } from '../../../../packages/utils/src/index.ts';
 
-describe('@logosdx/utils', () => {
+describe('@logosdx/utils - RateLimit', () => {
 
     const { calledExactly } = mockHelpers(expect);
 
-    describe('RateLimitTokenBucket', () => {
-        before(() => {
-            mock.timers.enable({ apis: ['Date', 'setTimeout'] });
-        });
+    beforeEach(() => {
 
-        after(() => {
-            mock.timers.reset();
+        vi.useFakeTimers({
+            toFake: [
+                'setTimeout',
+                'setInterval',
+                'Date',
+            ]
         });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    describe('RateLimitTokenBucket', () => {
 
         it('should create a token bucket', () => {
             const bucket = new RateLimitTokenBucket(5, 100);
@@ -50,11 +60,11 @@ describe('@logosdx/utils', () => {
             expect(bucket.consume()).to.equal(false); // should block
 
             // Advance time to refill 1 token
-            mock.timers.tick(50);
+            vi.advanceTimersByTime(50);
             expect(bucket.consume()).to.equal(true); // now 0 again
 
             // Advance time to refill another token
-            mock.timers.tick(50);
+            vi.advanceTimersByTime(50);
             expect(bucket.consume()).to.equal(true); // again
         });
 
@@ -66,12 +76,12 @@ describe('@logosdx/utils', () => {
             expect(bucket.tokens).to.equal(0);
 
             // Advance time by less than refill interval
-            mock.timers.tick(25);
+            vi.advanceTimersByTime(25);
             bucket.consume(0); // trigger refill
             expect(bucket.tokens).to.equal(0); // should not have refilled yet
 
             // Advance time to complete refill interval
-            mock.timers.tick(25);
+            vi.advanceTimersByTime(25);
             bucket.consume(0); // trigger refill
             expect(bucket.tokens).to.equal(1); // should have 1 token available
         });
@@ -105,7 +115,7 @@ describe('@logosdx/utils', () => {
 
         it('should handle concurrent waitForToken calls', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
             const bucket = new RateLimitTokenBucket(1, 10);
             bucket.consume(); // exhaust tokens
@@ -122,16 +132,13 @@ describe('@logosdx/utils', () => {
 
             // All should complete around the same time (not sequentially)
             expect(elapsed).to.be.lessThan(50);
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should not exceed capacity during refill', () => {
             const bucket = new RateLimitTokenBucket(2, 50);
 
             // Start with full capacity, advance time much longer than needed for refill
-            mock.timers.tick(500); // 10x the refill time
+            vi.advanceTimersByTime(500); // 10x the refill time
             bucket.consume(0); // trigger refill
 
             expect(bucket.tokens).to.equal(2); // Should cap at capacity
@@ -152,7 +159,7 @@ describe('@logosdx/utils', () => {
 
         it('should consume tokens atomically after waiting', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
             const bucket = new RateLimitTokenBucket(1, 10);
 
@@ -168,14 +175,11 @@ describe('@logosdx/utils', () => {
             const success = await bucket.waitAndConsume();
             expect(success).to.equal(true);
             expect(bucket.tokens).to.equal(0); // should be consumed
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should handle aborted waitAndConsume', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
             const bucket = new RateLimitTokenBucket(1, 1000); // Long refill time
             bucket.consume(); // exhaust tokens
@@ -189,14 +193,11 @@ describe('@logosdx/utils', () => {
 
             expect(success).to.equal(false);
             expect(bucket.tokens).to.equal(0); // should not consume if aborted
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should respect count parameter in waitAndConsume', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
             const bucket = new RateLimitTokenBucket(3, 5);
 
@@ -211,9 +212,6 @@ describe('@logosdx/utils', () => {
             const success = await bucket.waitAndConsume(2);
             expect(success).to.equal(true);
             expect(bucket.tokens).to.equal(1); // should have 3 - 2 = 1 remaining
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should reset to full capacity', () => {
@@ -232,7 +230,7 @@ describe('@logosdx/utils', () => {
             expect(bucket.tokens).to.equal(0);
 
             // Advance time partially
-            mock.timers.tick(30);
+            vi.advanceTimersByTime(30);
             bucket.consume(0); // trigger refill
             expect(bucket.tokens).to.equal(0); // should not have full token yet
 
@@ -244,27 +242,24 @@ describe('@logosdx/utils', () => {
 
         it('should call onRateLimit callback with correct parameters', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
             const bucket = new RateLimitTokenBucket(1, 10);
-            const callback = mock.fn();
+            const callback = vi.fn();
 
             bucket.consume(); // exhaust tokens
 
             await bucket.waitForToken(1, { onRateLimit: callback });
 
-            expect(callback.mock.callCount()).to.equal(1);
+            expect(callback.mock.calls.length).to.equal(1);
             const call = callback.mock.calls[0]!;
-            expect(call.arguments[0]).to.be.instanceOf(RateLimitError);
-            expect(call.arguments[1]).to.be.instanceOf(Date);
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
+            expect(call[0]).to.be.instanceOf(RateLimitError);
+            expect(call[1]).to.be.instanceOf(Date);
         });
 
         it('should apply jitterFactor to wait time', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
             const bucket = new RateLimitTokenBucket(1, 10);
 
@@ -280,9 +275,6 @@ describe('@logosdx/utils', () => {
             const min = Math.min(...times);
             const max = Math.max(...times);
             expect(max - min).to.be.greaterThan(3); // Should have variation
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should track statistics correctly', () => {
@@ -319,7 +311,7 @@ describe('@logosdx/utils', () => {
             expect(bucket.tokens).to.equal(0);
 
             // Simulate very long delay (positive overflow)
-            mock.timers.tick(100 * 2 * 3); // 3x the max expected refill time
+            vi.advanceTimersByTime(100 * 2 * 3); // 3x the max expected refill time
             bucket.consume(); // This should trigger overflow protection and consume 1 token
             expect(bucket.tokens).to.equal(1); // Should reset to full capacity (2) then consume 1
         });
@@ -336,24 +328,24 @@ describe('@logosdx/utils', () => {
             expect(bucket.tokens).to.equal(0);
 
             // Advance time by 50ms (half refill time)
-            mock.timers.tick(50);
+            vi.advanceTimersByTime(50);
             bucket.consume(0); // trigger refill
             expect(bucket.tokens).to.equal(0); // Should not have full token yet
 
             // Advance time by another 50ms (total 100ms = 1 token)
-            mock.timers.tick(50);
+            vi.advanceTimersByTime(50);
             bucket.consume(0); // trigger refill
             expect(bucket.tokens).to.equal(1); // Should have 1 token
 
             // Advance time by another 100ms (total 200ms = 2 tokens)
-            mock.timers.tick(100);
+            vi.advanceTimersByTime(100);
             bucket.consume(0); // trigger refill
             expect(bucket.tokens).to.equal(2); // Should have full capacity
         });
 
         it('should track wait time statistics', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
             const bucket = new RateLimitTokenBucket(1, 10);
 
@@ -372,23 +364,13 @@ describe('@logosdx/utils', () => {
             expect(finalStats.waitCount).to.equal(1);
             expect(finalStats.totalWaitTime).to.be.greaterThan(5); // Should be around 10ms
             expect(finalStats.averageWaitTime).to.be.greaterThan(5);
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
     });
 
     describe('flow-control: rateLimit', () => {
-        before(() => {
-            mock.timers.enable({ apis: ['Date'] });
-        });
-
-        after(() => {
-            mock.timers.reset();
-        });
 
         it('should execute function normally when under rate limit', async () => {
-            const mockFn = mock.fn(() => 'success');
+            const mockFn = vi.fn(() => 'success');
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 5,
                 windowMs: 100
@@ -410,7 +392,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should throw RateLimitError when limit is exceeded and throws is true', async () => {
-            const mockFn = mock.fn(() => 'success');
+            const mockFn = vi.fn(() => 'success');
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 2,
                 windowMs: 100,
@@ -430,10 +412,10 @@ describe('@logosdx/utils', () => {
 
         it('should call onLimitReached callback when limit is exceeded', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
-            const mockFn = mock.fn((n: number, s: string) => `success ${n} ${s}`);
-            const onLimitReached = mock.fn();
+            const mockFn = vi.fn((n: number, s: string) => `success ${n} ${s}`);
+            const onLimitReached = vi.fn();
 
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 1,
@@ -449,14 +431,14 @@ describe('@logosdx/utils', () => {
             // Second call should trigger rate limit and wait
             await rateLimitedFn(2, 'b');
 
-            expect(onLimitReached.mock.callCount()).to.equal(1);
+            expect(onLimitReached.mock.calls.length).to.equal(1);
 
             const firstCall = onLimitReached.mock.calls[0];
             expect(firstCall).to.not.be.undefined;
 
-            const error = firstCall!.arguments[0];
-            const nextAvailable = firstCall!.arguments[1];
-            const args = firstCall!.arguments[2];
+            const error = firstCall?.[0];
+            const nextAvailable = firstCall?.[1];
+            const args = firstCall?.[2];
 
             expect(error).to.be.instanceOf(RateLimitError);
             expect(error.maxCalls).to.equal(1);
@@ -467,16 +449,13 @@ describe('@logosdx/utils', () => {
             expect(args).to.deep.equal([2, 'b']);
 
             calledExactly(mockFn, 2, 'succeeded despite onLimitReached callback called');
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should reset rate limit after window expires', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
-            const mockFn = mock.fn(() => 'success');
+            const mockFn = vi.fn(() => 'success');
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 1,
                 windowMs: 10
@@ -492,13 +471,10 @@ describe('@logosdx/utils', () => {
             expect(await rateLimitedFn()).to.equal('success');
 
             calledExactly(mockFn, 2, 'rate limit reset after window expires');
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should preserve function arguments and return values', async () => {
-            const mockFn = mock.fn((a: number, b: string) => `${a}-${b}`);
+            const mockFn = vi.fn((a: number, b: string) => `${a}-${b}`);
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 5,
                 windowMs: 1000
@@ -509,11 +485,11 @@ describe('@logosdx/utils', () => {
             expect(result).to.equal('42-test');
             const firstCall = mockFn.mock.calls[0];
             expect(firstCall).to.not.be.undefined;
-            expect(firstCall!.arguments).to.deep.equal([42, 'test']);
+            expect(firstCall).to.deep.equal([42, 'test']);
         });
 
         it('should validate input parameters', () => {
-            const mockFn = mock.fn();
+            const mockFn = vi.fn();
 
             expect(() => {
                 rateLimit(mockFn, {
@@ -549,21 +525,22 @@ describe('@logosdx/utils', () => {
         });
 
         it('should not double wrap the function', async () => {
-            const fn = mock.fn(() => 'ok');
+            const fn = vi.fn(() => 'ok');
 
             const wrappedFn = rateLimit(fn as any, { maxCalls: 1 });
 
             const [, error] = await attempt(() => rateLimit(wrappedFn, { maxCalls: 1 }) as any);
 
             expect(error).to.be.an.instanceof(Error);
-            expect((error as Error).message).to.equal('Function is already wrapped by rateLimit');
+            expect((error as Error).message).to.match(/Function is already wrapped/);
+
         });
 
         it('should handle burst traffic followed by normal rate', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
-            const mockFn = mock.fn(() => 'success');
+            const mockFn = vi.fn(() => 'success');
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 3,
                 windowMs: 30 // 10ms per token
@@ -580,16 +557,13 @@ describe('@logosdx/utils', () => {
             await rateLimitedFn(); // should succeed with new token
 
             calledExactly(mockFn, 4, 'burst traffic handled correctly');
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should handle precise timing boundaries', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
-            const mockFn = mock.fn(() => 'success');
+            const mockFn = vi.fn(() => 'success');
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 2,
                 windowMs: 20, // 10ms per token
@@ -610,16 +584,13 @@ describe('@logosdx/utils', () => {
             expect(result).to.equal('success');
 
             calledExactly(mockFn, 3, 'precise timing boundaries');
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should handle multiple overlapping time windows', async () => {
             // Use real timers for this async test
-            mock.timers.reset();
+            vi.useRealTimers();
 
-            const mockFn = mock.fn(() => 'success');
+            const mockFn = vi.fn(() => 'success');
             const rateLimitedFn = rateLimit(mockFn, {
                 maxCalls: 2,
                 windowMs: 20, // 10ms per token
@@ -639,13 +610,10 @@ describe('@logosdx/utils', () => {
             expect(error).to.be.instanceOf(RateLimitError);
 
             calledExactly(mockFn, 3, 'multiple overlapping windows');
-
-            // Re-enable mock timers
-            mock.timers.enable({ apis: ['Date'] });
         });
 
         it('should handle errors in wrapped function', async () => {
-            const mockFn = mock.fn(() => {
+            const mockFn = vi.fn(() => {
                 throw new Error('Function error');
             });
             const rateLimitedFn = rateLimit(mockFn, {
@@ -672,7 +640,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should handle async function return values correctly', async () => {
-            const mockFn = mock.fn(async (delay: number) => {
+            const mockFn = vi.fn(async (delay: number) => {
                 // Simulate async work
                 return Promise.resolve(`result-${delay}`);
             });

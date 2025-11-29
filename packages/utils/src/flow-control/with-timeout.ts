@@ -1,7 +1,8 @@
-import { wait } from './misc.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
-import { type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import { markWrapped } from '../_helpers.ts';
 import { attempt } from '../async/attempt.ts';
+import { Func } from '../types.ts';
+import { wait } from './misc.ts';
 
 /**
  * Error thrown when a function wrapped with withTimeout exceeds its specified timeout duration.
@@ -68,7 +69,7 @@ export interface WithTimeoutOptions {
  * @returns The result of the function execution
  * @throws {TimeoutError} When the function execution exceeds the specified timeout
  */
-export const runWithTimeout = async <T extends AnyFunc>(
+export const runWithTimeout = async <T extends Func>(
     func: T,
     opts: WithTimeoutOptions
 ) => {
@@ -175,13 +176,12 @@ export const runWithTimeout = async <T extends AnyFunc>(
  * }
  * ```
  */
-export const withTimeout = <T extends AnyFunc>(
+export const withTimeout = <T extends Func>(
     fn: T,
     opts: WithTimeoutOptions
 ): T => {
 
     assert(isFunction(fn), 'fn must be a function');
-    assertNotWrapped(fn, 'withTimeout');
     assert(isPlainObject(opts), 'opts must be an object');
 
     assert(
@@ -199,7 +199,7 @@ export const withTimeout = <T extends AnyFunc>(
         return runWithTimeout(() => fn(...args), opts);
     } as T;
 
-    markWrapped(withTimeoutFunction, 'withTimeout');
+    markWrapped(fn, withTimeoutFunction, 'withTimeout');
 
     return withTimeoutFunction;
 }

@@ -1,42 +1,93 @@
 name: Claude Code Review
 
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
-
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize]
 
 jobs:
   claude-review:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Claude Automated Code Review
-        uses: anthropics/claude-code-action@main
+        uses: anthropics/claude-code-action@v1
         with:
-          timeout_minutes: "15"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
+          use_sticky_comment: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Please review this pull request according to our @logosdx project standards.
 
-            Focus on:
+            ## Step 1: Get Changed Files
+            First, run `gh pr diff --name-only` to get the list of changed files.
+            Only review the files that have been changed in this PR.
+
+            ## Step 2: Code Review
+            For each changed file, review for:
             - TypeScript development standards (naming, error handling, function structure)
             - PNPM monorepo structure and package organization
             - Required dogfooding of utility usage (attempt, batch, circuitBreaker, etc.)
             - Code style conventions (newlines, comments, JSDoc)
             - Critical violations that require immediate attention
             - Security and performance considerations
-            - Provide specific line references and actionable suggestions
-            - Ensure proper import patterns (cross-package vs test imports)
-          allowed_tools: |
-            mcp__github__create_pending_pull_request_review,
-            mcp__github__add_pull_request_review_comment_to_pending_review,
-            mcp__github__submit_pending_pull_request_review,
-            mcp__github__get_pull_request_diff
+            - Proper import patterns (cross-package vs test imports)
+
+            ## Step 3: Documentation Check
+            If any source files in `packages/*/src/` were changed:
+            - Check if corresponding documentation in `docs/` or `llm-helpers/` needs updating
+            - Flag any new exports or API changes that lack documentation
+            - Note if JSDoc comments are missing or outdated for changed functions
+
+            ## Step 4: Impact Assessment
+            For changes to shared packages (especially `@logosdx/utils`):
+            - Identify which other packages depend on the changed code
+            - Check package.json dependencies to map the dependency tree
+            - Assess if changes are breaking (removed exports, changed signatures, etc.)
+            - List potentially affected packages and explain the impact
+            - Flag if changes require updates to downstream packages
+
+            Package dependency hierarchy (utils is foundation):
+            ```
+            @logosdx/kit → all packages
+            @logosdx/fetch, dom, observer, localize, state-machine, storage → @logosdx/utils
+            ```
+
+            ## Output Format
+            IMPORTANT: Use a single sticky comment that gets updated on each review.
+
+            1. First, check if an existing review comment exists:
+               `gh pr view --comments --json comments -q '.comments[] | select(.body | startswith("## 🤖 Claude Code Review"))'`
+
+            2. If a previous comment exists, edit it instead of creating a new one:
+               `gh pr comment --edit-last --body "..."`
+
+            3. If no previous comment exists, create a new one:
+               `gh pr comment --body "..."`
+
+            The comment MUST always start with this exact title:
+            ```
+            ## 🤖 Claude Code Review
+            ```
+
+            Then include:
+            1. Overview of changes
+            2. Code review findings (critical issues first)
+            3. Documentation status (up-to-date / needs update)
+            4. Impact assessment (affected packages and breaking change risk)
+            5. Timestamp: `_Last updated: <current date/time>_`
+
+            Use inline comments sparingly, only for critical issues that need direct code attention.
+
+          claude_args: |
+            --max-turns 10
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"

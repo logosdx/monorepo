@@ -1,7 +1,7 @@
 import type { Func } from '../../types.ts';
 import { assert, assertOptional, isFunction, isOptional } from '../../validation/index.ts';
 import { attemptSync } from '../../async/attempt.ts';
-import { serializer } from '../_helpers.ts';
+import { serializer } from '../../misc/index.ts';
 
 import type { MemoizeOptions, EnhancedMemoizedFunction, CacheStats, CacheItem } from './types.ts';
 import {
@@ -13,6 +13,8 @@ import {
 } from './helpers.ts';
 
 const memoizedFunctions = new WeakSet<Function>();
+
+export interface MemoizeSyncOptions<T extends Func<any>> extends Omit<MemoizeOptions<T>, 'adapter' | 'staleIn' | 'staleTimeout'> {}
 
 /**
  * Memoizes a synchronous function with intelligent caching and LRU eviction.
@@ -82,7 +84,7 @@ const memoizedFunctions = new WeakSet<Function>();
  */
 export const memoizeSync = <T extends Func<any>>(
     fn: T,
-    opts: MemoizeOptions<T> = {}
+    opts: MemoizeSyncOptions<T> = {}
 ): EnhancedMemoizedFunction<T> => {
 
     assert(isFunction(fn), 'fn must be a function');
@@ -94,12 +96,15 @@ export const memoizeSync = <T extends Func<any>>(
         generateKey,
         onError,
         cleanupInterval = 60000,
-        staleIn,
-        staleTimeout,
         useWeakRef = false,
-        adapter,
         shouldCache
     } = opts;
+
+    const {
+        staleIn,
+        staleTimeout,
+        adapter,
+    } = opts as any // Cast to any to bypass TS checks for unsupported options
 
     assert(ttl > 0, 'ttl must be greater than 0');
     assert(maxSize > 0, 'maxSize must be greater than 0');

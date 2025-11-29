@@ -1,12 +1,8 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
-
-import { expect } from 'chai';
-
-import { mockHelpers } from '../../_helpers';
+    expect
+} from 'vitest'
 
 import {
     attempt,
@@ -17,11 +13,9 @@ import {
     nextLoop,
 } from '../../../../packages/utils/src/index.ts';
 
-describe('@logosdx/utils', () => {
+describe('@logosdx/utils - Misc', () => {
 
-    const { calledExactly } = mockHelpers(expect);
-
-    describe('flow-control: attempt', () => {
+    describe('attempt', () => {
 
         it('should attempt', async () => {
 
@@ -80,7 +74,7 @@ describe('@logosdx/utils', () => {
         });
     });
 
-    describe('flow-control: runInSeries', () => {
+    describe('runInSeries', () => {
 
         it('should run functions in series', () => {
 
@@ -147,7 +141,7 @@ describe('@logosdx/utils', () => {
         });
     });
 
-    describe('flow-control: makeInSeries', () => {
+    describe('makeInSeries', () => {
 
         it('should create a function that runs functions in series', () => {
 
@@ -236,7 +230,7 @@ describe('@logosdx/utils', () => {
         });
     });
 
-    describe('flow-control: nextLoop', () => {
+    describe('nextLoop', () => {
 
         it('should resolve after the next event loop', async () => {
 

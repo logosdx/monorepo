@@ -1,6 +1,5 @@
-import { test, describe } from 'node:test'
+import { test, describe, expect } from 'vitest'
 
-import { expect } from 'chai';
 
 import { PriorityQueue } from '../../../../packages/utils/src/index.ts';
 

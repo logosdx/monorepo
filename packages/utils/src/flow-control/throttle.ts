@@ -1,5 +1,6 @@
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
-import { type AnyFunc, assertNotWrapped, markWrapped } from './_helpers.ts';
+import {  markWrapped } from '../_helpers.ts';
+import { Func } from '../types.ts';
 
 /**
  * Error thrown when a throttled function is called too frequently
@@ -20,7 +21,7 @@ export const isThrottleError = (error: unknown): error is ThrottleError => {
 /**
  * Enhanced function interface with cancel capability
  */
-export interface ThrottledFunction<T extends AnyFunc> {
+export interface ThrottledFunction<T extends Func> {
     (...args: Parameters<T>): ReturnType<T>;
     cancel(): void;
 }
@@ -72,7 +73,7 @@ export interface ThrottleOptions {
  * throttledFn(); // calls fn immediately (state reset)
  * ```
  */
-export const throttle = <T extends AnyFunc>(
+export const throttle = <T extends Func>(
     fn: T,
     opts: ThrottleOptions
 ): ThrottledFunction<T> => {
@@ -88,7 +89,6 @@ export const throttle = <T extends AnyFunc>(
     let lastError: unknown = null;
 
     assert(isFunction(fn), 'fn must be a function');
-    assertNotWrapped(fn, 'throttle');
     assert(isPlainObject(opts), 'opts must be an object');
 
     assert(
@@ -147,7 +147,7 @@ export const throttle = <T extends AnyFunc>(
     // Create enhanced function with cancel method
     const throttledFunction = Object.assign(callback, { cancel });
 
-    markWrapped(throttledFunction, 'throttle');
+    markWrapped(fn, throttledFunction as never, 'throttle');
 
     return throttledFunction;
 };

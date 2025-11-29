@@ -49,20 +49,20 @@ if (parseErr) return defaultValue
 
 ```ts
 // Enhanced Debounce - delay execution until calls stop with flush, cancel, and maxWait
-interface DebouncedFunction<T extends AnyFunc> {
+interface DebouncedFunction<T extends Func> {
   (...args: Parameters<T>): void;
   flush(): ReturnType<T> | undefined;  // Execute immediately and return result
   cancel(): void;                      // Stop pending execution
 }
 
-const debounce: <T extends AnyFunc>(fn: T, options: DebounceOptions) => DebouncedFunction<T>
+const debounce: <T extends Func>(fn: T, options: DebounceOptions) => DebouncedFunction<T>
 
 interface DebounceOptions {
   delay: number;
   maxWait?: number;  // Maximum time to wait before execution
 }
 
-const debouncedSearch = debounce(searchUsers, { 
+const debouncedSearch = debounce(searchUsers, {
   delay: 300,
   maxWait: 1000  // Execute after 1s max even if still getting calls
 })
@@ -73,12 +73,12 @@ const result = debouncedSearch.flush()
 debouncedSearch.cancel()
 
 // Enhanced Throttle - limit execution frequency with cancel capability
-interface ThrottledFunction<T extends AnyFunc> {
+interface ThrottledFunction<T extends Func> {
   (...args: Parameters<T>): ReturnType<T>;
   cancel(): void;  // Clear throttle state and allow immediate execution
 }
 
-const throttle: <T extends AnyFunc>(fn: T, options: ThrottleOptions) => ThrottledFunction<T>
+const throttle: <T extends Func>(fn: T, options: ThrottleOptions) => ThrottledFunction<T>
 
 class ThrottleError extends Error {}
 const isThrottleError: (error: unknown) => error is ThrottleError
@@ -93,7 +93,7 @@ const throttledScroll = throttle(updatePosition, {
 throttledScroll.cancel()
 
 // Rate limiting - control call frequency per time window
-const rateLimit: <T extends AnyFunc>(fn: T, options: RateLimitOptions<T>) => T
+const rateLimit: <T extends Func>(fn: T, options: RateLimitOptions<T>) => T
 
 class RateLimitTokenBucket {
   constructor(capacity: number, refillIntervalMs: number)
@@ -118,8 +118,8 @@ const bucket = new RateLimitTokenBucket(10, 1000)
 
 ```ts
 // Retry with backoff
-const retry: <T extends AnyFunc>(fn: T, options: RetryOptions) => Promise<ReturnType<T>>
-const makeRetryable: <T extends AnyFunc>(fn: T, options: RetryOptions) => T
+const retry: <T extends Func>(fn: T, options: RetryOptions) => Promise<ReturnType<T>>
+const makeRetryable: <T extends Func>(fn: T, options: RetryOptions) => T
 
 class RetryError extends Error {}
 const isRetryError: (error: unknown) => error is RetryError
@@ -127,7 +127,7 @@ const isRetryError: (error: unknown) => error is RetryError
 const resilientFetch = makeRetryable(fetch, { retries: 3, delay: 1000, backoff: 2 })
 
 // Circuit breaker for failing services
-const circuitBreaker: <T extends AnyFunc>(fn: T, options: CircuitBreakerOptions<T>) => T
+const circuitBreaker: <T extends Func>(fn: T, options: CircuitBreakerOptions<T>) => T
 
 class CircuitBreakerError extends Error {}
 const isCircuitBreakerError: (error: unknown) => error is CircuitBreakerError
@@ -135,8 +135,8 @@ const isCircuitBreakerError: (error: unknown) => error is CircuitBreakerError
 const protectedApi = circuitBreaker(apiCall, { maxFailures: 3, resetAfter: 30000 })
 
 // Timeout protection
-const withTimeout: <T extends AnyFunc>(fn: T, options: WithTimeoutOptions) => T
-const runWithTimeout: <T extends AnyFunc>(fn: T, options: WithTimeoutOptions) => Promise<ReturnType<T> | null>
+const withTimeout: <T extends Func>(fn: T, options: WithTimeoutOptions) => T
+const runWithTimeout: <T extends Func>(fn: T, options: WithTimeoutOptions) => Promise<ReturnType<T> | null>
 
 class TimeoutError extends Error {}
 const isTimeoutError: (error: unknown) => error is TimeoutError
@@ -216,6 +216,144 @@ await smartFetch('/api/data', { bustCache: true })  // → executes independentl
 // - No caching after settlement (each new request starts fresh)
 // - Only shares promise while in-flight
 // - No TTL/stale-while-revalidate features
+
+// SingleFlight - Generic coordinator for cache and in-flight deduplication
+// Provides primitives for building custom caching/deduplication strategies
+class SingleFlight<T = unknown> {
+  constructor(opts?: SingleFlightOptions<T>)
+
+  // Cache primitives (sync for Map adapter, async for Redis/etc.)
+  getCache(key: string): CacheEntry<T> | null
+  getCacheAsync(key: string): Promise<CacheEntry<T> | null>
+  setCache(key: string, value: T, opts?: SetCacheOptions): void
+  setCacheAsync(key: string, value: T, opts?: SetCacheOptions): Promise<void>
+  deleteCache(key: string): boolean
+  deleteCacheAsync(key: string): Promise<boolean>
+  hasCache(key: string): boolean
+  hasCacheAsync(key: string): Promise<boolean>
+
+  // In-flight primitives
+  getInflight(key: string): InflightEntry<T> | null
+  trackInflight(key: string, promise: Promise<T>): () => void  // Returns cleanup fn
+  joinInflight(key: string): number  // Returns new waitingCount
+  hasInflight(key: string): boolean
+
+  // Lifecycle
+  clear(): void              // Clear cache + inflight
+  clearCache(): void         // Clear cache only
+  clearCacheAsync(): Promise<void>
+  stats(): SingleFlightStats
+}
+
+interface SingleFlightOptions<T> {
+  adapter?: SingleFlightCacheAdapter<T>  // Default: in-memory Map
+  defaultTtl?: number                    // Default: 60000 (1 minute)
+  defaultStaleIn?: number                // Default: undefined (no SWR)
+}
+
+interface CacheEntry<T> {
+  value: T
+  isStale: boolean
+  expiresAt: number
+  staleAt?: number
+}
+
+interface InflightEntry<T> {
+  promise: Promise<T>
+  waitingCount: number
+}
+
+interface SetCacheOptions {
+  ttl?: number      // Override defaultTtl
+  staleIn?: number  // Override defaultStaleIn
+}
+
+// Basic deduplication usage
+const flight = new SingleFlight<User>()
+
+async function fetchUser(id: string): Promise<User> {
+  const key = `user:${id}`
+
+  // Check in-flight first
+  const inflight = flight.getInflight(key)
+  if (inflight) {
+    flight.joinInflight(key)
+    return inflight.promise
+  }
+
+  // Start new request
+  const promise = api.fetchUser(id)
+  const cleanup = flight.trackInflight(key, promise)
+
+  try {
+    return await promise
+  } finally {
+    cleanup()
+  }
+}
+
+// With caching and stale-while-revalidate
+const flight = new SingleFlight<User>({
+  defaultTtl: 60000,     // Cache for 1 minute
+  defaultStaleIn: 30000  // Stale after 30 seconds
+})
+
+async function fetchUser(id: string): Promise<User> {
+  const key = `user:${id}`
+
+  // 1. Check cache
+  const cached = flight.getCache(key)
+  if (cached && !cached.isStale) {
+    return cached.value  // Fresh hit
+  }
+
+  // 2. Check in-flight
+  const inflight = flight.getInflight(key)
+  if (inflight) {
+    flight.joinInflight(key)
+    return inflight.promise
+  }
+
+  // 3. SWR: return stale, revalidate in background
+  if (cached?.isStale) {
+    const promise = api.fetchUser(id)
+    const cleanup = flight.trackInflight(key, promise)
+    promise
+      .then(value => flight.setCache(key, value))
+      .finally(cleanup)
+    return cached.value  // Return stale immediately
+  }
+
+  // 4. Fresh fetch
+  const promise = api.fetchUser(id)
+  const cleanup = flight.trackInflight(key, promise)
+  try {
+    const value = await promise
+    flight.setCache(key, value)
+    return value
+  } finally {
+    cleanup()
+  }
+}
+
+// Custom cache adapter for distributed caching
+class RedisCacheAdapter implements SingleFlightCacheAdapter<User> {
+  async get(key: string) { /* Redis GET */ }
+  async set(key: string, item: SingleFlightCacheItem<User>) { /* Redis SET */ }
+  async delete(key: string) { /* Redis DEL */ }
+  async clear() { /* Redis FLUSHDB */ }
+  get size() { return /* Redis DBSIZE */ }
+}
+
+const distributedFlight = new SingleFlight<User>({
+  adapter: new RedisCacheAdapter()
+})
+
+// Key differences from memoize/withInflightDedup:
+// - Primitives only: You control the execution flow
+// - Generic: No function wrapping, just state management
+// - Composable: Build custom patterns (cache-first, dedupe-first, etc.)
+// - Pluggable: Works with any cache backend via adapters
 ```
 
 ### Memoization & Caching

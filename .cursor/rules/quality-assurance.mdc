@@ -48,7 +48,7 @@ Comprehensive standards for testing and documenting code to ensure quality and m
 - **Nest related tests** in sub-describes
 
 ## Mock & Assertion Patterns
-- **Use `mock.fn()`** from `node:test`
+- **Use `vi.fn()`** from `node:test`
 - **Use `calledExactly(mockFn, expectedCount, 'description')`** for verification
 - **Test both success and error paths**
 - **Verify error callback parameters** match expected types
@@ -160,7 +160,7 @@ export function throttle<T extends Func>(fn: T): ThrottledFunction<T>
 import { attempt } from '../../../../packages/utils/src/index.ts';
 
 // Mock verification
-const fn = mock.fn();
+const fn = vi.fn();
 calledExactly(fn, 1, 'called once');
 
 // Error testing

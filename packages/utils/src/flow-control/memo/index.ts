@@ -10,3 +10,4 @@ export type {
 export { MapCacheAdapter } from './adapter.ts';
 export { memoize } from './memoize.ts';
 export { memoizeSync } from './memoizeSync.ts';
+export type { MemoizeSyncOptions } from './memoizeSync.ts';

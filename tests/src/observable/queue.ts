@@ -1,14 +1,20 @@
-import { describe, it, afterEach, after, before } from 'node:test'
-import { mock } from 'node:test'
+import {
+    describe,
+    it,
+    afterEach,
+    afterAll,
+    beforeAll,
+    expect,
+    vi
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { wait, attempt, noop, attemptSync, isAssertError } from '../../../packages/utils/src/index.ts';
 import { ObserverEngine, EventQueue, QueueOpts } from '../../../packages/observer/src/index.ts';
 
 import { sandbox, runTimers } from '../_helpers.ts';
 
-describe('@logosdx/observer', async function () {
+describe('@logosdx/observer: Queues', async function () {
 
     const timeout = 1000;
     const observer = new ObserverEngine();
@@ -22,10 +28,10 @@ describe('@logosdx/observer', async function () {
         return queue
     }
 
-    before(() => {
+    beforeAll(() => {
 
-        mock.timers.enable({
-            apis: [
+        vi.useFakeTimers({
+            toFake: [
                 'setTimeout',
                 'setInterval',
                 'Date',
@@ -33,13 +39,11 @@ describe('@logosdx/observer', async function () {
         });
     });
 
-    after(() => {
+    afterAll(() => {
 
-        mock.timers.reset();
+        vi.useRealTimers();
 
         for (const queue of _queues) {
-
-            console.log('shutting down', queue.name);
 
             queue.shutdown(true);
         }
@@ -69,7 +73,7 @@ describe('@logosdx/observer', async function () {
         }
     });
 
-    describe('Queue: basic behavior', { timeout }, async () => {
+    describe('basic behavior', { timeout }, async () => {
 
         it('should throw on invalid options', { timeout }, async () => {
 
@@ -147,14 +151,14 @@ describe('@logosdx/observer', async function () {
             // with queue.emit
             queue.add('a');
 
-            mock.timers.runAll();
+            vi.runAllTimers();
             await onceTest1;
             const onceTest2 = queue.once('success');
 
             // with observer.emit
             observer.emit('test', 'b');
 
-            mock.timers.runAll();
+            vi.runAllTimers();
             await onceTest2;
 
             expect(fake.callCount).to.eq(2);
@@ -337,7 +341,7 @@ describe('@logosdx/observer', async function () {
         });
     });
 
-    describe('Queue: backpressure & limits', { timeout }, async () => {
+    describe('backpressure & limits', { timeout }, async () => {
 
         it('should reject items when full', async () => {
 
@@ -432,7 +436,8 @@ describe('@logosdx/observer', async function () {
             );
 
             let onceIdle = queue.once('idle');
-            queue.add('1');
+
+            queue.add(1);
 
             expect(fake.callCount).to.eq(0);
 
@@ -444,11 +449,13 @@ describe('@logosdx/observer', async function () {
             expect(fake.callCount).to.eq(1);
             onceIdle = queue.once('idle');
 
-            queue.add('2');
+            queue.add(5);
             expect(fake.callCount).to.eq(1);
 
             // 20ms * 0.1 poll
-            await runTimers(20);
+            // Previous call might have finished early,
+            // so we must compensate by waiting -1 ms
+            await runTimers(19);
             expect(fake.callCount).to.eq(1);
 
             await runTimers(10, 2);
@@ -588,7 +595,7 @@ describe('@logosdx/observer', async function () {
     });
 
 
-    describe('Queue: lifecycle behavior', { timeout: 5000 }, async () => {
+    describe('lifecycle behavior', { timeout: 5000 }, async () => {
 
         it('should not process while paused', { timeout }, async () => {
 
