@@ -43,13 +43,15 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             RUN_ID="${{ inputs.run_id }}"
-            RUN_INFO=$(gh run view "$RUN_ID" --json name,headBranch,headSha,url,actor)
+            RUN_INFO=$(gh run view "$RUN_ID" --json name,headBranch,headSha,url)
             echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
             echo "workflow_name=$(echo "$RUN_INFO" | jq -r '.name')" >> $GITHUB_OUTPUT
             echo "branch=$(echo "$RUN_INFO" | jq -r '.headBranch')" >> $GITHUB_OUTPUT
             echo "commit=$(echo "$RUN_INFO" | jq -r '.headSha')" >> $GITHUB_OUTPUT
             echo "run_url=$(echo "$RUN_INFO" | jq -r '.url')" >> $GITHUB_OUTPUT
-            echo "actor=$(echo "$RUN_INFO" | jq -r '.actor.login // .actor')" >> $GITHUB_OUTPUT
+            # Get actor from API since gh run view doesn't support it
+            ACTOR=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.actor.login')
+            echo "actor=$ACTOR" >> $GITHUB_OUTPUT
           else
             echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
             echo "workflow_name=${{ github.event.workflow_run.name }}" >> $GITHUB_OUTPUT
