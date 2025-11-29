@@ -25,6 +25,10 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
+            PR AUTHOR: ${{ github.event.pull_request.user.login }}
+
+            IMPORTANT: When tagging users, ONLY use @${{ github.event.pull_request.user.login }} (the PR author).
+            Do NOT invent or guess usernames. Do NOT tag any username NOT associated with this PR.
 
             Please review this pull request according to our @logosdx project standards.
 
