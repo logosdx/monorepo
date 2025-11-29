@@ -1,10 +1,10 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -15,666 +15,638 @@ import {
     wait,
 } from '../../../../packages/utils/src/index.ts';
 
-describe('@logosdx/utils', () => {
+describe('@logosdx/utils - Debounce', () => {
 
     const { calledExactly } = mockHelpers(expect);
 
-    describe('flow-control: debounce', () => {
+    it('should debounce', async () => {
 
-        describe('basic debounce functionality', () => {
+        const mocked = vi.fn();
 
-            it('should debounce', async () => {
+        const fn = debounce(mocked, { delay: 10 });
 
-                const mocked = mock.fn();
+        fn();
+        fn();
+        fn();
 
-                const fn = debounce(mocked, { delay: 10 });
+        calledExactly(mocked, 0, 'debounce 1');
 
-                fn();
-                fn();
-                fn();
+        await wait(8);
 
-                calledExactly(mocked, 0, 'debounce 1');
+        fn();
 
-                await wait(8);
+        calledExactly(mocked, 0, 'debounce 2');
 
-                fn();
+        await wait(10);
 
-                calledExactly(mocked, 0, 'debounce 2');
+        calledExactly(mocked, 1, 'debounce 3');
+    });
 
-                await wait(10);
+    it('should validate debounce parameters', () => {
 
-                calledExactly(mocked, 1, 'debounce 3');
-            });
+        expect(() => debounce('not a function' as any, { delay: 10 })).to.throw('fn must be a function');
+        expect(() => debounce(vi.fn(), { delay: 0 })).to.throw('delay must be a positive number');
+        expect(() => debounce(vi.fn(), { delay: -5 })).to.throw('delay must be a positive number');
+        expect(() => debounce(vi.fn(), { delay: 'not a number' as any })).to.throw('delay must be a positive number');
+        expect(() => debounce(vi.fn(), { delay: 10, maxWait: 0 })).to.throw('maxWait must be a positive number');
+        expect(() => debounce(vi.fn(), { delay: 10, maxWait: -5 })).to.throw('maxWait must be a positive number');
+        expect(() => debounce(vi.fn(), { delay: 10, maxWait: 'not a number' as any })).to.throw('maxWait must be a positive number');
+    });
 
-            it('should validate debounce parameters', () => {
+    it('should debounce with arguments', async () => {
 
-                expect(() => debounce('not a function' as any, { delay: 10 })).to.throw('fn must be a function');
-                expect(() => debounce(mock.fn(), { delay: 0 })).to.throw('delay must be a positive number');
-                expect(() => debounce(mock.fn(), { delay: -5 })).to.throw('delay must be a positive number');
-                expect(() => debounce(mock.fn(), { delay: 'not a number' as any })).to.throw('delay must be a positive number');
-                expect(() => debounce(mock.fn(), { delay: 10, maxWait: 0 })).to.throw('maxWait must be a positive number');
-                expect(() => debounce(mock.fn(), { delay: 10, maxWait: -5 })).to.throw('maxWait must be a positive number');
-                expect(() => debounce(mock.fn(), { delay: 10, maxWait: 'not a number' as any })).to.throw('maxWait must be a positive number');
-            });
+        const mocked = vi.fn();
 
-            it('should debounce with arguments', async () => {
+        const fn = debounce(mocked, { delay: 10 });
 
-                const mocked = mock.fn();
+        fn('arg1', 'arg2');
+        fn('arg3', 'arg4');
 
-                const fn = debounce(mocked, { delay: 10 });
+        await wait(15);
 
-                fn('arg1', 'arg2');
-                fn('arg3', 'arg4');
+        calledExactly(mocked, 1, 'debounce with args');
+        expect(mocked.mock.calls[0]).to.deep.equal(['arg3', 'arg4']);
+    });
 
-                await wait(15);
+    it('should handle multiple debounced functions independently', async () => {
 
-                calledExactly(mocked, 1, 'debounce with args');
-                expect(mocked.mock.calls[0]!.arguments).to.deep.equal(['arg3', 'arg4']);
-            });
+        const mocked1 = vi.fn();
+        const mocked2 = vi.fn();
 
-            it('should handle multiple debounced functions independently', async () => {
+        const fn1 = debounce(mocked1, { delay: 10 });
+        const fn2 = debounce(mocked2, { delay: 15 });
 
-                const mocked1 = mock.fn();
-                const mocked2 = mock.fn();
+        fn1('a');
+        fn2('b');
 
-                const fn1 = debounce(mocked1, { delay: 10 });
-                const fn2 = debounce(mocked2, { delay: 15 });
+        await wait(12);
 
-                fn1('a');
-                fn2('b');
+        calledExactly(mocked1, 1, 'debounce independent 1');
+        calledExactly(mocked2, 0, 'debounce independent 2 not yet');
 
-                await wait(12);
+        await wait(5);
 
-                calledExactly(mocked1, 1, 'debounce independent 1');
-                calledExactly(mocked2, 0, 'debounce independent 2 not yet');
+        calledExactly(mocked2, 1, 'debounce independent 2');
+    });
 
-                await wait(5);
+    it('should not double wrap the function', async () => {
 
-                calledExactly(mocked2, 1, 'debounce independent 2');
-            });
+        const fn = vi.fn(() => 'ok');
 
-            it('should not double wrap the function', async () => {
+        const wrappedFn = debounce(fn, { delay: 10 });
+        const [, error] = attemptSync(() => debounce(wrappedFn, { delay: 10 }));
 
-                const fn = mock.fn(() => 'ok');
+        expect(error).to.be.an.instanceof(Error);
+        expect((error as Error).message).to.match(/Function is already wrapped/);
+    });
 
-                const wrappedFn = debounce(fn as any, { delay: 10 });
+    it('should have flush and cancel methods', () => {
 
-                const [, error] = attemptSync(() => debounce(wrappedFn, { delay: 10 }));
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 10 });
 
-                expect(error).to.be.an.instanceof(Error);
-                expect((error as Error).message).to.equal('Function is already wrapped by debounce');
-            });
+        expect(typeof fn.flush).to.equal('function');
+        expect(typeof fn.cancel).to.equal('function');
+    });
+
+    it('should execute immediately and return result from sync function', () => {
+
+        const mocked = vi.fn((x: number) => x * 2);
+        const fn = debounce(mocked, { delay: 50 });
+
+        fn(5);
+
+        calledExactly(mocked, 0, 'before flush');
+
+        const result = fn.flush();
+
+        expect(result).to.equal(10);
+        calledExactly(mocked, 1, 'after flush');
+        expect(mocked.mock.calls[0]).to.deep.equal([5]);
+    });
+
+    it('should execute immediately and return result from async function', async () => {
+
+        const mocked = vi.fn(async (x: number) => {
+            await wait(1);
+            return x * 3;
         });
+        const fn = debounce(mocked, { delay: 50 });
 
-        describe('enhanced interface', () => {
+        fn(4);
 
-            it('should have flush and cancel methods', () => {
+        calledExactly(mocked, 0, 'before flush');
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 10 });
+        const result = fn.flush();
 
-                expect(typeof fn.flush).to.equal('function');
-                expect(typeof fn.cancel).to.equal('function');
-            });
-        });
+        expect(result).to.be.instanceOf(Promise);
+        const resolved = await result;
+        expect(resolved).to.equal(12);
+        calledExactly(mocked, 1, 'after flush');
+    });
 
-        describe('flush() method', () => {
+    it('should work with stored arguments from last call', () => {
 
-            it('should execute immediately and return result from sync function', () => {
+        const mocked = vi.fn((a: string, b: number) => `${a}-${b}`);
+        const fn = debounce(mocked, { delay: 50 });
 
-                const mocked = mock.fn((x: number) => x * 2);
-                const fn = debounce(mocked, { delay: 50 });
+        fn('first', 1);
+        fn('second', 2);
+        fn('third', 3);
 
-                fn(5);
-                
-                calledExactly(mocked, 0, 'before flush');
+        const result = fn.flush();
 
-                const result = fn.flush();
+        expect(result).to.equal('third-3');
+        calledExactly(mocked, 1, 'flush with last args');
+        expect(mocked.mock.calls[0]).to.deep.equal(['third', 3]);
+    });
 
-                expect(result).to.equal(10);
-                calledExactly(mocked, 1, 'after flush');
-                expect(mocked.mock.calls[0]!.arguments).to.deep.equal([5]);
-            });
+    it('should handle multiple flush calls', () => {
 
-            it('should execute immediately and return result from async function', async () => {
+        const mocked = vi.fn((x: number) => x + 1);
+        const fn = debounce(mocked, { delay: 50 });
 
-                const mocked = mock.fn(async (x: number) => {
-                    await wait(1);
-                    return x * 3;
-                });
-                const fn = debounce(mocked, { delay: 50 });
+        fn(10);
 
-                fn(4);
-                
-                calledExactly(mocked, 0, 'before flush');
+        const result1 = fn.flush();
+        expect(result1).to.equal(11);
+        calledExactly(mocked, 1, 'first flush');
 
-                const result = fn.flush();
+        const result2 = fn.flush();
+        expect(result2).to.be.undefined;
+        calledExactly(mocked, 1, 'second flush should not execute again');
+    });
 
-                expect(result).to.be.instanceOf(Promise);
-                const resolved = await result;
-                expect(resolved).to.equal(12);
-                calledExactly(mocked, 1, 'after flush');
-            });
+    it('should flush on already-executed function', async () => {
 
-            it('should work with stored arguments from last call', () => {
+        const mocked = vi.fn((x: number) => x + 5);
+        const fn = debounce(mocked, { delay: 10 });
 
-                const mocked = mock.fn((a: string, b: number) => `${a}-${b}`);
-                const fn = debounce(mocked, { delay: 50 });
+        fn(7);
+        await wait(15);
 
-                fn('first', 1);
-                fn('second', 2);
-                fn('third', 3);
+        calledExactly(mocked, 1, 'executed normally');
 
-                const result = fn.flush();
+        const result = fn.flush();
+        expect(result).to.be.undefined;
+        calledExactly(mocked, 1, 'flush after normal execution');
+    });
 
-                expect(result).to.equal('third-3');
-                calledExactly(mocked, 1, 'flush with last args');
-                expect(mocked.mock.calls[0]!.arguments).to.deep.equal(['third', 3]);
-            });
+    it('should return undefined when no pending execution', () => {
 
-            it('should handle multiple flush calls', () => {
+        const mocked = vi.fn((x: number) => x * 4);
+        const fn = debounce(mocked, { delay: 50 });
 
-                const mocked = mock.fn((x: number) => x + 1);
-                const fn = debounce(mocked, { delay: 50 });
+        const result = fn.flush();
 
-                fn(10);
+        expect(result).to.be.undefined;
+        calledExactly(mocked, 0, 'flush with no pending execution');
+    });
 
-                const result1 = fn.flush();
-                expect(result1).to.equal(11);
-                calledExactly(mocked, 1, 'first flush');
+    it('should propagate errors from sync function execution', () => {
 
-                const result2 = fn.flush();
-                expect(result2).to.be.undefined;
-                calledExactly(mocked, 1, 'second flush should not execute again');
-            });
+        const error = new Error('sync error');
+        const mocked = vi.fn(() => { throw error; });
+        const fn = debounce(mocked, { delay: 50 });
 
-            it('should flush on already-executed function', async () => {
+        fn();
 
-                const mocked = mock.fn((x: number) => x + 5);
-                const fn = debounce(mocked, { delay: 10 });
+        expect(() => fn.flush()).to.throw('sync error');
+        calledExactly(mocked, 1, 'flush with sync error');
+    });
 
-                fn(7);
-                await wait(15);
+    it('should propagate errors from async function execution', async () => {
 
-                calledExactly(mocked, 1, 'executed normally');
+        const error = new Error('async error');
+        const mocked = vi.fn(async () => { throw error; });
+        const fn = debounce(mocked, { delay: 50 });
 
-                const result = fn.flush();
-                expect(result).to.be.undefined;
-                calledExactly(mocked, 1, 'flush after normal execution');
-            });
+        fn();
 
-            it('should return undefined when no pending execution', () => {
+        const result = fn.flush();
+        expect(result).to.be.instanceOf(Promise);
 
-                const mocked = mock.fn((x: number) => x * 4);
-                const fn = debounce(mocked, { delay: 50 });
+        const [resolved, err] = await attempt(() => result!);
+        expect(resolved).to.be.null;
+        expect(err).to.be.instanceOf(Error);
+        expect((err as Error).message).to.equal('async error');
+        calledExactly(mocked, 1, 'flush with async error');
+    });
 
-                const result = fn.flush();
+    it('should clear timers when flushed', async () => {
 
-                expect(result).to.be.undefined;
-                calledExactly(mocked, 0, 'flush with no pending execution');
-            });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-            it('should propagate errors from sync function execution', () => {
+        fn();
+        fn.flush();
 
-                const error = new Error('sync error');
-                const mocked = mock.fn(() => { throw error; });
-                const fn = debounce(mocked, { delay: 50 });
+        await wait(60);
 
-                fn();
+        calledExactly(mocked, 1, 'should not execute again after flush');
+    });
 
-                expect(() => fn.flush()).to.throw('sync error');
-                calledExactly(mocked, 1, 'flush with sync error');
-            });
+    it('should clear maxWait timer when flushed', async () => {
 
-            it('should propagate errors from async function execution', async () => {
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 100, maxWait: 50 });
 
-                const error = new Error('async error');
-                const mocked = mock.fn(async () => { throw error; });
-                const fn = debounce(mocked, { delay: 50 });
+        fn();
+        await wait(25);
+        fn.flush();
 
-                fn();
+        await wait(60);
 
-                const result = fn.flush();
-                expect(result).to.be.instanceOf(Promise);
-                
-                const [resolved, err] = await attempt(() => result);
-                expect(resolved).to.be.null;
-                expect(err).to.be.instanceOf(Error);
-                expect((err as Error).message).to.equal('async error');
-                calledExactly(mocked, 1, 'flush with async error');
-            });
+        calledExactly(mocked, 1, 'should not execute from maxWait after flush');
+    });
 
-            it('should clear timers when flushed', async () => {
+    it('should prevent pending execution', async () => {
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-                fn();
-                fn.flush();
+        fn();
+        calledExactly(mocked, 0, 'before cancel');
 
-                await wait(60);
+        fn.cancel();
 
-                calledExactly(mocked, 1, 'should not execute again after flush');
-            });
+        await wait(60);
 
-            it('should clear maxWait timer when flushed', async () => {
+        calledExactly(mocked, 0, 'after cancel - should not execute');
+    });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 100, maxWait: 50 });
+    it('should clear delay timer', async () => {
 
-                fn();
-                await wait(25);
-                fn.flush();
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 20 });
 
-                await wait(60);
+        fn();
+        fn.cancel();
 
-                calledExactly(mocked, 1, 'should not execute from maxWait after flush');
-            });
-        });
+        await wait(30);
 
-        describe('cancel() method', () => {
+        calledExactly(mocked, 0, 'delay timer cleared');
+    });
 
-            it('should prevent pending execution', async () => {
+    it('should clear maxWait timer', async () => {
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 100, maxWait: 30 });
 
-                fn();
-                calledExactly(mocked, 0, 'before cancel');
+        fn();
+        await wait(15);
+        fn.cancel();
 
-                fn.cancel();
+        await wait(40);
 
-                await wait(60);
+        calledExactly(mocked, 0, 'maxWait timer cleared');
+    });
 
-                calledExactly(mocked, 0, 'after cancel - should not execute');
-            });
+    it('should be safe to call multiple times', () => {
 
-            it('should clear delay timer', async () => {
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 20 });
+        fn();
 
-                fn();
-                fn.cancel();
+        expect(() => {
+            fn.cancel();
+            fn.cancel();
+            fn.cancel();
+        }).to.not.throw();
+    });
 
-                await wait(30);
+    it('should be safe to call when no pending execution', () => {
 
-                calledExactly(mocked, 0, 'delay timer cleared');
-            });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-            it('should clear maxWait timer', async () => {
+        expect(() => fn.cancel()).to.not.throw();
+    });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 100, maxWait: 30 });
+    it('should be safe to call after normal execution', async () => {
 
-                fn();
-                await wait(15);
-                fn.cancel();
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 10 });
 
-                await wait(40);
+        fn();
+        await wait(15);
+        calledExactly(mocked, 1, 'executed normally');
 
-                calledExactly(mocked, 0, 'maxWait timer cleared');
-            });
+        expect(() => fn.cancel()).to.not.throw();
+        calledExactly(mocked, 1, 'cancel after execution');
+    });
 
-            it('should be safe to call multiple times', () => {
+    it('should reset state for future calls', async () => {
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 20 });
 
-                fn();
+        fn();
+        fn.cancel();
 
-                expect(() => {
-                    fn.cancel();
-                    fn.cancel();
-                    fn.cancel();
-                }).to.not.throw();
-            });
+        await wait(30);
+        calledExactly(mocked, 0, 'cancelled');
 
-            it('should be safe to call when no pending execution', () => {
+        fn();
+        await wait(30);
+        calledExactly(mocked, 1, 'new call after cancel');
+    });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+    it('should enforce maximum wait time', async () => {
 
-                expect(() => fn.cancel()).to.not.throw();
-            });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 100, maxWait: 30 });
 
-            it('should be safe to call after normal execution', async () => {
+        fn();
+        await wait(10);
+        fn();
+        await wait(10);
+        fn();
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 10 });
+        calledExactly(mocked, 0, 'before maxWait');
 
-                fn();
-                await wait(15);
-                calledExactly(mocked, 1, 'executed normally');
+        await wait(15);
 
-                expect(() => fn.cancel()).to.not.throw();
-                calledExactly(mocked, 1, 'cancel after execution');
-            });
+        calledExactly(mocked, 1, 'executed due to maxWait');
+    });
 
-            it('should reset state for future calls', async () => {
+    it('should use latest arguments when maxWait triggers', async () => {
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 20 });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 100, maxWait: 30 });
 
-                fn();
-                fn.cancel();
+        fn('first');
+        await wait(10);
+        fn('second');
+        await wait(10);
+        fn('third');
 
-                await wait(30);
-                calledExactly(mocked, 0, 'cancelled');
+        await wait(15);
 
-                fn();
-                await wait(30);
-                calledExactly(mocked, 1, 'new call after cancel');
-            });
-        });
+        calledExactly(mocked, 1, 'maxWait execution');
+        expect(mocked.mock.calls[0]).to.deep.equal(['third']);
+    });
 
-        describe('maxWait option', () => {
+    it('should reset after maxWait execution', async () => {
 
-            it('should enforce maximum wait time', async () => {
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50, maxWait: 25 });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 100, maxWait: 30 });
+        fn();
+        await wait(30);
+        calledExactly(mocked, 1, 'maxWait triggered');
 
-                fn();
-                await wait(10);
-                fn();
-                await wait(10);
-                fn();
-                
-                calledExactly(mocked, 0, 'before maxWait');
+        fn();
+        await wait(60);
+        calledExactly(mocked, 2, 'normal delay after maxWait reset');
+    });
 
-                await wait(15);
+    it('should work with very short maxWait values', async () => {
 
-                calledExactly(mocked, 1, 'executed due to maxWait');
-            });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 100, maxWait: 5 });
 
-            it('should use latest arguments when maxWait triggers', async () => {
+        fn();
+        await wait(10);
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 100, maxWait: 30 });
+        calledExactly(mocked, 1, 'very short maxWait');
+    });
 
-                fn('first');
-                await wait(10);
-                fn('second');
-                await wait(10);
-                fn('third');
+    it('should work when maxWait is longer than delay', async () => {
 
-                await wait(15);
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 20, maxWait: 100 });
 
-                calledExactly(mocked, 1, 'maxWait execution');
-                expect(mocked.mock.calls[0]!.arguments).to.deep.equal(['third']);
-            });
+        fn();
+        await wait(25);
 
-            it('should reset after maxWait execution', async () => {
+        calledExactly(mocked, 1, 'normal delay before maxWait');
+    });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50, maxWait: 25 });
+    it('should handle continuous calls within maxWait window', async () => {
 
-                fn();
-                await wait(30);
-                calledExactly(mocked, 1, 'maxWait triggered');
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50, maxWait: 100 });
 
-                fn();
-                await wait(60);
-                calledExactly(mocked, 2, 'normal delay after maxWait reset');
-            });
+        fn();
+        await wait(10);
+        fn();
+        await wait(10);
+        fn();
+        await wait(10);
+        fn();
+        await wait(10);
+        fn();
+        await wait(10);
+        fn();
 
-            it('should work with very short maxWait values', async () => {
+        calledExactly(mocked, 0, 'continuous calls before maxWait');
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 100, maxWait: 5 });
+        await wait(50);
 
-                fn();
-                await wait(10);
+        calledExactly(mocked, 1, 'maxWait triggered');
+    });
 
-                calledExactly(mocked, 1, 'very short maxWait');
-            });
+    it('should clear maxWait timer on normal execution', async () => {
 
-            it('should work when maxWait is longer than delay', async () => {
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 20, maxWait: 100 });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 20, maxWait: 100 });
+        fn();
+        await wait(25);
+        calledExactly(mocked, 1, 'normal execution');
 
-                fn();
-                await wait(25);
+        // Wait past original maxWait time to ensure it was cleared
+        await wait(80);
+        calledExactly(mocked, 1, 'maxWait timer was cleared');
+    });
 
-                calledExactly(mocked, 1, 'normal delay before maxWait');
-            });
+    it('should allow cancel after flush', () => {
 
-            it('should handle continuous calls within maxWait window', async () => {
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50, maxWait: 100 });
+        fn();
+        fn.flush();
 
-                fn();
-                await wait(10);
-                fn();
-                await wait(10);
-                fn();
-                await wait(10);
-                fn();
-                await wait(10);
-                fn();
-                await wait(10);
-                fn();
+        expect(() => fn.cancel()).to.not.throw();
+        calledExactly(mocked, 1, 'cancel after flush');
+    });
 
-                calledExactly(mocked, 0, 'continuous calls before maxWait');
+    it('should allow flush after cancel', () => {
 
-                await wait(50);
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-                calledExactly(mocked, 1, 'maxWait triggered');
-            });
+        fn();
+        fn.cancel();
 
-            it('should clear maxWait timer on normal execution', async () => {
+        const result = fn.flush();
+        expect(result).to.be.undefined;
+        calledExactly(mocked, 0, 'flush after cancel');
+    });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 20, maxWait: 100 });
+    it('should handle rapid flush and cancel calls', () => {
 
-                fn();
-                await wait(25);
-                calledExactly(mocked, 1, 'normal execution');
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-                // Wait past original maxWait time to ensure it was cleared
-                await wait(80);
-                calledExactly(mocked, 1, 'maxWait timer was cleared');
-            });
-        });
+        fn();
 
-        describe('flush() and cancel() interaction', () => {
+        expect(() => {
+            fn.flush();
+            fn.cancel();
+            fn.flush();
+            fn.cancel();
+        }).to.not.throw();
 
-            it('should allow cancel after flush', () => {
+        calledExactly(mocked, 1, 'rapid flush/cancel calls');
+    });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+    it('should properly clean up state after execution', async () => {
 
-                fn();
-                fn.flush();
-                
-                expect(() => fn.cancel()).to.not.throw();
-                calledExactly(mocked, 1, 'cancel after flush');
-            });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 10 });
 
-            it('should allow flush after cancel', () => {
+        fn('test');
+        await wait(15);
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+        // These should not affect anything since execution completed
+        fn.cancel();
+        const result = fn.flush();
 
-                fn();
-                fn.cancel();
-                
-                const result = fn.flush();
-                expect(result).to.be.undefined;
-                calledExactly(mocked, 0, 'flush after cancel');
-            });
+        expect(result).to.be.undefined;
+        calledExactly(mocked, 1, 'state cleaned up');
+    });
 
-            it('should handle rapid flush and cancel calls', () => {
+    it('should properly clean up state after cancel', async () => {
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-                fn();
+        fn('test');
+        fn.cancel();
 
-                expect(() => {
-                    fn.flush();
-                    fn.cancel();
-                    fn.flush();
-                    fn.cancel();
-                }).to.not.throw();
+        await wait(60);
 
-                calledExactly(mocked, 1, 'rapid flush/cancel calls');
-            });
-        });
+        // Should allow new execution after cancel
+        fn('new test');
+        await wait(60);
 
-        describe('memory and state management', () => {
+        calledExactly(mocked, 1, 'new execution after cancel cleanup');
+        expect(mocked.mock.calls[0]).to.deep.equal(['new test']);
+    });
 
-            it('should properly clean up state after execution', async () => {
+    it('should properly clean up state after flush', async () => {
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 10 });
+        const mocked = vi.fn();
+        const fn = debounce(mocked, { delay: 50 });
 
-                fn('test');
-                await wait(15);
+        fn('test');
+        fn.flush();
 
-                // These should not affect anything since execution completed
-                fn.cancel();
-                const result = fn.flush();
+        await wait(60);
 
-                expect(result).to.be.undefined;
-                calledExactly(mocked, 1, 'state cleaned up');
-            });
+        // Should allow new execution after flush
+        fn('new test');
+        await wait(60);
 
-            it('should properly clean up state after cancel', async () => {
+        calledExactly(mocked, 2, 'new execution after flush cleanup');
+        expect(mocked.mock.calls[1]).to.deep.equal(['new test']);
+    });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+    it('should handle functions with no return value', () => {
 
-                fn('test');
-                fn.cancel();
+        const mocked = vi.fn(() => {});
+        const fn = debounce(mocked, { delay: 10 });
 
-                await wait(60);
+        fn();
+        const result = fn.flush();
 
-                // Should allow new execution after cancel
-                fn('new test');
-                await wait(60);
+        expect(result).to.be.undefined;
+        calledExactly(mocked, 1, 'no return value');
+    });
 
-                calledExactly(mocked, 1, 'new execution after cancel cleanup');
-                expect(mocked.mock.calls[0]!.arguments).to.deep.equal(['new test']);
-            });
+    it('should handle functions that return null', () => {
 
-            it('should properly clean up state after flush', async () => {
+        const mocked = vi.fn(() => null);
+        const fn = debounce(mocked, { delay: 10 });
 
-                const mocked = mock.fn();
-                const fn = debounce(mocked, { delay: 50 });
+        fn();
+        const result = fn.flush();
 
-                fn('test');
-                fn.flush();
+        expect(result).to.be.null;
+        calledExactly(mocked, 1, 'null return value');
+    });
 
-                await wait(60);
+    it('should handle functions that return false', () => {
 
-                // Should allow new execution after flush
-                fn('new test');
-                await wait(60);
+        const mocked = vi.fn(() => false);
+        const fn = debounce(mocked, { delay: 10 });
 
-                calledExactly(mocked, 2, 'new execution after flush cleanup');
-                expect(mocked.mock.calls[1]!.arguments).to.deep.equal(['new test']);
-            });
-        });
+        fn();
+        const result = fn.flush();
 
-        describe('edge cases and error handling', () => {
+        expect(result).to.be.false;
+        calledExactly(mocked, 1, 'false return value');
+    });
 
-            it('should handle functions with no return value', () => {
+    it('should handle async functions that resolve to undefined', async () => {
 
-                const mocked = mock.fn(() => {});
-                const fn = debounce(mocked, { delay: 10 });
+        const mocked = vi.fn(async () => {});
+        const fn = debounce(mocked, { delay: 10 });
 
-                fn();
-                const result = fn.flush();
+        fn();
+        const result = await fn.flush();
 
-                expect(result).to.be.undefined;
-                calledExactly(mocked, 1, 'no return value');
-            });
+        expect(result).to.be.undefined;
+        calledExactly(mocked, 1, 'async undefined return');
+    });
 
-            it('should handle functions that return null', () => {
+    it('should preserve function context when not bound', () => {
 
-                const mocked = mock.fn(() => null);
-                const fn = debounce(mocked, { delay: 10 });
+        class TestClass {
+            value = 42;
+            getValue() { return this.value; }
+        }
 
-                fn();
-                const result = fn.flush();
+        const instance = new TestClass();
+        const fn = debounce(instance.getValue, { delay: 10 });
 
-                expect(result).to.be.null;
-                calledExactly(mocked, 1, 'null return value');
-            });
+        fn(); // Call function to set up arguments
 
-            it('should handle functions that return false', () => {
+        // This should throw because `this` is not bound
+        expect(() => fn.flush()).to.throw();
+    });
 
-                const mocked = mock.fn(() => false);
-                const fn = debounce(mocked, { delay: 10 });
+    it('should work with bound functions', () => {
 
-                fn();
-                const result = fn.flush();
+        class TestClass {
+            value = 42;
+            getValue() { return this.value; }
+        }
 
-                expect(result).to.be.false;
-                calledExactly(mocked, 1, 'false return value');
-            });
+        const instance = new TestClass();
+        const fn = debounce(instance.getValue.bind(instance), { delay: 10 });
 
-            it('should handle async functions that resolve to undefined', async () => {
+        fn();
+        const result = fn.flush();
 
-                const mocked = mock.fn(async () => {});
-                const fn = debounce(mocked, { delay: 10 });
+        expect(result).to.equal(42);
+    });
 
-                fn();
-                const result = await fn.flush();
+    it('should handle complex return types', () => {
 
-                expect(result).to.be.undefined;
-                calledExactly(mocked, 1, 'async undefined return');
-            });
+        const complexReturn = { data: [1, 2, 3], meta: { count: 3 } };
+        const mocked = vi.fn(() => complexReturn);
+        const fn = debounce(mocked, { delay: 10 });
 
-            it('should preserve function context when not bound', () => {
+        fn();
+        const result = fn.flush();
 
-                class TestClass {
-                    value = 42;
-                    getValue() { return this.value; }
-                }
-
-                const instance = new TestClass();
-                const fn = debounce(instance.getValue, { delay: 10 });
-
-                fn(); // Call function to set up arguments
-                
-                // This should throw because `this` is not bound
-                expect(() => fn.flush()).to.throw();
-            });
-
-            it('should work with bound functions', () => {
-
-                class TestClass {
-                    value = 42;
-                    getValue() { return this.value; }
-                }
-
-                const instance = new TestClass();
-                const fn = debounce(instance.getValue.bind(instance), { delay: 10 });
-
-                fn();
-                const result = fn.flush();
-
-                expect(result).to.equal(42);
-            });
-
-            it('should handle complex return types', () => {
-
-                const complexReturn = { data: [1, 2, 3], meta: { count: 3 } };
-                const mocked = mock.fn(() => complexReturn);
-                const fn = debounce(mocked, { delay: 10 });
-
-                fn();
-                const result = fn.flush();
-
-                expect(result).to.deep.equal(complexReturn);
-                expect(result).to.equal(complexReturn); // Same reference
-                calledExactly(mocked, 1, 'complex return type');
-            });
-        });
+        expect(result).to.deep.equal(complexReturn);
+        expect(result).to.equal(complexReturn); // Same reference
+        calledExactly(mocked, 1, 'complex return type');
     });
 });

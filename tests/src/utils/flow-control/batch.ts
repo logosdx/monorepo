@@ -1,11 +1,11 @@
 import {
-    before,
+    beforeAll,
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -27,11 +27,11 @@ describe('@logosdx/utils - flow-control: batch', () => {
             return n;
         }
 
-        const fn = mock.fn(func);
-        const onStart = mock.fn();
-        const onEnd = mock.fn();
-        const onChunkStart = mock.fn();
-        const onChunkEnd = mock.fn();
+        const fn = vi.fn(func);
+        const onStart = vi.fn();
+        const onEnd = vi.fn();
+        const onChunkStart = vi.fn();
+        const onChunkEnd = vi.fn();
 
         const items = Array.from(
             { length: 100 },
@@ -80,7 +80,7 @@ describe('@logosdx/utils - flow-control: batch', () => {
             (_, i) => i
         );
 
-        const fn = mock.fn((n: number) => {
+        const fn = vi.fn((n: number) => {
 
             if (n % 2 === 0) {
                 throw new Error('poop');
@@ -89,7 +89,7 @@ describe('@logosdx/utils - flow-control: batch', () => {
             return 'ok';
         });
 
-        const onError = mock.fn();
+        const onError = vi.fn();
 
         const result = await batch(fn, {
 
@@ -115,7 +115,7 @@ describe('@logosdx/utils - flow-control: batch', () => {
             (_, i) => i
         );
 
-        const fn = mock.fn((n: number) => {
+        const fn = vi.fn((n: number) => {
 
             if (n === 5) {
                 throw new Error('abort test');
@@ -124,7 +124,7 @@ describe('@logosdx/utils - flow-control: batch', () => {
             return 'ok';
         });
 
-        const onError = mock.fn();
+        const onError = vi.fn();
 
         const [result, error] = await attempt(
             () => batch(fn, {
@@ -156,52 +156,52 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
         // concurrency must be greater than 0
         const [, error2] = await attempt(
-            () => batch(mock.fn(), { items, concurrency: 0 })
+            () => batch(vi.fn(), { items, concurrency: 0 })
         );
         expect(error2).to.be.an.instanceof(Error);
         expect((error2 as Error).message).to.equal('concurrency must be greater than 0');
 
         // items must be an array
         const [, error3] = await attempt(
-            () => batch(mock.fn(), { items: 'not an array' as any })
+            () => batch(vi.fn(), { items: 'not an array' as any })
         );
         expect(error3).to.be.an.instanceof(Error);
         expect((error3 as Error).message).to.equal('items must be an array');
 
         // failureMode validation
         const [, error4] = await attempt(
-            () => batch(mock.fn(), { items, failureMode: 'invalid' as any })
+            () => batch(vi.fn(), { items, failureMode: 'invalid' as any })
         );
         expect(error4).to.be.an.instanceof(Error);
         expect((error4 as Error).message).to.equal('failureMode must be either "abort" or "continue"');
 
         // callback function validation
         const [, error5] = await attempt(
-            () => batch(mock.fn(), { items, onError: 'not a function' as any })
+            () => batch(vi.fn(), { items, onError: 'not a function' as any })
         );
         expect(error5).to.be.an.instanceof(Error);
         expect((error5 as Error).message).to.equal('onError must be a function');
 
         const [, error6] = await attempt(
-            () => batch(mock.fn(), { items, onStart: 'not a function' as any })
+            () => batch(vi.fn(), { items, onStart: 'not a function' as any })
         );
         expect(error6).to.be.an.instanceof(Error);
         expect((error6 as Error).message).to.equal('onStart must be a function');
 
         const [, error7] = await attempt(
-            () => batch(mock.fn(), { items, onChunkStart: 'not a function' as any })
+            () => batch(vi.fn(), { items, onChunkStart: 'not a function' as any })
         );
         expect(error7).to.be.an.instanceof(Error);
         expect((error7 as Error).message).to.equal('onChunkStart must be a function');
 
         const [, error8] = await attempt(
-            () => batch(mock.fn(), { items, onChunkEnd: 'not a function' as any })
+            () => batch(vi.fn(), { items, onChunkEnd: 'not a function' as any })
         );
         expect(error8).to.be.an.instanceof(Error);
         expect((error8 as Error).message).to.equal('onChunkEnd must be a function');
 
         const [, error9] = await attempt(
-            () => batch(mock.fn(), { items, onEnd: 'not a function' as any })
+            () => batch(vi.fn(), { items, onEnd: 'not a function' as any })
         );
         expect(error9).to.be.an.instanceof(Error);
         expect((error9 as Error).message).to.equal('onEnd must be a function');
@@ -209,11 +209,11 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
     it('should handle empty items array', async () => {
 
-        const fn = mock.fn();
-        const onStart = mock.fn();
-        const onEnd = mock.fn();
-        const onChunkStart = mock.fn();
-        const onChunkEnd = mock.fn();
+        const fn = vi.fn();
+        const onStart = vi.fn();
+        const onEnd = vi.fn();
+        const onChunkStart = vi.fn();
+        const onChunkEnd = vi.fn();
 
         const result = await batch(fn, {
             items: [],
@@ -233,7 +233,7 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
     it('should handle concurrency of 1 (sequential)', async () => {
 
-        const fn = mock.fn((n: number) => n * 2);
+        const fn = vi.fn((n: number) => n * 2);
         const items = [1, 2, 3];
 
         const result = await batch(fn, {
@@ -247,7 +247,7 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
     it('should handle concurrency larger than items length', async () => {
 
-        const fn = mock.fn((n: number) => n * 2);
+        const fn = vi.fn((n: number) => n * 2);
         const items = [1, 2];
 
         const result = await batch(fn, {
@@ -261,10 +261,10 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
     it('should use default values', async () => {
 
-        const fn = mock.fn((n: number) => n);
+        const fn = vi.fn((n: number) => n);
         const items = Array.from({ length: 25 }, (_, i) => i);
-        const onChunkStart = mock.fn();
-        const onChunkEnd = mock.fn();
+        const onChunkStart = vi.fn();
+        const onChunkEnd = vi.fn();
 
         const result = await batch(fn, { items, onChunkStart, onChunkEnd });
 
@@ -278,13 +278,13 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
     it('should pass correct parameters to callbacks', async () => {
 
-        const fn = mock.fn((n: number) => n);
+        const fn = vi.fn((n: number) => n);
         const items = Array.from({ length: 7 }, (_, i) => i);
 
-        const onStart = mock.fn();
-        const onChunkStart = mock.fn();
-        const onChunkEnd = mock.fn();
-        const onEnd = mock.fn();
+        const onStart = vi.fn();
+        const onChunkStart = vi.fn();
+        const onChunkEnd = vi.fn();
+        const onEnd = vi.fn();
 
         await batch(fn, {
             items,
@@ -297,13 +297,13 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
         // onStart should be called with total chunks (3 chunks: 3+3+1)
         calledExactly(onStart, 1, 'callback params onStart');
-        expect(onStart.mock.calls[0]!.arguments[0]).to.equal(3);
+        expect(onStart.mock.calls[0]?.[0]).to.equal(3);
 
         // onChunkStart should be called 3 times with correct parameters
         calledExactly(onChunkStart, 3, 'callback params onChunkStart');
 
         // First chunk
-        const firstChunkStartCall = onChunkStart.mock.calls[0]!.arguments[0];
+        const firstChunkStartCall = onChunkStart.mock.calls[0]?.[0];
         expect(firstChunkStartCall.index).to.equal(0);
         expect(firstChunkStartCall.total).to.equal(3);
         expect(firstChunkStartCall.items.length).to.equal(3);
@@ -312,7 +312,7 @@ describe('@logosdx/utils - flow-control: batch', () => {
         expect(firstChunkStartCall.completionPercent).to.be.closeTo(33.33, 0.01);
 
         // Last chunk
-        const lastChunkStartCall = onChunkStart.mock.calls[2]!.arguments[0];
+        const lastChunkStartCall = onChunkStart.mock.calls[2]?.[0];
         expect(lastChunkStartCall.index).to.equal(2);
         expect(lastChunkStartCall.total).to.equal(3);
         expect(lastChunkStartCall.items.length).to.equal(1);
@@ -322,14 +322,14 @@ describe('@logosdx/utils - flow-control: batch', () => {
 
         // onEnd should be called with results
         calledExactly(onEnd, 1, 'callback params onEnd');
-        expect(onEnd.mock.calls[0]!.arguments[0].length).to.equal(7);
+        expect(onEnd.mock.calls[0]?.[0].length).to.equal(7);
     });
 
     it('should handle mixed success and failure results correctly', async () => {
 
         const items = [1, 2, 3, 4];
 
-        const fn = mock.fn((n: number) => {
+        const fn = vi.fn((n: number) => {
             if (n % 2 === 0) {
                 throw new Error(`Error for ${n}`);
             }

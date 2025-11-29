@@ -1,11 +1,11 @@
 import type { AsyncFunc } from '../../types.ts';
 import { assert, assertOptional, isFunction, isOptional } from '../../validation/index.ts';
 import { attempt, attemptSync } from '../../async/attempt.ts';
-import { withInflightDedup } from '../../async/inflight.ts';
+import { SingleFlight } from '../../async/singleflight.ts';
 import { wait } from '../misc.ts';
-import { serializer } from '../_helpers.ts';
+import { serializer } from '../../misc/index.ts';
 
-import type { MemoizeOptions, EnhancedMemoizedFunction, CacheStats, CacheItem } from './types.ts';
+import type { MemoizeOptions, EnhancedMemoizedFunction, CacheStats, CacheItem, CacheAdapter } from './types.ts';
 import { MapCacheAdapter } from './adapter.ts';
 import {
     createCacheItem,
@@ -128,10 +128,21 @@ export const memoize = <T extends AsyncFunc<any>>(
     assertOptional(generateKey, isFunction(generateKey), 'generateKey must be a function');
     assertOptional(onError, isFunction(onError), 'onError must be a function');
 
-    const cache = adapter || new MapCacheAdapter<CacheItem<ReturnType<T>>>({
-        maxSize,
-        cleanupInterval,
-        useWeakRef
+    // Use custom adapter or create default MapCacheAdapter
+    const cache: CacheAdapter<ReturnType<T>> & {
+        keys?: () => IterableIterator<string>;
+        entries?: () => IterableIterator<[string, CacheItem<ReturnType<T>>]>;
+        getStats?: () => { evictions: number }
+    } =
+        adapter || new MapCacheAdapter<ReturnType<T>>({
+            maxSize,
+            cleanupInterval,
+            useWeakRef
+        });
+
+    // SingleFlight for inflight deduplication only (cache is managed separately for LRU/WeakRef support)
+    const flight = new SingleFlight<ReturnType<T>>({
+        cleanupInterval: 0  // Disable cache cleanup since we manage our own
     });
 
     let accessSequence = 0;
@@ -151,11 +162,6 @@ export const memoize = <T extends AsyncFunc<any>>(
     const recordHit = () => hits++;
     const recordMiss = () => misses++;
 
-    const dedupedProducer = withInflightDedup(fn, {
-        generateKey: generateKey || ((...args) => serializer(args)),
-        onJoin: () => recordHit()
-    }) as T;
-
     const handleStaleWhileRevalidate = async (
         key: string,
         args: Parameters<T>,
@@ -169,27 +175,14 @@ export const memoize = <T extends AsyncFunc<any>>(
 
         if (staleTimeout === 0) {
 
-            attempt(() => dedupedProducer(...args))
-                .then(([freshValue, error]) => {
-
-                    if (error) return;
-
-                    const now = Date.now();
-                    const item = createCacheItem(
-                        freshValue,
-                        now,
-                        now + ttl,
-                        useWeakRef,
-                        getNextSequence()
-                    ) as CacheItem<ReturnType<T>>;
-
-                    cache.set(key, item, item.expiresAt);
-                });
+            // Fire and forget background refresh
+            attempt(() => executeAndCache(key, args))
+                .catch(() => {}); // Swallow errors, stale value already returned
 
             return staleValue;
         }
 
-        const freshPromise = attempt(() => dedupedProducer(...args));
+        const freshPromise = attempt(() => executeAndCache(key, args));
         const timeoutPromise = wait(staleTimeout, TIMEOUT_SYMBOL);
 
         const winner = await Promise.race([freshPromise, timeoutPromise]);
@@ -203,21 +196,87 @@ export const memoize = <T extends AsyncFunc<any>>(
 
         if (!error) {
 
-            const now = Date.now();
-            const item = createCacheItem(
-                freshValue,
-                now,
-                now + ttl,
-                useWeakRef,
-                getNextSequence()
-            ) as CacheItem<ReturnType<T>>;
-
-            cache.set(key, item, item.expiresAt);
-
             return freshValue as ReturnType<T>;
         }
 
         return staleValue;
+    };
+
+    const executeAndCache = async (key: string, args: Parameters<T>): Promise<ReturnType<T>> => {
+
+        // Check if already inflight
+        const inflight = flight.getInflight(key);
+
+        if (inflight) {
+
+            flight.joinInflight(key);
+            recordHit();  // Joining inflight counts as hit
+            return inflight.promise;
+        }
+
+        // Execute the function
+        const promise = fn(...args) as Promise<ReturnType<T>>;
+
+        // Store cleanup function for use in finally
+        let cleanup: (() => void) | undefined;
+
+        const trackedPromise = promise
+            .then(async (value) => {
+
+                // Cache the result
+                const now = Date.now();
+                const item = createCacheItem(
+                    value,
+                    now,
+                    now + ttl,
+                    useWeakRef,
+                    getNextSequence()
+                ) as CacheItem<ReturnType<T>>;
+
+                if (staleIn !== undefined) {
+
+                    item.staleAt = now + staleIn;
+                }
+
+                await cache.set(key, item, item.expiresAt);
+                return value;
+            })
+            .finally(() => {
+
+                cleanup?.();
+            });
+
+        cleanup = flight.trackInflight(key, trackedPromise);
+
+        return trackedPromise;
+    };
+
+    const executeDedupeOnly = async (key: string, args: Parameters<T>): Promise<ReturnType<T>> => {
+
+        // Check if already inflight
+        const inflight = flight.getInflight(key);
+
+        if (inflight) {
+
+            flight.joinInflight(key);
+            recordHit();  // Joining inflight counts as hit
+            return inflight.promise;
+        }
+
+        // Execute the function without caching
+        const promise = fn(...args) as Promise<ReturnType<T>>;
+
+        // Store cleanup function for use in finally
+        let cleanup: (() => void) | undefined;
+
+        const trackedPromise = promise.finally(() => {
+
+            cleanup?.();
+        });
+
+        cleanup = flight.trackInflight(key, trackedPromise);
+
+        return trackedPromise;
     };
 
     const memoized = async function (...args: Parameters<T>): Promise<ReturnType<T>> {
@@ -228,7 +287,9 @@ export const memoize = <T extends AsyncFunc<any>>(
 
             if (!shouldCacheError && !shouldCacheResult) {
 
-                return dedupedProducer(...args) as ReturnType<T>;
+                // Bypass cache but still dedupe (don't cache result)
+                const key = generateKey ? generateKey(...args) : serializer(args as unknown[]);
+                return executeDedupeOnly(key, args);
             }
         }
 
@@ -243,7 +304,7 @@ export const memoize = <T extends AsyncFunc<any>>(
             return fn(...args) as ReturnType<T>;
         }
 
-        const cached = await Promise.resolve(cache.get(key));
+        const cached = await cache.get(key);
 
         if (cached && !isExpired(cached)) {
 
@@ -253,27 +314,16 @@ export const memoize = <T extends AsyncFunc<any>>(
 
             if (wasGC) {
 
-                cache.delete(key);
+                await cache.delete(key);
                 recordMiss();
 
-                const [value, error] = await attempt(() => dedupedProducer(...args));
+                const [value, error] = await attempt(() => executeAndCache(key, args));
 
                 if (error) {
 
                     onError?.(error, args);
                     throw error;
                 }
-
-                const now = Date.now();
-                const item = createCacheItem(
-                    value,
-                    now,
-                    now + ttl,
-                    useWeakRef,
-                    getNextSequence()
-                ) as CacheItem<ReturnType<T>>;
-
-                cache.set(key, item, item.expiresAt);
 
                 return value as ReturnType<T>;
             }
@@ -290,24 +340,13 @@ export const memoize = <T extends AsyncFunc<any>>(
 
         recordMiss();
 
-        const [value, error] = await attempt(() => dedupedProducer(...args));
+        const [value, error] = await attempt(() => executeAndCache(key, args));
 
         if (error) {
 
             onError?.(error, args);
             throw error;
         }
-
-        const now = Date.now();
-        const item = createCacheItem(
-            value,
-            now,
-            now + ttl,
-            useWeakRef,
-            getNextSequence()
-        ) as CacheItem<ReturnType<T>>;
-
-        cache.set(key, item, item.expiresAt);
 
         return value as ReturnType<T>;
     };
@@ -316,6 +355,7 @@ export const memoize = <T extends AsyncFunc<any>>(
         clear: () => {
 
             cache.clear();
+            flight.clear();
             hits = 0;
             misses = 0;
             accessSequence = 0;
@@ -343,7 +383,7 @@ export const memoize = <T extends AsyncFunc<any>>(
             return {
                 hits,
                 misses,
-                evictions: cache instanceof MapCacheAdapter ? cache.getStats().evictions : 0,
+                evictions: cache.getStats ? cache.getStats().evictions : 0,
                 hitRate: hits + misses > 0 ? hits / (hits + misses) : 0,
                 size: cache.size
             };
@@ -351,19 +391,26 @@ export const memoize = <T extends AsyncFunc<any>>(
 
         keys: () => {
 
-            return cache.keys() as IterableIterator<string>;
+            if (cache.keys) {
+
+                return cache.keys();
+            }
+            return [][Symbol.iterator]() as IterableIterator<string>;
         },
 
         entries: () => {
 
             const results: Array<[string, ReturnType<T> | undefined]> = [];
 
-            for (const [key, item] of cache.entries() as Iterable<[string, CacheItem<ReturnType<T>>]>) {
+            if (cache.entries) {
 
-                if (!isExpired(item)) {
+                for (const [key, item] of cache.entries()) {
 
-                    const [unwrapped] = unwrapValue(item.value);
-                    results.push([key, unwrapped]);
+                    if (!isExpired(item)) {
+
+                        const [unwrapped] = unwrapValue(item.value);
+                        results.push([key, unwrapped]);
+                    }
                 }
             }
 

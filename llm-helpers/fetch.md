@@ -151,6 +151,14 @@ interface FetchEngine.Options<H, P, S> {
     // Response type determination
     determineType?: (response: Response) => 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | Symbol;
 
+    // Deduplication policy (prevents duplicate concurrent requests)
+    dedupePolicy?: boolean | DeduplicationConfig<S, H, P>;
+
+    // Cache policy (caches responses with TTL and SWR support)
+    cachePolicy?: boolean | CacheConfig<S, H, P>;
+
+    // Rate limit policy (controls outgoing request rate with token bucket)
+    rateLimitPolicy?: boolean | RateLimitConfig<S, H, P>;
 }
 ```
 
@@ -267,11 +275,15 @@ if (response.status === 200) {
 
 ```typescript
 enum FetchEventNames {
+    // Request lifecycle
     'fetch-before' = 'fetch-before',
     'fetch-after' = 'fetch-after',
     'fetch-abort' = 'fetch-abort',
     'fetch-error' = 'fetch-error',
     'fetch-response' = 'fetch-response',
+    'fetch-retry' = 'fetch-retry',
+
+    // Configuration changes
     'fetch-header-add' = 'fetch-header-add',
     'fetch-header-remove' = 'fetch-header-remove',
     'fetch-param-add' = 'fetch-param-add',
@@ -279,7 +291,25 @@ enum FetchEventNames {
     'fetch-state-set' = 'fetch-state-set',
     'fetch-state-reset' = 'fetch-state-reset',
     'fetch-url-change' = 'fetch-url-change',
-    'fetch-retry' = 'fetch-retry'
+    'fetch-modify-options-change' = 'fetch-modify-options-change',
+    'fetch-modify-method-options-change' = 'fetch-modify-method-options-change',
+
+    // Deduplication events
+    'fetch-dedupe-start' = 'fetch-dedupe-start',   // New request tracked
+    'fetch-dedupe-join' = 'fetch-dedupe-join',     // Caller joined existing
+
+    // Caching events
+    'fetch-cache-hit' = 'fetch-cache-hit',         // Fresh cache hit
+    'fetch-cache-stale' = 'fetch-cache-stale',     // Stale cache hit (SWR)
+    'fetch-cache-miss' = 'fetch-cache-miss',       // No cache entry
+    'fetch-cache-set' = 'fetch-cache-set',         // New cache entry stored
+    'fetch-cache-revalidate' = 'fetch-cache-revalidate',           // SWR background refresh started
+    'fetch-cache-revalidate-error' = 'fetch-cache-revalidate-error', // SWR background refresh failed
+
+    // Rate limiting events
+    'fetch-ratelimit-wait' = 'fetch-ratelimit-wait',       // Waiting for token
+    'fetch-ratelimit-reject' = 'fetch-ratelimit-reject',   // Rejected (waitForToken: false)
+    'fetch-ratelimit-acquire' = 'fetch-ratelimit-acquire'  // Token acquired
 }
 
 // Event listeners
@@ -287,6 +317,264 @@ api.on('*', (event) => console.log('Any event:', event.type));
 api.on('fetch-before', (event) => console.log('Request starting:', event.url));
 api.on('fetch-error', (event) => console.error('Request failed:', event.error));
 api.off('fetch-error', errorHandler); // remove listener
+```
+
+## Request Deduplication
+
+Prevents duplicate concurrent requests by sharing the same in-flight promise among callers with identical request keys.
+
+```typescript
+// Enable with defaults (GET requests only)
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    dedupePolicy: true
+});
+
+// Three concurrent calls → one network request
+const [user1, user2, user3] = await Promise.all([
+    api.get('/users/123'),
+    api.get('/users/123'),
+    api.get('/users/123')
+]);
+
+// Full configuration
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    dedupePolicy: {
+        enabled: true,
+        methods: ['GET', 'POST'],           // Default: ['GET']
+        serializer: (ctx) => `${ctx.method}:${ctx.path}`,
+        shouldDedupe: (ctx) => !ctx.payload?.skipDedupe,
+        rules: [
+            { startsWith: '/admin', enabled: false },
+            { startsWith: '/api/v2', serializer: customSerializer }
+        ]
+    }
+});
+
+// Events
+api.on('fetch-dedupe-start', (e) => console.log('New request:', e.key));
+api.on('fetch-dedupe-join', (e) => console.log('Joined request:', e.key, 'waiters:', e.waitingCount));
+```
+
+### Deduplication Types
+
+```typescript
+interface DeduplicationConfig<S, H, P> {
+    enabled?: boolean;                              // Default: true
+    methods?: HttpMethod[];                         // Default: ['GET']
+    serializer?: RequestSerializer<S, H, P>;        // Default: defaultRequestSerializer
+    shouldDedupe?: (ctx: RequestKeyOptions) => boolean;  // Dynamic skip
+    rules?: DedupeRule[];                           // Route-specific config
+}
+
+interface DedupeRule extends MatchTypes {
+    methods?: HttpMethod[];
+    enabled?: boolean;
+    serializer?: RequestSerializer;
+}
+
+interface RequestKeyOptions<S, H, P> {
+    method: string;
+    path: string;
+    payload?: unknown;
+    headers?: H;
+    params?: P;
+    state?: S;
+}
+```
+
+## Response Caching
+
+Cache responses with TTL and stale-while-revalidate (SWR) support.
+
+```typescript
+// Enable with defaults (GET requests, 60s TTL)
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: true
+});
+
+// Full configuration with SWR
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: {
+        enabled: true,
+        methods: ['GET'],
+        ttl: 300000,          // 5 minutes
+        staleIn: 60000,       // Stale after 1 minute (triggers background revalidation)
+        skip: (ctx) => ctx.path.includes('/realtime'),
+        rules: [
+            { startsWith: '/static', ttl: 3600000 },  // 1 hour for static
+            { startsWith: '/admin', enabled: false }   // No caching for admin
+        ]
+    }
+});
+
+// Cache events
+api.on('fetch-cache-hit', (e) => console.log('Cache hit:', e.key, 'stale:', e.isStale));
+api.on('fetch-cache-miss', (e) => console.log('Cache miss:', e.key));
+api.on('fetch-cache-set', (e) => console.log('Cached:', e.key, 'expires in:', e.expiresIn));
+api.on('fetch-cache-stale', (e) => console.log('Stale:', e.key));
+api.on('fetch-cache-revalidate', (e) => console.log('Revalidating:', e.key));
+
+// Cache invalidation API
+await api.clearCache();                                    // Clear all
+await api.deleteCache(key);                                // Delete specific key
+await api.invalidateCache((key) => key.includes('user')); // By predicate
+await api.invalidatePath('/users');                        // By path prefix
+await api.invalidatePath(/^\/api\/v\d+/);                 // By regex
+const stats = api.cacheStats();                           // { cacheSize, inflightCount }
+```
+
+### Caching Types
+
+```typescript
+interface CacheConfig<S, H, P> {
+    enabled?: boolean;                              // Default: true
+    methods?: HttpMethod[];                         // Default: ['GET']
+    ttl?: number;                                   // Default: 60000 (1 minute)
+    staleIn?: number;                               // Default: undefined (no SWR)
+    serializer?: RequestSerializer<S, H, P>;        // Default: defaultRequestSerializer
+    skip?: (ctx: RequestKeyOptions<S, H, P>) => boolean;  // Dynamic skip
+    rules?: CacheRule[];                            // Route-specific config
+    adapter?: CacheAdapter<unknown>;                // Custom storage backend (Redis, IndexedDB, etc.)
+}
+
+interface CacheRule extends MatchTypes {
+    methods?: HttpMethod[];
+    enabled?: boolean;
+    ttl?: number;
+    staleIn?: number;
+    serializer?: RequestSerializer;
+    skip?: (ctx: RequestKeyOptions) => boolean;
+}
+```
+
+## Rate Limiting
+
+Control outgoing request rates using a token bucket algorithm. Each unique request key gets its own rate limiter, enabling per-endpoint or per-user throttling.
+
+```typescript
+// Enable with defaults (100 requests/minute, all methods)
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: true
+});
+
+// Full configuration
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: {
+        enabled: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        maxCalls: 100,            // 100 requests per window
+        windowMs: 60000,          // 1 minute window
+        waitForToken: true,       // Wait for token (false = reject immediately)
+        serializer: (ctx) => `${ctx.method}|${ctx.url.pathname}`,
+        shouldRateLimit: (ctx) => !ctx.headers?.['X-Bypass-RateLimit'],
+        onRateLimit: (ctx, waitTimeMs) => console.log(`Rate limited, waiting ${waitTimeMs}ms`),
+        rules: [
+            { startsWith: '/api/search', maxCalls: 10, windowMs: 60000 },  // Stricter for search
+            { startsWith: '/api/bulk', waitForToken: false },              // Reject bulk if limited
+            { startsWith: '/health', enabled: false }                      // No limits for health checks
+        ]
+    }
+});
+
+// Rate limiting applies BEFORE cache/dedupe checks
+// So cached responses don't consume rate limit tokens
+
+// Events
+api.on('fetch-ratelimit-wait', (e) => console.log('Waiting for token:', e.key, e.waitTimeMs));
+api.on('fetch-ratelimit-reject', (e) => console.log('Rate limited:', e.key));
+api.on('fetch-ratelimit-acquire', (e) => console.log('Token acquired:', e.key, 'remaining:', e.currentTokens));
+```
+
+### Rate Limiting Types
+
+```typescript
+interface RateLimitConfig<S, H, P> {
+    enabled?: boolean;                              // Default: true
+    methods?: HttpMethod[];                         // Default: all methods
+    maxCalls?: number;                              // Default: 100
+    windowMs?: number;                              // Default: 60000 (1 minute)
+    waitForToken?: boolean;                         // Default: true (wait vs reject)
+    serializer?: RequestSerializer<S, H, P>;        // Default: defaultRateLimitSerializer
+    shouldRateLimit?: (ctx: RequestKeyOptions) => boolean;  // Dynamic bypass
+    onRateLimit?: (ctx: RequestKeyOptions, waitTimeMs: number) => void | Promise<void>;
+    rules?: RateLimitRule[];                        // Route-specific config
+}
+
+interface RateLimitRule extends MatchTypes {
+    methods?: HttpMethod[];
+    enabled?: boolean;
+    maxCalls?: number;
+    windowMs?: number;
+    waitForToken?: boolean;
+    serializer?: RequestSerializer;
+}
+
+// Default serializer groups by method + pathname (per-endpoint limiting)
+// defaultRateLimitSerializer: (ctx) => `${ctx.method}|${ctx.url.pathname}`
+```
+
+### Route Matching
+
+Deduplication, caching, and rate limiting all support flexible route matching:
+
+```typescript
+interface MatchTypes {
+    is?: string;           // Exact path match
+    startsWith?: string;   // Path prefix match
+    endsWith?: string;     // Path suffix match
+    includes?: string;     // Path contains match
+    match?: RegExp;        // Regex match
+}
+
+// Multiple match types use AND logic (except 'is' which is exclusive)
+const rules = [
+    { is: '/users' },                               // Exact match only
+    { startsWith: '/api', endsWith: '.json' },      // Must satisfy both
+    { includes: 'admin', match: /\/v\d+\// },       // Must satisfy both
+];
+```
+
+### Regex Performance Warning (ReDoS)
+
+Route matching runs on **every request**. Poorly written regex can cause catastrophic backtracking:
+
+```typescript
+// ❌ DANGEROUS: Nested quantifiers, exponential backtracking
+{ match: /(a+)+b/ }
+{ match: /^\/api\/v\d+\/.*$/ }     // .* with anchors can backtrack
+{ match: /(\w+)*@/ }
+
+// ✅ SAFE: Simple patterns, no nesting
+{ match: /^\/v\d+\/users/ }
+{ match: /\/users\/\d+$/ }
+
+// ✅ BETTER: Use string matchers (faster, no ReDoS risk)
+{ startsWith: '/api/v2' }          // Instead of /^\/api\/v2/
+{ endsWith: '.json' }              // Instead of /\.json$/
+{ includes: '/users/' }            // Instead of /\/users\//
+```
+
+**Best practice:** Prefer string-based matchers over regex. Only use `match` when strings can't express what you need.
+
+### Independent Timeout Per Caller
+
+When deduplicating, each caller can have independent timeout/abort constraints:
+
+```typescript
+// Caller A: 10s timeout
+const promiseA = api.get('/slow', { timeout: 10000 });
+
+// Caller B: 2s timeout (joins A's request)
+const promiseB = api.get('/slow', { timeout: 2000 });
+
+// After 2s, B times out → A continues waiting
+// Request completes at 5s → A gets the result, B already rejected
 ```
 
 ## Advanced Features
@@ -547,17 +835,41 @@ class MyComponent {
 ## Production Patterns
 
 ```typescript
-// Resilient API client with monitoring
+// Resilient API client with caching and deduplication
 const api = new FetchEngine({
     baseUrl: process.env.API_BASE_URL,
     defaultType: 'json',
     timeout: 5000,
+
+    // Deduplication - prevent duplicate concurrent requests
+    dedupePolicy: {
+        enabled: true,
+        methods: ['GET'],
+        rules: [
+            { startsWith: '/realtime', enabled: false }  // Disable for realtime endpoints
+        ]
+    },
+
+    // Caching with stale-while-revalidate
+    cachePolicy: {
+        enabled: true,
+        methods: ['GET'],
+        ttl: 60000,           // 1 minute
+        staleIn: 30000,       // Stale after 30 seconds
+        rules: [
+            { startsWith: '/static', ttl: 3600000 },  // 1 hour for static
+            { startsWith: '/user/me', ttl: 300000 },  // 5 minutes for user profile
+            { includes: '/realtime', enabled: false }  // No caching for realtime
+        ]
+    },
+
     retry: {
         maxAttempts: 3,
         baseDelay: 1000,
         useExponentialBackoff: true,
         shouldRetry: (error) => error.status >= 500 && !error.aborted
     },
+
     validate: {
         headers: (headers) => {
             if (!headers.Authorization && process.env.NODE_ENV === 'production') {

@@ -1,6 +1,6 @@
 import { assert, isFunction } from '../validation/index.ts';
-import { AnyAsyncFunc, AnyFunc } from './_helpers.ts';
 import { attempt } from '../async/attempt.ts';
+import { AsyncFunc, Func } from '../types.ts';
 
 /**
  * Creates a deferred promise that can be resolved or rejected externally.
@@ -187,7 +187,7 @@ interface MakeInSeriesFunc<T extends readonly ((...args: any[]) => any)[]> {
  *
  * runInSeries([cleanupStart, cleanupStop, cleanupError, cleanupCleanup]);
  */
-export const runInSeries = <T extends Iterable<AnyFunc>>(fns: T) => Array.from(fns, fn => fn()) as ReturnsOfReturns<T>;
+export const runInSeries = <T extends Iterable<Func>>(fns: T) => Array.from(fns, fn => fn()) as ReturnsOfReturns<T>;
 
 
 /**
@@ -250,7 +250,7 @@ export const nextTick = () => new Promise(typeof process !== 'undefined' ? proce
 if (typeof setImmediate !== 'function') {
 
     let nextHandle = 0;
-    const tasks = new Map<number, AnyAsyncFunc>();
+    const tasks = new Map<number, AsyncFunc>();
     const channel = new MessageChannel();
 
     // Use MessageChannel because it bypasses the timer queue and its potential delays
@@ -265,7 +265,7 @@ if (typeof setImmediate !== 'function') {
     }
 
     globalThis.setImmediate = (
-        (fn: AnyAsyncFunc, ...args: any[]) => {
+        (fn: AsyncFunc, ...args: any[]) => {
 
             const handle = nextHandle++;
             tasks.set(handle, () => fn(...args));

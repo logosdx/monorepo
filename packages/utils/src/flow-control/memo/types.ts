@@ -1,4 +1,4 @@
-import type { AsyncFunc, Func, MaybePromise } from '../../types.ts';
+import type { AsyncFunc, Func } from '../../types.ts';
 
 /**
  * Cache statistics for monitoring performance.
@@ -37,47 +37,50 @@ export interface CacheItem<T> {
     /** Timestamp when expires (for TTL) */
     expiresAt: number;
 
-    /** Number of cache hits for this item */
-    accessCount: number;
+    /** Timestamp when becomes stale for SWR (optional) */
+    staleAt?: number | undefined;
+
+    /** Number of cache hits for this item (for LRU) */
+    accessCount?: number | undefined;
 
     /** Last access timestamp (for LRU) */
-    lastAccessed: number;
+    lastAccessed?: number | undefined;
 
     /** Monotonic sequence number (for LRU tie-breaking) */
-    accessSequence: number;
+    accessSequence?: number | undefined;
 }
 
 /**
- * Cache adapter interface supporting both sync and async operations.
- * Enables pluggable backends like Redis, Memcached, or custom implementations.
+ * Cache adapter interface for pluggable storage backends.
  *
- * @template K - Key type
- * @template V - Value type
+ * All methods are async to support Redis, IndexedDB, and other async backends.
+ * Adapters handle their own LRU eviction and cleanup logic.
+ *
+ * @template T - The type of cached values
  */
-export interface CacheAdapter<K, V> {
+export interface CacheAdapter<T> {
 
-    /** Retrieve value by key. Returns undefined if missing or expired. */
-    get(key: K): MaybePromise<V | undefined>;
+    /** Retrieve cache item by key. Returns undefined if missing. */
+    get(key: string): Promise<CacheItem<T> | null>;
 
-    /** Store value with expiration timestamp. */
-    set(key: K, value: V, expiresAt: number): MaybePromise<void>;
+    /**
+     * Store cache item with given key.
+     * @param key - Cache key
+     * @param item - Cache item with value and metadata
+     * @param expiresAt - Optional expiration timestamp for backends like Redis
+     */
+    set(key: string, item: CacheItem<T>, expiresAt?: number): Promise<void>;
 
     /** Remove specific key. Returns true if existed. */
-    delete(key: K): MaybePromise<boolean>;
+    delete(key: string): Promise<boolean>;
 
-    /** Remove all keys. */
-    clear(): MaybePromise<void>;
+    /** Remove all cached items. */
+    clear(): Promise<void>;
 
-    /** Check if key exists (non-expired). */
-    has(key: K): MaybePromise<boolean>;
+    /** Check if key exists (may still be expired - adapter handles expiration). */
+    has(key: string): Promise<boolean>;
 
-    /** Iterate over all keys. */
-    keys(): AsyncIterable<K> | Iterable<K>;
-
-    /** Iterate over all entries. */
-    entries(): AsyncIterable<[K, V]> | Iterable<[K, V]>;
-
-    /** Current number of cached items. */
+    /** Current number of cached items (may include expired items). */
     readonly size: number;
 }
 
@@ -113,7 +116,7 @@ export interface MemoizeOptions<T extends Func | AsyncFunc> {
     useWeakRef?: boolean;
 
     /** Custom cache adapter (Redis, etc.). Default: MapCacheAdapter */
-    adapter?: CacheAdapter<string, CacheItem<ReturnType<T>>>;
+    adapter?: CacheAdapter<ReturnType<T>>;
 
     /**
      * Pre-serialization check. Return false to bypass cache and execute the function directly.

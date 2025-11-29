@@ -23,7 +23,7 @@
         "strict": true,
         "target": "ESNext",
         "skipLibCheck": true,
-        "exactOptionalPropertyTypes": true,
+        "exactOptionalPropertyTypes": true
     },
     "exclude": [
         "./docs/*",

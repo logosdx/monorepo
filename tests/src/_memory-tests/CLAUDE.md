@@ -19,6 +19,9 @@ memory-tests/
 ├── harness.ts         # MemoryTestHarness class (interactive + auto modes)
 ├── types.ts           # TypeScript interfaces for scenarios, snapshots, results
 ├── scenarios/
+│   ├── fetch/         # @logosdx/fetch memory tests
+│   │   ├── index.ts   # Exports fetchScenarios array
+│   │   └── *.ts       # Individual scenario files
 │   ├── observer/      # @logosdx/observer memory tests
 │   │   ├── index.ts   # Exports observerScenarios array
 │   │   └── *.ts       # Individual scenario files
@@ -54,7 +57,7 @@ pnpm memory utils --scenario=memoize-churn
 pnpm memory utils --auto --iterations=50
 ```
 
-**Available suites:** `observer`, `utils`
+**Available suites:** `fetch`, `observer`, `utils`
 
 
 ## CLI Flags

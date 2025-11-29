@@ -1,9 +1,9 @@
 import {
     describe,
     it,
-} from 'node:test'
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import {
     timeUnits,

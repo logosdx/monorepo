@@ -4,8 +4,10 @@ import {
     clone,
     attempt,
     wait,
-    isPlainObject,
-    isPrimitive,
+    SingleFlight,
+    Deferred,
+    RateLimitTokenBucket,
+    RateLimitError,
 } from '@logosdx/utils';
 
 import { ObserverEngine } from '@logosdx/observer';
@@ -17,15 +19,84 @@ import {
     type MethodHeaders,
     type RetryConfig,
     type FetchResponse,
-    type FetchConfig
+    type FetchConfig,
+    type DeduplicationConfig,
+    type CacheConfig,
+    type RateLimitConfig,
+    type RequestKeyOptions,
+    type DeduplicationInternalState,
+    type DedupeRule,
+    type CacheInternalState,
+    type CacheRule,
+    type RateLimitInternalState,
+    type RateLimitRule,
 } from './types.ts';
 
 import {
     FetchError,
     fetchTypes,
     validateOptions,
-    DEFAULT_RETRY_CONFIG
+    DEFAULT_RETRY_CONFIG,
+    DEFAULT_INFLIGHT_METHODS,
+    validateMatchRules,
+    findMatchingRule,
+    defaultRequestSerializer,
+    defaultRateLimitSerializer,
 } from './helpers.ts';
+
+/**
+ * Internal normalized request options - flat structure used throughout FetchEngine.
+ *
+ * This is the single source of truth for all request data, flowing to:
+ * - Cache/dedupe serializers (satisfies RequestKeyOptions)
+ * - Event data (spread directly into events)
+ * - Request execution (#attemptCall → #makeCall)
+ */
+type InternalReqOptions<H, P, S> = {
+    // === Request identity (satisfies RequestKeyOptions) ===
+    /** HTTP method (uppercase) */
+    method: HttpMethods;
+    /** Original request path */
+    path: string;
+    /** Request payload/body */
+    payload?: unknown;
+    /** Merged headers (instance + method + request) */
+    headers: FetchEngine.Headers<H>;
+    /** URL parameters as flat object (from url.searchParams) */
+    params: FetchEngine.Params<P>;
+    /** Instance state */
+    state: S;
+
+    // === URL (native URL class) ===
+    /** Fully-constructed URL - source of truth for path + params */
+    url: URL;
+
+    // === Execution plumbing ===
+    /** AbortSignal for request cancellation */
+    signal: AbortSignal;
+    /** AbortController for cancelling the request */
+    controller: AbortController;
+    /** Serialized body for fetch() */
+    body?: BodyInit | undefined;
+    /** Request timeout in ms */
+    timeout?: number | undefined;
+    /** Retry configuration */
+    retry?: RetryConfig | false | undefined;
+    /** Custom response type determination */
+    determineType?: FetchEngine.DetermineTypeFn | undefined;
+
+    // === Callbacks ===
+    onBeforeRequest?: FetchEngine.CallOptions<H, P>['onBeforeReq'] | undefined;
+    onAfterRequest?: FetchEngine.CallOptions<H, P>['onAfterReq'] | undefined;
+    onError?: FetchEngine.CallOptions<H, P>['onError'] | undefined;
+
+    // === Runtime state ===
+    /**
+     * Current attempt number (used in retry logic and events).
+     * Named differently from the `attempt` utility function to avoid shadowing.
+     */
+    attempt?: number | undefined;
+}
 
 /**
  * Creates a wrapper around `window.fetch` that allows
@@ -149,6 +220,18 @@ export class FetchEngine<
     #state: S = {} as S;
 
     #retry: Required<RetryConfig>;
+
+    // Deduplication
+    #flight = new SingleFlight<unknown>();
+
+    #dedupe: DeduplicationInternalState<S, H, P> | null = null;
+
+    // Caching
+    #cache: CacheInternalState<S, H, P> | null = null;
+
+
+    // Rate Limiting
+    #rateLimit: RateLimitInternalState<S, H, P> | null = null;
 
     get #destroyed() {
 
@@ -377,7 +460,571 @@ export class FetchEngine<
         this.removeParam = this.rmParams.bind(this) as FetchEngine<H, P, S>['rmParams'];
 
         this.#validateHeaders(this.#headers);
+
+        // Initialize deduplication
+        this.#initDeduplication(opts.dedupePolicy);
+
+        // Initialize caching
+        this.#initCache(opts.cachePolicy);
+
+        // Initialize rate limiting
+        this.#initRateLimit(opts.rateLimitPolicy);
     }
+
+
+    /**
+     * Initialize deduplication configuration.
+     *
+     * @param config - Deduplication config from options
+     */
+    #initDeduplication(config?: boolean | DeduplicationConfig<S, H, P>): void {
+
+        if (!config) return;
+
+        if (config === true) {
+
+            this.#dedupe = {
+                enabled: true,
+                methods: new Set(DEFAULT_INFLIGHT_METHODS),
+                config: {},
+                serializer: defaultRequestSerializer,
+                rulesCache: new Map()
+            }
+
+            return;
+        }
+
+        // Full config object
+        this.#dedupe = {
+            enabled: config.enabled !== false,
+            methods: new Set(config.methods ?? DEFAULT_INFLIGHT_METHODS),
+            config,
+            serializer: config.serializer ?? defaultRequestSerializer,
+            rulesCache: new Map()
+        }
+
+        // Validate rules if provided
+        if (config.rules) {
+
+            validateMatchRules(config.rules);
+        }
+    }
+
+
+    /**
+     * Initialize cache configuration.
+     *
+     * @param config - Cache config from options
+     */
+    #initCache(config?: boolean | CacheConfig<S, H, P>): void {
+
+        if (!config) return;
+
+        if (config === true) {
+
+            // Boolean true = enable with defaults
+            this.#cache = {
+                enabled: true,
+                methods: new Set(DEFAULT_INFLIGHT_METHODS),
+                config: {},
+                ttl: 60000,
+                staleIn: undefined,
+                serializer: defaultRequestSerializer,
+                rulesCache: new Map(),
+                activeKeys: new Set(),
+                revalidatingKeys: new Set()
+            }
+
+            return;
+        }
+
+        // Full config object
+
+        this.#cache = {
+            enabled: config.enabled !== false,
+            methods: new Set(config.methods ?? DEFAULT_INFLIGHT_METHODS),
+            config,
+            ttl: config.ttl ?? 60000,
+            staleIn: config.staleIn,
+            serializer: config.serializer ?? defaultRequestSerializer,
+            rulesCache: new Map(),
+            activeKeys: new Set(),
+            revalidatingKeys: new Set()
+        }
+
+        // Validate rules if provided
+        if (config.rules) {
+
+            validateMatchRules(config.rules);
+        }
+
+        // Initialize SingleFlight with adapter if provided
+        this.#flight = new SingleFlight<unknown>({
+            adapter: config.adapter,
+            defaultTtl: this.#cache.ttl,
+            defaultStaleIn: this.#cache.staleIn
+        });
+    }
+
+
+    /**
+     * Default methods for rate limiting (all methods by default).
+     */
+    static #DEFAULT_RATELIMIT_METHODS: _InternalHttpMethods[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
+
+
+    /**
+     * Initialize rate limit configuration.
+     *
+     * @param config - Rate limit config from options
+     */
+    #initRateLimit(config?: boolean | RateLimitConfig<S, H, P>): void {
+
+        if (!config) return;
+
+        if (config === true) {
+
+            // Boolean true = enable with defaults
+            this.#rateLimit = {
+                enabled: true,
+                methods: new Set(FetchEngine.#DEFAULT_RATELIMIT_METHODS),
+                config: {},
+                maxCalls: 100,
+                windowMs: 60000,
+                waitForToken: true,
+                serializer: defaultRateLimitSerializer,
+                rulesCache: new Map(),
+                rateLimiters: new Map()
+            };
+            return;
+        }
+
+        // Full config object
+        this.#rateLimit = {
+            enabled: config.enabled !== false,
+            methods: new Set(config.methods ?? FetchEngine.#DEFAULT_RATELIMIT_METHODS),
+            config,
+            maxCalls: config.maxCalls ?? 100,
+            windowMs: config.windowMs ?? 60000,
+            waitForToken: config.waitForToken ?? true,
+            serializer: config.serializer ?? defaultRateLimitSerializer,
+            rulesCache: new Map(),
+            rateLimiters: new Map()
+        }
+
+        // Validate rules if provided
+        if (config.rules) {
+
+            validateMatchRules(config.rules);
+        }
+    }
+
+
+    /**
+     * Resolve rate limit configuration for a specific request.
+     *
+     * Uses memoization for rule matching (O(n) only once per method+path).
+     * The shouldRateLimit callback is always evaluated since it depends on request context.
+     *
+     * @returns Object with config or null if disabled
+     */
+    #resolveRateLimitConfig(
+        method: string,
+        path: string,
+        keyContext: RequestKeyOptions<S, H, P>
+    ): RateLimitRule<S, H, P> | null {
+
+        // If globally disabled AND no rules defined, skip everything
+        // But if rules are defined, allow them to enable rate limiting for specific routes
+        if (
+            !this.#rateLimit ||
+            (
+
+                !this.#rateLimit?.enabled &&
+                !this.#rateLimit?.config?.rules?.length
+            )
+        ) {
+
+            return null;
+        }
+
+        const upperMethod = method.toUpperCase();
+        const cacheKey = `${upperMethod}:${path}`;
+
+        // Check cache for rule resolution
+        let cached = this.#rateLimit.rulesCache.get(cacheKey);
+
+        if (cached === undefined) {
+
+            // Not in cache - compute and store
+            cached = this.#computeRateLimitRuleConfig(upperMethod, path);
+            this.#rateLimit.rulesCache.set(cacheKey, cached);
+        }
+
+        // If rule resolution returned null, rate limiting is disabled for this route
+        if (cached === null) return null;
+
+        // Apply dynamic shouldRateLimit check (not cached)
+        if (
+            this.#rateLimit.config?.shouldRateLimit &&
+            this.#rateLimit.config.shouldRateLimit(keyContext) === false
+        ) {
+
+            return null;
+        }
+
+        return cached;
+    }
+
+
+    /**
+     * Compute rate limit rule configuration for a method+path combination.
+     * This is the expensive O(n) operation that gets memoized.
+     */
+    #computeRateLimitRuleConfig(
+        method: string,
+        path: string
+    ): RateLimitRule<S, H, P> | null {
+
+        if (!this.#rateLimit) return null;
+
+        // When globally disabled, start with enabled=false
+        // Rules with explicit enabled:true can still enable rate limiting
+        let enabled = this.#rateLimit.enabled && this.#rateLimit.methods.has(method);
+        let serializer = this.#rateLimit.serializer;
+        let maxCalls = this.#rateLimit.maxCalls;
+        let windowMs = this.#rateLimit.windowMs;
+        let waitForToken = this.#rateLimit.waitForToken;
+
+        // Check for matching rule
+        if (this.#rateLimit.config?.rules?.length) {
+
+            const rule = findMatchingRule(
+                this.#rateLimit.config.rules,
+                method,
+                path,
+                [...this.#rateLimit.methods] as _InternalHttpMethods[]
+            );
+
+            if (rule) {
+
+                // Rule can disable for this route
+                if (rule.enabled === false) {
+
+                    return null;
+                }
+
+                // Rule can override methods
+                if (rule.methods) {
+
+                    enabled = rule.methods.includes(method as _InternalHttpMethods);
+                }
+                else {
+
+                    // Rule matched by path, so it's enabled for this method
+                    enabled = true;
+                }
+
+                // Rule can override serializer
+                if (rule.serializer) {
+
+                    serializer = rule.serializer;
+                }
+
+                // Rule can override maxCalls
+                if (rule.maxCalls !== undefined) {
+
+                    maxCalls = rule.maxCalls;
+                }
+
+                // Rule can override windowMs
+                if (rule.windowMs !== undefined) {
+
+                    windowMs = rule.windowMs;
+                }
+
+                // Rule can override waitForToken
+                if (rule.waitForToken !== undefined) {
+
+                    waitForToken = rule.waitForToken;
+                }
+            }
+        }
+
+        if (!enabled) {
+
+            return null;
+        }
+
+        return {
+            enabled: true,
+            serializer,
+            maxCalls,
+            windowMs,
+            waitForToken
+        };
+    }
+
+
+    /**
+     * Get or create a rate limiter for the given key.
+     *
+     * Rate limiters are cached by key to ensure all requests to the same
+     * endpoint share the same token bucket.
+     */
+    #getRateLimiter(key: string, maxCalls: number, windowMs: number): RateLimitTokenBucket {
+
+        if (!this.#rateLimit) throw new Error('Rate limiting not initialized');
+
+        let bucket = this.#rateLimit.rateLimiters.get(key);
+
+        if (!bucket) {
+
+            // Token bucket needs: capacity and time per token
+            // If maxCalls=100 and windowMs=60000, we want 100 requests per minute
+            // So refillIntervalMs = windowMs / maxCalls = 600ms per token
+            const refillIntervalMs = windowMs / maxCalls;
+            bucket = new RateLimitTokenBucket(maxCalls, refillIntervalMs);
+
+            this.#rateLimit.rateLimiters.set(key, bucket);
+        }
+
+        return bucket;
+    }
+
+
+    /**
+     * Resolve cache configuration for a specific request.
+     *
+     * Uses memoization for rule matching (O(n) only once per method+path).
+     * The skip callback is always evaluated since it depends on request context.
+     *
+     * @returns Object with config or null if disabled
+     */
+    #resolveCacheConfig(
+        method: string,
+        path: string,
+        keyContext: RequestKeyOptions<S, H, P>
+    ): CacheRule<S, H, P> | null {
+
+        if (!this.#cache) return null;
+
+        // If globally disabled AND no rules defined, skip everything
+        // But if rules are defined, allow them to enable caching for specific routes
+        if (
+            !this.#cache.enabled &&
+            !this.#cache.config?.rules?.length
+        ) {
+
+            return null;
+        }
+
+        const upperMethod = method.toUpperCase();
+        const cacheKey = `${upperMethod}:${path}`;
+
+        // Check cache for rule resolution
+        let cached = this.#cache.rulesCache.get(cacheKey);
+
+        if (cached === undefined) {
+
+            // Not in cache - compute and store
+            cached = this.#computeCacheRuleConfig(upperMethod, path);
+            this.#cache.rulesCache.set(cacheKey, cached);
+        }
+
+        // If rule resolution returned null, caching is disabled for this route
+        if (cached === null) return null;
+
+        // Apply dynamic skip check (not cached)
+        if (
+            this.#cache.config?.skip &&
+            this.#cache.config.skip(keyContext) === true
+        ) {
+
+            return null;
+        }
+
+        return cached;
+    }
+
+
+    /**
+     * Compute cache rule configuration for a method+path combination.
+     * This is the expensive O(n) operation that gets memoized.
+     */
+    #computeCacheRuleConfig(
+        method: string,
+        path: string
+    ): CacheRule<S, H, P> | null {
+
+        if (!this.#cache) return null;
+
+        // When globally disabled, start with enabled=false
+        // Rules with explicit enabled:true can still enable caching
+        let enabled = this.#cache.enabled && this.#cache.methods.has(method);
+        let serializer = this.#cache.serializer;
+        let ttl = this.#cache.ttl;
+        let staleIn = this.#cache.staleIn;
+
+        // Check for matching rule
+        if (this.#cache.config?.rules?.length) {
+
+            const rule = findMatchingRule(
+                this.#cache.config.rules,
+                method,
+                path,
+                [...this.#cache.methods] as _InternalHttpMethods[]
+            );
+
+            if (rule) {
+
+                // Rule can disable for this route
+                if (rule.enabled === false) {
+
+                    return null;
+                }
+
+                // Rule can override methods
+                if (rule.methods) {
+
+                    enabled = rule.methods.includes(method as _InternalHttpMethods);
+                }
+                else {
+
+                    // Rule matched by path, so it's enabled for this method
+                    enabled = true;
+                }
+
+                // Rule can override serializer
+                if (rule.serializer) {
+
+                    serializer = rule.serializer;
+                }
+
+                // Rule can override TTL
+                if (rule.ttl !== undefined) {
+
+                    ttl = rule.ttl;
+                }
+
+                // Rule can override staleIn
+                if (rule.staleIn !== undefined) {
+
+                    staleIn = rule.staleIn;
+                }
+            }
+        }
+
+        if (!enabled) {
+
+            return null;
+        }
+
+        return { enabled: true, serializer, ttl, staleIn };
+    }
+
+
+    /**
+     * Resolve deduplication configuration for a specific request.
+     *
+     * Uses memoization for rule matching (O(n) only once per method+path).
+     * The shouldDedupe callback is always evaluated since it depends on request context.
+     *
+     * @returns Object with `enabled` flag and `serializer` to use, or null if disabled
+     */
+    #resolveDedupeConfig(
+        method: string,
+        path: string,
+        keyContext: RequestKeyOptions<S, H, P>
+    ): DedupeRule<S, H, P> | null {
+
+        if (!this.#dedupe) return null;
+
+        // If globally disabled AND no rules defined, skip everything
+        // But if rules are defined, allow them to enable deduplication for specific routes
+        if (!this.#dedupe.enabled && !this.#dedupe.config?.rules?.length) {
+
+            return null;
+        }
+
+        const upperMethod = method.toUpperCase();
+        const cacheKey = `${upperMethod}:${path}`;
+
+        // Check cache for rule resolution
+        let cached = this.#dedupe.rulesCache.get(cacheKey);
+
+        if (cached === undefined) {
+
+            // Not in cache - compute and store
+            cached = this.#computeDedupeRuleConfig(upperMethod, path);
+            this.#dedupe.rulesCache.set(cacheKey, cached);
+        }
+
+        // If rule resolution returned null, deduplication is disabled for this route
+        if (cached === null) return null;
+
+        // Apply dynamic shouldDedupe check (not cached)
+        if (
+            this.#dedupe.config?.shouldDedupe &&
+            this.#dedupe.config.shouldDedupe(keyContext) === false
+        ) {
+
+            return null;
+        }
+
+        return cached;
+    }
+
+
+    /**
+     * Compute deduplication rule configuration for a method+path combination.
+     * This is the expensive O(n) operation that gets memoized.
+     */
+    #computeDedupeRuleConfig(
+        method: string,
+        path: string
+    ): DedupeRule<S, H, P> | null {
+
+        if (!this.#dedupe) return null;
+
+        // When globally disabled, start with enabled=false
+        // Rules with explicit enabled:true can still enable deduplication
+        let enabled = this.#dedupe.enabled && this.#dedupe.methods.has(method);
+        let serializer = this.#dedupe.serializer;
+
+        // Check for matching rule
+        if (this.#dedupe.config?.rules?.length) {
+            const rule = findMatchingRule(
+                this.#dedupe.config.rules,
+                method,
+                path,
+                [...this.#dedupe.methods] as _InternalHttpMethods[]
+            );
+
+            if (rule) {
+
+                // Rule can disable for this route
+                if (rule.enabled === false) return null;
+
+                // Rule can be overridden by methods
+                enabled = rule.methods?.includes(method as _InternalHttpMethods) ?? true;
+
+                // Rule can override serializer
+                if (rule.serializer) {
+
+                    serializer = rule.serializer;
+                }
+            }
+        }
+
+        if (!enabled) return null;
+
+        return {
+            enabled: true,
+            serializer
+        };
+    }
+
 
     /**
      * Calculate delay for retry attempt using exponential backoff.
@@ -505,81 +1152,199 @@ export class FetchEngine<
                 url.searchParams.set(key, value as string);
             });
 
-            return url.toString();
+            return url;
         }
 
         path = path?.replace(/^\/{1,}/, '');
-        const url = this.#baseUrl.toString().replace(/\/$/, '');
+        if (path[0] !== '/') (path = `/${path}`);
+
+        const fullPath = this.#baseUrl.toString().slice(0, -1);
         const params = this.#makeParams(_params!, method);
 
-        const [basePath, ...rest] = path.split('?');
+        const url = new URL(fullPath + path);
 
-        const existingParams = new URLSearchParams(rest.join('?'));
-        const newParams = new URLSearchParams(params);
+        for (const [key, value] of Object.entries(params)) {
 
-        if (
-            existingParams.size === 0 &&
-            newParams.size === 0
-        ) {
-
-            return `${url}/${path}`;
+            url.searchParams.set(key, value as string);
         }
-
-        const mergedParams = new URLSearchParams([
-            ...existingParams.entries(),
-            ...newParams.entries()
-        ]);
 
         if (this.#validate?.perRequest?.params) {
 
             this.#validateParams(
-                Object.fromEntries(mergedParams.entries()) as FetchEngine.Params<P>,
+                Object.fromEntries(url.searchParams.entries()) as FetchEngine.Params<P>,
                 method
             );
         }
 
-
-        return `${url}/${basePath}?${mergedParams.toString()}`;
+        return url;
     }
 
-    #extractRetry(opts: FetchEngine.RequestOpts) {
+    #makeRequestOptions (
+        _method: HttpMethods,
+        path: string,
+        options: (
+            FetchEngine.CallOptions<H, P> &
+            {
+                payload?: unknown,
+                controller: AbortController,
+                attempt?: number
+            }
+        )
+    ): InternalReqOptions<H, P, S> {
 
-        let { retry } = opts;
+        const {
+            payload,
+            controller,
+            onAfterReq: onAfterRequest,
+            onBeforeReq: onBeforeRequest,
+            onError,
+            timeout = this.#options.timeout,
+            params,
+            attempt: attemptNum,
+            signal,
+            determineType,
+            retry,
+            headers: requestHeaders,
+            ...rest
+        } = options;
 
-        if (retry === true) {
-            retry = {};
+        const type = this.#type;
+        const state = this.#state;
+        const modifyOptions = this.#modifyOptions;
+        const modifyMethodOptions = this.#modifyMethodOptions;
+        const method = _method.toUpperCase() as _InternalHttpMethods;
+        const url = this.#makeUrl(path, params as P, method);
+
+        // Merge headers (instance + method + request-level)
+        let headers = this.#makeHeaders(requestHeaders, method);
+
+        // Build body for mutating methods
+        let body: BodyInit | undefined;
+
+        if (/put|post|patch|delete/i.test(method)) {
+
+            // Check if payload is already a valid BodyInit type that doesn't need serialization
+            const isValidBodyInit = (
+                payload === null ||
+                payload === undefined ||
+                typeof payload === 'string' ||
+                payload instanceof Blob ||
+                payload instanceof ArrayBuffer ||
+                payload instanceof FormData ||
+                payload instanceof URLSearchParams ||
+                payload instanceof ReadableStream ||
+                ArrayBuffer.isView(payload)
+            );
+
+            if (type === 'json' && !isValidBodyInit) {
+                // JSON.stringify any object, array, or primitive that isn't already a valid BodyInit
+                body = JSON.stringify(payload);
+            }
+            else if (payload !== null && payload !== undefined) {
+                body = payload as BodyInit;
+            }
         }
 
-        return retry;
+        // Build opts for modifyOptions compatibility (temporary structure)
+        // Note: spread rest first, then explicit properties to ensure they aren't overwritten
+        // Note: RequestOpts extends RequestInit which expects body: BodyInit | null
+        let opts: FetchEngine.RequestOpts = {
+            ...rest,
+            method,
+            signal: signal || controller.signal,
+            controller,
+            headers,
+            body: body ?? null,
+            timeout,
+            retry,
+            determineType,
+        };
+
+        // Apply global modifyOptions
+        opts = modifyOptions
+            ? modifyOptions(opts as never, state)
+            : opts;
+
+        // Apply method-specific modifyOptions
+        const methodSpecificModify = modifyMethodOptions?.[method] as typeof modifyOptions;
+
+        if (methodSpecificModify) {
+            opts = methodSpecificModify(opts as never, state);
+        }
+
+        // Extract final values after modification
+        headers = (opts.headers || {}) as FetchEngine.Headers<H>;
+        body = opts.body ?? undefined;
+
+        if (this.#validate?.perRequest?.headers) {
+
+            this.#validateHeaders(headers, method);
+        }
+
+        // Return flat structure - the normalized options IS the context
+        return {
+            // Request identity (satisfies RequestKeyOptions)
+            method,
+            path,
+            payload,
+            headers,
+            params: Object.fromEntries(url.searchParams.entries()) as FetchEngine.Params<P>,
+            state,
+
+            // URL
+            url,
+
+            // Execution plumbing
+            signal: opts.signal || controller.signal,
+            controller,
+            body,
+            timeout: opts.timeout,
+            retry: opts.retry === true ? {} : opts.retry,
+            determineType: opts.determineType || this.#options.determineType,
+
+            // Callbacks
+            onBeforeRequest,
+            onAfterRequest,
+            onError,
+
+            // Runtime state
+            attempt: attemptNum
+        };
     }
 
-    #handleError(opts: {
-        error: FetchError | Error,
-        step: 'fetch' | 'parse' | 'response',
-        attempt: number,
-        status?: number,
-        method?: HttpMethods,
-        path?: string,
-        aborted?: boolean,
-        url?: string,
-        headers?: FetchEngine.Headers<H>,
-        data?: unknown,
-        onError?: FetchEngine.Lifecycle['onError']
-    }) {
+    #extractRetry(opts: InternalReqOptions<H, P, S>) {
+
+        // retry is already normalized (true converted to {} in #makeRequestOptions)
+        return opts.retry;
+    }
+
+    #handleError(
+        normalizedOpts: InternalReqOptions<H, P, S>,
+        errorOpts: {
+            error: FetchError | Error,
+            step: 'fetch' | 'parse' | 'response',
+            status?: number,
+            data?: unknown
+        }
+    ) {
+
+        const {
+            method,
+            path,
+            headers,
+            controller,
+            onError,
+            attempt: attemptNum
+        } = normalizedOpts;
 
         const {
             error,
             step,
-            attempt: attemptNo,
             status,
-            method,
-            path,
-            aborted,
-            data,
-            url,
-            headers,
-            onError
-        } = opts;
+            data
+        } = errorOpts;
+
+        const aborted = controller.signal.aborted;
 
         let err = error as FetchError<{}, H>;
 
@@ -595,7 +1360,7 @@ export class FetchEngine<
 
             err = new FetchError(err.message);
 
-            err.status = status ||999;
+            err.status = status || 999;
             err.message = err.message || 'Parse error';
         }
 
@@ -631,36 +1396,33 @@ export class FetchEngine<
             }
         }
 
-        err.attempt = attemptNo;
+        err.attempt = attemptNum;
         err.status = err.status || status!;
         err.method = err.method || method!;
         err.path = err.path || path!;
-        err.aborted = err.aborted || aborted!;
+        err.aborted = err.aborted || aborted;
         err.data = err.data || data as null;
         err.step = err.step || step;
         err.headers = (err.headers || headers) as H;
 
+        // Emit error event with normalizedOpts as base
+        // normalizedOpts already contains attempt, so just add error-specific fields
         const eventData = {
+            ...normalizedOpts,
             error: err,
-            state: this.#state,
-            attempt: attemptNo,
             step,
             status,
-            method,
-            path,
             aborted,
-            data,
-            url,
-            headers: headers as H
-        }
+            data
+        };
 
         if (aborted) {
 
-            this.emit('fetch-abort', eventData);
+            this.emit('fetch-abort', eventData as any);
         }
         else {
 
-            this.emit('fetch-error', eventData);
+            this.emit('fetch-error', eventData as any);
         }
 
         onError && onError(err);
@@ -676,112 +1438,76 @@ export class FetchEngine<
      * details, and configuration used. This provides full context about the
      * request and response for better debugging and conditional logic.
      *
-     * @param _method - HTTP method for the request
-     * @param path - Request path relative to base URL
-     * @param options - Request options including payload and controller
+     * @param options - Flat normalized request options (InternalReqOptions)
      * @returns FetchResponse object with data, headers, status, request, and config
      * @internal
      */
-    async #makeCall <Res, ReqRH = RH>(
-        _method: HttpMethods,
-        path: string,
-        options: (
-            FetchEngine.CallOptions<H, P> &
-            {
-                payload?: unknown,
-                controller: AbortController,
-                attempt?: number
-            }
-        )
-    ): Promise<FetchResponse<Res, H, P, ReqRH>> {
+    async #makeCall <Res, ResHdr = RH>(
+        options: InternalReqOptions<H, P, S>
+    ): Promise<FetchResponse<Res, H, P, ResHdr>> {
 
         const {
-            payload,
-            controller,
-            onAfterReq: onAfterRequest,
-            onBeforeReq: onBeforeRequest,
-            onError,
-            timeout = this.#options.timeout,
+            // Request identity
+            method,
+            headers: reqHeaders,
             params,
-            attempt: attempNo,
-            ...rest
+
+            // URL
+            url,
+
+            // Execution plumbing
+            signal,
+            controller,
+            body,
+            timeout,
+            retry,
+            determineType,
+
+            // Callbacks
+            onBeforeRequest,
+            onAfterRequest
         } = options;
 
-        const type = this.#type;
-        const defaultOptions = this.#options;
-        const state = this.#state;
-        const modifyOptions = this.#modifyOptions;
-        const modifyMethodOptions = this.#modifyMethodOptions;
-        const method = _method.toUpperCase() as _InternalHttpMethods;
-        const url = this.#makeUrl(path, params as P, method);
-
-        let opts: FetchEngine.RequestOpts = {
-            method,
-            signal: rest.signal || controller.signal,
-            controller,
-            ...defaultOptions,
-            ...rest,
-        };
-
-        opts.headers = this.#makeHeaders(rest.headers, method);
-
-        if (/put|post|patch|delete/i.test(method)) {
-            if (
-                type === 'json' &&
-                (isPlainObject(payload) || isPrimitive(payload) || Array.isArray(payload))
-            ) {
-                opts.body = JSON.stringify(payload);
-            }
-            else {
-                opts.body = payload as BodyInit;
-            }
-        }
-
-        opts = modifyOptions
-            ? modifyOptions(opts as never, state)
-            : opts;
-
-        const methodSpecificModify = modifyMethodOptions?.[method] as typeof modifyOptions;
-
-        if (methodSpecificModify) {
-            opts = methodSpecificModify(opts as never, state);
-        }
-
-        if (this.#validate?.perRequest?.headers) {
-
-            this.#validateHeaders(
-                (opts.headers || {}) as FetchEngine.Headers<H>,
-                method
-            );
-        }
-
+        // Emit fetch-before with flat options (normalizedOpts already contains attempt)
         this.emit('fetch-before', {
-            ...opts,
-            payload,
-            url,
-            state: this.#state,
-            attempt: attempNo
+            ...options
         } as any);
 
-        onBeforeRequest && onBeforeRequest(opts);
+        // Build RequestOpts for callbacks (legacy compatibility)
+        // Note: RequestOpts extends RequestInit which expects body: BodyInit | null
+        const callbackOpts: FetchEngine.RequestOpts = {
+            method,
+            signal,
+            controller,
+            headers: reqHeaders,
+            body: body ?? null,
+            timeout,
+            retry,
+            determineType
+        };
+
+        onBeforeRequest && await onBeforeRequest(callbackOpts);
+
+        // Build fetch options - only include what native fetch understands
+        // Note: RequestInit expects body: BodyInit | null, we use undefined internally
+        const fetchOpts: RequestInit = {
+            method,
+            signal,
+            headers: reqHeaders,
+            body: body ?? null
+        };
 
         const [response, resErr] = await attempt(async () => {
-            return await fetch(url, opts as never) as Response;
+            return await fetch(url, fetchOpts) as Response;
         });
 
         // Fetch will only throw if the request is aborted,
         // denied, timed out, reset, etc.
         if (resErr) {
-            this.#handleError({
+
+            this.#handleError(options, {
                 error: resErr,
-                step: 'fetch',
-                attempt: attempNo!,
-                method,
-                path,
-                aborted: options.controller.signal.aborted,
-                url,
-                headers: opts.headers as FetchEngine.Headers<H>,
-                onError
+                step: 'fetch'
             });
 
             // #handleError throws, so this should never be reached
@@ -789,21 +1515,18 @@ export class FetchEngine<
         }
 
         this.emit('fetch-after', {
-            ...opts,
-            payload,
-            url,
-            state: this.#state,
+            ...options,
             response: response.clone(),
-            attempt: attempNo
         } as any);
 
-        onAfterRequest && onAfterRequest(response.clone(), opts);
+        onAfterRequest && await onAfterRequest(response.clone(), callbackOpts);
 
         const [data, parseErr] = await attempt(async () => {
 
             const { type, isJson } = this.#determineType(response);
 
             if (isJson) {
+
                 const text = await response.text();
 
                 if (text) {
@@ -820,18 +1543,11 @@ export class FetchEngine<
 
         if (parseErr) {
 
-            this.#handleError({
+            this.#handleError(options, {
                 error: parseErr,
                 step: 'parse',
-                attempt: attempNo!,
                 status: response.status,
-                method,
-                path,
-                aborted: options.controller.signal.aborted,
-                url,
-                headers: opts.headers as FetchEngine.Headers<H>,
-                data,
-                onError
+                data
             });
 
             // #handleError throws, so this should never be reached
@@ -840,80 +1556,59 @@ export class FetchEngine<
 
         if (response.ok === false) {
 
-            this.#handleError({
+            this.#handleError(options, {
                 error: new FetchError(response.statusText),
                 step: 'response',
-                attempt: attempNo!,
                 status: response.status,
-                method,
-                path,
-                aborted: options.controller.signal.aborted,
-                url,
-                headers: opts.headers as FetchEngine.Headers<H>,
-                data,
-                onError
+                data
             });
 
             // #handleError throws, so this should never be reached
             throw new FetchError(response.statusText);
         }
 
+        // Emit fetch-response (normalizedOpts already contains attempt)
         this.emit('fetch-response', {
-            ...opts,
-            payload,
-            url,
-            state: this.#state,
+            ...options,
             response,
-            data,
-            attempt: attempNo
+            data
         } as any);
-
-        // Build the configuration object for the response
-        const mergedParams = this.#makeParams(params as FetchEngine.Params<P>, method);
 
         const config: FetchConfig<H, P> = {
             baseUrl: this.#baseUrl.toString(),
             timeout,
             method,
-            headers: opts.headers as H,
-            params: mergedParams as P,
+            headers: reqHeaders as H,
+            params: params as P,
             retry: this.#retry,
-            determineType: this.#options.determineType,
+            determineType: determineType,
         };
 
         // Create the Request object for the response
-        const request = new Request(url, opts as RequestInit);
+        const request = new Request(url, fetchOpts);
 
         // Convert response headers to plain object for typed access
-        const headers = {} as Partial<ReqRH>;
+        const responseHeaders = {} as Partial<ResHdr>;
 
         response.headers.forEach((value, key) => {
 
-            headers[key as keyof ReqRH] = value as ReqRH[keyof ReqRH];
+            responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
         });
 
         // Return the enhanced response object
         return {
             data: data!,
-            headers,
+            headers: responseHeaders,
             status: response.status,
             request,
             config
         }
     }
 
-    async #attemptCall<Res, ReqRH = RH>(
-        _method: HttpMethods,
-        path: string,
-        options: (
-            FetchEngine.CallOptions<H, P> &
-            {
-                payload?: unknown,
-                controller: AbortController,
-                cancelTimeout?: NodeJS.Timeout,
-            }
-        )
-    ): Promise<FetchResponse<Res, H, P, ReqRH>> {
+    async #attemptCall<Res, ResHdr = RH>(
+        options: InternalReqOptions<H, P, S>
+    ): Promise<FetchResponse<Res, H, P, ResHdr>> {
+
         const mergedRetry = {
             ...this.#retry,
             ...this.#extractRetry(options)
@@ -921,7 +1616,7 @@ export class FetchEngine<
 
         if (mergedRetry.maxAttempts === 0) {
 
-            return this.#makeCall<Res, ReqRH>(_method, path, options);
+            return this.#makeCall<Res, ResHdr>(options);
         }
 
         let _attempt = 1;
@@ -930,14 +1625,10 @@ export class FetchEngine<
 
             const [result, err] = await attempt(
                 async () => (
-                    this.#makeCall<Res, ReqRH>(
-                        _method,
-                        path,
-                        {
-                            ...options,
-                            attempt: _attempt
-                        }
-                    )
+                    this.#makeCall<Res, ResHdr>({
+                        ...options,
+                        attempt: _attempt
+                    })
                 )
             );
 
@@ -961,7 +1652,7 @@ export class FetchEngine<
                 );
 
                 this.emit('fetch-retry', {
-                    state: this.#state,
+                    ...options,
                     error: fetchError,
                     attempt: _attempt,
                     nextAttempt: _attempt + 1,
@@ -1103,14 +1794,14 @@ export class FetchEngine<
      * // Abort request if needed
      * setTimeout(() => request.abort('User cancelled'), 2000);
      */
-    request <Res = any, Data = any, ReqRH = RH>(
+    request <Res = any, Data = any, ResHdr = RH>(
         method: HttpMethods,
         path: string,
         options: (
             FetchEngine.CallOptions<H, P> &
             ({ payload: Data | null } | {})
          ) = { payload: null }
-    ): FetchEngine.AbortablePromise<FetchResponse<Res, H, P, ReqRH>> {
+    ): FetchEngine.AbortablePromise<FetchResponse<Res, H, P, ResHdr>> {
 
         // Prevent requests on destroyed instances (memory leak prevention)
         if (this.#destroyed) {
@@ -1118,63 +1809,474 @@ export class FetchEngine<
             throw new Error('Cannot make requests on destroyed FetchEngine instance');
         }
 
-        // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
         const controller = options.abortController ?? new AbortController();
+        const timeoutMs = options.timeout ?? this.#options.timeout;
 
-        const timeoutMs = options.timeout || this.#options.timeout;
+        if (typeof timeoutMs === 'number') {
 
-        if (timeoutMs) {
-
-            assert(timeoutMs > -1, 'timeout must be positive number');
+            assert(timeoutMs >= 0, 'timeout must be non-negative number');
         }
 
-        const timeout = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+        const timeout = typeof timeoutMs === 'number' ? wait(timeoutMs) : undefined;
 
-        const onAfterReq = (...args: any[]) => {
+        timeout?.then(() => controller.abort());
 
-            clearTimeout(timeout);
+        // Abort this request when the instance is destroyed
+        const instanceSignal = this.#instanceAbortController.signal;
 
-            options.onAfterReq?.apply(this, args as never);
+        if (!instanceSignal.aborted) {
+
+            const onInstanceAbort = () => controller.abort();
+            instanceSignal.addEventListener('abort', onInstanceAbort, { once: true });
         }
 
-        const onError = (...args: any[]) => {
-
-            clearTimeout(timeout);
-
-            options.onError?.apply(this, args as never);
-        }
-
-        const call = this.#attemptCall <Res, ReqRH>(method, path, {
-            ...options,
+        // Execute async logic and wrap as AbortablePromise
+        const promise = this.#executeRequest<Res, ResHdr>(
+            method,
+            path,
+            options,
             controller,
-            onAfterReq,
-            onError
-        }).then((res) => {
+            timeout
+        );
 
-            call.isFinished = true;
+        const call = this.#wrapAsAbortable<FetchResponse<Res, H, P, ResHdr>>(
+            promise.then((res) => {
 
-            return res!;
-
-        }).finally(() => {
-
-            // Guarantee timeout cleanup in all code paths (memory leak prevention)
-            clearTimeout(timeout);
-
-        }) as FetchEngine.AbortablePromise<FetchResponse<Res, H, P, ReqRH>>;
-
-        Object.defineProperty(call, 'isAborted', {
-            get: () => controller.signal.aborted,
-        });
-
-        call.isFinished = false;
-
-        call.abort = (reason?: string) => {
-
-            controller.abort(reason);
-        };
+                call.isFinished = true;
+                return res;
+            }),
+            controller
+        );
 
         return call;
     }
+
+
+    /**
+     * Executes the request with cache checking, deduplication, and actual fetch.
+     */
+    async #executeRequest<Res, ResHdr>(
+        method: HttpMethods,
+        path: string,
+        options: FetchEngine.CallOptions<H, P> & { payload?: unknown },
+        controller: AbortController,
+        timeout: ReturnType<typeof wait> | undefined
+    ): Promise<FetchResponse<Res, H, P, ResHdr>> {
+
+        const onAfterReq = (...args: any[]) => {
+
+            timeout?.clear();
+            options.onAfterReq?.apply(this, args as never);
+        };
+
+        const onError = (...args: any[]) => {
+
+            timeout?.clear();
+            options.onError?.apply(this, args as never);
+        };
+
+        // normalizedOpts IS the context - single source of truth
+        const normalizedOpts = this.#makeRequestOptions(
+            method,
+            path,
+            {
+                ...options,
+                onAfterReq,
+                onError,
+                controller
+            }
+        );
+
+        // === Rate Limit Check ===
+        // Rate limiting MUST come first - before any network activity or cache lookups
+        // that might trigger background revalidation
+        const rateLimitConfig = this.#resolveRateLimitConfig(method, path, normalizedOpts);
+
+        if (rateLimitConfig !== null) {
+
+            const rateLimitKey = rateLimitConfig.serializer!(normalizedOpts);
+            const bucket = this.#getRateLimiter(
+                rateLimitKey,
+                rateLimitConfig.maxCalls!,
+                rateLimitConfig.windowMs!
+            );
+
+            const snapshot = bucket.snapshot;
+            const waitTimeMs = bucket.getWaitTimeMs(1);
+
+            // Build event data once for reuse
+            const rateLimitEventData = {
+                ...normalizedOpts,
+                key: rateLimitKey,
+                currentTokens: snapshot.currentTokens,
+                capacity: snapshot.capacity,
+                waitTimeMs,
+                nextAvailable: bucket.getNextAvailable(1),
+            };
+
+            if (waitTimeMs > 0) {
+
+                // Rate limit exceeded - need to wait or reject
+                if (!rateLimitConfig.waitForToken) {
+
+                    // Reject immediately
+                    this.emit('fetch-ratelimit-reject', rateLimitEventData as any);
+
+                    timeout?.clear();
+
+                    const err = new RateLimitError(
+                        `Rate limit exceeded for ${rateLimitKey}. Try again in ${waitTimeMs}ms`,
+                        rateLimitConfig.maxCalls!
+                    );
+
+                    throw err;
+                }
+
+                // Wait for token
+                this.emit('fetch-ratelimit-wait', rateLimitEventData as any);
+
+                // Call the onRateLimit callback if configured
+                if (this.#rateLimit!.config?.onRateLimit) {
+
+                    await this.#rateLimit!.config.onRateLimit(normalizedOpts, waitTimeMs);
+                }
+
+                // Wait and consume atomically, respecting abort signal
+                const acquired = await bucket.waitAndConsume(1, {
+                    abortController: controller,
+                });
+
+                if (!acquired) {
+
+                    // Aborted while waiting
+                    timeout?.clear();
+
+                    const err = new FetchError('Request aborted while waiting for rate limit');
+                    err.aborted = true;
+                    err.method = method as HttpMethods;
+                    err.path = path;
+                    err.status = 0;
+                    err.step = 'fetch';
+
+                    throw err;
+                }
+
+                // Token acquired after waiting
+                const postWaitSnapshot = bucket.snapshot;
+
+                this.emit('fetch-ratelimit-acquire', {
+                    ...normalizedOpts,
+                    key: rateLimitKey,
+                    currentTokens: postWaitSnapshot.currentTokens,
+                    capacity: postWaitSnapshot.capacity,
+                    waitTimeMs: 0,
+                    nextAvailable: bucket.getNextAvailable(1),
+                } as any);
+            }
+            else {
+
+                // Token available immediately - consume it
+                bucket.consume(1);
+
+                // Get post-consumption snapshot for event data
+                const postConsumeSnapshot = bucket.snapshot;
+
+                this.emit('fetch-ratelimit-acquire', {
+                    ...normalizedOpts,
+                    key: rateLimitKey,
+                    currentTokens: postConsumeSnapshot.currentTokens,
+                    capacity: postConsumeSnapshot.capacity,
+                    waitTimeMs: 0,
+                    nextAvailable: bucket.getNextAvailable(1),
+                } as any);
+            }
+        }
+
+        // === Cache Check ===
+        // normalizedOpts satisfies RequestKeyOptions - use it directly
+        const cacheConfig = this.#resolveCacheConfig(method, path, normalizedOpts);
+        let cacheKey: string | null = null;
+
+        if (cacheConfig) {
+
+            cacheKey = cacheConfig.serializer!(normalizedOpts);
+            const cached = await this.#flight.getCache(cacheKey);
+
+            if (cached) {
+
+                const expiresIn = cached.expiresAt - Date.now();
+
+                if (!cached.isStale) {
+
+                    this.emit('fetch-cache-hit', {
+                        ...normalizedOpts,
+                        key: cacheKey,
+                        isStale: false,
+                        expiresIn,
+                    } as any);
+
+                    timeout?.clear();
+                    return cached.value as FetchResponse<Res, H, P, ResHdr>;
+                }
+
+                // Stale - return immediately + background revalidation
+                this.emit('fetch-cache-stale', {
+                    ...normalizedOpts,
+                    key: cacheKey,
+                    isStale: true,
+                    expiresIn,
+                } as any);
+
+                this.#triggerBackgroundRevalidation(method, path, options, cacheKey, cacheConfig);
+                timeout?.clear();
+
+                return cached.value as FetchResponse<Res, H, P, ResHdr>;
+            }
+
+            this.emit('fetch-cache-miss', {
+                ...normalizedOpts,
+                key: cacheKey,
+            } as any);
+        }
+
+        // === Deduplication Check ===
+        const dedupeConfig = this.#resolveDedupeConfig(method, path, normalizedOpts);
+        let dedupeKey: string | null = null;
+        let cleanup: (() => void) | null = null;
+
+        if (dedupeConfig) {
+
+            dedupeKey = dedupeConfig.serializer!(normalizedOpts);
+            const inflight = this.#flight.getInflight(dedupeKey);
+
+            if (inflight) {
+
+                const waitingCount = this.#flight.joinInflight(dedupeKey);
+
+                this.emit('fetch-dedupe-join', {
+                    ...normalizedOpts,
+                    key: dedupeKey,
+                    waitingCount,
+                } as any);
+
+                return this.#awaitWithIndependentTimeout(
+                    inflight.promise as Promise<FetchResponse<Res, H, P, ResHdr>>,
+                    controller,
+                    timeout,
+                    normalizedOpts.method,
+                    path
+                );
+            }
+
+            this.emit('fetch-dedupe-start', {
+                ...normalizedOpts,
+                key: dedupeKey,
+            } as any);
+        }
+
+        // === Execute Request ===
+        // Use Deferred to register the promise BEFORE starting the request
+        // This prevents race conditions where multiple concurrent requests
+        // check getInflight() before any have called trackInflight()
+        let deferred: Deferred<FetchResponse<Res, H, P, ResHdr>> | null = null;
+
+        if (dedupeKey) {
+
+            deferred = new Deferred<FetchResponse<Res, H, P, ResHdr>>();
+
+            // Attach a no-op catch handler to prevent unhandled rejection warnings
+            // when the promise is rejected but no one is listening (no joiners)
+            deferred.promise.catch(() => { /* handled by the request flow */ });
+
+            cleanup = this.#flight.trackInflight(dedupeKey, deferred.promise);
+        }
+
+        const requestPromise = this.#attemptCall<Res, ResHdr>(normalizedOpts);
+
+        const [res, err] = await attempt(() => requestPromise);
+
+        timeout?.clear();
+
+        if (err) {
+
+            deferred?.reject(err);
+            cleanup?.();
+            throw err;
+        }
+
+        deferred?.resolve(res);
+        cleanup?.();
+
+        if (cacheKey && cacheConfig) {
+
+            await this.#flight.setCache(cacheKey, res, {
+                ttl: cacheConfig.ttl,
+                staleIn: cacheConfig.staleIn
+            });
+
+            this.#cache?.activeKeys.add(cacheKey);
+
+            this.emit('fetch-cache-set', {
+                ...normalizedOpts,
+                key: cacheKey,
+                expiresIn: cacheConfig.ttl,
+            } as any);
+        }
+
+        return res;
+    }
+
+
+    /**
+     * Awaits a shared promise with independent timeout/abort for the joiner.
+     */
+    #awaitWithIndependentTimeout<T>(
+        sharedPromise: Promise<T>,
+        controller: AbortController,
+        timeout: ReturnType<typeof wait> | undefined,
+        method: string,
+        path: string
+    ): Promise<T> {
+
+        const deferred = new Deferred<T>();
+        let isSettled = false;
+
+        const settle = (fn: () => void) => {
+
+            if (isSettled) return;
+            isSettled = true;
+            timeout?.clear();
+            fn();
+        };
+
+        const createJoinerError = (message: string): FetchError => {
+
+            const err = new FetchError(message);
+            err.aborted = true;
+            err.method = method as HttpMethods;
+            err.path = path;
+            err.status = 0;
+            err.step = 'fetch';
+
+            return err;
+        };
+
+        timeout?.then(() => {
+
+            settle(() => deferred.reject(createJoinerError('Request timed out (joiner)')));
+        });
+
+        controller.signal.addEventListener('abort', () => {
+
+            settle(() => deferred.reject(createJoinerError('Request aborted (joiner)')));
+        }, { once: true });
+
+        sharedPromise
+            .then((value) => settle(() => deferred.resolve(value)))
+            .catch((error) => settle(() => deferred.reject(error)));
+
+        return deferred.promise;
+    }
+
+
+    /**
+     * Triggers a background revalidation for stale-while-revalidate.
+     * Fire and forget - errors are emitted as events, not propagated.
+     */
+    async #triggerBackgroundRevalidation<Res, ResHdr>(
+        method: HttpMethods,
+        path: string,
+        options: FetchEngine.CallOptions<H, P> & { payload?: unknown },
+        cacheKey: string,
+        cacheConfig: CacheRule<S, H, P>
+    ): Promise<void> {
+
+        // Prevent multiple concurrent revalidations for the same key
+        if (this.#cache?.revalidatingKeys.has(cacheKey)) {
+
+            return;
+        }
+
+        this.#cache?.revalidatingKeys.add(cacheKey);
+
+        // Build normalized options for the background request
+        const controller = new AbortController();
+        const normalizedOpts = this.#makeRequestOptions(method, path, {
+            ...options,
+            controller
+        });
+
+        this.emit('fetch-cache-revalidate', {
+            ...normalizedOpts,
+            key: cacheKey
+        } as any);
+
+        const [res, fetchErr] = await attempt(() =>
+            this.#attemptCall<Res, ResHdr>(normalizedOpts)
+        );
+
+        this.#cache?.revalidatingKeys.delete(cacheKey);
+
+        if (fetchErr) {
+
+            this.emit('fetch-cache-revalidate-error', {
+                ...normalizedOpts,
+                key: cacheKey,
+                error: fetchErr
+            } as any);
+
+            return;
+        }
+
+        const [, cacheErr] = await attempt(() => (
+
+            this.#flight.setCache(cacheKey, res, {
+                ttl: cacheConfig.ttl,
+                staleIn: cacheConfig.staleIn
+            })
+        ));
+
+        if (cacheErr) {
+
+            this.emit('fetch-cache-revalidate-error', {
+                ...normalizedOpts,
+                key: cacheKey,
+                error: cacheErr
+            } as any);
+
+            return;
+        }
+
+        this.#cache?.activeKeys.add(cacheKey);
+
+        this.emit('fetch-cache-set', {
+            ...normalizedOpts,
+            key: cacheKey,
+            expiresIn: cacheConfig.ttl
+        } as any);
+    }
+
+
+    /**
+     * Wraps a promise with AbortablePromise properties.
+     */
+    #wrapAsAbortable<T>(
+        promise: Promise<unknown>,
+        controller: AbortController
+    ): FetchEngine.AbortablePromise<T> {
+
+        const abortable = promise as FetchEngine.AbortablePromise<T>;
+
+        Object.defineProperty(abortable, 'isAborted', {
+            get: () => controller.signal.aborted,
+        });
+
+        abortable.isFinished = false;
+        abortable.abort = (reason?: string) => controller.abort(reason);
+
+        return abortable;
+    }
+
 
     /**
      * Makes an OPTIONS request to check server capabilities.
@@ -1191,9 +2293,9 @@ export class FetchEngine<
      *     api.options('/users')
      * );
      */
-    options <Res = any, ReqRH = RH>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
+    options <Res = any, ResHdr = RH>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, null, ReqRH>('options', path, options);
+        return this.request <Res, null, ResHdr>('options', path, options);
     }
 
     /**
@@ -1222,9 +2324,9 @@ export class FetchEngine<
      * // Destructure just the data
      * const { data: users } = await api.get('/users');
      */
-    get <Res = any, ReqRH = RH>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
+    get <Res = any, ResHdr = RH>(path: string, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, null, ReqRH>('get', path, options);
+        return this.request <Res, null, ResHdr>('get', path, options);
     }
 
     /**
@@ -1243,9 +2345,9 @@ export class FetchEngine<
      *     api.delete('/users/123')
      * );
      */
-    delete <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    delete <Res = any, Data = any, ResHdr = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data, ReqRH>('delete', path, { ...options, payload });
+        return this.request <Res, Data, ResHdr>('delete', path, { ...options, payload });
     }
 
     /**
@@ -1277,9 +2379,9 @@ export class FetchEngine<
      * // Destructure just the data
      * const { data: newUser } = await api.post('/users', userData);
      */
-    post <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    post <Res = any, Data = any, ResHdr = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data, ReqRH>('post', path, { ...options, payload });
+        return this.request <Res, Data, ResHdr>('post', path, { ...options, payload });
     }
 
     /**
@@ -1301,9 +2403,9 @@ export class FetchEngine<
      *     })
      * );
      */
-    put <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    put <Res = any, Data = any, ResHdr = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data, ReqRH>('put', path, { ...options, payload });
+        return this.request <Res, Data, ResHdr>('put', path, { ...options, payload });
     }
 
     /**
@@ -1324,9 +2426,9 @@ export class FetchEngine<
      *     })
      * );
      */
-    patch <Res = any, Data = any, ReqRH = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
+    patch <Res = any, Data = any, ResHdr = RH>(path: string, payload: Data | null = null, options: FetchEngine.CallOptions<H, P> = {}) {
 
-        return this.request <Res, Data, ReqRH>('patch', path, { ...options, payload });
+        return this.request <Res, Data, ResHdr>('patch', path, { ...options, payload });
     }
 
     /**
@@ -2032,6 +3134,147 @@ export class FetchEngine<
     // Note: on() and off() are inherited from ObserverEngine
     // Use this.on('fetch-error', handler) or this.on(/fetch-.*/, handler) for wildcard
 
+    // === Cache Invalidation API ===
+
+    /**
+     * Clears all cached responses.
+     *
+     * Removes all entries from the response cache. Does not affect
+     * in-flight requests tracked for deduplication.
+     *
+     * @example
+     * // Clear cache after user logout
+     * api.clearCache();
+     */
+    async clearCache(): Promise<void> {
+
+        await this.#flight.clearCache();
+        this.#cache?.activeKeys.clear();
+    }
+
+    /**
+     * Deletes a specific cache entry by key.
+     *
+     * Use this when you know the exact cache key (e.g., from a cache event).
+     *
+     * @param key - The cache key to delete
+     * @returns true if the entry existed and was deleted
+     *
+     * @example
+     * // Delete specific cached response
+     * await api.deleteCache('GET|/users/123|undefined|{}');
+     */
+    async deleteCache(key: string): Promise<boolean> {
+
+        const deleted = await this.#flight.deleteCache(key);
+
+        if (deleted) {
+
+            this.#cache?.activeKeys.delete(key);
+        }
+
+        return deleted;
+    }
+
+    /**
+     * Invalidates cache entries matching a predicate function.
+     *
+     * Iterates through all cache keys and deletes entries where the
+     * predicate returns true. Useful for targeted invalidation based
+     * on custom logic.
+     *
+     * @param predicate - Function that returns true for keys to invalidate
+     * @returns Number of entries invalidated
+     *
+     * @example
+     * // Invalidate all user-related cache entries
+     * const count = await api.invalidateCache(key => key.includes('/users'));
+     * console.log(`Invalidated ${count} entries`);
+     */
+    async invalidateCache(predicate: (key: string) => boolean): Promise<number> {
+
+        let invalidated = 0;
+
+        for (const key of this.#cache?.activeKeys ?? []) {
+
+            if (predicate(key)) {
+
+                const deleted = await this.#flight.deleteCache(key);
+
+                if (deleted) {
+
+                    this.#cache?.activeKeys.delete(key);
+                    invalidated++;
+                }
+            }
+        }
+
+        return invalidated;
+    }
+
+    /**
+     * Invalidates cache entries matching a path pattern.
+     *
+     * Convenience method for invalidating cache based on URL path patterns.
+     * Supports both string prefix matching and RegExp patterns.
+     *
+     * @param pattern - String prefix or RegExp to match against paths in cache keys
+     * @returns Number of entries invalidated
+     *
+     * @example
+     * // Invalidate all entries for a specific endpoint
+     * await api.invalidatePath('/users');
+     *
+     * @example
+     * // Invalidate using regex pattern
+     * await api.invalidatePath(/\/api\/v[12]\//);
+     */
+    async invalidatePath(pattern: string | RegExp): Promise<number> {
+
+        const isRegex = pattern instanceof RegExp;
+
+        return this.invalidateCache((key) => {
+
+            // Cache keys are serialized as: METHOD|/path|payload|headers
+            // Extract the path portion (second segment after first |)
+            const pipeIndex = key.indexOf('|');
+
+            if (pipeIndex === -1) return false;
+
+            // Find the next pipe after the method
+            const secondPipeIndex = key.indexOf('|', pipeIndex + 1);
+            const path = secondPipeIndex === -1
+                ? key.slice(pipeIndex + 1)
+                : key.slice(pipeIndex + 1, secondPipeIndex);
+
+            if (!path) return false;
+
+            if (isRegex) {
+
+                return pattern.test(path);
+            }
+
+            return path.startsWith(pattern);
+        });
+    }
+
+    /**
+     * Returns statistics about the cache state.
+     *
+     * Provides insight into cache usage and effectiveness.
+     *
+     * @returns Object with cache size and in-flight count
+     *
+     * @example
+     * const stats = api.cacheStats();
+     * console.log(`Cache entries: ${stats.cacheSize}`);
+     * console.log(`In-flight requests: ${stats.inflightCount}`);
+     */
+    cacheStats(): { cacheSize: number; inflightCount: number } {
+
+        return this.#flight.stats();
+    }
+
     /**
      * Destroys the FetchEngine instance and cleans up all resources.
      *
@@ -2061,11 +3304,15 @@ export class FetchEngine<
             return;
         }
 
-        // Abort any ongoing requests first
+        // Abort any ongoing requests first (this sets #destroyed to true via the getter)
         this.#instanceAbortController.abort();
 
         // Clear all event listeners via ObserverEngine
         this.clear();
+
+        // Reset the flight controller to clear cache and inflight tracking
+        // This is synchronous and creates a new SingleFlight instance
+        this.#flight = new SingleFlight();
 
         // Clear all internal references to allow garbage collection
         this.#state = {} as S;
@@ -2083,6 +3330,11 @@ export class FetchEngine<
 
         // Clear retry config
         this.#retry = undefined as never;
+
+        // Clear rate limiting state
+        this.#rateLimit = null;
+        this.#cache = null;
+        this.#dedupe = null;
     }
 
     /**

@@ -1,6 +1,5 @@
-import { describe, it, before, beforeEach, after, afterEach } from 'node:test'
+import { describe, it, expect } from 'vitest'
 
-import { expect } from 'chai';
 
 import { StateMachine } from '../../packages/state-machine/src/index.ts';
 

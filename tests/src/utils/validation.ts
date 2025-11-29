@@ -1,9 +1,9 @@
 import {
     describe,
     it,
-} from 'node:test'
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import {
     isBrowser,
@@ -137,23 +137,19 @@ describe('@logosdx/utils - validation', () => {
             // In Node.js environment, this should return false
             expect(isCloudflare()).to.be.false;
 
-            // Mock Cloudflare Workers environment
-            const originalGlobalThis = globalThis;
-            const mockGlobalThis = {
-                ...globalThis,
-                navigator: { userAgent: 'Cloudflare-Workers' }
-            };
-            Object.defineProperty(global, 'globalThis', {
-                value: mockGlobalThis,
+            // Mock Cloudflare Workers environment by modifying navigator directly
+            const originalNavigator = globalThis.navigator;
+            Object.defineProperty(globalThis, 'navigator', {
+                value: { userAgent: 'Cloudflare-Workers' },
                 writable: true,
                 configurable: true
             });
 
             expect(isCloudflare()).to.be.true;
 
-            // Restore original globalThis
-            Object.defineProperty(global, 'globalThis', {
-                value: originalGlobalThis,
+            // Restore original navigator
+            Object.defineProperty(globalThis, 'navigator', {
+                value: originalNavigator,
                 writable: true,
                 configurable: true
             });

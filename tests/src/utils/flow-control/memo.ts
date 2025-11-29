@@ -1,10 +1,10 @@
 import {
     describe,
     it,
-    mock,
-} from 'node:test'
+    vi,
+    expect
+} from 'vitest'
 
-import { expect } from 'chai';
 
 import { mockHelpers } from '../../_helpers';
 
@@ -22,8 +22,8 @@ describe('@logosdx/utils', () => {
     describe('flow-control: memo', () => {
 
         it('should memoize sync functions', () => {
-            const fn = mock.fn((n: number) => n * 2);
-            const onError = mock.fn();
+            const fn = vi.fn((n: number) => n * 2);
+            const onError = vi.fn();
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -50,11 +50,11 @@ describe('@logosdx/utils', () => {
         });
 
         it('should memoize async functions', async () => {
-            const fn = mock.fn(async (n: number) => {
+            const fn = vi.fn(async (n: number) => {
                 await wait(10);
                 return n * 2;
             });
-            const onError = mock.fn();
+            const onError = vi.fn();
 
             const memoized = memoize(fn, {
                 ttl: 1000,
@@ -81,7 +81,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should respect TTL expiration', async () => {
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = vi.fn((n: number) => n * 2);
 
             const memoized = memoizeSync(fn, {
                 ttl: 50, // 50ms TTL
@@ -109,7 +109,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should implement LRU eviction', () => {
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = vi.fn((n: number) => n * 2);
 
             const memoized = memoizeSync(fn, {
                 ttl: 10000,
@@ -136,7 +136,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should handle object property ordering in keys', () => {
-            const fn = mock.fn((obj: { a: number; b: string }) => obj.a + obj.b.length);
+            const fn = vi.fn((obj: { a: number; b: string }) => obj.a + obj.b.length);
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -154,8 +154,8 @@ describe('@logosdx/utils', () => {
         });
 
         it('should handle circular references in key generation', () => {
-            const fn = mock.fn((obj: any) => obj.value || 42);
-            const onError = mock.fn();
+            const fn = vi.fn((obj: any) => obj.value || 42);
+            const onError = vi.fn();
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -174,7 +174,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should provide cache statistics', () => {
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = vi.fn((n: number) => n * 2);
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -207,7 +207,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should provide cache introspection methods', () => {
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = vi.fn((n: number) => n * 2);
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -244,14 +244,14 @@ describe('@logosdx/utils', () => {
         });
 
         it('should handle function execution errors', () => {
-            const fn = mock.fn((shouldFail: boolean) => {
+            const fn = vi.fn((shouldFail: boolean) => {
                 if (shouldFail) {
                     throw new Error('function error');
                 }
                 return 'success';
             });
 
-            const onError = mock.fn();
+            const onError = vi.fn();
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -273,14 +273,14 @@ describe('@logosdx/utils', () => {
             // Verify error was passed correctly to onError hook
             const errorCall = onError.mock.calls[0];
             expect(errorCall).to.not.be.undefined;
-            expect(errorCall!.arguments[0]).to.be.instanceOf(Error);
-            expect(errorCall!.arguments[0].message).to.equal('function error');
-            expect(errorCall!.arguments[1]).to.deep.equal([true]);
+            expect(errorCall?.[0]).to.be.instanceOf(Error);
+            expect(errorCall?.[0].message).to.equal('function error');
+            expect(errorCall?.[1]).to.deep.equal([true]);
         });
 
         it('should handle key generation errors', () => {
-            const fn = mock.fn((n: number) => n * 2);
-            const onError = mock.fn();
+            const fn = vi.fn((n: number) => n * 2);
+            const onError = vi.fn();
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -299,12 +299,12 @@ describe('@logosdx/utils', () => {
 
             const errorCall = onError.mock.calls[0];
             expect(errorCall).to.not.be.undefined;
-            expect(errorCall!.arguments[0].message).to.equal('key generation error');
+            expect(errorCall?.[0].message).to.equal('key generation error');
         });
 
         it('should test WeakRef functionality', () => {
             let obj = { data: 'large object' };
-            const fn = mock.fn((input: any) => input);
+            const fn = vi.fn((input: any) => input);
 
             const memoized = memoizeSync(fn, {
                 ttl: 10000,
@@ -330,7 +330,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should support background cleanup', async () => {
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = vi.fn((n: number) => n * 2);
 
             const memoized = memoizeSync(fn, {
                 ttl: 30, // Very short TTL
@@ -352,9 +352,9 @@ describe('@logosdx/utils', () => {
         });
 
         it('should handle custom key generators', () => {
-            const fn = mock.fn((a: number, b: string) => a + b.length);
+            const fn = vi.fn((a: number, b: string) => a + b.length);
 
-            const customKeyGen = mock.fn((a: number, b: string) => {
+            const customKeyGen = vi.fn((a: number, b: string) => {
                 return `custom:${a}:${b}`;
             });
 
@@ -376,7 +376,7 @@ describe('@logosdx/utils', () => {
         });
 
         it('should handle different data types in key generation', () => {
-            const fn = mock.fn((value: any) => String(value));
+            const fn = vi.fn((value: any) => String(value));
 
             const memoized = memoizeSync(fn, {
                 ttl: 1000,
@@ -409,7 +409,7 @@ describe('@logosdx/utils', () => {
 
         it('should not double wrap the function', async () => {
 
-            const fn = mock.fn(() => 'ok');
+            const fn = vi.fn(() => 'ok');
 
             const wrappedFnSync = memoizeSync(fn);
             const wrappedFnAsync = memoize(fn as any);
@@ -418,15 +418,15 @@ describe('@logosdx/utils', () => {
             const [, error2] = attemptSync(() => memoize(wrappedFnAsync));
 
             expect(error1).to.be.an.instanceof(Error);
-            expect((error1 as Error).message).to.equal('Function is already wrapped by memoize');
+            expect((error1 as Error).message).to.match(/Function is already wrapped/);
             expect(error2).to.be.an.instanceof(Error);
-            expect((error2 as Error).message).to.equal('Function is already wrapped by memoize');
+            expect((error2 as Error).message).to.match(/Function is already wrapped/);
         });
 
         it('should return cached data when within TTL period', () => {
 
             let callCount = 0;
-            const fn = mock.fn((n: number) => {
+            const fn = vi.fn((n: number) => {
                 callCount++;
                 return `result-${n}-call-${callCount}`;
             });
@@ -454,7 +454,7 @@ describe('@logosdx/utils', () => {
         it('should return cached data until TTL expires for sync', async () => {
 
             let callCount = 0;
-            const fn = mock.fn((n: number) => {
+            const fn = vi.fn((n: number) => {
                 callCount++;
                 return `result-${n}-call-${callCount}`;
             });
@@ -485,7 +485,7 @@ describe('@logosdx/utils', () => {
         it('should accurately respect TTL timing for sync functions', async () => {
 
             let callCount = 0;
-            const fn = mock.fn((n: number) => {
+            const fn = vi.fn((n: number) => {
                 callCount++;
                 return `result-${n}-call-${callCount}`;
             });
@@ -534,7 +534,7 @@ describe('@logosdx/utils', () => {
         it('should return fresh data when fetch completes within staleTimeout', async () => {
 
             let callCount = 0;
-            const fn = mock.fn(async (n: number) => {
+            const fn = vi.fn(async (n: number) => {
                 callCount++;
                 await wait(5); // Fast function - 5ms
                 return `result-${n}-call-${callCount}`;
@@ -569,7 +569,7 @@ describe('@logosdx/utils', () => {
         it('should return stale data when fetch exceeds staleTimeout', async () => {
 
             let callCount = 0;
-            const fn = mock.fn(async (n: number) => {
+            const fn = vi.fn(async (n: number) => {
                 callCount++;
                 await wait(25); // Slow function - 25ms
                 return `result-${n}-call-${callCount}`;
@@ -604,7 +604,7 @@ describe('@logosdx/utils', () => {
         it('should handle race conditions at exact staleTimeout boundary', async () => {
 
             let callCount = 0;
-            const fn = mock.fn(async (n: number) => {
+            const fn = vi.fn(async (n: number) => {
                 callCount++;
                 await wait(10); // Function completes exactly at staleTimeout
                 return `result-${n}-call-${callCount}`;
@@ -646,7 +646,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const fn = mock.fn(async (delay: number, value: number) => {
+            const fn = vi.fn(async (delay: number, value: number) => {
                 callCount++;
                 await wait(delay);
                 return `result-${value}-call-${callCount}`;
@@ -685,7 +685,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const fn = mock.fn(async (delay: number, value: number) => {
+            const fn = vi.fn(async (delay: number, value: number) => {
                 callCount++;
                 await wait(delay);
                 return `result-${value}-call-${callCount}`;
@@ -701,7 +701,7 @@ describe('@logosdx/utils', () => {
             });
 
             // Initial fresh call
-            const result1 = await memoized(5, 200);
+            const result1 = await memoized(20, 200);
             expect(result1).to.equal('result-200-call-1');
             calledExactly(fn, 1, 'initial call executes function');
 
@@ -712,9 +712,11 @@ describe('@logosdx/utils', () => {
             const slowResult = await memoized(20, 200); // Slow fetch (20ms > 8ms timeout)
             const elapsed = Date.now() - start;
 
-            // For now, just check that we get a valid result
-            expect(slowResult).to.match(/^result-200-call-\d+$/);
+            // Timeout wins the race, so we should get stale data
+            expect(slowResult).to.equal('result-200-call-1');
             expect(callCount).to.equal(2); // Function should have been called for fresh attempt
+            expect(elapsed).to.be.greaterThanOrEqual(8); // We waited at least ~staleTimeout
+            expect(elapsed).to.be.lessThan(19); // Ensure we didn't wait for full 20ms fetch
 
             // Cache size may vary depending on race results
             expect(memoized.cache.size).to.be.greaterThan(0);
@@ -724,7 +726,7 @@ describe('@logosdx/utils', () => {
 
             let callCount = 0;
 
-            const fn = mock.fn(async (delay: number, value: number) => {
+            const fn = vi.fn(async (delay: number, value: number) => {
                 callCount++;
                 await wait(delay);
                 return `result-${value}-call-${callCount}`;
@@ -759,7 +761,7 @@ describe('@logosdx/utils', () => {
 
         it('should reject staleIn option for sync functions', () => {
 
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = vi.fn((n: number) => n * 2);
 
             // staleIn is not supported for sync functions
             const [, error1] = attemptSync(() => memoizeSync(fn, { staleIn: 100 } as any));
@@ -777,7 +779,7 @@ describe('@logosdx/utils', () => {
 
         it('should reject staleTimeout option for sync functions', () => {
 
-            const fn = mock.fn((n: number) => n * 2);
+            const fn = vi.fn((n: number) => n * 2);
 
             // staleTimeout is not supported for sync functions
             const [, error1] = attemptSync(() => memoizeSync(fn, { staleTimeout: 100 } as any));
@@ -795,36 +797,33 @@ describe('@logosdx/utils', () => {
 
         it('should validate that staleIn is less than TTL for async functions', () => {
 
-            const fn = mock.fn(async (n: number) => {
-                await wait(1);
-                return n * 2;
-            });
+            const makeFn = vi.fn(() => wait(1));
 
             // Valid cases: staleIn < ttl
             expect(() => {
-                memoize(fn, { staleIn: 50, ttl: 100 });
+                memoize(makeFn, { staleIn: 50, ttl: 100 });
             }).to.not.throw();
 
             expect(() => {
-                memoize(fn, { staleIn: 0, ttl: 100 });
+                memoize(makeFn, { staleIn: 0, ttl: 100 });
             }).to.not.throw();
 
             // Valid case: only staleIn specified (uses default ttl which is > staleIn)
             expect(() => {
-                memoize(fn, { staleIn: 100 });
+                memoize(makeFn, { staleIn: 100 });
             }).to.not.throw();
 
             // Valid case: only ttl specified (no staleIn constraint)
             expect(() => {
-                memoize(fn, { ttl: 100 });
+                memoize(makeFn, { ttl: 100 });
             }).to.not.throw();
 
             // Invalid cases: staleIn >= ttl
-            const [, equalError] = attemptSync(() => memoize(fn, { staleIn: 100, ttl: 100 }));
+            const [, equalError] = attemptSync(() => memoize(makeFn, { staleIn: 100, ttl: 100 }));
             expect(equalError).to.be.instanceOf(Error);
             expect((equalError as Error).message).to.include('staleIn must be');
 
-            const [, greaterError] = attemptSync(() => memoize(fn, { staleIn: 150, ttl: 100 }));
+            const [, greaterError] = attemptSync(() => memoize(makeFn, { staleIn: 150, ttl: 100 }));
             expect(greaterError).to.be.instanceOf(Error);
             expect((greaterError as Error).message).to.include('staleIn must be');
         });
@@ -835,7 +834,7 @@ describe('@logosdx/utils', () => {
         it('should cache and return null values correctly with stale-while-revalidate', async () => {
 
             let callCount = 0;
-            const fn = mock.fn(async () => {
+            const fn = vi.fn(async () => {
                 callCount++;
                 await wait(5);
                 return callCount === 1 ? null : 'not-null';
@@ -866,10 +865,10 @@ describe('@logosdx/utils', () => {
             expect(callCount).to.equal(2);
         });
 
-        it('should cache and return undefined values correctly with stale-while-revalidate', () => {
+        it('should cache and return undefined values correctly (sync)', () => {
 
             let callCount = 0;
-            const fn = mock.fn(() => {
+            const fn = vi.fn(() => {
                 callCount++;
                 return callCount === 1 ? undefined : 'not-undefined';
             });
@@ -892,7 +891,7 @@ describe('@logosdx/utils', () => {
         it('should cache and return false values correctly with stale-while-revalidate', async () => {
 
             let callCount = 0;
-            const fn = mock.fn(async () => {
+            const fn = vi.fn(async () => {
                 callCount++;
                 await wait(5);
                 return callCount === 1 ? false : true;
@@ -929,7 +928,7 @@ describe('@logosdx/utils', () => {
 
                 let callCount = 0;
 
-                const fn = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+                const fn = vi.fn(async (id: string, _opts?: { bustCache?: boolean }) => {
 
                     callCount++;
                     await wait(10);
@@ -937,7 +936,7 @@ describe('@logosdx/utils', () => {
                 });
 
                 const memoized = memoize(fn, {
-                    shouldCache: (id, opts) => !opts?.bustCache,
+                    shouldCache: (_id, opts) => !opts?.bustCache,
                     ttl: 1000
                 });
 
@@ -964,14 +963,14 @@ describe('@logosdx/utils', () => {
 
                 let callCount = 0;
 
-                const fn = mock.fn((id: string, opts?: { bustCache?: boolean }) => {
+                const fn = vi.fn((id: string, _opts?: { bustCache?: boolean }) => {
 
                     callCount++;
                     return `result-${id}-${callCount}`;
                 });
 
                 const memoized = memoizeSync(fn, {
-                    shouldCache: (id, opts) => !opts?.bustCache,
+                    shouldCache: (_id, opts) => !opts?.bustCache,
                     ttl: 1000
                 });
 
@@ -998,7 +997,7 @@ describe('@logosdx/utils', () => {
 
                 let callCount = 0;
 
-                const fn = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+                const fn = vi.fn(async (id: string, _opts?: { bustCache?: boolean }) => {
 
                     callCount++;
                     await wait(10);
@@ -1006,7 +1005,7 @@ describe('@logosdx/utils', () => {
                 });
 
                 const memoized = memoize(fn, {
-                    shouldCache: (id, opts) => !opts?.bustCache,
+                    shouldCache: (_id, opts) => !opts?.bustCache,
                     ttl: 1000
                 });
 
@@ -1025,7 +1024,7 @@ describe('@logosdx/utils', () => {
 
                 let callCount = 0;
 
-                const fn = mock.fn(async (id: string, opts?: { bustCache?: boolean }) => {
+                const fn = vi.fn(async (id: string, _opts?: { bustCache?: boolean }) => {
 
                     callCount++;
                     await wait(10);
@@ -1033,7 +1032,7 @@ describe('@logosdx/utils', () => {
                 });
 
                 const memoized = memoize(fn, {
-                    shouldCache: (id, opts) => !opts?.bustCache,
+                    shouldCache: (_id, opts) => !opts?.bustCache,
                     ttl: 1000
                 });
 
@@ -1061,13 +1060,13 @@ describe('@logosdx/utils', () => {
 
             it('should handle shouldCache errors gracefully', async () => {
 
-                const fn = mock.fn(async (id: string) => {
+                const fn = vi.fn(async (id: string) => {
 
                     await wait(10);
                     return `result-${id}`;
                 });
 
-                const shouldCache = mock.fn(() => {
+                const shouldCache = vi.fn(() => {
 
                     throw new Error('shouldCache error');
                 });
@@ -1089,13 +1088,13 @@ describe('@logosdx/utils', () => {
 
             it('should pass all arguments to shouldCache', async () => {
 
-                const fn = mock.fn(async (a: string, b: number, c: boolean) => {
+                const fn = vi.fn(async (a: string, b: number, c: boolean) => {
 
                     await wait(10);
                     return `${a}-${b}-${c}`;
                 });
 
-                const shouldCache = mock.fn(() => true);
+                const shouldCache = vi.fn((_a: string, _b: number, _c: boolean) => true);
 
                 const memoized = memoize(fn, {
                     shouldCache,
@@ -1105,9 +1104,9 @@ describe('@logosdx/utils', () => {
                 await memoized('test', 42, true);
 
                 const call = shouldCache.mock.calls[0];
-                expect(call?.arguments[0]).to.equal('test');
-                expect(call?.arguments[1]).to.equal(42);
-                expect(call?.arguments[2]).to.equal(true);
+                expect(call?.[0]).to.equal('test');
+                expect(call?.[1]).to.equal(42);
+                expect(call?.[2]).to.equal(true);
             });
         });
     })
