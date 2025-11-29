@@ -1,5 +1,13 @@
 # @logosdx/observer
 
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [582644e]
+- Updated dependencies [e4e4f43]
+  - @logosdx/utils@5.0.0
+
 ## 2.1.0
 
 ### Minor Changes
