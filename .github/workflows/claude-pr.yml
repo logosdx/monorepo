@@ -6,6 +6,8 @@ on:
 
 jobs:
   claude-review:
+    # Skip changesets version PRs
+    if: ${{ github.event.pull_request.user.login != 'github-actions[bot]' && !startsWith(github.event.pull_request.title, 'Version Packages') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
