@@ -1,7 +1,8 @@
 import {
     describe,
     it,
-    expect
+    expect,
+    vi
 } from 'vitest'
 
 
@@ -75,7 +76,9 @@ describe('@logosdx/fetch: retry', async () => {
 
         const end = Date.now();
 
-        const calc = calculateDelay(baseDelay, 3);
+        // With maxAttempts: 3, we have 3 attempts and 2 delays (between attempts)
+        // Delays: baseDelay * 2^0 + baseDelay * 2^1 = 10 + 20 = 30ms
+        const calc = calculateDelay(baseDelay, 2);
 
         expect(end - start).to.be.greaterThan(calc);
     });
@@ -217,7 +220,30 @@ describe('@logosdx/fetch: retry', async () => {
 
         const end = Date.now();
 
-        expect(end - start).to.be.greaterThan(149);
+        // With maxAttempts: 3, we have 3 attempts and 2 delays (50ms each)
+        expect(end - start).to.be.greaterThan(99);
+    });
+
+    it('throws the actual error after exhausting retries when shouldRetry always returns true', async () => {
+
+        const shouldRetrySpy = vi.fn().mockReturnValue(true);
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retry: {
+                maxAttempts: 3,
+                baseDelay: 10,
+                shouldRetry: shouldRetrySpy,
+            },
+        });
+
+        const [, err] = await attempt(() => api.get('/validate?name=&age=17'));
+
+        // Should throw the actual validation error, not "Unexpected end of retry logic"
+        expect(err).to.be.instanceOf(FetchError);
+        expect((err as FetchError).message).to.not.include('Unexpected end of retry logic');
+        expect((err as FetchError).status).to.eq(400);
+        expect(shouldRetrySpy).toHaveBeenCalledTimes(3);
     });
 
     it('can configure a retry per request', async () => {
