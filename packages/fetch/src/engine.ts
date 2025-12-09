@@ -1641,7 +1641,7 @@ export class FetchEngine<
             // Check if we should retry
             const shouldRetry = await mergedRetry.shouldRetry(fetchError, _attempt);
 
-            if (shouldRetry && _attempt <= mergedRetry.maxAttempts!) {
+            if (shouldRetry && _attempt < mergedRetry.maxAttempts!) {
 
                 // If shouldRetry is a number, use it as the delay
                 // Otherwise, calculate the delay using the default logic
