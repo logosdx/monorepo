@@ -1158,7 +1158,7 @@ export class FetchEngine<
         path = path?.replace(/^\/{1,}/, '');
         if (path[0] !== '/') (path = `/${path}`);
 
-        const fullPath = this.#baseUrl.toString().slice(0, -1);
+        const fullPath = this.#baseUrl.toString().replace(/\/$/, '');
         const params = this.#makeParams(_params!, method);
 
         const url = new URL(fullPath + path);
