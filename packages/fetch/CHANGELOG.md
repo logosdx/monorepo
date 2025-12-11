@@ -1,5 +1,13 @@
 # @logosdx/fetch
 
+## 7.0.2
+
+### Patch Changes
+
+- 7fd7216: fix(fetch): preserve full baseUrl path when constructing request URLs
+
+  Previously, `#makeUrl` unconditionally removed the last character from the baseUrl, which would incorrectly truncate paths like `/org/1/v1` to `/org/1/v`. Now only trailing slashes are removed.
+
 ## 7.0.1
 
 ### Patch Changes
