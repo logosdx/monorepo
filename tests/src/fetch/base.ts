@@ -210,6 +210,27 @@ describe('@logosdx/fetch: base', async () => {
         expect((await api.options('/json')).data).to.contain(expectation);
     });
 
+    it('preserves the full baseUrl path when constructing URLs', async () => {
+
+        // Regression test: baseUrl with path segment like /org/1/v1 should NOT
+        // have its last character chopped off (turning v1 into v)
+        const api = new FetchEngine({
+            baseUrl: testUrl + '/org/1/v1',
+            defaultType: 'json'
+        });
+
+        const response = await api.get('/json');
+
+        // The request URL should contain the full /org/1/v1 path, not /org/1/v
+        const requestUrl = callStub.args[0]?.[0]?.url?.href || '';
+
+        expect(requestUrl).to.include('/org/1/v1/json');
+        expect(requestUrl).not.to.include('/org/1/v/json');
+        expect(response.data).to.contain({ ok: true });
+
+        api.destroy();
+    });
+
     it('returns a FetchResponse object', async () => {
 
         const api = new FetchEngine({
