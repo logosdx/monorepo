@@ -1,5 +1,13 @@
 # @logosdx/kit
 
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [923f8c7]
+  - @logosdx/observer@2.2.0
+  - @logosdx/fetch@7.0.3
+
 ## 4.0.2
 
 ### Patch Changes
