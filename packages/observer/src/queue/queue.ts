@@ -24,6 +24,7 @@ import {
 import { QueueStateManager } from './state.ts';
 import { QueueStats } from './statistics.ts';
 import {
+    InternalQueueEvent,
     type QueueEventData,
     type QueueEventNames,
     type QueueEvents,
@@ -251,7 +252,19 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
         const off = this.opts.observer!.on(
             this.opts.event as Events<S>,
-            (data) => {
+            (payload) => {
+
+                // Skip internal queue events (wrapped in InternalQueueEvent)
+                // Check both positions: direct payload (string events) or payload.data (regex events)
+                const maybeInternal = (payload as any)?.data ?? payload;
+
+                if (maybeInternal instanceof InternalQueueEvent) {
+
+                    return;
+                }
+
+                // Use payload as-is - for regex events this is { event, data, listener }
+                const data = payload as EventData<S, E>;
 
                 const item: QueueEventData<S, E> = {
                     data,
@@ -299,9 +312,10 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
             console.log(...args);
         }
 
+        // Wrap payload so regex listeners can detect and skip internal queue events
         this.opts.observer!.emit(
             `queue:${this.name}:${event}`,
-            payload as never
+            new InternalQueueEvent(payload) as never
         );
     }
 
@@ -648,7 +662,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
     on<K extends keyof QueueEvents<S, E>>(
         event: K,
-        listener: ((payload: QueueEvents<S, E>[K]) => void)
+        listener: ((payload: InternalQueueEvent<QueueEvents<S, E>[K]>) => void)
     ): ObserverEngine.Cleanup;
 
     on<K extends keyof QueueEvents<S, E>>(
@@ -657,7 +671,7 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
     on<K extends keyof QueueEvents<S, E>>(
         event: K,
-        listener?: ((payload: QueueEvents<S, E>[K]) => void) | undefined
+        listener?: ((payload: InternalQueueEvent<QueueEvents<S, E>[K]>) => void) | undefined
     ): ObserverEngine.Cleanup | EventGenerator<QueueEvents<S, E>, K> {
 
         return this.#observerForQueue().on(
@@ -668,17 +682,17 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
     once<K extends keyof QueueEvents<S, E>>(
         event: K
-    ): EventPromise<QueueEvents<S, E>[K]>;
+    ): EventPromise<InternalQueueEvent<QueueEvents<S, E>[K]>>;
 
     once<K extends keyof QueueEvents<S, E>>(
         event: K,
-        listener: ((payload: QueueEvents<S, E>[K]) => void)
+        listener: ((payload: InternalQueueEvent<QueueEvents<S, E>[K]>) => void)
     ): ObserverEngine.Cleanup
 
     once<K extends keyof QueueEvents<S, E>>(
         event: K,
-        listener?: ((payload: QueueEvents<S, E>[K]) => void)
-    ): EventPromise<QueueEvents<S, E>[K]> | ObserverEngine.Cleanup {
+        listener?: ((payload: InternalQueueEvent<QueueEvents<S, E>[K]>) => void)
+    ): EventPromise<InternalQueueEvent<QueueEvents<S, E>[K]>> | ObserverEngine.Cleanup {
 
         return this.#observerForQueue().once(
             `queue:${this.name}:${event}` as unknown as K,

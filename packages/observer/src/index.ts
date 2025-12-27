@@ -16,6 +16,7 @@ export {
 
 export {
     EventQueue,
+    InternalQueueEvent,
     type QueueOpts,
     type QueueEventNames,
     type QueueState,

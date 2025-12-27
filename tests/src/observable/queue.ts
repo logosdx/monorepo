@@ -10,7 +10,7 @@ import {
 
 
 import { wait, attempt, noop, attemptSync, isAssertError } from '../../../packages/utils/src/index.ts';
-import { ObserverEngine, EventQueue, QueueOpts } from '../../../packages/observer/src/index.ts';
+import { ObserverEngine, EventQueue, QueueOpts, InternalQueueEvent } from '../../../packages/observer/src/index.ts';
 
 import { sandbox, runTimers } from '../_helpers.ts';
 
@@ -20,7 +20,8 @@ describe('@logosdx/observer: Queues', async function () {
     const observer = new ObserverEngine();
     const _queues = new Set<EventQueue<any, any>>();
 
-    const makeQueue = (evName: string, cb: (...args: any[]) => void, opts: QueueOpts) => {
+    const makeQueue = (evName: string | RegExp, cb: (...args: any[]) => void, opts: QueueOpts) => {
+
         const queue = observer.queue(evName, cb, opts);
 
         _queues.add(queue);
@@ -361,7 +362,7 @@ describe('@logosdx/observer: Queues', async function () {
 
             await runTimers(10, 3);
 
-            const { data } = await rejected; // emits rejected event
+            const { data } = (await rejected).data; // emits rejected event
 
             expect(data).to.eq('2');
         });
@@ -587,7 +588,7 @@ describe('@logosdx/observer: Queues', async function () {
             // Advance time to trigger timeout
             await runTimers(15, 3);
 
-            const { error } = await onceError;
+            const { error } = (await onceError).data;
 
             expect(error).to.be.an('error');
             expect(error.message).to.eq('Task timed out');
@@ -825,8 +826,11 @@ describe('@logosdx/observer: Queues', async function () {
                 stoppedPayload,
             ];
 
+            // Queue events are wrapped in InternalQueueEvent; void events have .data === undefined
             for (const payload of emptyPayloads) {
-                expect(payload).to.eq(undefined);
+                const wrapped = payload as unknown as InternalQueueEvent;
+                expect(wrapped).to.be.instanceOf(InternalQueueEvent);
+                expect(wrapped.data).to.eq(undefined);
             }
 
             const idPayloads = [
@@ -838,7 +842,7 @@ describe('@logosdx/observer: Queues', async function () {
             ];
 
             for (const payload of idPayloads) {
-                expect(payload._taskId).to.be.a('string');
+                expect(payload.data._taskId).to.be.a('string');
             }
 
             const dataPayloads = [
@@ -851,7 +855,7 @@ describe('@logosdx/observer: Queues', async function () {
             ];
 
             for (const payload of dataPayloads) {
-                expect(payload.data).to.exist;
+                expect(payload.data.data).to.exist;
             }
 
             const rateLimitedPayloads = [
@@ -862,33 +866,33 @@ describe('@logosdx/observer: Queues', async function () {
             ]
 
             for (const payload of rateLimitedPayloads) {
-                expect(payload.rateLimited).to.be.a('boolean');
+                expect(payload.data.rateLimited).to.be.a('boolean');
             }
 
-            expect(errorPayload.error).to.be.an('error');
-            expect(rejectedPayload.reason).to.be.a('string');
+            expect(errorPayload.data.error).to.be.an('error');
+            expect(rejectedPayload.data.reason).to.be.a('string');
 
-            expect(processingPayload.startedAt).to.be.a('number');
-            expect(successPayload.startedAt).to.be.a('number');
-            expect(successPayload.elapsed).to.be.a('number');
+            expect(processingPayload.data.startedAt).to.be.a('number');
+            expect(successPayload.data.startedAt).to.be.a('number');
+            expect(successPayload.data.elapsed).to.be.a('number');
 
-            expect(flushPayload.pending).to.eq(flushedTotal);
-            expect(flushedPayload.flushed).to.eq(flushedTotal);
+            expect(flushPayload.data.pending).to.eq(flushedTotal);
+            expect(flushedPayload.data.flushed).to.eq(flushedTotal);
 
-            expect(drainedPayload.drained).to.be.a('number');
-            expect(drainedPayload.drained).to.eq(drainedTotal);
+            expect(drainedPayload.data.drained).to.be.a('number');
+            expect(drainedPayload.data.drained).to.eq(drainedTotal);
 
-            expect(drainPayload.pending).to.be.a('number');
-            expect(drainPayload.pending).to.eq(drainedTotal);
+            expect(drainPayload.data.pending).to.be.a('number');
+            expect(drainPayload.data.pending).to.eq(drainedTotal);
 
-            expect(shutdownPayload.force).to.be.a('boolean');
-            expect(shutdownPayload.force).to.be.false;
-            expect(shutdownPayload2.force).to.be.true;
-            expect(shutdownPayload2.pending).to.be.a('number');
-            expect(shutdownPayload2.pending).to.eq(shutdownTotal2);
+            expect(shutdownPayload.data.force).to.be.a('boolean');
+            expect(shutdownPayload.data.force).to.be.false;
+            expect(shutdownPayload2.data.force).to.be.true;
+            expect(shutdownPayload2.data.pending).to.be.a('number');
+            expect(shutdownPayload2.data.pending).to.eq(shutdownTotal2);
 
-            expect(purgedPayload.count).to.be.a('number');
-            expect(purgedPayload.count).to.eq(shutdownTotal2);
+            expect(purgedPayload.data.count).to.be.a('number');
+            expect(purgedPayload.data.count).to.eq(shutdownTotal2);
 
         });
 
@@ -1151,10 +1155,140 @@ describe('@logosdx/observer: Queues', async function () {
             const flushedPayload = await onceFlushed;
             const flushedTotal = await flushPromise;
 
-            expect(flushPayload.pending).to.eq(5);
-            expect(flushedPayload.flushed).to.eq(5);
+            expect(flushPayload.data.pending).to.eq(5);
+            expect(flushedPayload.data.flushed).to.eq(5);
             expect(flushedTotal).to.eq(5);
 
+        });
+    });
+
+    describe('regex event queues', { timeout }, async () => {
+
+        it('should create a queue with a regex event', { timeout }, async () => {
+
+            const fake = sandbox.spy();
+
+            const queue = makeQueue(
+                /^user:/,
+                (data) => fake(data),
+                {
+                    name: 'regexQueue',
+                    concurrency: 1,
+                }
+            );
+
+            const onceSuccess = queue.once('success');
+
+            observer.emit('user:login', { userId: 123 });
+
+            vi.runAllTimers();
+            await onceSuccess;
+
+            // Regex queues receive { event, data, listener } from observer
+            expect(fake.callCount).to.eq(1);
+            expect(fake.args[0]?.[0].event).to.eq('user:login');
+            expect(fake.args[0]?.[0].data).to.deep.eq({ userId: 123 });
+            expect(fake.args[0]?.[0].listener).to.be.a('function');
+        });
+
+        it('should not cause infinite recursion with /./  regex', { timeout }, async () => {
+
+            // This test verifies that queue internal events (queue:name:added, etc.)
+            // do not trigger the queue's own regex listener, which would cause
+            // infinite recursion and stack overflow.
+
+            const fake = sandbox.spy();
+
+            const queue = makeQueue(
+                /./,
+                (data) => fake(data),
+                {
+                    name: 'dotRegexQueue',
+                    concurrency: 1,
+                    pollIntervalMs: 1,
+                }
+            );
+
+            const onceSuccess = queue.once('success');
+
+            // Emit an event that matches the regex
+            observer.emit('test-event', 'hello');
+
+            await runTimers(10, 3);
+            await onceSuccess;
+
+            // Should process exactly one event, not infinite
+            expect(fake.callCount).to.eq(1);
+            expect(fake.args[0]?.[0].event).to.eq('test-event');
+            expect(fake.args[0]?.[0].data).to.eq('hello');
+        });
+
+        it('should not cause infinite recursion with /.+/ regex', { timeout }, async () => {
+
+            const fake = sandbox.spy();
+
+            const queue = makeQueue(
+                /.+/,
+                (data) => fake(data),
+                {
+                    name: 'plusRegexQueue',
+                    concurrency: 1,
+                    pollIntervalMs: 1,
+                }
+            );
+
+            const onceIdle = queue.once('idle');
+
+            observer.emit('my-event', 'world');
+            observer.emit('another-event', 'foo');
+
+            await runTimers(10, 5);
+            await onceIdle;
+
+            // Should process exactly two events, not infinite
+            expect(fake.callCount).to.eq(2);
+        });
+
+        it('should not match queue internal events with broad regex', { timeout }, async () => {
+
+            // This test verifies that events like queue:name:added are filtered out
+
+            const fake = sandbox.spy();
+            const internalEvents: string[] = [];
+
+            // Track all events the observer sees
+            observer.on(/./, ({ event }) => {
+                internalEvents.push(event);
+            });
+
+            const queue = makeQueue(
+                /.*/,
+                (data) => fake(data),
+                {
+                    name: 'broadQueue',
+                    concurrency: 1,
+                    pollIntervalMs: 1,
+                }
+            );
+
+            const onceSuccess = queue.once('success');
+
+            observer.emit('external-event', 'data');
+
+            await runTimers(10, 3);
+            await onceSuccess;
+
+            // Verify internal queue events were emitted
+            const hasInternalEvents = internalEvents.some(
+                e => e.startsWith('queue:broadQueue:')
+            );
+
+            expect(hasInternalEvents).to.be.true;
+
+            // But the queue should only process external events
+            expect(fake.callCount).to.eq(1);
+            expect(fake.args[0]?.[0].event).to.eq('external-event');
+            expect(fake.args[0]?.[0].data).to.eq('data');
         });
     });
 

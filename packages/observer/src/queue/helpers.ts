@@ -1,6 +1,21 @@
 import { type EventData } from '../helpers.ts';
 import { type Events } from '../types.ts';
 
+/**
+ * Wrapper class for internal queue event payloads.
+ * Used to mark queue-emitted events so regex listeners can skip them.
+ * When listening to queue events, unwrap via `event.data`.
+ */
+export class InternalQueueEvent<T = unknown> {
+
+    readonly data: T;
+
+    constructor(data: T) {
+
+        this.data = data;
+    }
+}
+
 export enum QueueRejectionReason {
     full = 'Queue is full',
     notRunning = 'Queue is not running',

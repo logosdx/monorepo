@@ -1,4 +1,5 @@
 import { type ObserverEngine } from '../engine.ts';
+import { type InternalQueueEvent } from './helpers.ts';
 
 export class QueueStats {
 
@@ -23,12 +24,12 @@ export class QueueStats {
 
         this.observer.on(
             `queue:${this.queueName}:success`,
-            ({ elapsed }) => {
+            (wrapped: InternalQueueEvent<{ elapsed: number }>) => {
 
                 this.#processed++
                 this.#success++;
                 this.#processing--;
-                this.#calculateAvg(elapsed);
+                this.#calculateAvg(wrapped.data.elapsed);
             }
         );
 
