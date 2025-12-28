@@ -67,6 +67,12 @@ importers:
         specifier: workspace:^
         version: link:../utils
 
+  packages/hooks:
+    dependencies:
+      '@logosdx/utils':
+        specifier: workspace:^
+        version: link:../utils
+
   packages/kit:
     dependencies:
       '@logosdx/fetch':
