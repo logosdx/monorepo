@@ -127,7 +127,7 @@ type HookExtOptions<F extends AsyncFunc> = {
 
 type HookExtOrOptions<F extends AsyncFunc> = HookFn<F> | HookExtOptions<F>
 
-type MakeHookOptions<F extends AsyncFunc> = {
+type MakeHookOptions = {
     bindTo?: any
 }
 
@@ -259,7 +259,7 @@ export class HookEngine<Shape> {
     make<K extends FunctionProps<Shape>>(
         name: K,
         cb: FuncOrNever<Shape[K]>,
-        opts: MakeHookOptions<FuncOrNever<Shape[K]>> = {}
+        opts: MakeHookOptions = {}
     ) {
 
         assert(typeof name === 'string', '"name" must be a string');
@@ -395,7 +395,7 @@ export class HookEngine<Shape> {
     wrap<K extends FunctionProps<Shape>>(
         instance: Shape,
         name: K,
-        opts?: MakeHookOptions<FuncOrNever<Shape[K]>>
+        opts?: MakeHookOptions
     ) {
 
         assert(isObject(instance), '"instance" must be an object');

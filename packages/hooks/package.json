@@ -1,7 +1,7 @@
 {
   "name": "@logosdx/hooks",
   "version": "0.0.1",
-  "description": "",
+  "description": "A lightweight, type-safe hook system for extending function behavior",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
@@ -9,17 +9,19 @@
       "import": "./dist/esm/index.mjs"
     }
   },
+  "sideEffects": false,
+  "browserNamespace": "LogosDx.Hooks",
   "scripts": {
     "build": "node ../../scripts/build.mjs",
     "lint": "pnpm tsc --noEmit --project tsconfig.json"
   },
-  "files": [
-      "dist/",
-      "docs/",
-      "readme.md",
-      "LICENSE"
+  "files": [],
+  "keywords": [
+    "hooks",
+    "middleware",
+    "extensions",
+    "before after"
   ],
-  "keywords": [],
   "homepage": "https://logosdx.dev/",
   "bugs": {
     "url": "https://github.com/logosdx/monorepo/issues",
