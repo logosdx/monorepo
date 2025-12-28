@@ -1,0 +1,17 @@
+{
+  "mode": "pre",
+  "tag": "beta",
+  "initialVersions": {
+    "@logosdx/dom": "2.0.15",
+    "@logosdx/fetch": "7.0.3",
+    "@logosdx/hooks": "0.0.1",
+    "@logosdx/kit": "4.0.3",
+    "@logosdx/localize": "1.0.19",
+    "@logosdx/observer": "2.2.0",
+    "@logosdx/state-machine": "1.0.19",
+    "@logosdx/storage": "1.0.19",
+    "@logosdx/utils": "5.0.0",
+    "@logosdx/tests": "0.0.1"
+  },
+  "changesets": []
+}
