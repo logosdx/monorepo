@@ -1,5 +1,13 @@
 # @logosdx/fetch
 
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [ea81582]
+  - @logosdx/utils@5.1.0
+  - @logosdx/observer@2.2.1
+
 ## 7.0.3
 
 ### Patch Changes
