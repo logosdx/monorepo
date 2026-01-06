@@ -93,16 +93,43 @@ const throttledScroll = throttle(updatePosition, {
 throttledScroll.cancel()
 
 // Rate limiting - control call frequency per time window
-const rateLimit: <T extends Func>(fn: T, options: RateLimitOptions<T>) => T
+const rateLimit: <T extends Func>(fn: T, options: RateLimitOptions<T> | RateLimitBucketOptions<T>) => T
 
 class RateLimitTokenBucket {
-  constructor(capacity: number, refillIntervalMs: number)
+  constructor(config: RateLimitTokenBucket.Config)
   consume(count?: number): boolean
   waitForToken(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<void>
   waitAndConsume(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<boolean>
+  hasTokens(count?: number): boolean  // Check if tokens available without consuming
   get tokens(): number
   get snapshot(): { currentTokens: number; capacity: number; rejectionRate: number; /* ... */ }
+  get state(): RateLimitTokenBucket.State  // Get state for persistence
+  get isSaveable(): boolean  // Check if save/load are configured
+  save(): Promise<void>  // Save state using configured save function
+  load(): Promise<void>  // Load state using configured load function
   reset(): void
+}
+
+namespace RateLimitTokenBucket {
+  interface Config {
+    capacity: number
+    refillIntervalMs: number
+    initialState?: State  // Restore from previous state
+    save?: (state: State) => void | Promise<void>  // Persistence callback
+    load?: () => State | null | Promise<State | null>  // Load callback
+  }
+  interface State {
+    tokens: number
+    lastRefill: number
+    stats?: Stats
+  }
+  interface Stats {
+    totalRequests: number
+    rejectedRequests: number
+    totalWaitTime: number
+    waitCount: number
+    createdAt: number
+  }
 }
 
 class RateLimitError extends Error {
@@ -110,8 +137,19 @@ class RateLimitError extends Error {
 }
 const isRateLimitError: (error: unknown) => error is RateLimitError
 
+// Basic usage
 const limitedApi = rateLimit(apiCall, { maxCalls: 10, windowMs: 60000 })
-const bucket = new RateLimitTokenBucket(10, 1000)
+
+// With persistence (e.g., Redis backend)
+const bucket = new RateLimitTokenBucket({
+  capacity: 10,
+  refillIntervalMs: 1000,
+  save: async (state) => redis.set('rate-limit:key', JSON.stringify(state)),
+  load: async () => JSON.parse(await redis.get('rate-limit:key'))
+})
+
+// Use bucket with rateLimit function (auto-load/save when isSaveable)
+const persistentLimitedApi = rateLimit(apiCall, { bucket, throws: true })
 ```
 
 ### Resilience Patterns

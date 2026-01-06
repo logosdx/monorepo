@@ -535,23 +535,29 @@ Control the frequency of function calls with a token bucket algorithm.
 ```ts
 function rateLimit<T extends (...args: any[]) => any>(
     fn: T,
-    options: RateLimitOptions<T>
+    options: RateLimitOptions<T> | RateLimitBucketOptions<T>
 ): T
 
 interface RateLimitOptions<T> {
     maxCalls: number                   // Maximum calls per window
-    windowMs: number                   // Time window in milliseconds
+    windowMs?: number                  // Time window in milliseconds (default: 1000)
     throws?: boolean                   // Throw error or wait (default: true)
-    onRateLimit?: (...args: Parameters<T>) => void
+    onLimitReached?: (error: RateLimitError, nextAvailable: Date, args: Parameters<T>) => void
+}
+
+interface RateLimitBucketOptions<T> {
+    bucket: RateLimitTokenBucket       // Use existing bucket instance
+    throws?: boolean                   // Throw error or wait (default: true)
+    onLimitReached?: (error: RateLimitError, nextAvailable: Date, args: Parameters<T>) => void
 }
 ```
 
 **Example:**
 
 ```ts
-import { rateLimit, attempt } from '@logosdx/utils'
+import { rateLimit, RateLimitTokenBucket, attempt } from '@logosdx/utils'
 
-// Respect external API limits
+// Basic rate limiting
 const limitedSearch = rateLimit(
     async (query: string) => {
 
@@ -562,9 +568,9 @@ const limitedSearch = rateLimit(
         maxCalls: 10,
         windowMs: 1000,    // 10 calls per second
         throws: false,     // Queue requests instead of throwing
-        onRateLimit: (query) => {
+        onLimitReached: (error, nextAvailable, [query]) => {
 
-            console.log(`Search for "${query}" rate limited, queuing...`)
+            console.log(`Search for "${query}" rate limited until ${nextAvailable}`)
             showToast('Searching... please wait')
         }
     }
@@ -572,23 +578,54 @@ const limitedSearch = rateLimit(
 
 // Advanced rate limiting with token bucket
 class RateLimitTokenBucket {
-    constructor(capacity: number, refillIntervalMs: number)
+    constructor(config: RateLimitTokenBucket.Config)
 
     consume(count?: number): boolean
+    hasTokens(count?: number): boolean  // Check without consuming
     waitForToken(count?: number, options?: {
         onRateLimit?: Function
         abortController?: AbortController
     }): Promise<void>
+    waitAndConsume(count?: number, options?: { ... }): Promise<boolean>
 
     get tokens(): number
     get snapshot(): BucketSnapshot
+    get state(): RateLimitTokenBucket.State  // For persistence
+    get isSaveable(): boolean  // True if save/load configured
+
+    save(): Promise<void>  // Persist current state
+    load(): Promise<void>  // Load state from backend
     reset(): void
 }
 
+namespace RateLimitTokenBucket {
+    interface Config {
+        capacity: number              // Max tokens
+        refillIntervalMs: number      // Time per token refill
+        initialState?: State          // Restore from previous state
+        save?: SaveFn                 // Persistence callback
+        load?: LoadFn                 // Load callback
+    }
+    interface State {
+        tokens: number
+        lastRefill: number
+        stats?: Stats
+    }
+}
+
 // Manual token management
-const bucket = new RateLimitTokenBucket(50, 1000) // 50 tokens, refill 1 per second
+const bucket = new RateLimitTokenBucket({
+    capacity: 50,
+    refillIntervalMs: 1000  // Refill 1 token per second
+})
 
 const makeAPICall = async (data: any) => {
+
+    // Check if we can proceed
+    if (!bucket.hasTokens()) {
+
+        console.log('Rate limit reached, waiting...')
+    }
 
     // Wait for token to be available
     await bucket.waitForToken(1, {
@@ -604,6 +641,42 @@ const makeAPICall = async (data: any) => {
 
     return [result, err]
 }
+
+// With persistence (e.g., Redis backend)
+const persistentBucket = new RateLimitTokenBucket({
+    capacity: 100,
+    refillIntervalMs: 60000,  // 1 token per minute
+    save: async (state) => {
+
+        await redis.set('rate-limit:user:123', JSON.stringify(state))
+    },
+    load: async () => {
+
+        const data = await redis.get('rate-limit:user:123')
+        return data ? JSON.parse(data) : null
+    }
+})
+
+// Load state before using
+await persistentBucket.load()
+
+// Check and consume
+if (persistentBucket.hasTokens()) {
+
+    persistentBucket.consume()
+    await persistentBucket.save()
+}
+
+// Use bucket with rateLimit function (auto-load/save when isSaveable)
+const persistentLimitedApi = rateLimit(apiCall, {
+    bucket: persistentBucket,
+    throws: true
+})
+
+// When bucket.isSaveable is true, rateLimit automatically:
+// 1. Calls load() before each rate limit check
+// 2. Calls save() after each successful consume
+await persistentLimitedApi(data)  // Auto-loads, consumes, auto-saves
 ```
 
 ---
