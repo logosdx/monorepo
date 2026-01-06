@@ -42,7 +42,7 @@ describe('@logosdx/utils - RateLimit', () => {
     describe('RateLimitTokenBucket', () => {
 
         it('should create a token bucket', () => {
-            const bucket = new RateLimitTokenBucket(5, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 5, refillIntervalMs: 100 });
 
             expect(bucket.tokens).to.equal(5);
             expect(bucket.getNextAvailable()).to.be.instanceOf(Date);
@@ -50,7 +50,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should consume and refill tokens', () => {
-            const bucket = new RateLimitTokenBucket(2, 50);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 50 });
 
             // Initial tokens
             expect(bucket.tokens).to.equal(2);
@@ -69,7 +69,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should wait for tokens to be available', () => {
-            const bucket = new RateLimitTokenBucket(2, 50);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 50 });
 
             bucket.consume(); // consume first token
             bucket.consume(); // consume second token
@@ -86,22 +86,21 @@ describe('@logosdx/utils - RateLimit', () => {
             expect(bucket.tokens).to.equal(1); // should have 1 token available
         });
 
-        it('should handle zero capacity gracefully', () => {
-            const bucket = new RateLimitTokenBucket(0, 100);
-
-            expect(bucket.tokens).to.equal(0);
-            expect(bucket.consume()).to.equal(false);
+        it('should reject zero capacity', () => {
+            expect(() => {
+                new RateLimitTokenBucket({ capacity: 0, refillIntervalMs: 100 });
+            }).to.throw('capacity must be a positive number');
         });
 
         it('should handle consuming more tokens than capacity', () => {
-            const bucket = new RateLimitTokenBucket(3, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 3, refillIntervalMs: 100 });
 
             expect(bucket.consume(5)).to.equal(false);
             expect(bucket.tokens).to.equal(3); // shouldn't affect existing tokens
         });
 
         it('should handle concurrent consume calls', async () => {
-            const bucket = new RateLimitTokenBucket(2, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 100 });
 
             const results = await Promise.all([
                 bucket.consume(),
@@ -117,7 +116,7 @@ describe('@logosdx/utils - RateLimit', () => {
             // Use real timers for this async test
             vi.useRealTimers();
 
-            const bucket = new RateLimitTokenBucket(1, 10);
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 10 });
             bucket.consume(); // exhaust tokens
 
             const start = Date.now();
@@ -135,7 +134,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should not exceed capacity during refill', () => {
-            const bucket = new RateLimitTokenBucket(2, 50);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 50 });
 
             // Start with full capacity, advance time much longer than needed for refill
             vi.advanceTimersByTime(500); // 10x the refill time
@@ -145,7 +144,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should handle rapid successive calls efficiently', () => {
-            const bucket = new RateLimitTokenBucket(100, 10);
+            const bucket = new RateLimitTokenBucket({ capacity: 100, refillIntervalMs: 10 });
 
             const start = Date.now();
             for (let i = 0; i < 50; i++) {
@@ -161,7 +160,7 @@ describe('@logosdx/utils - RateLimit', () => {
             // Use real timers for this async test
             vi.useRealTimers();
 
-            const bucket = new RateLimitTokenBucket(1, 10);
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 10 });
 
             bucket.consume(); // exhaust tokens
             expect(bucket.tokens).to.equal(0);
@@ -181,7 +180,7 @@ describe('@logosdx/utils - RateLimit', () => {
             // Use real timers for this async test
             vi.useRealTimers();
 
-            const bucket = new RateLimitTokenBucket(1, 1000); // Long refill time
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 1000 }); // Long refill time
             bucket.consume(); // exhaust tokens
 
             const controller = new AbortController();
@@ -199,7 +198,7 @@ describe('@logosdx/utils - RateLimit', () => {
             // Use real timers for this async test
             vi.useRealTimers();
 
-            const bucket = new RateLimitTokenBucket(3, 5);
+            const bucket = new RateLimitTokenBucket({ capacity: 3, refillIntervalMs: 5 });
 
             bucket.consume(3); // exhaust all tokens
             expect(bucket.tokens).to.equal(0);
@@ -215,7 +214,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should reset to full capacity', () => {
-            const bucket = new RateLimitTokenBucket(5, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 5, refillIntervalMs: 100 });
             bucket.consume(3);
 
             expect(bucket.tokens).to.equal(2);
@@ -224,7 +223,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should reset last refill time', () => {
-            const bucket = new RateLimitTokenBucket(2, 50);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 50 });
 
             bucket.consume(2);
             expect(bucket.tokens).to.equal(0);
@@ -244,7 +243,7 @@ describe('@logosdx/utils - RateLimit', () => {
             // Use real timers for this async test
             vi.useRealTimers();
 
-            const bucket = new RateLimitTokenBucket(1, 10);
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 10 });
             const callback = vi.fn();
 
             bucket.consume(); // exhaust tokens
@@ -261,7 +260,7 @@ describe('@logosdx/utils - RateLimit', () => {
             // Use real timers for this async test
             vi.useRealTimers();
 
-            const bucket = new RateLimitTokenBucket(1, 10);
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 10 });
 
             const times = [];
             for (let i = 0; i < 10; i++) {
@@ -278,7 +277,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should track statistics correctly', () => {
-            const bucket = new RateLimitTokenBucket(2, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 100 });
 
             // Test initial state
             let stats = bucket.snapshot;
@@ -303,7 +302,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should handle overflow protection', () => {
-            const bucket = new RateLimitTokenBucket(2, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 100 });
 
             // Consume tokens
             bucket.consume();
@@ -317,7 +316,7 @@ describe('@logosdx/utils - RateLimit', () => {
         });
 
         it('should support deterministic testing with mock timers', () => {
-            const bucket = new RateLimitTokenBucket(2, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 100 });
 
             // Initial state
             expect(bucket.tokens).to.equal(2);
@@ -347,7 +346,7 @@ describe('@logosdx/utils - RateLimit', () => {
             // Use real timers for this async test
             vi.useRealTimers();
 
-            const bucket = new RateLimitTokenBucket(1, 10);
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 10 });
 
             bucket.consume(); // exhaust tokens
             expect(bucket.tokens).to.equal(0);
@@ -364,6 +363,191 @@ describe('@logosdx/utils - RateLimit', () => {
             expect(finalStats.waitCount).to.equal(1);
             expect(finalStats.totalWaitTime).to.be.greaterThan(5); // Should be around 10ms
             expect(finalStats.averageWaitTime).to.be.greaterThan(5);
+        });
+
+        describe('persistence features', () => {
+
+            it('should support initialState for restoring from persistence', () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100,
+                    initialState: {
+                        tokens: 5,
+                        lastRefill: Date.now() - 50,
+                        stats: {
+                            totalRequests: 100,
+                            rejectedRequests: 10,
+                            totalWaitTime: 500,
+                            waitCount: 5,
+                            createdAt: Date.now() - 10000
+                        }
+                    }
+                });
+
+                expect(bucket.tokens).to.be.lessThanOrEqual(6); // 5 + partial refill
+                expect(bucket.snapshot.totalRequests).to.equal(100);
+                expect(bucket.snapshot.rejectedRequests).to.equal(10);
+            });
+
+            it('should have isSaveable false when no save/load configured', () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100
+                });
+
+                expect(bucket.isSaveable).to.be.false;
+            });
+
+            it('should have isSaveable false when only save is configured', () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100,
+                    save: () => {}
+                });
+
+                expect(bucket.isSaveable).to.be.false;
+            });
+
+            it('should have isSaveable false when only load is configured', () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100,
+                    load: () => null
+                });
+
+                expect(bucket.isSaveable).to.be.false;
+            });
+
+            it('should have isSaveable true when both save and load are configured', () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100,
+                    save: () => {},
+                    load: () => null
+                });
+
+                expect(bucket.isSaveable).to.be.true;
+            });
+
+            it('should get state for persistence', () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100
+                });
+
+                bucket.consume();
+                bucket.consume();
+
+                const state = bucket.state;
+
+                expect(state.tokens).to.equal(8);
+                expect(state.lastRefill).to.be.a('number');
+                expect(state.stats).to.be.an('object');
+                expect(state.stats!.totalRequests).to.equal(2);
+            });
+
+            it('should save state using configured save function', async () => {
+                let savedState: RateLimitTokenBucket.State | null = null;
+
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100,
+                    save: async (state) => {
+                        savedState = state;
+                    },
+                    load: () => null
+                });
+
+                bucket.consume();
+                await bucket.save();
+
+                expect(savedState).to.not.be.null;
+                expect(savedState!.tokens).to.equal(9);
+            });
+
+            it('should throw when save is called without save function configured', async () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100
+                });
+
+                const [, err] = await attempt(() => bucket.save());
+                expect(err).to.be.instanceOf(Error);
+                expect((err as Error).message).to.equal('No save function configured');
+            });
+
+            it('should load state using configured load function', async () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100,
+                    save: () => {},
+                    load: async () => ({
+                        tokens: 3,
+                        lastRefill: Date.now(),
+                        stats: {
+                            totalRequests: 50,
+                            rejectedRequests: 5,
+                            totalWaitTime: 200,
+                            waitCount: 3,
+                            createdAt: Date.now() - 5000
+                        }
+                    })
+                });
+
+                // Initially should have full capacity
+                expect(bucket.tokens).to.equal(10);
+
+                // After load, should have loaded state
+                await bucket.load();
+
+                expect(bucket.tokens).to.equal(3);
+                expect(bucket.snapshot.totalRequests).to.equal(50);
+            });
+
+            it('should throw when load is called without load function configured', async () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100
+                });
+
+                const [, err] = await attempt(() => bucket.load());
+                expect(err).to.be.instanceOf(Error);
+                expect((err as Error).message).to.equal('No load function configured');
+            });
+
+            it('should not modify state if load returns undefined', async () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 10,
+                    refillIntervalMs: 100,
+                    save: () => {},
+                    load: async () => undefined
+                });
+
+                bucket.consume();
+                expect(bucket.tokens).to.equal(9);
+
+                await bucket.load();
+
+                // Should still have 9 tokens
+                expect(bucket.tokens).to.equal(9);
+            });
+
+            it('should check if tokens are available with hasTokens', () => {
+                const bucket = new RateLimitTokenBucket({
+                    capacity: 3,
+                    refillIntervalMs: 100
+                });
+
+                expect(bucket.hasTokens()).to.be.true;
+                expect(bucket.hasTokens(2)).to.be.true;
+                expect(bucket.hasTokens(3)).to.be.true;
+                expect(bucket.hasTokens(4)).to.be.false;
+
+                bucket.consume(2);
+
+                expect(bucket.hasTokens()).to.be.true;
+                expect(bucket.hasTokens(2)).to.be.false;
+            });
         });
     });
 
@@ -658,6 +842,121 @@ describe('@logosdx/utils - RateLimit', () => {
             expect(result3).to.equal('result-300');
 
             calledExactly(mockFn, 3, 'async function return values');
+        });
+
+        it('should accept a bucket instance instead of options', async () => {
+            const mockFn = vi.fn(() => 'success');
+            const bucket = new RateLimitTokenBucket({
+                capacity: 2,
+                refillIntervalMs: 100
+            });
+
+            const rateLimitedFn = rateLimit(mockFn, {
+                bucket,
+                throws: true
+            });
+
+            await rateLimitedFn();
+            await rateLimitedFn();
+
+            expect(bucket.tokens).to.equal(0);
+
+            const [, error] = await attempt(() => rateLimitedFn());
+            expect(error).to.be.instanceOf(RateLimitError);
+
+            calledExactly(mockFn, 2, 'bucket instance');
+        });
+
+        it('should auto-load and save when bucket is saveable', async () => {
+            // Use real timers for this test
+            vi.useRealTimers();
+
+            const mockFn = vi.fn(() => 'success');
+            let loadCount = 0;
+            let saveCount = 0;
+            let savedState: RateLimitTokenBucket.State | null = null;
+
+            const bucket = new RateLimitTokenBucket({
+                capacity: 10,
+                refillIntervalMs: 100,
+                save: async (state) => {
+                    saveCount++;
+                    savedState = state;
+                },
+                load: async () => {
+                    loadCount++;
+                    return savedState;
+                }
+            });
+
+            const rateLimitedFn = rateLimit(mockFn, {
+                bucket,
+                throws: false
+            });
+
+            // First call - should load (finds nothing), then save after consuming
+            await rateLimitedFn();
+            expect(loadCount).to.equal(1);
+            expect(saveCount).to.equal(1);
+            // Use floor since tokens are floats and partial refills can occur
+            expect(Math.floor(savedState!.tokens)).to.equal(9);
+
+            // Second call - should load, then save
+            await rateLimitedFn();
+            expect(loadCount).to.equal(2);
+            expect(saveCount).to.equal(2);
+            expect(Math.floor(savedState!.tokens)).to.equal(8);
+
+            calledExactly(mockFn, 2, 'auto-load/save with bucket');
+        });
+
+        it('should not auto-load/save when bucket is not saveable', async () => {
+            const mockFn = vi.fn(() => 'success');
+
+            // Bucket without save/load functions
+            const bucket = new RateLimitTokenBucket({
+                capacity: 10,
+                refillIntervalMs: 100
+            });
+
+            expect(bucket.isSaveable).to.be.false;
+
+            const rateLimitedFn = rateLimit(mockFn, {
+                bucket,
+                throws: false
+            });
+
+            // Should work without throwing about missing load/save
+            await rateLimitedFn();
+            await rateLimitedFn();
+
+            calledExactly(mockFn, 2, 'no auto-load/save');
+        });
+
+        it('should share bucket state between multiple wrapped functions', async () => {
+            const mockFn1 = vi.fn(() => 'fn1');
+            const mockFn2 = vi.fn(() => 'fn2');
+
+            const bucket = new RateLimitTokenBucket({
+                capacity: 2,
+                refillIntervalMs: 1000
+            });
+
+            const rateLimitedFn1 = rateLimit(mockFn1, { bucket, throws: true });
+            const rateLimitedFn2 = rateLimit(mockFn2, { bucket, throws: true });
+
+            await rateLimitedFn1();
+            await rateLimitedFn2();
+
+            // Both consumed from the same bucket
+            expect(bucket.tokens).to.equal(0);
+
+            // Neither should work now
+            const [, err1] = await attempt(() => rateLimitedFn1());
+            expect(err1).to.be.instanceOf(RateLimitError);
+
+            calledExactly(mockFn1, 1, 'shared bucket - fn1');
+            calledExactly(mockFn2, 1, 'shared bucket - fn2');
         });
     });
 });

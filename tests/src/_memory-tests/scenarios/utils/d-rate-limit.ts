@@ -56,7 +56,7 @@ export const rateLimitScenario: Scenario<RateLimitContext> = {
         // === Test 1: Create/destroy many token buckets ===
         for (let i = 0; i < 100; i++) {
 
-            const bucket = new RateLimitTokenBucket(10, 100);
+            const bucket = new RateLimitTokenBucket({ capacity: 10, refillIntervalMs: 100 });
 
             // Consume some tokens
             for (let j = 0; j < 15; j++) {
@@ -81,7 +81,7 @@ export const rateLimitScenario: Scenario<RateLimitContext> = {
 
         // === Test 2: Statistics counter stability ===
         // Single bucket with many requests - verify stats don't cause memory issues
-        const statsBucket = new RateLimitTokenBucket(1000, 1); // High capacity
+        const statsBucket = new RateLimitTokenBucket({ capacity: 1000, refillIntervalMs: 1 }); // High capacity
 
         for (let i = 0; i < 10000; i++) {
 
@@ -97,7 +97,7 @@ export const rateLimitScenario: Scenario<RateLimitContext> = {
         const _rejectedTracked = stats.rejectedRequests;
 
         // === Test 3: waitAndConsume promise cleanup ===
-        const waitBucket = new RateLimitTokenBucket(5, 10); // 5 tokens, 10ms per token
+        const waitBucket = new RateLimitTokenBucket({ capacity: 5, refillIntervalMs: 10 }); // 5 tokens, 10ms per token
 
         // Exhaust tokens
         for (let i = 0; i < 5; i++) {
@@ -121,7 +121,7 @@ export const rateLimitScenario: Scenario<RateLimitContext> = {
         bucketsCreated++;
 
         // === Test 4: Abort cleanup during wait ===
-        const abortBucket = new RateLimitTokenBucket(1, 1000); // 1 token, 1s per token
+        const abortBucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 1000 }); // 1 token, 1s per token
 
         // Exhaust token
         abortBucket.consume();
@@ -201,7 +201,7 @@ export const rateLimitScenario: Scenario<RateLimitContext> = {
 
         // === Test 7: Long-running bucket stability ===
         // Simulate continuous usage pattern
-        const longRunningBucket = new RateLimitTokenBucket(100, 1);
+        const longRunningBucket = new RateLimitTokenBucket({ capacity: 100, refillIntervalMs: 1 });
 
         for (let cycle = 0; cycle < 100; cycle++) {
 

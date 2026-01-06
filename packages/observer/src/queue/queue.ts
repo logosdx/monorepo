@@ -230,10 +230,10 @@ export class EventQueue<S extends Record<string, any>, E extends Events<S> | Reg
 
         this.#stats = new QueueStats(observer, name);
 
-        this.#rateLimiter = new RateLimitTokenBucket(
-            rateLimitCapacity!,
-            rateLimitIntervalMs!
-        );
+        this.#rateLimiter = new RateLimitTokenBucket({
+            capacity: rateLimitCapacity!,
+            refillIntervalMs: rateLimitIntervalMs!
+        });
 
         this.#queue = new PriorityQueue<QueueEventData<S, E>>({
             lifo: type === 'lifo'

@@ -784,7 +784,7 @@ export class FetchEngine<
             // If maxCalls=100 and windowMs=60000, we want 100 requests per minute
             // So refillIntervalMs = windowMs / maxCalls = 600ms per token
             const refillIntervalMs = windowMs / maxCalls;
-            bucket = new RateLimitTokenBucket(maxCalls, refillIntervalMs);
+            bucket = new RateLimitTokenBucket({ capacity: maxCalls, refillIntervalMs });
 
             this.#rateLimit.rateLimiters.set(key, bucket);
         }
