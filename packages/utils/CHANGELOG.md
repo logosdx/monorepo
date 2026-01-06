@@ -1,5 +1,17 @@
 # @logosdx/utils
 
+## 5.1.0
+
+### Minor Changes
+
+- ea81582: ## @logosdx/utils
+
+  ### Added
+
+  - `feat(retry):` Add `throwLastError` option to throw original error instead of `RetryError`
+  - `feat(retry):` Add `onRetry` callback invoked before each retry attempt with the last error
+  - `feat(retry):` Add `onRetryExhausted` callback to return fallback values when retries are exhausted
+
 ## 5.0.0
 
 ### Major Changes
