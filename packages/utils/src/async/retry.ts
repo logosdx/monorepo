@@ -66,6 +66,31 @@ export interface RetryOptions {
      * Abort signal to cancel the retry
      */
     signal?: AbortSignal
+
+    /**
+     * Throw the last error encountered if all retries fail
+     *
+     * @default false
+     */
+    throwLastError?: boolean
+
+    /**
+     * Callback invoked before each retry attempt
+     *
+     * @param error last error encountered
+     * @param attempt current attempt number
+     */
+    onRetry?: (error: Error, attempt: number) => void | Promise<void>;
+
+    /**
+     * Callback invoked after all retry attempts have been exhausted.
+     * Use to take over error handling and return a fallback value.
+     *
+     * @param error last error encountered
+     * @param args original function arguments
+     * @returns fallback value
+     */
+    onRetryExhausted?: (error: Error) => ReturnType<Func> | Promise<ReturnType<Func>>;
 }
 
 const validateOpts = (opts: RetryOptions) => {
@@ -142,14 +167,22 @@ export const retry = async <T extends Func>(
         backoff = 1,
         jitterFactor = 0,
         shouldRetry = () => true,
-        signal
+        signal,
+        throwLastError = false,
+        onRetryExhausted,
+        onRetry,
     } = opts;
 
     let attempts = 0;
+    let lastError: Error | null = null;
 
     while (attempts < retries) {
 
         signal?.throwIfAborted();
+
+        if (attempts > 0 && onRetry && lastError) {
+            await onRetry(lastError, attempts);
+        }
 
         const [result, error] = await attempt(fn);
 
@@ -158,6 +191,8 @@ export const retry = async <T extends Func>(
         if (error === null) {
             return result;
         }
+
+        lastError = error;
 
         if (error && shouldRetry(error)) {
 
@@ -170,6 +205,14 @@ export const retry = async <T extends Func>(
         }
 
         throw error;
+    }
+
+    if (onRetryExhausted) {
+        return onRetryExhausted(lastError!);
+    }
+
+    if (throwLastError) {
+        throw lastError!;
     }
 
     throw new RetryError('Max retries reached');

@@ -13,6 +13,8 @@ import {
     retry,
     makeRetryable,
     wait,
+    RetryError,
+    isRetryError,
 } from '../../../../packages/utils/src/index.ts';
 
 describe('@logosdx/utils - flow-control: retry', () => {
@@ -311,6 +313,371 @@ describe('@logosdx/utils - flow-control: retry', () => {
         calledExactly(fnZero, 1, 'retry not retry zero');
         calledExactly(fnEmptyString, 1, 'retry not retry empty string');
     });
+
+    describe('throwLastError option', () => {
+
+        it('should throw the last error instead of RetryError when throwLastError is true', async () => {
+
+            const originalError = new Error('Original downstream error');
+            const fn = vi.fn(() => {
+                throw originalError;
+            });
+
+            const [, error] = await attempt(() =>
+                retry(fn, { retries: 3, delay: 0, throwLastError: true })
+            );
+
+            expect(error).to.equal(originalError);
+            expect(error!.message).to.equal('Original downstream error');
+            expect(isRetryError(error)).to.be.false;
+            calledExactly(fn, 3, 'throwLastError exhausted retries');
+        });
+
+        it('should throw RetryError by default when throwLastError is false', async () => {
+
+            const fn = vi.fn(() => {
+                throw new Error('Some error');
+            });
+
+            const [, error] = await attempt(() =>
+                retry(fn, { retries: 3, delay: 0, throwLastError: false })
+            );
+
+            expect(isRetryError(error)).to.be.true;
+            expect(error!.message).to.equal('Max retries reached');
+            calledExactly(fn, 3, 'throwLastError false');
+        });
+
+        it('should throw RetryError when throwLastError is not specified', async () => {
+
+            const fn = vi.fn(() => {
+                throw new Error('Some error');
+            });
+
+            const [, error] = await attempt(() =>
+                retry(fn, { retries: 3, delay: 0 })
+            );
+
+            expect(isRetryError(error)).to.be.true;
+            expect(error!.message).to.equal('Max retries reached');
+        });
+
+        it('should preserve the original error type with throwLastError', async () => {
+
+            class CustomError extends Error {
+
+                constructor(message: string) {
+                    super(message);
+                    this.name = 'CustomError';
+                }
+            }
+
+            const customError = new CustomError('Custom downstream error');
+            const fn = vi.fn(() => {
+                throw customError;
+            });
+
+            const [, error] = await attempt(() =>
+                retry(fn, { retries: 2, delay: 0, throwLastError: true })
+            );
+
+            expect(error).to.be.instanceof(CustomError);
+            expect(error).to.equal(customError);
+        });
+    });
+
+    describe('onRetry callback', () => {
+
+        it('should call onRetry before each retry attempt', async () => {
+
+            const onRetry = vi.fn();
+            let attempts = 0;
+
+            const fn = vi.fn(() => {
+                attempts++;
+                if (attempts < 3) {
+                    throw new Error(`Attempt ${attempts} failed`);
+                }
+                return 'success';
+            });
+
+            await retry(fn, { retries: 3, delay: 0, onRetry });
+
+            // onRetry is called before attempts 2 and 3 (not before attempt 1)
+            calledExactly(onRetry, 2, 'onRetry called twice');
+            expect(onRetry.mock.calls[0][1]).to.equal(1); // attempt number 1
+            expect(onRetry.mock.calls[1][1]).to.equal(2); // attempt number 2
+        });
+
+        it('should not call onRetry on the first attempt', async () => {
+
+            const onRetry = vi.fn();
+            const fn = vi.fn(() => 'immediate success');
+
+            await retry(fn, { retries: 3, delay: 0, onRetry });
+
+            calledExactly(onRetry, 0, 'onRetry not called on success');
+            calledExactly(fn, 1, 'fn called once');
+        });
+
+        it('should support async onRetry callback', async () => {
+
+            const callOrder: string[] = [];
+            const onRetry = vi.fn(async () => {
+                await wait(1);
+                callOrder.push('onRetry');
+            });
+
+            let attempts = 0;
+            const fn = vi.fn(() => {
+                callOrder.push(`fn-${attempts}`);
+                attempts++;
+                if (attempts < 2) {
+                    throw new Error('retry');
+                }
+                return 'done';
+            });
+
+            await retry(fn, { retries: 3, delay: 0, onRetry });
+
+            expect(callOrder).to.deep.equal(['fn-0', 'onRetry', 'fn-1']);
+        });
+
+        it('should call onRetry for all retries even when exhausted', async () => {
+
+            const onRetry = vi.fn();
+            const fn = vi.fn(() => {
+                throw new Error('always fail');
+            });
+
+            await attempt(() => retry(fn, { retries: 3, delay: 0, onRetry }));
+
+            // onRetry called before attempts 2 and 3
+            calledExactly(onRetry, 2, 'onRetry called for all retries');
+        });
+
+        it('should pass the last error to onRetry callback', async () => {
+
+            const capturedErrors: Error[] = [];
+            const onRetry = vi.fn((error: Error) => {
+                capturedErrors.push(error);
+            });
+
+            let errorCount = 0;
+            const fn = vi.fn(() => {
+                errorCount++;
+                throw new Error(`Error #${errorCount}`);
+            });
+
+            await attempt(() => retry(fn, { retries: 3, delay: 0, onRetry }));
+
+            // onRetry is called before attempt 2 with Error #1, and before attempt 3 with Error #2
+            expect(capturedErrors).to.have.length(2);
+            expect(capturedErrors[0].message).to.equal('Error #1');
+            expect(capturedErrors[1].message).to.equal('Error #2');
+        });
+    });
+
+    describe('onRetryExhausted callback', () => {
+
+        it('should call onRetryExhausted and return fallback value when retries are exhausted', async () => {
+
+            const originalError = new Error('Network failure');
+            const fn = vi.fn(() => {
+                throw originalError;
+            });
+
+            const onRetryExhausted = vi.fn((error: Error) => {
+                return { fallback: true, originalMessage: error.message };
+            });
+
+            const result = await retry(fn, {
+                retries: 2,
+                delay: 0,
+                onRetryExhausted
+            });
+
+            expect(result).to.deep.equal({ fallback: true, originalMessage: 'Network failure' });
+            calledExactly(onRetryExhausted, 1, 'onRetryExhausted called once');
+            expect(onRetryExhausted.mock.calls[0][0]).to.equal(originalError);
+        });
+
+        it('should support async onRetryExhausted callback', async () => {
+
+            const fn = vi.fn(() => {
+                throw new Error('fail');
+            });
+
+            const onRetryExhausted = vi.fn(async () => {
+                await wait(1);
+                return 'async fallback';
+            });
+
+            const result = await retry(fn, {
+                retries: 2,
+                delay: 0,
+                onRetryExhausted
+            });
+
+            expect(result).to.equal('async fallback');
+        });
+
+        it('should not call onRetryExhausted when function succeeds', async () => {
+
+            const onRetryExhausted = vi.fn(() => 'fallback');
+            const fn = vi.fn(() => 'success');
+
+            const result = await retry(fn, {
+                retries: 3,
+                delay: 0,
+                onRetryExhausted
+            });
+
+            expect(result).to.equal('success');
+            calledExactly(onRetryExhausted, 0, 'onRetryExhausted not called on success');
+        });
+
+        it('should not call onRetryExhausted when function succeeds after retries', async () => {
+
+            const onRetryExhausted = vi.fn(() => 'fallback');
+            let attempts = 0;
+
+            const fn = vi.fn(() => {
+                attempts++;
+                if (attempts < 2) {
+                    throw new Error('retry');
+                }
+                return 'eventual success';
+            });
+
+            const result = await retry(fn, {
+                retries: 3,
+                delay: 0,
+                onRetryExhausted
+            });
+
+            expect(result).to.equal('eventual success');
+            calledExactly(onRetryExhausted, 0, 'onRetryExhausted not called on eventual success');
+        });
+
+        it('should take precedence over throwLastError', async () => {
+
+            const originalError = new Error('original');
+            const fn = vi.fn(() => {
+                throw originalError;
+            });
+
+            const onRetryExhausted = vi.fn(() => 'fallback wins');
+
+            const result = await retry(fn, {
+                retries: 2,
+                delay: 0,
+                throwLastError: true,
+                onRetryExhausted
+            });
+
+            expect(result).to.equal('fallback wins');
+            calledExactly(onRetryExhausted, 1, 'onRetryExhausted takes precedence');
+        });
+
+        it('should pass the last error to onRetryExhausted', async () => {
+
+            let errorCount = 0;
+            const fn = vi.fn(() => {
+                errorCount++;
+                throw new Error(`Error #${errorCount}`);
+            });
+
+            const capturedError = { value: null as Error | null };
+            const onRetryExhausted = vi.fn((error: Error) => {
+                capturedError.value = error;
+                return 'handled';
+            });
+
+            await retry(fn, {
+                retries: 3,
+                delay: 0,
+                onRetryExhausted
+            });
+
+            // The last error should be Error #3 (the error from the final attempt)
+            expect(capturedError.value!.message).to.equal('Error #3');
+        });
+
+        it('should allow onRetryExhausted to throw a different error', async () => {
+
+            const fn = vi.fn(() => {
+                throw new Error('original error');
+            });
+
+            const onRetryExhausted = vi.fn(() => {
+                throw new Error('custom exhaustion error');
+            });
+
+            const [, error] = await attempt(() =>
+                retry(fn, {
+                    retries: 2,
+                    delay: 0,
+                    onRetryExhausted
+                })
+            );
+
+            expect(error!.message).to.equal('custom exhaustion error');
+        });
+    });
+
+    describe('combined options', () => {
+
+        it('should work with onRetry and onRetryExhausted together', async () => {
+
+            const callOrder: string[] = [];
+            const onRetry = vi.fn(() => callOrder.push('onRetry'));
+            const onRetryExhausted = vi.fn(() => {
+                callOrder.push('exhausted');
+                return 'fallback';
+            });
+
+            const fn = vi.fn(() => {
+                callOrder.push('fn');
+                throw new Error('fail');
+            });
+
+            const result = await retry(fn, {
+                retries: 2,
+                delay: 0,
+                onRetry,
+                onRetryExhausted
+            });
+
+            expect(result).to.equal('fallback');
+            // fn called, then onRetry + fn for retry
+            expect(callOrder).to.deep.equal(['fn', 'onRetry', 'fn', 'exhausted']);
+        });
+
+        it('should work with onRetry and throwLastError together', async () => {
+
+            const onRetryCalls: number[] = [];
+            const onRetry = vi.fn((_, attempt) => onRetryCalls.push(attempt));
+            const originalError = new Error('original');
+
+            const fn = vi.fn(() => {
+                throw originalError;
+            });
+
+            const [, error] = await attempt(() =>
+                retry(fn, {
+                    retries: 3,
+                    delay: 0,
+                    onRetry,
+                    throwLastError: true
+                })
+            );
+
+            expect(error).to.equal(originalError);
+            expect(onRetryCalls).to.deep.equal([1, 2]);
+        });
+    });
+
     describe('makeRetryable', () => {
 
         it('should create a retryable function', async () => {

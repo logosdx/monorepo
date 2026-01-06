@@ -190,9 +190,12 @@ interface RetryOptions {
     retries?: number                    // Max retry attempts (default: 3)
     delay?: number                      // Initial delay in ms (default: 0)
     backoff?: number                    // Delay multiplier (default: 1)
-    jitterFactor?: number              // Add randomness 0-1 (default: 0)
+    jitterFactor?: number               // Add randomness 0-1 (default: 0)
     shouldRetry?: (error: Error) => boolean
-    signal?: AbortSignal               // For cancellation
+    signal?: AbortSignal                // For cancellation
+    throwLastError?: boolean            // Throw original error instead of RetryError (default: false)
+    onRetry?: (error: Error, attempt: number) => void | Promise<void>  // Callback before each retry
+    onRetryExhausted?: (error: Error) => T | Promise<T>  // Fallback handler when retries exhausted
 }
 ```
 
@@ -269,6 +272,49 @@ const smartRetry = retry(
 )
 
 const [result, err] = await attempt(() => smartRetry(application))
+
+// Preserve original error for downstream handling
+// Use throwLastError when you need the actual error type, not RetryError
+const [loanResult, loanErr] = await attempt(() =>
+    retry(
+        () => fetchLoanStatus(loanId),
+        {
+            retries: 3,
+            delay: 500,
+            throwLastError: true  // Throws actual error, not "Max retries reached"
+        }
+    )
+)
+
+if (loanErr) {
+
+    // loanErr is the original error (e.g., NetworkError, TimeoutError)
+    // not a RetryError with generic "Max retries reached" message
+    console.log(loanErr.message)  // e.g., "Connection refused" or "Timeout"
+}
+
+// Graceful fallback when retries exhausted
+// Use onRetryExhausted to return a fallback value instead of throwing
+const userProfile = await retry(
+    () => fetchUserProfile(userId),
+    {
+        retries: 3,
+        delay: 100,
+        onRetryExhausted: (error) => {
+
+            logger.warn(`Profile fetch failed after retries: ${error.message}`)
+
+            // Return cached/default profile instead of throwing
+            return {
+                id: userId,
+                name: 'Unknown User',
+                avatar: '/default-avatar.png',
+                fromCache: true
+            }
+        }
+    }
+)
+// userProfile is either the fetched profile or the fallback - never throws
 ```
 
 ---
