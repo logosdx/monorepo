@@ -121,10 +121,53 @@ const bucket = new RateLimitTokenBucket(10, 1000)
 const retry: <T extends Func>(fn: T, options: RetryOptions) => Promise<ReturnType<T>>
 const makeRetryable: <T extends Func>(fn: T, options: RetryOptions) => T
 
+interface RetryOptions {
+  retries?: number           // Number of retries (default: 3)
+  delay?: number             // Delay between retries in ms (default: 0)
+  backoff?: number           // Multiplier for delay between retries (default: 1)
+  jitterFactor?: number      // Jitter factor for delay randomization (default: 0)
+  shouldRetry?: (error: Error) => boolean  // Determine if should retry
+  signal?: AbortSignal       // Abort signal to cancel retry
+  throwLastError?: boolean   // Throw original error instead of RetryError (default: false)
+  onRetry?: (error: Error, attempt: number) => void | Promise<void>  // Callback before each retry
+  onRetryExhausted?: (error: Error) => ReturnType<Func> | Promise<ReturnType<Func>>  // Fallback handler
+}
+
 class RetryError extends Error {}
 const isRetryError: (error: unknown) => error is RetryError
 
+// Basic retry with backoff
 const resilientFetch = makeRetryable(fetch, { retries: 3, delay: 1000, backoff: 2 })
+
+// Preserve original error instead of RetryError (for downstream error handling)
+const [result, err] = await attempt(() => retry(fetchData, {
+  retries: 3,
+  delay: 100,
+  throwLastError: true  // Throws the actual network error, not RetryError
+}))
+if (err) {
+  // err is the original error from fetchData, not RetryError
+  console.log(err.message)  // e.g., "Network timeout" not "Max retries reached"
+}
+
+// Logging retry attempts
+await retry(fetchData, {
+  retries: 3,
+  delay: 100,
+  onRetry: (error, attempt) => {
+    console.log(`Retry attempt ${attempt} after error: ${error.message}`)
+  }
+})
+
+// Graceful fallback when retries exhausted (no throw)
+const data = await retry(fetchData, {
+  retries: 3,
+  delay: 100,
+  onRetryExhausted: (error) => {
+    console.warn(`All retries failed: ${error.message}`)
+    return { fallback: true }  // Return fallback value instead of throwing
+  }
+})
 
 // Circuit breaker for failing services
 const circuitBreaker: <T extends Func>(fn: T, options: CircuitBreakerOptions<T>) => T
