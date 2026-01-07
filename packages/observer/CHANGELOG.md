@@ -1,5 +1,13 @@
 # @logosdx/observer
 
+## 2.3.0
+
+### Minor Changes
+
+- 164bd3c: fix(observer): rebuild to include missing CJS folder
+
+  Re-release to fix production issue where CJS output folder was missing from the published package due to a build-time issue.
+
 ## 2.2.2
 
 ### Patch Changes
