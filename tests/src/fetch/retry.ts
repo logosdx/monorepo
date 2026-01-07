@@ -43,6 +43,11 @@ describe('@logosdx/fetch: retry', async () => {
 
         expect(c1.attempt).to.eq(1);
         expect(c2.attempt).to.eq(2);
+
+        // Helper method tests - connection lost (server not reachable)
+        expect(c1.isConnectionLost()).to.be.true;
+        expect(c1.isCancelled()).to.be.false;
+        expect(c1.isTimeout()).to.be.false;
     });
 
     const calculateDelay = (
@@ -333,6 +338,284 @@ describe('@logosdx/fetch: retry', async () => {
 
             api.destroy();
         });
+
+        it('joiner joins at current retry iteration with attemptTimeout', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                attemptTimeout: 50, // Per-attempt timeout
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 30,
+                    shouldRetry: (error) => error.status === 499
+                },
+                dedupePolicy: { enabled: true, methods: ['GET'] }
+            });
+
+            const events: string[] = [];
+            api.on('fetch-dedupe-start', () => events.push('dedupe-start'));
+            api.on('fetch-dedupe-join', () => events.push('dedupe-join'));
+            api.on('fetch-retry', () => events.push('retry'));
+
+            // Request A starts - will timeout on first attempt, retry
+            const promiseA = api.get('/slow-success/100'); // 100ms response, 50ms timeout = timeout
+
+            // Wait for first attempt to timeout and retry to start
+            await new Promise(r => setTimeout(r, 70));
+
+            // Request B joins during retry
+            const promiseB = api.get('/slow-success/100');
+
+            // Both should eventually fail (all attempts timeout)
+            const [[, errA], [, errB]] = await Promise.all([
+                attempt(() => promiseA),
+                attempt(() => promiseB)
+            ]);
+
+            // Both should have errors (all retries exhausted)
+            expect(errA).to.be.instanceOf(FetchError);
+            expect(errB).to.be.instanceOf(FetchError);
+
+            // Verify deduplication happened
+            expect(events).to.include('dedupe-start');
+            expect(events).to.include('dedupe-join');
+            expect(events).to.include('retry');
+
+            api.destroy();
+        });
+    });
+
+    describe('retry with timeouts', () => {
+
+        it('does NOT retry timed out requests by default', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                timeout: 50, // 50ms timeout
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+
+            // /slow-success/200 waits 200ms, so 50ms timeout will trigger
+            const [, err] = await attempt(() => api.get('/slow-success/200'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).status).to.eq(499);
+
+            // Should only have 1 attempt (no retries for aborted requests by default)
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('CAN retry timed out requests with attemptTimeout', async () => {
+
+            let attemptCount = 0;
+            let shouldRetryCallCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                attemptTimeout: 50, // 50ms per-attempt timeout (allows retries)
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                    shouldRetry: (error) => {
+
+                        shouldRetryCallCount++;
+
+                        // Retry on timeout (status 499)
+                        return error.status === 499;
+                    },
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+
+            // /slow-success/200 waits 200ms, so 50ms attemptTimeout will trigger each time
+            const [, err] = await attempt(() => api.get('/slow-success/200'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+
+            // Should have 3 attempts (maxAttempts: 3)
+            expect(attemptCount).to.eq(3);
+            expect(shouldRetryCallCount).to.eq(3);
+
+            api.destroy();
+        });
+
+        it('emits fetch-retry event for timed out requests when using attemptTimeout', async () => {
+
+            const retryEvents: any[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                attemptTimeout: 50, // Per-attempt timeout allows retries
+                retry: {
+                    maxAttempts: 2,
+                    baseDelay: 10,
+                    shouldRetry: (error) => error.status === 499,
+                },
+            });
+
+            api.on('fetch-retry', (data) => retryEvents.push(data));
+
+            await attempt(() => api.get('/slow-success/200'));
+
+            // With maxAttempts: 2, we get 1 retry event (between attempt 1 and 2)
+            expect(retryEvents).to.have.length(1);
+            expect(retryEvents[0].attempt).to.eq(1);
+            expect(retryEvents[0].nextAttempt).to.eq(2);
+
+            api.destroy();
+        });
+
+        it('emits fetch-abort event for timed out requests', async () => {
+
+            const abortEvents: any[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                timeout: 50,
+                retry: {
+                    maxAttempts: 1, // No retries
+                    baseDelay: 10,
+                },
+            });
+
+            api.on('fetch-abort', (data) => abortEvents.push(data));
+
+            await attempt(() => api.get('/slow-success/200'));
+
+            expect(abortEvents).to.have.length(1);
+            expect(abortEvents[0].aborted).to.be.true;
+
+            api.destroy();
+        });
+
+        it('timeout is shared across retry attempts (same AbortController)', async () => {
+
+            // This test verifies that the timeout applies to the entire request lifecycle,
+            // not per-attempt. Once the timeout fires, the controller is aborted for all
+            // subsequent retry attempts.
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                timeout: 150, // Timeout longer than first attempt but shorter than total
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                    retryableStatusCodes: [503],
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+
+            // /slow-fail waits 200ms then returns 503
+            // With 150ms timeout, first attempt will timeout before server responds
+            const [, err] = await attempt(() => api.get('/slow-fail'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+
+            // Only 1 attempt because timeout fired and aborted the controller
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('per-request timeout override affects retry behavior', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                timeout: 500, // Instance timeout: 500ms (would succeed)
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+
+            // Override with shorter timeout that will fail
+            const [, err] = await attempt(() =>
+                api.get('/slow-success/200', { timeout: 50 })
+            );
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+
+            // No retries for aborted requests by default
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('manual abort is not retried', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+
+            // Manual abort via returned promise's abort method
+            const promise = api.get('/slow-success/500');
+            setTimeout(() => promise.abort(), 10);
+
+            const [, err] = await attempt(() => promise);
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+
+            // Manual abort should not trigger retries
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('onError callback is called for timed out requests', async () => {
+
+            const onErrorStub = sandbox.stub();
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                timeout: 50,
+                retry: {
+                    maxAttempts: 1,
+                },
+            });
+
+            await attempt(() =>
+                api.get('/slow-success/200', { onError: onErrorStub })
+            );
+
+            expect(onErrorStub.called).to.be.true;
+            expect(onErrorStub.callCount).to.eq(1);
+
+            const error = onErrorStub.args[0][0] as FetchError;
+            expect(error.aborted).to.be.true;
+            expect(error.status).to.eq(499);
+
+            api.destroy();
+        });
     });
 
     describe('retry with HTTP methods', () => {
@@ -370,6 +653,220 @@ describe('@logosdx/fetch: retry', async () => {
 
                 api.destroy();
             });
+        });
+    });
+
+    describe('attemptTimeout feature', () => {
+
+        it('creates fresh controller per attempt', async () => {
+
+            const controllers: AbortController[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                attemptTimeout: 50,
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                    shouldRetry: (error) => error.status === 499,
+                },
+            });
+
+            api.on('fetch-before', (data) => controllers.push(data.controller));
+
+            await attempt(() => api.get('/slow-success/200'));
+
+            // Each attempt should have a different controller
+            expect(controllers).to.have.length(3);
+            expect(controllers[0]).to.not.equal(controllers[1]);
+            expect(controllers[1]).to.not.equal(controllers[2]);
+
+            api.destroy();
+        });
+
+        it('succeeds when retry completes in time', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                attemptTimeout: 100, // 100ms per-attempt timeout
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                    retryableStatusCodes: [503],
+                },
+            });
+
+            // /fail-once fails with 503 first time, succeeds on retry
+            const [result, err] = await attempt(() => api.get('/fail-once'));
+
+            expect(err).to.be.null;
+            expect(result).to.exist;
+
+            api.destroy();
+        });
+    });
+
+    describe('totalTimeout feature', () => {
+
+        it('works same as deprecated timeout', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                totalTimeout: 50, // Using new totalTimeout name
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+
+            // /slow-success/200 waits 200ms, so 50ms totalTimeout will trigger
+            const [, err] = await attempt(() => api.get('/slow-success/200'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+
+            // totalTimeout aborts parent controller, so no retries
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+    });
+
+    describe('attemptTimeout and totalTimeout together', () => {
+
+        it('totalTimeout caps entire operation even with attemptTimeout', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                totalTimeout: 30, // 30ms for entire operation - shorter than attemptTimeout
+                attemptTimeout: 50, // 50ms per attempt (won't fully trigger)
+                retry: {
+                    maxAttempts: 10, // Would allow many attempts
+                    baseDelay: 20,
+                    shouldRetry: () => true,
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+
+            // With 30ms totalTimeout, the first attempt should be cut short
+            const [, err] = await attempt(() => api.get('/slow-success/200'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+
+            // Should only have 1 attempt because totalTimeout fired before attemptTimeout
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('attemptTimeout allows retry when totalTimeout has budget', async () => {
+
+            let attemptCount = 0;
+            const retryEvents: any[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                totalTimeout: 500, // 500ms for entire operation
+                attemptTimeout: 50, // 50ms per attempt
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                    shouldRetry: (error) => error.status === 499,
+                },
+            });
+
+            api.on('fetch-before', () => attemptCount++);
+            api.on('fetch-retry', (data) => retryEvents.push(data));
+
+            // /slow-success/200 waits 200ms, each attempt times out at 50ms
+            // With 500ms total budget, we should get all 3 attempts
+            const [, err] = await attempt(() => api.get('/slow-success/200'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect(attemptCount).to.eq(3);
+            expect(retryEvents).to.have.length(2); // 2 retries between 3 attempts
+
+            api.destroy();
+        });
+    });
+
+    describe('timedOut flag', () => {
+
+        it('is true when totalTimeout fires', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                totalTimeout: 50,
+                retry: { maxAttempts: 1 },
+            });
+
+            const [, err] = await attempt(() => api.get('/slow-success/200'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+
+            // Helper method tests
+            expect((err as FetchError).isTimeout()).to.be.true;
+            expect((err as FetchError).isCancelled()).to.be.false;
+
+            api.destroy();
+        });
+
+        it('is false for manual abort', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: { maxAttempts: 1 },
+            });
+
+            const promise = api.get('/slow-success/500');
+            setTimeout(() => promise.abort(), 10);
+
+            const [, err] = await attempt(() => promise);
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.undefined;
+
+            // Helper method tests
+            expect((err as FetchError).isCancelled()).to.be.true;
+            expect((err as FetchError).isTimeout()).to.be.false;
+
+            api.destroy();
+        });
+
+        it('is true for attemptTimeout abort', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                attemptTimeout: 50,
+                retry: {
+                    maxAttempts: 1,
+                },
+            });
+
+            const [, err] = await attempt(() => api.get('/slow-success/200'));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+
+            // Helper method tests
+            expect((err as FetchError).isTimeout()).to.be.true;
+            expect((err as FetchError).isCancelled()).to.be.false;
+
+            api.destroy();
         });
     });
 

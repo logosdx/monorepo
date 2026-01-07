@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "build": "node ../../scripts/build.mjs",
+    "build": "zx ../../scripts/build.mjs",
     "lint": "pnpm tsc --noEmit --project tsconfig.json"
   },
   "files": [

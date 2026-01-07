@@ -126,10 +126,10 @@ describe('@logosdx/fetch: base', async () => {
 
         opts.validate.state = () => {};
         opts.timeout = 'not a number';
-        test(/timeout must be positive number/i);
+        test(/timeout must be non-negative integer/i);
 
         opts.timeout = -1;
-        test(/timeout must be positive number/i);
+        test(/timeout must be non-negative integer/i);
 
         opts.timeout = 1;
         opts.determineType = 'not a function';
@@ -1093,6 +1093,11 @@ describe('@logosdx/fetch: base', async () => {
 
         const [[errArgs]] = onError.args as [[FetchError]];
         expect(errArgs.status).to.equal(499);
+
+        // Helper method tests - manual abort
+        expect(errArgs.isCancelled()).to.be.true;
+        expect(errArgs.isTimeout()).to.be.false;
+        expect(errArgs.isConnectionLost()).to.be.false;
     });
 
     it('returns an abortable promise', async () => {
@@ -1168,6 +1173,10 @@ describe('@logosdx/fetch: base', async () => {
         expect(configWait.status).to.equal(499);
         expect(reqWait.status).to.equal(499);
 
+        // Helper method tests - timeout
+        expect(configWait.isTimeout()).to.be.true;
+        expect(configWait.isCancelled()).to.be.false;
+        expect(configWait.isConnectionLost()).to.be.false;
     });
 
     it('can make options', async () => {

@@ -74,12 +74,35 @@ type InternalReqOptions<H, P, S> = {
     // === Execution plumbing ===
     /** AbortSignal for request cancellation */
     signal: AbortSignal;
-    /** AbortController for cancelling the request */
+    /** AbortController for cancelling the request (parent controller for totalTimeout) */
     controller: AbortController;
     /** Serialized body for fetch() */
     body?: BodyInit | undefined;
-    /** Request timeout in ms */
+
+    /**
+     * @deprecated Use `totalTimeout` instead.
+     * Request timeout in ms (alias for totalTimeout)
+     */
     timeout?: number | undefined;
+
+    /**
+     * Total timeout for the entire request lifecycle in ms.
+     * Applies to all retry attempts combined.
+     */
+    totalTimeout?: number | undefined;
+
+    /**
+     * Per-attempt timeout in ms.
+     * Each retry gets a fresh timeout and controller.
+     */
+    attemptTimeout?: number | undefined;
+
+    /**
+     * Function to get whether totalTimeout has fired.
+     * Returns true if the parent timeout has fired.
+     */
+    getTotalTimeoutFired?: (() => boolean) | undefined;
+
     /** Retry configuration */
     retry?: RetryConfig | false | undefined;
     /** Custom response type determination */
@@ -1199,6 +1222,8 @@ export class FetchEngine<
             onBeforeReq: onBeforeRequest,
             onError,
             timeout = this.#options.timeout,
+            attemptTimeout,
+            getTotalTimeoutFired,
             params,
             attempt: attemptNum,
             signal,
@@ -1206,7 +1231,10 @@ export class FetchEngine<
             retry,
             headers: requestHeaders,
             ...rest
-        } = options;
+        } = options as typeof options & {
+            attemptTimeout?: number;
+            getTotalTimeoutFired?: () => boolean;
+        };
 
         const type = this.#type;
         const state = this.#state;
@@ -1299,6 +1327,8 @@ export class FetchEngine<
             controller,
             body,
             timeout: opts.timeout,
+            attemptTimeout,
+            getTotalTimeoutFired,
             retry: opts.retry === true ? {} : opts.retry,
             determineType: opts.determineType || this.#options.determineType,
 
@@ -1616,30 +1646,108 @@ export class FetchEngine<
 
         if (mergedRetry.maxAttempts === 0) {
 
-            return this.#makeCall<Res, ResHdr>(options);
+            const [result, err] = await attempt(
+                async () => this.#makeCall<Res, ResHdr>(options)
+            );
+
+            if (err) {
+
+                // Set timedOut flag if the abort was caused by totalTimeout
+                if ((err as FetchError).aborted && options.getTotalTimeoutFired?.()) {
+
+                    (err as FetchError).timedOut = true;
+                }
+
+                throw err;
+            }
+
+            return result;
         }
 
         let _attempt = 1;
+        let lastError: FetchError | undefined;
 
         while (_attempt <= mergedRetry.maxAttempts!) {
+
+            // Check if parent (totalTimeout) already aborted - stop retrying
+            if (options.controller.signal.aborted) {
+
+                const err = lastError ?? new FetchError('Request aborted by totalTimeout');
+                err.timedOut = options.getTotalTimeoutFired?.() ?? false;
+                throw err;
+            }
+
+            // Create child controller for this attempt if using attemptTimeout
+            let attemptController: AbortController;
+            let attemptTimeoutPromise: ReturnType<typeof wait> | undefined;
+            let attemptTimeoutFired = false;
+
+            if (options.attemptTimeout !== undefined) {
+
+                attemptController = new AbortController();
+
+                // Link child to parent - if parent aborts, child aborts
+                // Using { once: true } for auto-cleanup when listener fires
+                options.controller.signal.addEventListener('abort', () => {
+
+                    attemptTimeoutPromise?.clear();
+                    attemptController.abort();
+                }, { once: true });
+
+                // Set up per-attempt timeout
+                attemptTimeoutPromise = wait(options.attemptTimeout);
+                attemptTimeoutPromise.then(() => {
+
+                    attemptTimeoutFired = true;
+                    attemptController.abort();
+                });
+            }
+            else {
+
+                attemptController = options.controller;
+            }
 
             const [result, err] = await attempt(
                 async () => (
                     this.#makeCall<Res, ResHdr>({
                         ...options,
+                        controller: attemptController,
+                        signal: attemptController.signal,
                         attempt: _attempt
                     })
                 )
             );
 
+            // Always cleanup attempt timeout (success or failure)
+            attemptTimeoutPromise?.clear();
+
             if (err === null) {
+
                 return result;
             }
 
-            const fetchError = err as FetchError;
+            lastError = err as FetchError;
+
+            // Set timedOut flag only when a timeout actually fired
+            // (not for manual abort or server disconnect)
+            if (lastError.aborted) {
+
+                const totalTimeoutFired = options.getTotalTimeoutFired?.() ?? false;
+
+                if (attemptTimeoutFired || totalTimeoutFired) {
+
+                    lastError.timedOut = true;
+                }
+            }
+
+            // If parent controller aborted (totalTimeout), don't retry
+            if (options.controller.signal.aborted) {
+
+                throw lastError;
+            }
 
             // Check if we should retry
-            const shouldRetry = await mergedRetry.shouldRetry(fetchError, _attempt);
+            const shouldRetry = await mergedRetry.shouldRetry(lastError, _attempt);
 
             if (shouldRetry && _attempt < mergedRetry.maxAttempts!) {
 
@@ -1653,7 +1761,7 @@ export class FetchEngine<
 
                 this.emit('fetch-retry', {
                     ...options,
-                    error: fetchError,
+                    error: lastError,
                     attempt: _attempt,
                     nextAttempt: _attempt + 1,
                     delay
@@ -1661,11 +1769,23 @@ export class FetchEngine<
 
                 await wait(delay);
 
+                // Check if parent controller aborted during the delay
+                if (options.controller.signal.aborted) {
+
+                    // Update timedOut flag if totalTimeout fired during delay
+                    if (options.getTotalTimeoutFired?.()) {
+
+                        lastError.timedOut = true;
+                    }
+
+                    throw lastError;
+                }
+
                 _attempt++;
                 continue;
             }
 
-            throw fetchError;
+            throw lastError;
         }
 
         // This should never be reached - all paths should either return or throw
@@ -1810,16 +1930,42 @@ export class FetchEngine<
         }
 
         const controller = options.abortController ?? new AbortController();
-        const timeoutMs = options.timeout ?? this.#options.timeout;
 
-        if (typeof timeoutMs === 'number') {
+        // Resolve timeout options with fallback chain:
+        // Request-level totalTimeout/timeout → Instance-level totalTimeout/timeout
+        const opts = options as FetchEngine.CallOptions<H, P> & {
+            totalTimeout?: number;
+            attemptTimeout?: number;
+        };
+        const instanceOpts = this.#options as Partial<FetchEngine.RequestOpts> & {
+            totalTimeout?: number;
+            attemptTimeout?: number;
+        };
 
-            assert(timeoutMs >= 0, 'timeout must be non-negative number');
+        const totalTimeoutMs = opts.totalTimeout ?? opts.timeout ?? instanceOpts.totalTimeout ?? instanceOpts.timeout;
+        const attemptTimeoutMs = opts.attemptTimeout ?? instanceOpts.attemptTimeout;
+
+        if (typeof totalTimeoutMs === 'number') {
+
+            assert(totalTimeoutMs >= 0, 'totalTimeout must be non-negative number');
         }
 
-        const timeout = typeof timeoutMs === 'number' ? wait(timeoutMs) : undefined;
+        if (typeof attemptTimeoutMs === 'number') {
 
-        timeout?.then(() => controller.abort());
+            assert(attemptTimeoutMs >= 0, 'attemptTimeout must be non-negative number');
+        }
+
+        // Track if totalTimeout fires (for timedOut flag on errors)
+        let totalTimeoutFired = false;
+
+        // Set up totalTimeout on the parent controller
+        const totalTimeout = typeof totalTimeoutMs === 'number' ? wait(totalTimeoutMs) : undefined;
+
+        totalTimeout?.then(() => {
+
+            totalTimeoutFired = true;
+            controller.abort();
+        });
 
         // Abort this request when the instance is destroyed
         const instanceSignal = this.#instanceAbortController.signal;
@@ -1836,7 +1982,9 @@ export class FetchEngine<
             path,
             options,
             controller,
-            timeout
+            totalTimeout,
+            attemptTimeoutMs,
+            () => totalTimeoutFired
         );
 
         const call = this.#wrapAsAbortable<FetchResponse<Res, H, P, ResHdr>>(
@@ -1860,18 +2008,20 @@ export class FetchEngine<
         path: string,
         options: FetchEngine.CallOptions<H, P> & { payload?: unknown },
         controller: AbortController,
-        timeout: ReturnType<typeof wait> | undefined
+        totalTimeout: ReturnType<typeof wait> | undefined,
+        attemptTimeoutMs: number | undefined,
+        getTotalTimeoutFired: () => boolean
     ): Promise<FetchResponse<Res, H, P, ResHdr>> {
 
         const onAfterReq = (...args: any[]) => {
 
-            timeout?.clear();
+            totalTimeout?.clear();
             options.onAfterReq?.apply(this, args as never);
         };
 
         const onError = (...args: any[]) => {
 
-            timeout?.clear();
+            totalTimeout?.clear();
             options.onError?.apply(this, args as never);
         };
 
@@ -1883,8 +2033,10 @@ export class FetchEngine<
                 ...options,
                 onAfterReq,
                 onError,
-                controller
-            }
+                controller,
+                attemptTimeout: attemptTimeoutMs,
+                getTotalTimeoutFired
+            } as any
         );
 
         // === Rate Limit Check ===
@@ -1922,7 +2074,7 @@ export class FetchEngine<
                     // Reject immediately
                     this.emit('fetch-ratelimit-reject', rateLimitEventData as any);
 
-                    timeout?.clear();
+                    totalTimeout?.clear();
 
                     const err = new RateLimitError(
                         `Rate limit exceeded for ${rateLimitKey}. Try again in ${waitTimeMs}ms`,
@@ -1949,7 +2101,7 @@ export class FetchEngine<
                 if (!acquired) {
 
                     // Aborted while waiting
-                    timeout?.clear();
+                    totalTimeout?.clear();
 
                     const err = new FetchError('Request aborted while waiting for rate limit');
                     err.aborted = true;
@@ -2015,7 +2167,7 @@ export class FetchEngine<
                         expiresIn,
                     } as any);
 
-                    timeout?.clear();
+                    totalTimeout?.clear();
                     return cached.value as FetchResponse<Res, H, P, ResHdr>;
                 }
 
@@ -2028,7 +2180,7 @@ export class FetchEngine<
                 } as any);
 
                 this.#triggerBackgroundRevalidation(method, path, options, cacheKey, cacheConfig);
-                timeout?.clear();
+                totalTimeout?.clear();
 
                 return cached.value as FetchResponse<Res, H, P, ResHdr>;
             }
@@ -2062,7 +2214,7 @@ export class FetchEngine<
                 return this.#awaitWithIndependentTimeout(
                     inflight.promise as Promise<FetchResponse<Res, H, P, ResHdr>>,
                     controller,
-                    timeout,
+                    totalTimeout,
                     normalizedOpts.method,
                     path
                 );
@@ -2095,7 +2247,7 @@ export class FetchEngine<
 
         const [res, err] = await attempt(() => requestPromise);
 
-        timeout?.clear();
+        totalTimeout?.clear();
 
         if (err) {
 

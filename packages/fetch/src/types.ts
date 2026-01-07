@@ -340,7 +340,26 @@ export type MethodHeaders<T> = HttpMethodOpts<DictOrT<T>>;
  */
 export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
     baseUrl?: string;
+
+    /**
+     * @deprecated Use `totalTimeout` instead. This is an alias for `totalTimeout`.
+     */
     timeout?: number | undefined;
+
+    /**
+     * Total timeout for the entire request lifecycle in milliseconds.
+     * Applies to the complete operation including all retry attempts.
+     * If this fires, no more retries will be attempted.
+     */
+    totalTimeout?: number | undefined;
+
+    /**
+     * Per-attempt timeout in milliseconds.
+     * Each retry attempt gets a fresh timeout. If an attempt times out,
+     * it can still be retried (unlike totalTimeout which stops everything).
+     */
+    attemptTimeout?: number | undefined;
+
     headers?: H;
     params?: P;
     retry?: RetryConfig | false | undefined;
@@ -721,9 +740,23 @@ declare module './engine.ts' {
             params?: Params<P> | undefined,
 
             /**
-             * The headers of the request
+             * @deprecated Use `totalTimeout` instead. This is an alias for `totalTimeout`.
              */
-            timeout?: number | undefined
+            timeout?: number | undefined,
+
+            /**
+             * Total timeout for the entire request lifecycle in milliseconds.
+             * Applies to the complete operation including all retry attempts.
+             * If this fires, no more retries will be attempted.
+             */
+            totalTimeout?: number | undefined,
+
+            /**
+             * Per-attempt timeout in milliseconds.
+             * Each retry attempt gets a fresh timeout. If an attempt times out,
+             * it can still be retried (unlike totalTimeout which stops everything).
+             */
+            attemptTimeout?: number | undefined,
 
             /**
              * The type of response expected from the server

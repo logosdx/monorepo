@@ -18,7 +18,8 @@ const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     defaultType: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData',
     headers: { Authorization: 'Bearer token' },
-    timeout: 5000
+    totalTimeout: 5000,  // Total timeout for entire operation (including retries)
+    attemptTimeout: 2000 // Per-attempt timeout (allows retries on timeout)
 });
 
 // Error handling pattern
@@ -104,6 +105,10 @@ interface FetchEngine.Options<H, P, S> {
     baseUrl: string;
     defaultType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData';
 
+    // Timeout options
+    totalTimeout?: number;    // Total timeout for entire request lifecycle (ms)
+    attemptTimeout?: number;  // Per-attempt timeout (ms) - allows retries on timeout
+
     // Headers - global and method-specific
     headers?: Headers<H>;
     methodHeaders?: {
@@ -170,7 +175,8 @@ interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     status: number;
     method: HttpMethods;
     path: string;
-    aborted?: boolean;
+    aborted?: boolean;   // True if request was aborted (any cause)
+    timedOut?: boolean;  // True if aborted due to timeout (attemptTimeout or totalTimeout)
     attempt?: number;
     step?: 'fetch' | 'parse' | 'response';
     url?: string;
@@ -571,11 +577,93 @@ When deduplicating, each caller can have independent timeout/abort constraints:
 const promiseA = api.get('/slow', { timeout: 10000 });
 
 // Caller B: 2s timeout (joins A's request)
-const promiseB = api.get('/slow', { timeout: 2000 });
+const promiseB = api.get('/slow', { totalTimeout: 2000 });
 
 // After 2s, B times out → A continues waiting
 // Request completes at 5s → A gets the result, B already rejected
 ```
+
+## Timeout Options
+
+FetchEngine provides two timeout types that can be used independently or together:
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+
+    // totalTimeout: Caps entire operation including all retries
+    // When triggered, stops everything immediately
+    totalTimeout: 30000,  // 30s max for entire request lifecycle
+
+    // attemptTimeout: Per-attempt timeout (creates fresh controller per attempt)
+    // When triggered, that attempt fails but can be retried
+    attemptTimeout: 5000, // 5s per attempt
+
+    retry: {
+        maxAttempts: 3,
+        shouldRetry: (error) => error.status === 499 // Retry on timeout
+    }
+});
+
+// timeout is deprecated - use totalTimeout instead
+// timeout: 5000 is equivalent to totalTimeout: 5000
+```
+
+### How They Work Together
+
+```
+totalTimeout (parent controller)
+    │
+    ├── attempt 1: attemptTimeout (child controller 1) → times out → retry
+    ├── attempt 2: attemptTimeout (child controller 2) → times out → retry
+    └── attempt 3: attemptTimeout (child controller 3) → still running...
+                                                          │
+totalTimeout fires ─────────────────────────────────────────┘
+    → Immediately stops all attempts, no more retries
+```
+
+### Distinguishing Abort Causes
+
+FetchError provides helper methods to distinguish between different types of 499 errors:
+
+```typescript
+const [, err] = await attempt(() => api.get('/slow'));
+
+if (isFetchError(err)) {
+    if (err.isCancelled()) {
+        // Manual abort - user navigated away, component unmounted, etc.
+        // Don't show error, don't log
+        return;
+    }
+
+    if (err.isTimeout()) {
+        // Our timeout fired (attemptTimeout or totalTimeout)
+        toast.warn('Request timed out. Retrying...');
+    }
+    else if (err.isConnectionLost()) {
+        // Server dropped connection or network failed (NOT our abort)
+        toast.error('Connection lost. Check your internet.');
+    }
+}
+```
+
+**Helper Methods (all return `false` for non-499 errors):**
+
+| Method | Logic | Use Case |
+|--------|-------|----------|
+| `isCancelled()` | `status === 499 && aborted && !timedOut` | User/app intentionally cancelled |
+| `isTimeout()` | `status === 499 && timedOut` | Our timeout fired |
+| `isConnectionLost()` | `status === 499 && step === 'fetch' && !aborted` | Server/network dropped us |
+
+**Raw Property Reference:**
+
+| Scenario | `status` | `aborted` | `timedOut` | `step` |
+|----------|----------|-----------|------------|--------|
+| Manual abort (`promise.abort()`) | 499 | `true` | `undefined` | `'fetch'` |
+| `attemptTimeout` fires | 499 | `true` | `true` | `'fetch'` |
+| `totalTimeout` fires | 499 | `true` | `true` | `'fetch'` |
+| Server closed connection | 499 | `false` | `undefined` | `'fetch'` |
+| Network error | 499 | `false` | `undefined` | `'fetch'` |
 
 ## Advanced Features
 
