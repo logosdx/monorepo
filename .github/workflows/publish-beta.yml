@@ -1,0 +1,67 @@
+name: Publish Beta
+on:
+  push:
+    branches:
+      - "beta"
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: write
+  actions: write
+  issues: write
+  pull-requests: write
+
+
+jobs:
+  check-prerelease:
+    runs-on: ubuntu-latest
+    outputs:
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - name: Check if pre-release mode is enabled
+        id: check
+        run: |
+          if [ -f ".changeset/pre.json" ]; then
+            echo "Pre-release mode is enabled"
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "Pre-release mode is not enabled, skipping publish"
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+  publish:
+    needs: check-prerelease
+    if: needs.check-prerelease.outputs.is_prerelease == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm recursive run build
+
+      - name: Publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

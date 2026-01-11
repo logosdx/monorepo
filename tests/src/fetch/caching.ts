@@ -810,6 +810,72 @@ describe('@logosdx/fetch: caching', async () => {
         api.destroy();
     });
 
+    it('should support predicate function with invalidatePath', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            cachePolicy: true
+        });
+
+        await api.get('/json');
+        await api.get('/json1');
+        await api.get('/json2');
+
+        // Invalidate using custom predicate (useful for custom serializers)
+        const count = await api.invalidatePath((key) => {
+
+            return key.includes('/json1') || key.includes('/json2');
+        });
+
+        expect(count).to.equal(2);
+
+        const hitEvents: string[] = [];
+        api.on('fetch-cache-hit', (data) => hitEvents.push(data.path!));
+
+        // /json should still be cached
+        await api.get('/json');
+        expect(hitEvents).to.include('/json');
+
+        api.destroy();
+    });
+
+    it('should return 0 when predicate matches nothing', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            cachePolicy: true
+        });
+
+        await api.get('/json');
+        await api.get('/json1');
+
+        const count = await api.invalidatePath(() => false);
+
+        expect(count).to.equal(0);
+        expect(api.cacheStats().cacheSize).to.equal(2);
+
+        api.destroy();
+    });
+
+    it('should invalidate all when predicate always returns true', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            cachePolicy: true
+        });
+
+        await api.get('/json');
+        await api.get('/json1');
+        await api.get('/json2');
+
+        const count = await api.invalidatePath(() => true);
+
+        expect(count).to.equal(3);
+        expect(api.cacheStats().cacheSize).to.equal(0);
+
+        api.destroy();
+    });
+
      it('should return correct counts with cacheStats', async () => {
 
         const api = new FetchEngine({

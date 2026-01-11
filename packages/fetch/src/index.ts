@@ -25,6 +25,36 @@ export {
 } from './helpers.ts';
 
 export {
+    endpointSerializer,
+    requestSerializer
+} from './serializers/index.ts';
+
+export {
+    ResiliencePolicy,
+    DedupePolicy,
+    CachePolicy,
+    RateLimitPolicy
+} from './policies/index.ts';
+
+export type {
+    BasePolicyRule,
+    BasePolicyConfig,
+    PolicyInternalState,
+    CachePolicyState,
+    RateLimitPolicyState
+} from './policies/index.ts';
+
+export {
+    PropertyStore
+} from './property-store.ts';
+
+export type {
+    PropertyStoreOptions,
+    PropertyValidateFn,
+    MethodOverrides
+} from './property-store.ts';
+
+export {
     FetchEngine
 } from './engine.ts';
 

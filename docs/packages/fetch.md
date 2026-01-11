@@ -1323,6 +1323,12 @@ await api.invalidatePath('/users');
 // Invalidate by path pattern (RegExp)
 await api.invalidatePath(/^\/api\/v\d+\/users/);
 
+// Invalidate with custom predicate (for custom serializers)
+await api.invalidatePath((key) => {
+    // Full control over key matching - useful when using custom serializers
+    return key.includes('/users') && key.includes('Bearer');
+});
+
 // Get cache statistics
 const stats = api.cacheStats();
 console.log('Cache size:', stats.cacheSize);
@@ -1726,6 +1732,175 @@ Route matching runs on **every request**. Poorly written regular expressions can
 
 **Best practice:** Prefer string-based matchers (`startsWith`, `endsWith`, `includes`, `is`) over regex. They're faster and immune to ReDoS. Only use `match` when you need pattern complexity that strings can't express.
 :::
+
+## Request Serializers
+
+Serializers generate unique keys for identifying requests. These keys are used by deduplication, caching, and rate limiting to determine which requests should share state.
+
+### Built-in Serializers
+
+FetchEngine provides two built-in serializers, each optimized for different use cases:
+
+#### Request Serializer (Default for Cache & Dedupe)
+
+Generates keys based on full request identity: method, path, query string, payload, and stable headers.
+
+```typescript
+// Key format: method|path+query|payload|headers
+// Example: "GET|/users/123?page=1|undefined|{"accept":"application/json","authorization":"Bearer token"}"
+```
+
+**Stable Headers Only:** The request serializer only includes semantically meaningful headers that affect response content:
+
+| Included Headers | Purpose |
+|-----------------|---------|
+| `authorization` | Different users get different responses |
+| `accept` | Different response formats (JSON, XML, etc.) |
+| `accept-language` | Localized responses |
+| `content-type` | Format of request payload (for POST/PUT) |
+| `accept-encoding` | Response compression format |
+
+**Excluded Headers (Dynamic):**
+- `X-Timestamp`, `Date` - Change every request
+- `X-HMAC-Signature` - Computed per-request
+- `X-Request-Id`, `X-Correlation-Id` - Unique per-request
+- `Cache-Control`, `Pragma` - Control directives, not identity
+
+This prevents cache pollution from dynamic headers that would make every request unique.
+
+#### Endpoint Serializer (Default for Rate Limit)
+
+Generates keys based on endpoint identity only: method and pathname (excludes query string and payload).
+
+```typescript
+// Key format: method|pathname
+// Example: "GET|/users/123"
+```
+
+This groups all requests to the same endpoint together, ideal for rate limiting where you want to protect an endpoint from overload regardless of specific parameters.
+
+### Using Built-in Serializers
+
+```typescript
+import { endpointSerializer, requestSerializer } from '@logosdx/fetch';
+
+// Use endpoint serializer for cache (group by endpoint)
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: {
+        serializer: endpointSerializer,  // All /users/123?page=1 and /users/123?page=2 share cache
+        ttl: 60000
+    }
+});
+
+// Use request serializer for rate limiting (per unique request)
+const api2 = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: {
+        serializer: requestSerializer,  // Each unique request gets its own bucket
+        maxCalls: 100,
+        windowMs: 60000
+    }
+});
+```
+
+### Custom Serializers
+
+Create custom serializers when the built-ins don't match your needs:
+
+```typescript
+// User-scoped rate limiting
+const userSerializer = (ctx: RequestKeyOptions) => {
+    return `user:${ctx.state?.userId ?? 'anonymous'}|${ctx.method}|${ctx.url.pathname}`;
+};
+
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: {
+        serializer: userSerializer,  // Each user gets their own rate limit bucket
+        maxCalls: 100,
+        windowMs: 60000
+    }
+});
+
+// Tenant-scoped caching
+const tenantSerializer = (ctx: RequestKeyOptions) => {
+    const tenant = ctx.headers?.['X-Tenant-ID'] ?? 'default';
+    return `${tenant}|${ctx.method}|${ctx.url.pathname}${ctx.url.search}`;
+};
+
+const multiTenantApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: {
+        serializer: tenantSerializer,  // Each tenant has separate cache
+        ttl: 60000
+    }
+});
+
+// Ignore certain params for caching
+const ignoreTimestampSerializer = (ctx: RequestKeyOptions) => {
+    const url = new URL(ctx.url);
+    url.searchParams.delete('_t');  // Remove timestamp param
+    url.searchParams.delete('nocache');
+    return `${ctx.method}|${url.pathname}${url.search}`;
+};
+```
+
+### Serializer Signature
+
+```typescript
+type RequestSerializer<S = unknown, H = unknown, P = unknown> = (
+    ctx: RequestKeyOptions<S, H, P>
+) => string;
+
+interface RequestKeyOptions<S = unknown, H = unknown, P = unknown> {
+    method: string;           // HTTP method (uppercase)
+    path: string;             // Original path from request
+    url: URL;                 // Full URL object (includes pathname, search, etc.)
+    payload?: unknown;        // Request body (if any)
+    headers?: H;              // Request headers
+    params?: P;               // URL parameters
+    state?: S;                // Instance state
+}
+```
+
+### Per-Rule Serializers
+
+Override serializers for specific routes:
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: {
+        enabled: true,
+        ttl: 60000,
+        rules: [
+            // GraphQL: cache by operation name only
+            {
+                is: '/graphql',
+                serializer: (ctx) => `graphql:${ctx.payload?.operationName ?? 'unknown'}`
+            },
+
+            // Search: ignore pagination for cache
+            {
+                startsWith: '/search',
+                serializer: (ctx) => {
+                    const url = new URL(ctx.url);
+                    url.searchParams.delete('page');
+                    url.searchParams.delete('limit');
+                    return `search:${url.search}`;
+                }
+            },
+
+            // User profile: cache per user
+            {
+                match: /^\/users\/\d+$/,
+                serializer: (ctx) => `user:${ctx.url.pathname}`
+            }
+        ]
+    }
+});
+```
 
 ## Event System
 
@@ -2431,3 +2606,131 @@ if (isDev) {
     });
 }
 ```
+
+## Policy Architecture
+
+FetchEngine's resilience policies (deduplication, caching, rate limiting) share a common architecture that enables consistent behavior and efficient configuration resolution.
+
+### Three-Method Pattern
+
+All policies implement the same three-method pattern:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ResiliencePolicy                          │
+├─────────────────────────────────────────────────────────────┤
+│  init(config)     Parse config → Initialize state  (O(1))   │
+│  resolve(...)     Memoized lookup + dynamic checks (O(1)*)  │
+│  compute(...)     Rule matching (O(n) first time only)      │
+└─────────────────────────────────────────────────────────────┘
+      * O(1) amortized due to memoization
+```
+
+1. **`init`**: Called during FetchEngine construction. Parses configuration, validates rules, and sets up internal state.
+
+2. **`resolve`**: Called for every request. Returns the effective policy configuration by combining memoized rule matching with dynamic skip callbacks.
+
+3. **`compute`**: Called once per unique method+path combination. Performs O(n) rule matching and caches the result.
+
+### Configuration Resolution
+
+When a request is made, each policy resolves its configuration in order:
+
+```
+Request → Policy.resolve(method, path, context)
+                    │
+                    ├── Check memoized cache (O(1))
+                    │   └── Cache miss? → compute() → cache result
+                    │
+                    ├── Check dynamic skip callback
+                    │   └── Skip? → return null
+                    │
+                    └── Return merged rule (policy defaults + matched rule)
+```
+
+### Rule Matching Priority
+
+Rules are evaluated in declaration order. The first matching rule wins:
+
+```typescript
+rules: [
+    { is: '/users', ttl: 30000 },           // Checked first (exact match)
+    { startsWith: '/users', ttl: 60000 },   // Checked second
+    { match: /^\/users/, ttl: 120000 }      // Checked third
+]
+// Request to '/users' matches first rule (30s TTL)
+// Request to '/users/123' matches second rule (60s TTL)
+```
+
+### Policy Execution Order
+
+Policies are evaluated in a specific order during request processing:
+
+```
+Request
+    │
+    ├── 1. Rate Limit (guard) ─────────┐
+    │       └── Wait or reject         │
+    │                                  │
+    ├── 2. Cache Check ────────────────┤
+    │       └── Hit? Return cached     │
+    │                                  │
+    ├── 3. Dedupe Check ───────────────┤
+    │       └── In-flight? Join it     │
+    │                                  │
+    ├── 4. Network Request ────────────┤
+    │                                  │
+    ├── 5. Store Cache (on success) ───┤
+    │                                  │
+    └── Response ──────────────────────┘
+```
+
+**Key implications:**
+- Rate limiting runs **before** cache checks - cached responses don't consume rate limit tokens
+- Deduplication runs **after** cache checks - cache hits return immediately without dedupe
+- Only the request initiator consumes a rate limit token; joiners share the result
+
+### Memoization Strategy
+
+Rule matching results are cached by `method:path` key:
+
+```typescript
+// First request to GET /users/123
+resolve('GET', '/users/123', ctx)
+    → compute() runs, caches result
+    → rulesCache.set('GET:/users/123', resolvedRule)
+
+// Subsequent requests to same endpoint
+resolve('GET', '/users/123', ctx)
+    → rulesCache.get('GET:/users/123') // O(1) hit
+    → Check skip callback
+    → Return cached rule
+```
+
+This means:
+- First request to each endpoint: O(n) rule matching
+- Subsequent requests: O(1) cache lookup
+- Skip callbacks always run (they depend on request-specific context)
+
+### Policy State
+
+Each policy maintains its own internal state:
+
+```typescript
+interface PolicyInternalState {
+    enabled: boolean;                    // Global enable/disable
+    methods: Set<string>;                // Applicable HTTP methods
+    serializer: RequestSerializer;       // Key generation function
+    rulesCache: Map<string, Rule | null>; // Memoized rule lookups
+}
+```
+
+### Extending Policies
+
+While the built-in policies cover most use cases, the architecture is designed for extensibility. Each policy class extends `ResiliencePolicy` and implements:
+
+- `getDefaultSerializer()` - Returns the default key generation function
+- `getDefaultMethods()` - Returns which HTTP methods are enabled by default
+- `mergeRuleWithDefaults(rule)` - Merges matched rules with policy defaults
+
+This shared base ensures consistent configuration handling across all resilience features.
