@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/hooks",
-  "version": "0.0.1",
+  "version": "1.0.0-beta.0",
   "description": "A lightweight, type-safe hook system for extending function behavior",
   "exports": {
     ".": {
