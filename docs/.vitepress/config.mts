@@ -2,6 +2,7 @@ import { DefaultTheme, defineConfig } from 'vitepress'
 
 const packages: DefaultTheme.SidebarItem[] = [
   ['Observer', 'observer'],
+  ['Hooks', 'hooks'],
   ['Utils', 'utils'],
   ['Fetch', 'fetch'],
   ['Dom', 'dom'],

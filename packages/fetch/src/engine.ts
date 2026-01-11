@@ -6,8 +6,7 @@ import {
     wait,
     SingleFlight,
     Deferred,
-    RateLimitTokenBucket,
-    RateLimitError,
+    type Func,
 } from '@logosdx/utils';
 
 import { ObserverEngine } from '@logosdx/observer';
@@ -20,16 +19,7 @@ import {
     type RetryConfig,
     type FetchResponse,
     type FetchConfig,
-    type DeduplicationConfig,
-    type CacheConfig,
-    type RateLimitConfig,
-    type RequestKeyOptions,
-    type DeduplicationInternalState,
-    type DedupeRule,
-    type CacheInternalState,
     type CacheRule,
-    type RateLimitInternalState,
-    type RateLimitRule,
 } from './types.ts';
 
 import {
@@ -37,12 +27,12 @@ import {
     fetchTypes,
     validateOptions,
     DEFAULT_RETRY_CONFIG,
-    DEFAULT_INFLIGHT_METHODS,
-    validateMatchRules,
-    findMatchingRule,
-    defaultRequestSerializer,
-    defaultRateLimitSerializer,
 } from './helpers.ts';
+
+import { DedupePolicy } from './policies/dedupe.ts';
+import { CachePolicy } from './policies/cache.ts';
+import { RateLimitPolicy } from './policies/rate-limit.ts';
+import { PropertyStore, type MethodOverrides } from './property-store.ts';
 
 /**
  * Internal normalized request options - flat structure used throughout FetchEngine.
@@ -207,10 +197,8 @@ export class FetchEngine<
 
     #baseUrl: URL;
     #options: Partial<FetchEngine.RequestOpts>;
-    #headers: FetchEngine.Headers<H>;
-    #methodHeaders: MethodHeaders<H>;
-    #params: FetchEngine.Params<P>;
-    #methodParams: HttpMethodOpts<P>;
+    #headerStore: PropertyStore<FetchEngine.Headers<H>>;
+    #paramStore: PropertyStore<FetchEngine.Params<P>>;
     #type: FetchEngine.Type;
 
     #modifyOptions?: FetchEngine.Options<H, P, S>['modifyOptions'];
@@ -244,17 +232,31 @@ export class FetchEngine<
 
     #retry: Required<RetryConfig>;
 
-    // Deduplication
-    #flight = new SingleFlight<unknown>();
+    /**
+     * SingleFlight instance for deduplication and caching.
+     * @internal Used by policies
+     */
+    _flight = new SingleFlight<unknown>();
 
-    #dedupe: DeduplicationInternalState<S, H, P> | null = null;
+    // Policies - initialized with engine reference (dedupe and cache need it for _flight access)
+    #dedupePolicy = new DedupePolicy<S, H, P>(this);
+    #cachePolicy = new CachePolicy<S, H, P>(this);
+    #rateLimitPolicy = new RateLimitPolicy<S, H, P>();
 
-    // Caching
-    #cache: CacheInternalState<S, H, P> | null = null;
 
+    /**
+     * Get the internal policies used by the FetchEngine instance.
+     * For internal use and debugging only.
+     */
+    protected $policies() {
 
-    // Rate Limiting
-    #rateLimit: RateLimitInternalState<S, H, P> | null = null;
+        return {
+            dedupe: this.#dedupePolicy,
+            cache: this.#cachePolicy,
+            rateLimit: this.#rateLimitPolicy,
+            flight: this._flight
+        }
+    }
 
     get #destroyed() {
 
@@ -466,14 +468,32 @@ export class FetchEngine<
         } = opts;
 
         this.#options = rest;
-        this.#headers = opts.headers || {} as FetchEngine.Headers<H>;
-        this.#methodHeaders = Object.fromEntries(
+
+        // Initialize header store with defaults and method overrides
+        const normalizedMethodHeaders = Object.fromEntries(
             Object.keys(opts.methodHeaders || {}).map(
-                (method) => ([method.toUpperCase(), opts.methodHeaders![method as never]])
+                (method) => ([method.toLowerCase(), opts.methodHeaders![method as never]])
             )
-        );
-        this.#params = opts.params || {} as FetchEngine.Params<P>;
-        this.#methodParams = opts.methodParams || {} as HttpMethodOpts<P>;
+        ) as MethodHeaders<H>;
+
+        this.#headerStore = new PropertyStore<FetchEngine.Headers<H>>({
+            defaults: opts.headers || {} as FetchEngine.Headers<H>,
+            methodOverrides: normalizedMethodHeaders,
+            ...(validate?.headers && { validate: validate.headers })
+        });
+
+        // Initialize param store with defaults and method overrides
+        const normalizedMethodParams = Object.fromEntries(
+            Object.keys(opts.methodParams || {}).map(
+                (method) => ([method.toLowerCase(), opts.methodParams![method as never]])
+            )
+        ) as HttpMethodOpts<P>;
+
+        this.#paramStore = new PropertyStore<FetchEngine.Params<P>>({
+            defaults: opts.params || {} as FetchEngine.Params<P>,
+            methodOverrides: normalizedMethodParams as MethodOverrides<FetchEngine.Params<P>>,
+            ...(validate?.params && { validate: validate.params })
+        });
 
         this.#modifyOptions = modifyOptions;
         this.#modifyMethodOptions = modifyMethodOptions!;
@@ -482,570 +502,20 @@ export class FetchEngine<
         this.removeHeader = this.rmHeader.bind(this) as FetchEngine<H, P, S>['rmHeader'];
         this.removeParam = this.rmParams.bind(this) as FetchEngine<H, P, S>['rmParams'];
 
-        this.#validateHeaders(this.#headers);
-
-        // Initialize deduplication
-        this.#initDeduplication(opts.dedupePolicy);
-
-        // Initialize caching
-        this.#initCache(opts.cachePolicy);
-
-        // Initialize rate limiting
-        this.#initRateLimit(opts.rateLimitPolicy);
-    }
-
-
-    /**
-     * Initialize deduplication configuration.
-     *
-     * @param config - Deduplication config from options
-     */
-    #initDeduplication(config?: boolean | DeduplicationConfig<S, H, P>): void {
-
-        if (!config) return;
-
-        if (config === true) {
-
-            this.#dedupe = {
-                enabled: true,
-                methods: new Set(DEFAULT_INFLIGHT_METHODS),
-                config: {},
-                serializer: defaultRequestSerializer,
-                rulesCache: new Map()
-            }
-
-            return;
-        }
-
-        // Full config object
-        this.#dedupe = {
-            enabled: config.enabled !== false,
-            methods: new Set(config.methods ?? DEFAULT_INFLIGHT_METHODS),
-            config,
-            serializer: config.serializer ?? defaultRequestSerializer,
-            rulesCache: new Map()
-        }
-
-        // Validate rules if provided
-        if (config.rules) {
-
-            validateMatchRules(config.rules);
-        }
-    }
-
-
-    /**
-     * Initialize cache configuration.
-     *
-     * @param config - Cache config from options
-     */
-    #initCache(config?: boolean | CacheConfig<S, H, P>): void {
-
-        if (!config) return;
-
-        if (config === true) {
-
-            // Boolean true = enable with defaults
-            this.#cache = {
-                enabled: true,
-                methods: new Set(DEFAULT_INFLIGHT_METHODS),
-                config: {},
-                ttl: 60000,
-                staleIn: undefined,
-                serializer: defaultRequestSerializer,
-                rulesCache: new Map(),
-                activeKeys: new Set(),
-                revalidatingKeys: new Set()
-            }
-
-            return;
-        }
-
-        // Full config object
-
-        this.#cache = {
-            enabled: config.enabled !== false,
-            methods: new Set(config.methods ?? DEFAULT_INFLIGHT_METHODS),
-            config,
-            ttl: config.ttl ?? 60000,
-            staleIn: config.staleIn,
-            serializer: config.serializer ?? defaultRequestSerializer,
-            rulesCache: new Map(),
-            activeKeys: new Set(),
-            revalidatingKeys: new Set()
-        }
-
-        // Validate rules if provided
-        if (config.rules) {
-
-            validateMatchRules(config.rules);
-        }
+        // Initialize policies
+        this.#dedupePolicy.init(opts.dedupePolicy);
+        this.#rateLimitPolicy.init(opts.rateLimitPolicy);
+        this.#cachePolicy.init(opts.cachePolicy);
 
         // Initialize SingleFlight with adapter if provided
-        this.#flight = new SingleFlight<unknown>({
-            adapter: config.adapter,
-            defaultTtl: this.#cache.ttl,
-            defaultStaleIn: this.#cache.staleIn
-        });
-    }
+        if (opts.cachePolicy && opts.cachePolicy !== true) {
 
-
-    /**
-     * Default methods for rate limiting (all methods by default).
-     */
-    static #DEFAULT_RATELIMIT_METHODS: _InternalHttpMethods[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
-
-
-    /**
-     * Initialize rate limit configuration.
-     *
-     * @param config - Rate limit config from options
-     */
-    #initRateLimit(config?: boolean | RateLimitConfig<S, H, P>): void {
-
-        if (!config) return;
-
-        if (config === true) {
-
-            // Boolean true = enable with defaults
-            this.#rateLimit = {
-                enabled: true,
-                methods: new Set(FetchEngine.#DEFAULT_RATELIMIT_METHODS),
-                config: {},
-                maxCalls: 100,
-                windowMs: 60000,
-                waitForToken: true,
-                serializer: defaultRateLimitSerializer,
-                rulesCache: new Map(),
-                rateLimiters: new Map()
-            };
-            return;
+            this._flight = new SingleFlight<unknown>({
+                adapter: opts.cachePolicy.adapter,
+                defaultTtl: this.#cachePolicy.defaultTtl,
+                defaultStaleIn: this.#cachePolicy.defaultStaleIn
+            });
         }
-
-        // Full config object
-        this.#rateLimit = {
-            enabled: config.enabled !== false,
-            methods: new Set(config.methods ?? FetchEngine.#DEFAULT_RATELIMIT_METHODS),
-            config,
-            maxCalls: config.maxCalls ?? 100,
-            windowMs: config.windowMs ?? 60000,
-            waitForToken: config.waitForToken ?? true,
-            serializer: config.serializer ?? defaultRateLimitSerializer,
-            rulesCache: new Map(),
-            rateLimiters: new Map()
-        }
-
-        // Validate rules if provided
-        if (config.rules) {
-
-            validateMatchRules(config.rules);
-        }
-    }
-
-
-    /**
-     * Resolve rate limit configuration for a specific request.
-     *
-     * Uses memoization for rule matching (O(n) only once per method+path).
-     * The shouldRateLimit callback is always evaluated since it depends on request context.
-     *
-     * @returns Object with config or null if disabled
-     */
-    #resolveRateLimitConfig(
-        method: string,
-        path: string,
-        keyContext: RequestKeyOptions<S, H, P>
-    ): RateLimitRule<S, H, P> | null {
-
-        // If globally disabled AND no rules defined, skip everything
-        // But if rules are defined, allow them to enable rate limiting for specific routes
-        if (
-            !this.#rateLimit ||
-            (
-
-                !this.#rateLimit?.enabled &&
-                !this.#rateLimit?.config?.rules?.length
-            )
-        ) {
-
-            return null;
-        }
-
-        const upperMethod = method.toUpperCase();
-        const cacheKey = `${upperMethod}:${path}`;
-
-        // Check cache for rule resolution
-        let cached = this.#rateLimit.rulesCache.get(cacheKey);
-
-        if (cached === undefined) {
-
-            // Not in cache - compute and store
-            cached = this.#computeRateLimitRuleConfig(upperMethod, path);
-            this.#rateLimit.rulesCache.set(cacheKey, cached);
-        }
-
-        // If rule resolution returned null, rate limiting is disabled for this route
-        if (cached === null) return null;
-
-        // Apply dynamic shouldRateLimit check (not cached)
-        if (
-            this.#rateLimit.config?.shouldRateLimit &&
-            this.#rateLimit.config.shouldRateLimit(keyContext) === false
-        ) {
-
-            return null;
-        }
-
-        return cached;
-    }
-
-
-    /**
-     * Compute rate limit rule configuration for a method+path combination.
-     * This is the expensive O(n) operation that gets memoized.
-     */
-    #computeRateLimitRuleConfig(
-        method: string,
-        path: string
-    ): RateLimitRule<S, H, P> | null {
-
-        if (!this.#rateLimit) return null;
-
-        // When globally disabled, start with enabled=false
-        // Rules with explicit enabled:true can still enable rate limiting
-        let enabled = this.#rateLimit.enabled && this.#rateLimit.methods.has(method);
-        let serializer = this.#rateLimit.serializer;
-        let maxCalls = this.#rateLimit.maxCalls;
-        let windowMs = this.#rateLimit.windowMs;
-        let waitForToken = this.#rateLimit.waitForToken;
-
-        // Check for matching rule
-        if (this.#rateLimit.config?.rules?.length) {
-
-            const rule = findMatchingRule(
-                this.#rateLimit.config.rules,
-                method,
-                path,
-                [...this.#rateLimit.methods] as _InternalHttpMethods[]
-            );
-
-            if (rule) {
-
-                // Rule can disable for this route
-                if (rule.enabled === false) {
-
-                    return null;
-                }
-
-                // Rule can override methods
-                if (rule.methods) {
-
-                    enabled = rule.methods.includes(method as _InternalHttpMethods);
-                }
-                else {
-
-                    // Rule matched by path, so it's enabled for this method
-                    enabled = true;
-                }
-
-                // Rule can override serializer
-                if (rule.serializer) {
-
-                    serializer = rule.serializer;
-                }
-
-                // Rule can override maxCalls
-                if (rule.maxCalls !== undefined) {
-
-                    maxCalls = rule.maxCalls;
-                }
-
-                // Rule can override windowMs
-                if (rule.windowMs !== undefined) {
-
-                    windowMs = rule.windowMs;
-                }
-
-                // Rule can override waitForToken
-                if (rule.waitForToken !== undefined) {
-
-                    waitForToken = rule.waitForToken;
-                }
-            }
-        }
-
-        if (!enabled) {
-
-            return null;
-        }
-
-        return {
-            enabled: true,
-            serializer,
-            maxCalls,
-            windowMs,
-            waitForToken
-        };
-    }
-
-
-    /**
-     * Get or create a rate limiter for the given key.
-     *
-     * Rate limiters are cached by key to ensure all requests to the same
-     * endpoint share the same token bucket.
-     */
-    #getRateLimiter(key: string, maxCalls: number, windowMs: number): RateLimitTokenBucket {
-
-        if (!this.#rateLimit) throw new Error('Rate limiting not initialized');
-
-        let bucket = this.#rateLimit.rateLimiters.get(key);
-
-        if (!bucket) {
-
-            // Token bucket needs: capacity and time per token
-            // If maxCalls=100 and windowMs=60000, we want 100 requests per minute
-            // So refillIntervalMs = windowMs / maxCalls = 600ms per token
-            const refillIntervalMs = windowMs / maxCalls;
-            bucket = new RateLimitTokenBucket({ capacity: maxCalls, refillIntervalMs });
-
-            this.#rateLimit.rateLimiters.set(key, bucket);
-        }
-
-        return bucket;
-    }
-
-
-    /**
-     * Resolve cache configuration for a specific request.
-     *
-     * Uses memoization for rule matching (O(n) only once per method+path).
-     * The skip callback is always evaluated since it depends on request context.
-     *
-     * @returns Object with config or null if disabled
-     */
-    #resolveCacheConfig(
-        method: string,
-        path: string,
-        keyContext: RequestKeyOptions<S, H, P>
-    ): CacheRule<S, H, P> | null {
-
-        if (!this.#cache) return null;
-
-        // If globally disabled AND no rules defined, skip everything
-        // But if rules are defined, allow them to enable caching for specific routes
-        if (
-            !this.#cache.enabled &&
-            !this.#cache.config?.rules?.length
-        ) {
-
-            return null;
-        }
-
-        const upperMethod = method.toUpperCase();
-        const cacheKey = `${upperMethod}:${path}`;
-
-        // Check cache for rule resolution
-        let cached = this.#cache.rulesCache.get(cacheKey);
-
-        if (cached === undefined) {
-
-            // Not in cache - compute and store
-            cached = this.#computeCacheRuleConfig(upperMethod, path);
-            this.#cache.rulesCache.set(cacheKey, cached);
-        }
-
-        // If rule resolution returned null, caching is disabled for this route
-        if (cached === null) return null;
-
-        // Apply dynamic skip check (not cached)
-        if (
-            this.#cache.config?.skip &&
-            this.#cache.config.skip(keyContext) === true
-        ) {
-
-            return null;
-        }
-
-        return cached;
-    }
-
-
-    /**
-     * Compute cache rule configuration for a method+path combination.
-     * This is the expensive O(n) operation that gets memoized.
-     */
-    #computeCacheRuleConfig(
-        method: string,
-        path: string
-    ): CacheRule<S, H, P> | null {
-
-        if (!this.#cache) return null;
-
-        // When globally disabled, start with enabled=false
-        // Rules with explicit enabled:true can still enable caching
-        let enabled = this.#cache.enabled && this.#cache.methods.has(method);
-        let serializer = this.#cache.serializer;
-        let ttl = this.#cache.ttl;
-        let staleIn = this.#cache.staleIn;
-
-        // Check for matching rule
-        if (this.#cache.config?.rules?.length) {
-
-            const rule = findMatchingRule(
-                this.#cache.config.rules,
-                method,
-                path,
-                [...this.#cache.methods] as _InternalHttpMethods[]
-            );
-
-            if (rule) {
-
-                // Rule can disable for this route
-                if (rule.enabled === false) {
-
-                    return null;
-                }
-
-                // Rule can override methods
-                if (rule.methods) {
-
-                    enabled = rule.methods.includes(method as _InternalHttpMethods);
-                }
-                else {
-
-                    // Rule matched by path, so it's enabled for this method
-                    enabled = true;
-                }
-
-                // Rule can override serializer
-                if (rule.serializer) {
-
-                    serializer = rule.serializer;
-                }
-
-                // Rule can override TTL
-                if (rule.ttl !== undefined) {
-
-                    ttl = rule.ttl;
-                }
-
-                // Rule can override staleIn
-                if (rule.staleIn !== undefined) {
-
-                    staleIn = rule.staleIn;
-                }
-            }
-        }
-
-        if (!enabled) {
-
-            return null;
-        }
-
-        return { enabled: true, serializer, ttl, staleIn };
-    }
-
-
-    /**
-     * Resolve deduplication configuration for a specific request.
-     *
-     * Uses memoization for rule matching (O(n) only once per method+path).
-     * The shouldDedupe callback is always evaluated since it depends on request context.
-     *
-     * @returns Object with `enabled` flag and `serializer` to use, or null if disabled
-     */
-    #resolveDedupeConfig(
-        method: string,
-        path: string,
-        keyContext: RequestKeyOptions<S, H, P>
-    ): DedupeRule<S, H, P> | null {
-
-        if (!this.#dedupe) return null;
-
-        // If globally disabled AND no rules defined, skip everything
-        // But if rules are defined, allow them to enable deduplication for specific routes
-        if (!this.#dedupe.enabled && !this.#dedupe.config?.rules?.length) {
-
-            return null;
-        }
-
-        const upperMethod = method.toUpperCase();
-        const cacheKey = `${upperMethod}:${path}`;
-
-        // Check cache for rule resolution
-        let cached = this.#dedupe.rulesCache.get(cacheKey);
-
-        if (cached === undefined) {
-
-            // Not in cache - compute and store
-            cached = this.#computeDedupeRuleConfig(upperMethod, path);
-            this.#dedupe.rulesCache.set(cacheKey, cached);
-        }
-
-        // If rule resolution returned null, deduplication is disabled for this route
-        if (cached === null) return null;
-
-        // Apply dynamic shouldDedupe check (not cached)
-        if (
-            this.#dedupe.config?.shouldDedupe &&
-            this.#dedupe.config.shouldDedupe(keyContext) === false
-        ) {
-
-            return null;
-        }
-
-        return cached;
-    }
-
-
-    /**
-     * Compute deduplication rule configuration for a method+path combination.
-     * This is the expensive O(n) operation that gets memoized.
-     */
-    #computeDedupeRuleConfig(
-        method: string,
-        path: string
-    ): DedupeRule<S, H, P> | null {
-
-        if (!this.#dedupe) return null;
-
-        // When globally disabled, start with enabled=false
-        // Rules with explicit enabled:true can still enable deduplication
-        let enabled = this.#dedupe.enabled && this.#dedupe.methods.has(method);
-        let serializer = this.#dedupe.serializer;
-
-        // Check for matching rule
-        if (this.#dedupe.config?.rules?.length) {
-            const rule = findMatchingRule(
-                this.#dedupe.config.rules,
-                method,
-                path,
-                [...this.#dedupe.methods] as _InternalHttpMethods[]
-            );
-
-            if (rule) {
-
-                // Rule can disable for this route
-                if (rule.enabled === false) return null;
-
-                // Rule can be overridden by methods
-                enabled = rule.methods?.includes(method as _InternalHttpMethods) ?? true;
-
-                // Rule can override serializer
-                if (rule.serializer) {
-
-                    serializer = rule.serializer;
-                }
-            }
-        }
-
-        if (!enabled) return null;
-
-        return {
-            enabled: true,
-            serializer
-        };
     }
 
 
@@ -1103,15 +573,7 @@ export class FetchEngine<
      */
     #makeHeaders(override: FetchEngine.Headers<H> = {}, method?: HttpMethods) {
 
-        const methodHeaders = this.#methodHeaders;
-
-        const key = method?.toUpperCase() as keyof typeof methodHeaders;
-
-        return {
-            ...this.#headers,
-            ...(methodHeaders[key] || {}),
-            ...override
-        };
+        return this.#headerStore.resolve(method || 'GET', override);
     }
 
     /**
@@ -1134,15 +596,7 @@ export class FetchEngine<
      */
     #makeParams(override: FetchEngine.Params<P> = {}, method?: HttpMethods) {
 
-        const methodParams = this.#methodParams;
-
-        const key = method?.toUpperCase() as keyof typeof methodParams;
-
-        return {
-            ...(this.#params || {}),
-            ...(methodParams[key] || {}),
-            ...override
-        };
+        return this.#paramStore.resolve(method || 'GET', override);
     }
 
     /**
@@ -1798,37 +1252,14 @@ export class FetchEngine<
      */
     get headers() {
 
-        const method = Object.keys(this.#methodHeaders).reduce(
-            (acc, k) => {
-
-                const key = k as _InternalHttpMethods;
-                const methodHeaders = this.#methodHeaders;
-
-                const headers = this.#methodHeaders[k as keyof typeof methodHeaders];
-
-                if (headers) {
-
-                    acc[key] = { ...headers };
-                }
-
-                return acc;
-            },
-            {} as MethodHeaders<H>
-        );
-
-        return {
-            default: {
-                ...this.#headers
-            },
-            ...method
-        } as {
+        return this.#headerStore.all as {
             readonly default: Readonly<FetchEngine.Headers<H>>,
-            readonly get?: Readonly<FetchEngine.Headers<H>>,
-            readonly post?: Readonly<FetchEngine.Headers<H>>,
-            readonly put?: Readonly<FetchEngine.Headers<H>>,
-            readonly delete?: Readonly<FetchEngine.Headers<H>>,
-            readonly options?: Readonly<FetchEngine.Headers<H>>,
-            readonly patch?: Readonly<FetchEngine.Headers<H>>,
+            readonly GET?: Readonly<FetchEngine.Headers<H>>,
+            readonly POST?: Readonly<FetchEngine.Headers<H>>,
+            readonly PUT?: Readonly<FetchEngine.Headers<H>>,
+            readonly DELETE?: Readonly<FetchEngine.Headers<H>>,
+            readonly OPTIONS?: Readonly<FetchEngine.Headers<H>>,
+            readonly PATCH?: Readonly<FetchEngine.Headers<H>>,
         }
     }
 
@@ -1838,37 +1269,14 @@ export class FetchEngine<
      */
     get params() {
 
-        const method = Object.keys(this.#methodParams).reduce(
-            (acc, k) => {
-
-                const key = k as _InternalHttpMethods;
-                const methodParams = this.#methodParams;
-
-                const params = this.#methodParams[k as keyof typeof methodParams];
-
-                if (params) {
-
-                    acc[key] = { ...params };
-                }
-
-                return acc;
-            },
-            {} as HttpMethodOpts<P>
-        );
-
-        return {
-            default: {
-                ...this.#params
-            },
-            ...method
-        } as {
+        return this.#paramStore.all as {
             readonly default: Readonly<FetchEngine.Params<P>>,
-            readonly get?: Readonly<FetchEngine.Params<P>>,
-            readonly post?: Readonly<FetchEngine.Params<P>>,
-            readonly put?: Readonly<FetchEngine.Params<P>>,
-            readonly delete?: Readonly<FetchEngine.Params<P>>,
-            readonly options?: Readonly<FetchEngine.Params<P>>,
-            readonly patch?: Readonly<FetchEngine.Params<P>>,
+            readonly GET?: Readonly<FetchEngine.Params<P>>,
+            readonly POST?: Readonly<FetchEngine.Params<P>>,
+            readonly PUT?: Readonly<FetchEngine.Params<P>>,
+            readonly DELETE?: Readonly<FetchEngine.Params<P>>,
+            readonly OPTIONS?: Readonly<FetchEngine.Params<P>>,
+            readonly PATCH?: Readonly<FetchEngine.Params<P>>,
         }
     }
 
@@ -2042,188 +1450,66 @@ export class FetchEngine<
         // === Rate Limit Check ===
         // Rate limiting MUST come first - before any network activity or cache lookups
         // that might trigger background revalidation
-        const rateLimitConfig = this.#resolveRateLimitConfig(method, path, normalizedOpts);
+        await this.#rateLimitPolicy.executeGuard({
+            method,
+            path,
+            normalizedOpts,
+            controller,
+            emit: (event, data) => this.emit(event as any, data as any),
+            clearTimeout: () => totalTimeout?.clear(),
+            createAbortError: (message) => {
 
-        if (rateLimitConfig !== null) {
-
-            const rateLimitKey = rateLimitConfig.serializer!(normalizedOpts);
-            const bucket = this.#getRateLimiter(
-                rateLimitKey,
-                rateLimitConfig.maxCalls!,
-                rateLimitConfig.windowMs!
-            );
-
-            const snapshot = bucket.snapshot;
-            const waitTimeMs = bucket.getWaitTimeMs(1);
-
-            // Build event data once for reuse
-            const rateLimitEventData = {
-                ...normalizedOpts,
-                key: rateLimitKey,
-                currentTokens: snapshot.currentTokens,
-                capacity: snapshot.capacity,
-                waitTimeMs,
-                nextAvailable: bucket.getNextAvailable(1),
-            };
-
-            if (waitTimeMs > 0) {
-
-                // Rate limit exceeded - need to wait or reject
-                if (!rateLimitConfig.waitForToken) {
-
-                    // Reject immediately
-                    this.emit('fetch-ratelimit-reject', rateLimitEventData as any);
-
-                    totalTimeout?.clear();
-
-                    const err = new RateLimitError(
-                        `Rate limit exceeded for ${rateLimitKey}. Try again in ${waitTimeMs}ms`,
-                        rateLimitConfig.maxCalls!
-                    );
-
-                    throw err;
-                }
-
-                // Wait for token
-                this.emit('fetch-ratelimit-wait', rateLimitEventData as any);
-
-                // Call the onRateLimit callback if configured
-                if (this.#rateLimit!.config?.onRateLimit) {
-
-                    await this.#rateLimit!.config.onRateLimit(normalizedOpts, waitTimeMs);
-                }
-
-                // Wait and consume atomically, respecting abort signal
-                const acquired = await bucket.waitAndConsume(1, {
-                    abortController: controller,
-                });
-
-                if (!acquired) {
-
-                    // Aborted while waiting
-                    totalTimeout?.clear();
-
-                    const err = new FetchError('Request aborted while waiting for rate limit');
-                    err.aborted = true;
-                    err.method = method as HttpMethods;
-                    err.path = path;
-                    err.status = 0;
-                    err.step = 'fetch';
-
-                    throw err;
-                }
-
-                // Token acquired after waiting
-                const postWaitSnapshot = bucket.snapshot;
-
-                this.emit('fetch-ratelimit-acquire', {
-                    ...normalizedOpts,
-                    key: rateLimitKey,
-                    currentTokens: postWaitSnapshot.currentTokens,
-                    capacity: postWaitSnapshot.capacity,
-                    waitTimeMs: 0,
-                    nextAvailable: bucket.getNextAvailable(1),
-                } as any);
+                const err = new FetchError(message);
+                err.aborted = true;
+                err.method = normalizedOpts.method;
+                err.path = path;
+                err.status = 0;
+                err.step = 'fetch';
+                return err;
             }
-            else {
-
-                // Token available immediately - consume it
-                bucket.consume(1);
-
-                // Get post-consumption snapshot for event data
-                const postConsumeSnapshot = bucket.snapshot;
-
-                this.emit('fetch-ratelimit-acquire', {
-                    ...normalizedOpts,
-                    key: rateLimitKey,
-                    currentTokens: postConsumeSnapshot.currentTokens,
-                    capacity: postConsumeSnapshot.capacity,
-                    waitTimeMs: 0,
-                    nextAvailable: bucket.getNextAvailable(1),
-                } as any);
-            }
-        }
+        });
 
         // === Cache Check ===
-        // normalizedOpts satisfies RequestKeyOptions - use it directly
-        const cacheConfig = this.#resolveCacheConfig(method, path, normalizedOpts);
+        const cacheResult = await this.#cachePolicy.checkCache<FetchResponse<Res, H, P, ResHdr>>({
+            method,
+            path,
+            normalizedOpts,
+            options,
+            clearTimeout: () => totalTimeout?.clear()
+        });
+
         let cacheKey: string | null = null;
+        let cacheConfig: CacheRule<S, H, P> | null = null;
 
-        if (cacheConfig) {
+        if (cacheResult?.hit) {
 
-            cacheKey = cacheConfig.serializer!(normalizedOpts);
-            const cached = await this.#flight.getCache(cacheKey);
+            return cacheResult.value;
+        }
 
-            if (cached) {
+        if (cacheResult && !cacheResult.hit) {
 
-                const expiresIn = cached.expiresAt - Date.now();
-
-                if (!cached.isStale) {
-
-                    this.emit('fetch-cache-hit', {
-                        ...normalizedOpts,
-                        key: cacheKey,
-                        isStale: false,
-                        expiresIn,
-                    } as any);
-
-                    totalTimeout?.clear();
-                    return cached.value as FetchResponse<Res, H, P, ResHdr>;
-                }
-
-                // Stale - return immediately + background revalidation
-                this.emit('fetch-cache-stale', {
-                    ...normalizedOpts,
-                    key: cacheKey,
-                    isStale: true,
-                    expiresIn,
-                } as any);
-
-                this.#triggerBackgroundRevalidation(method, path, options, cacheKey, cacheConfig);
-                totalTimeout?.clear();
-
-                return cached.value as FetchResponse<Res, H, P, ResHdr>;
-            }
-
-            this.emit('fetch-cache-miss', {
-                ...normalizedOpts,
-                key: cacheKey,
-            } as any);
+            cacheKey = cacheResult.key;
+            cacheConfig = cacheResult.config;
         }
 
         // === Deduplication Check ===
-        const dedupeConfig = this.#resolveDedupeConfig(method, path, normalizedOpts);
+        const dedupeResult = this.#dedupePolicy.checkInflight<FetchResponse<Res, H, P, ResHdr>>({
+            method,
+            path,
+            normalizedOpts
+        });
+
         let dedupeKey: string | null = null;
         let cleanup: (() => void) | null = null;
 
-        if (dedupeConfig) {
+        if (dedupeResult?.joined) {
 
-            dedupeKey = dedupeConfig.serializer!(normalizedOpts);
-            const inflight = this.#flight.getInflight(dedupeKey);
+            return this.#awaitWithIndependentTimeout(dedupeResult.promise, controller, totalTimeout, normalizedOpts.method, path);
+        }
 
-            if (inflight) {
+        if (dedupeResult && !dedupeResult.joined) {
 
-                const waitingCount = this.#flight.joinInflight(dedupeKey);
-
-                this.emit('fetch-dedupe-join', {
-                    ...normalizedOpts,
-                    key: dedupeKey,
-                    waitingCount,
-                } as any);
-
-                return this.#awaitWithIndependentTimeout(
-                    inflight.promise as Promise<FetchResponse<Res, H, P, ResHdr>>,
-                    controller,
-                    totalTimeout,
-                    normalizedOpts.method,
-                    path
-                );
-            }
-
-            this.emit('fetch-dedupe-start', {
-                ...normalizedOpts,
-                key: dedupeKey,
-            } as any);
+            dedupeKey = dedupeResult.key;
         }
 
         // === Execute Request ===
@@ -2240,7 +1526,7 @@ export class FetchEngine<
             // when the promise is rejected but no one is listening (no joiners)
             deferred.promise.catch(() => { /* handled by the request flow */ });
 
-            cleanup = this.#flight.trackInflight(dedupeKey, deferred.promise);
+            cleanup = this._flight.trackInflight(dedupeKey, deferred.promise);
         }
 
         const requestPromise = this.#attemptCall<Res, ResHdr>(normalizedOpts);
@@ -2261,12 +1547,12 @@ export class FetchEngine<
 
         if (cacheKey && cacheConfig) {
 
-            await this.#flight.setCache(cacheKey, res, {
+            await this._flight.setCache(cacheKey, res, {
                 ttl: cacheConfig.ttl,
                 staleIn: cacheConfig.staleIn
             });
 
-            this.#cache?.activeKeys.add(cacheKey);
+            this.#cachePolicy.markActive(cacheKey);
 
             this.emit('fetch-cache-set', {
                 ...normalizedOpts,
@@ -2334,8 +1620,10 @@ export class FetchEngine<
     /**
      * Triggers a background revalidation for stale-while-revalidate.
      * Fire and forget - errors are emitted as events, not propagated.
+     *
+     * @internal Used by CachePolicy
      */
-    async #triggerBackgroundRevalidation<Res, ResHdr>(
+    async _triggerBackgroundRevalidation<Res, ResHdr>(
         method: HttpMethods,
         path: string,
         options: FetchEngine.CallOptions<H, P> & { payload?: unknown },
@@ -2344,12 +1632,12 @@ export class FetchEngine<
     ): Promise<void> {
 
         // Prevent multiple concurrent revalidations for the same key
-        if (this.#cache?.revalidatingKeys.has(cacheKey)) {
+        if (this.#cachePolicy.isRevalidating(cacheKey)) {
 
             return;
         }
 
-        this.#cache?.revalidatingKeys.add(cacheKey);
+        this.#cachePolicy.markRevalidating(cacheKey);
 
         // Build normalized options for the background request
         const controller = new AbortController();
@@ -2367,7 +1655,7 @@ export class FetchEngine<
             this.#attemptCall<Res, ResHdr>(normalizedOpts)
         );
 
-        this.#cache?.revalidatingKeys.delete(cacheKey);
+        this.#cachePolicy.unmarkRevalidating(cacheKey);
 
         if (fetchErr) {
 
@@ -2382,7 +1670,7 @@ export class FetchEngine<
 
         const [, cacheErr] = await attempt(() => (
 
-            this.#flight.setCache(cacheKey, res, {
+            this._flight.setCache(cacheKey, res, {
                 ttl: cacheConfig.ttl,
                 staleIn: cacheConfig.staleIn
             })
@@ -2399,7 +1687,7 @@ export class FetchEngine<
             return;
         }
 
-        this.#cache?.activeKeys.add(cacheKey);
+        this.#cachePolicy.markActive(cacheKey);
 
         this.emit('fetch-cache-set', {
             ...normalizedOpts,
@@ -2637,66 +1925,25 @@ export class FetchEngine<
             'addHeader requires a string method'
         );
 
-        const isString = typeof headers === 'string';
-
-        if (isString) {
+        if (typeof headers === 'string') {
 
             assert(
                 typeof value !== 'undefined',
                 'addHeader requires a value when setting a single property'
             );
+
+            this.#headerStore.set(headers, value, method);
         }
         else {
 
-            method = method || value as _InternalHttpMethods;
+            // When headers is an object, value might be the method
+            const actualMethod = method || value as _InternalHttpMethods;
+            this.#headerStore.set(headers as Partial<FetchEngine.Headers<H>>, actualMethod);
         }
 
-        let updated = {
-            ...this.#headers
-        } as FetchEngine.Headers<H>;
-
-        if (method) {
-
-            if (this.#methodHeaders[method]) {
-                updated = {
-                    ...this.#methodHeaders[method]
-                } as FetchEngine.Headers<H>;
-            }
-            else {
-                this.#methodHeaders[method] = {};
-            }
-        }
-
-        if (typeof headers === 'string') {
-
-            updated[
-                headers as keyof FetchEngine.Headers<H>
-            ] = value as never;
-        }
-        else {
-
-            Object
-                .keys(headers)
-                .forEach(
-                    (name) => {
-
-                        const key = name as keyof FetchEngine.Headers<H>;
-
-                        updated[key] = headers[key as never]
-                    }
-                );
-        }
-
-        this.#validateHeaders(updated);
-
-        if (method) {
-
-            this.#methodHeaders[method] = updated;
-        }
-        else {
-
-            this.#headers = updated;
-        }
+        const updated = method
+            ? this.#headerStore.forMethod(method)
+            : this.#headerStore.defaults;
 
         this.emit('fetch-header-add', {
             state: this.#state,
@@ -2745,46 +1992,24 @@ export class FetchEngine<
             return;
         }
 
-        let updated = { ...this.#headers };
-
-        if (method) {
-
-            if (this.#methodHeaders[method]) {
-                updated = {
-                    ...this.#methodHeaders[method]
-                } as FetchEngine.Headers<H>;
-            }
-            else {
-                this.#methodHeaders[method] = {};
-            }
-        }
+        // Normalize to array of keys
+        let keys: string[];
 
         if (typeof headers === 'string') {
-
-            delete updated[headers];
+            keys = [headers];
         }
-
-        let _names = headers as (keyof FetchEngine.Headers<H>)[];
-
-        if (!Array.isArray(headers)) {
-
-            _names = Object.keys(headers);
-        }
-
-        for (const name of _names) {
-            delete updated[name];
-        }
-
-        this.#validateHeaders(updated);
-
-        if (method) {
-
-            this.#methodHeaders[method] = updated;
+        else if (Array.isArray(headers)) {
+            keys = headers as string[];
         }
         else {
-
-            this.#headers = updated;
+            keys = Object.keys(headers as object);
         }
+
+        this.#headerStore.remove(keys, method);
+
+        const updated = method
+            ? this.#headerStore.forMethod(method)
+            : this.#headerStore.defaults;
 
         this.emit('fetch-header-remove', {
             state: this.#state,
@@ -2821,12 +2046,7 @@ export class FetchEngine<
     hasHeader(name: string, method?: _InternalHttpMethods): boolean
     hasHeader(name: string, method?: _InternalHttpMethods): boolean {
 
-        if (method) {
-
-            return this.#methodHeaders[method]?.hasOwnProperty(name) || false;
-        }
-
-        return this.#headers.hasOwnProperty(name);
+        return this.#headerStore.has(name, method);
     }
 
     /**
@@ -2882,66 +2102,25 @@ export class FetchEngine<
             'addParam requires a string method'
         );
 
-        const paramsIsString = typeof params === 'string';
-
-        if (paramsIsString) {
+        if (typeof params === 'string') {
 
             assert(
                 typeof value !== 'undefined',
                 'addParam requires a value when setting a single property'
             );
+
+            this.#paramStore.set(params, value, method);
         }
         else {
 
-            method = method || value as _InternalHttpMethods;
+            // When params is an object, value might be the method
+            const actualMethod = method || value as _InternalHttpMethods;
+            this.#paramStore.set(params as Partial<FetchEngine.Params<P>>, actualMethod);
         }
 
-        let updated = {
-            ...this.#params
-        } as FetchEngine.Params<P>;
-
-        if (method) {
-
-            if (this.#methodParams[method]) {
-                updated = {
-                    ...this.#methodParams[method]
-                };
-            }
-            else {
-                this.#methodParams[method] = {} as P;
-            }
-        }
-
-        if (paramsIsString) {
-
-            updated[
-                params as keyof FetchEngine.Params<P>
-            ] = value as never;
-        }
-        else {
-
-            Object
-                .keys(params)
-                .forEach(
-                    (name) => {
-
-                        const key = name as keyof FetchEngine.Params<P>;
-
-                        updated[key] = params[key as never]
-                    }
-                );
-        }
-
-        if (method) {
-
-            this.#methodParams[method] = updated as P;
-        }
-        else {
-
-            this.#params = updated;
-        }
-
-        this.#validateParams(updated);
+        const updated = method
+            ? this.#paramStore.forMethod(method)
+            : this.#paramStore.defaults;
 
         this.emit('fetch-param-add', {
             state: this.#state,
@@ -2989,44 +2168,24 @@ export class FetchEngine<
             return;
         }
 
-        let updated = { ...this.#params };
-
-        if (method) {
-
-            if (this.#methodParams[method]) {
-                updated = {
-                    ...this.#methodParams[method]
-                };
-            }
-            else {
-                this.#methodParams[method] = {} as P;
-            }
-        }
+        // Normalize to array of keys
+        let keys: string[];
 
         if (typeof params === 'string') {
-
-            delete updated[params];
+            keys = [params];
         }
-
-        let _names = params as (keyof FetchEngine.Params<P>)[];
-
-        if (!Array.isArray(params)) {
-
-            _names = Object.keys(params);
-        }
-
-        for (const name of _names) {
-            delete updated[name];
-        }
-
-        if (method) {
-
-            this.#methodParams[method] = updated as P;
+        else if (Array.isArray(params)) {
+            keys = params as string[];
         }
         else {
-
-            this.#params = updated;
+            keys = Object.keys(params as object);
         }
+
+        this.#paramStore.remove(keys, method);
+
+        const updated = method
+            ? this.#paramStore.forMethod(method)
+            : this.#paramStore.defaults;
 
         this.emit('fetch-param-remove', {
             state: this.#state,
@@ -3063,12 +2222,7 @@ export class FetchEngine<
     hasParam(name: string, method?: _InternalHttpMethods): boolean
     hasParam(name: string, method?: _InternalHttpMethods): boolean {
 
-        if (method) {
-
-            return this.#methodParams[method]?.hasOwnProperty(name) || false;
-        }
-
-        return this.#params.hasOwnProperty(name);
+        return this.#paramStore.has(name, method);
     }
 
 
@@ -3300,8 +2454,8 @@ export class FetchEngine<
      */
     async clearCache(): Promise<void> {
 
-        await this.#flight.clearCache();
-        this.#cache?.activeKeys.clear();
+        await this._flight.clearCache();
+        this.#cachePolicy.clearActiveKeys();
     }
 
     /**
@@ -3318,11 +2472,11 @@ export class FetchEngine<
      */
     async deleteCache(key: string): Promise<boolean> {
 
-        const deleted = await this.#flight.deleteCache(key);
+        const deleted = await this._flight.deleteCache(key);
 
         if (deleted) {
 
-            this.#cache?.activeKeys.delete(key);
+            this.#cachePolicy.unmarkActive(key);
         }
 
         return deleted;
@@ -3347,15 +2501,15 @@ export class FetchEngine<
 
         let invalidated = 0;
 
-        for (const key of this.#cache?.activeKeys ?? []) {
+        for (const key of this.#cachePolicy.getActiveKeys()) {
 
             if (predicate(key)) {
 
-                const deleted = await this.#flight.deleteCache(key);
+                const deleted = await this._flight.deleteCache(key);
 
                 if (deleted) {
 
-                    this.#cache?.activeKeys.delete(key);
+                    this.#cachePolicy.unmarkActive(key);
                     invalidated++;
                 }
             }
@@ -3365,12 +2519,13 @@ export class FetchEngine<
     }
 
     /**
-     * Invalidates cache entries matching a path pattern.
+     * Invalidates cache entries matching a path pattern or custom predicate.
      *
      * Convenience method for invalidating cache based on URL path patterns.
-     * Supports both string prefix matching and RegExp patterns.
+     * Supports string prefix matching, RegExp patterns, or a custom predicate
+     * function for full control over key matching (useful with custom serializers).
      *
-     * @param pattern - String prefix or RegExp to match against paths in cache keys
+     * @param patternOrPredicate - String prefix, RegExp, or predicate function
      * @returns Number of entries invalidated
      *
      * @example
@@ -3380,10 +2535,22 @@ export class FetchEngine<
      * @example
      * // Invalidate using regex pattern
      * await api.invalidatePath(/\/api\/v[12]\//);
+     *
+     * @example
+     * // Invalidate using custom predicate (for custom serializers)
+     * await api.invalidatePath((key) => {
+     *     const parsed = myCustomKeyParser(key);
+     *     return parsed.path.startsWith('/users');
+     * });
      */
-    async invalidatePath(pattern: string | RegExp): Promise<number> {
+    async invalidatePath(patternOrPredicate: string | RegExp | Func<[string], boolean>): Promise<number> {
 
-        const isRegex = pattern instanceof RegExp;
+        if (typeof patternOrPredicate === 'function') {
+
+            return this.invalidateCache(patternOrPredicate);
+        }
+
+        const isRegex = patternOrPredicate instanceof RegExp;
 
         return this.invalidateCache((key) => {
 
@@ -3403,10 +2570,10 @@ export class FetchEngine<
 
             if (isRegex) {
 
-                return pattern.test(path);
+                return patternOrPredicate.test(path);
             }
 
-            return path.startsWith(pattern);
+            return path.startsWith(patternOrPredicate);
         });
     }
 
@@ -3424,7 +2591,7 @@ export class FetchEngine<
      */
     cacheStats(): { cacheSize: number; inflightCount: number } {
 
-        return this.#flight.stats();
+        return this._flight.stats();
     }
 
     /**
@@ -3464,14 +2631,12 @@ export class FetchEngine<
 
         // Reset the flight controller to clear cache and inflight tracking
         // This is synchronous and creates a new SingleFlight instance
-        this.#flight = new SingleFlight();
+        this._flight = new SingleFlight();
 
         // Clear all internal references to allow garbage collection
         this.#state = {} as S;
-        this.#headers = {} as FetchEngine.Headers<H>;
-        this.#methodHeaders = {};
-        this.#params = {} as FetchEngine.Params<P>;
-        this.#methodParams = {};
+        this.#headerStore = new PropertyStore<FetchEngine.Headers<H>>();
+        this.#paramStore = new PropertyStore<FetchEngine.Params<P>>();
         this.#options = {};
         this.#baseUrl = new URL('about:blank');
 
@@ -3483,10 +2648,10 @@ export class FetchEngine<
         // Clear retry config
         this.#retry = undefined as never;
 
-        // Clear rate limiting state
-        this.#rateLimit = null;
-        this.#cache = null;
-        this.#dedupe = null;
+        // Clear policy state
+        this.#rateLimitPolicy.init();
+        this.#cachePolicy.init();
+        this.#dedupePolicy.init();
     }
 
     /**

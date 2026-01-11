@@ -429,8 +429,9 @@ await api.clearCache();                                    // Clear all
 await api.deleteCache(key);                                // Delete specific key
 await api.invalidateCache((key) => key.includes('user')); // By predicate
 await api.invalidatePath('/users');                        // By path prefix
-await api.invalidatePath(/^\/api\/v\d+/);                 // By regex
-const stats = api.cacheStats();                           // { cacheSize, inflightCount }
+await api.invalidatePath(/^\/api\/v\d+/);                  // By regex
+await api.invalidatePath((key) => key.includes('user'));   // By predicate (custom serializers)
+const stats = api.cacheStats();                            // { cacheSize, inflightCount }
 ```
 
 ### Caching Types
@@ -1006,4 +1007,122 @@ const timeoutId = setTimeout(() => {
 
 const [response, err] = await attempt(() => request);
 clearTimeout(timeoutId);
+```
+
+## Request Serializers
+
+Serializers generate unique keys for identifying requests. Used by dedupe, cache, and rate limit policies.
+
+### Built-in Serializers
+
+```typescript
+import { endpointSerializer, requestSerializer } from '@logosdx/fetch';
+
+// requestSerializer (Default for Cache & Dedupe)
+// Format: method|path+query|payload|stableHeaders
+// Only includes stable headers: authorization, accept, accept-language, content-type, accept-encoding
+// Excludes dynamic headers: X-Timestamp, X-HMAC-Signature, X-Request-Id, etc.
+
+// endpointSerializer (Default for Rate Limit)
+// Format: method|pathname
+// Groups all requests to same endpoint regardless of params
+```
+
+### Custom Serializers
+
+```typescript
+// User-scoped rate limiting
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: {
+        serializer: (ctx) => `user:${ctx.state?.userId ?? 'anonymous'}`,
+        maxCalls: 100
+    }
+});
+
+// Tenant-scoped caching
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: {
+        serializer: (ctx) => `${ctx.headers?.['X-Tenant-ID'] ?? 'default'}|${ctx.method}|${ctx.url.pathname}`,
+        ttl: 60000
+    }
+});
+
+// Per-rule serializer override
+{
+    cachePolicy: {
+        rules: [
+            { is: '/graphql', serializer: (ctx) => `graphql:${ctx.payload?.operationName}` }
+        ]
+    }
+}
+```
+
+### Serializer Signature
+
+```typescript
+type RequestSerializer<S, H, P> = (ctx: RequestKeyOptions<S, H, P>) => string;
+
+interface RequestKeyOptions<S, H, P> {
+    method: string;      // HTTP method (uppercase)
+    path: string;        // Original path
+    url: URL;            // Full URL object
+    payload?: unknown;   // Request body
+    headers?: H;         // Request headers
+    params?: P;          // URL parameters
+    state?: S;           // Instance state
+}
+```
+
+## Policy Architecture
+
+FetchEngine policies share a common architecture for consistent behavior and performance.
+
+### Three-Method Pattern
+
+```
+ResiliencePolicy
+├── init(config)    → Parse config, validate rules, setup state (O(1))
+├── resolve(...)    → Memoized lookup + dynamic skip checks (O(1) amortized)
+└── compute(...)    → Rule matching, cached per method:path (O(n) first call only)
+```
+
+### Policy Execution Order
+
+```
+Request
+├── 1. Rate Limit Guard → Wait or reject if exceeded
+├── 2. Cache Check      → Return cached if hit
+├── 3. Dedupe Check     → Join in-flight if exists
+├── 4. Network Request  → Actual HTTP call
+└── 5. Cache Store      → Cache successful response
+```
+
+**Key implications:**
+- Cached responses don't consume rate limit tokens
+- Dedupe joins happen after cache checks
+- Only initiator consumes rate limit token; joiners share result
+
+### Rule Matching
+
+Rules evaluated in declaration order, first match wins:
+
+```typescript
+rules: [
+    { is: '/users', ttl: 30000 },           // Exact match first
+    { startsWith: '/users', ttl: 60000 },   // Prefix second
+    { match: /^\/users/, ttl: 120000 }      // Regex third
+]
+```
+
+### Policy State
+
+```typescript
+interface PolicyInternalState {
+    enabled: boolean;                    // Global enable/disable
+    methods: Set<string>;                // Applicable HTTP methods
+    serializer: RequestSerializer;       // Key generation function
+    rulesCache: Map<string, Rule | null>; // Memoized rule lookups
+}
 ```

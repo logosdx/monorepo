@@ -13,5 +13,8 @@
     "@logosdx/utils": "5.0.0",
     "@logosdx/tests": "0.0.1"
   },
-  "changesets": []
+  "changesets": [
+    "rich-pears-jam",
+    "thin-crews-vanish"
+  ]
 }
