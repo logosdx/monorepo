@@ -2,25 +2,27 @@ import {
     assert,
     AsyncFunc,
     attempt,
+    FunctionProps,
     isFunction,
-    isObject,
-    FunctionProps
+    isObject
 } from '@logosdx/utils';
 
 /**
- * Error thrown when a hook extension calls `fail()` or when hook execution fails.
+ * Error thrown when a hook calls `ctx.fail()`.
+ *
+ * This error is only created when using the default `handleFail` behavior.
+ * If a custom `handleFail` is provided, that error type is thrown instead.
  *
  * @example
- *     engine.extend('save', 'before', async (ctx) => {
+ *     hooks.on('validate', async (ctx) => {
  *         if (!ctx.args[0].isValid) {
  *             ctx.fail('Validation failed');
  *         }
  *     });
  *
- *     const [, err] = await attempt(() => app.save(data));
+ *     const [, err] = await attempt(() => engine.emit('validate', data));
  *     if (isHookError(err)) {
- *         console.log(err.hookName);  // 'save'
- *         console.log(err.extPoint);  // 'before'
+ *         console.log(err.hookName);  // 'validate'
  *     }
  */
 export class HookError extends Error {
@@ -28,14 +30,8 @@ export class HookError extends Error {
     /** Name of the hook where the error occurred */
     hookName?: string;
 
-    /** Extension point where the error occurred: 'before', 'after', or 'error' */
-    extPoint?: string;
-
     /** Original error if `fail()` was called with an Error instance */
     originalError?: Error;
-
-    /** Whether the hook was explicitly aborted via `fail()` */
-    aborted = false;
 
     constructor(message: string) {
 
@@ -47,9 +43,9 @@ export class HookError extends Error {
  * Type guard to check if an error is a HookError.
  *
  * @example
- *     const [result, err] = await attempt(() => app.save(data));
- *     if (isHookError(err)) {
- *         console.log(`Hook "${err.hookName}" failed at "${err.extPoint}"`);
+ *     const { error } = await engine.emit('validate', data);
+ *     if (isHookError(error)) {
+ *         console.log(`Hook "${error.hookName}" failed`);
  *     }
  */
 export const isHookError = (error: unknown): error is HookError => {
@@ -57,384 +53,519 @@ export const isHookError = (error: unknown): error is HookError => {
     return (error as HookError)?.constructor?.name === HookError.name
 }
 
-interface HookShape<F extends AsyncFunc> {
-    args: Parameters<F>,
-    results?: Awaited<ReturnType<F>>
+/**
+ * Result returned from `emit()` after running all hook callbacks.
+ */
+export interface EmitResult<F extends AsyncFunc> {
+
+    /** Current arguments (possibly modified by callbacks) */
+    args: Parameters<F>;
+
+    /** Result value (if set by a callback) */
+    result?: Awaited<ReturnType<F>> | undefined;
+
+    /** Whether a callback called `returnEarly()` */
+    earlyReturn: boolean;
 }
 
 /**
- * Context object passed to hook extension callbacks.
+ * Context object passed to hook callbacks.
  * Provides access to arguments, results, and control methods.
  *
  * @example
- *     engine.extend('fetch', 'before', async (ctx) => {
- *         // Read current arguments
- *         const [url, options] = ctx.args;
+ *     hooks.on('cacheCheck', async (ctx) => {
+ *         const [url] = ctx.args;
+ *         const cached = cache.get(url);
  *
- *         // Modify arguments before the original function runs
- *         ctx.setArgs([url, { ...options, cache: 'force-cache' }]);
- *
- *         // Or skip the original function entirely
- *         if (isCached(url)) {
- *             ctx.setResult(getCached(url));
+ *         if (cached) {
+ *             ctx.setResult(cached);
  *             ctx.returnEarly();
  *         }
  *     });
  */
-export interface HookContext<F extends AsyncFunc> extends HookShape<F> {
+export interface HookContext<F extends AsyncFunc, FailArgs extends unknown[] = [string]> {
 
-    /** Current extension point: 'before', 'after', or 'error' */
-    point: keyof Hook<F>;
+    /** Current arguments passed to emit() */
+    args: Parameters<F>;
 
-    /** Error from the original function (only set in 'error' extensions) */
-    error?: unknown,
+    /** Result value (can be set by callbacks) */
+    result?: Awaited<ReturnType<F>>;
 
-    /** Abort hook execution with an error. Throws a HookError. */
-    fail: (error?: unknown) => never,
+    /** Abort hook execution with an error. */
+    fail: (...args: FailArgs) => never;
 
-    /** Replace the arguments passed to the original function */
-    setArgs: (next: Parameters<F>) => void,
+    /** Replace the arguments for subsequent callbacks */
+    setArgs: (next: Parameters<F>) => void;
 
-    /** Replace the result returned from the hook chain */
-    setResult: (next: Awaited<ReturnType<F>>) => void,
+    /** Set the result value */
+    setResult: (next: Awaited<ReturnType<F>>) => void;
 
-    /** Skip the original function and return early with the current result */
+    /** Stop processing remaining callbacks and return early */
     returnEarly: () => void;
 
-    /** Remove this extension from the hook (useful with `once` behavior) */
+    /** Remove this callback from the hook */
     removeHook: () => void;
 }
 
-export type HookFn<F extends AsyncFunc> = (ctx: HookContext<F>) => Promise<void>;
+export type HookFn<F extends AsyncFunc, FailArgs extends unknown[] = [string]> =
+    (ctx: HookContext<F, FailArgs>) => Promise<void>;
 
-class Hook<F extends AsyncFunc> {
-    before: Set<HookFn<F>> = new Set();
-    after: Set<HookFn<F>> = new Set();
-    error: Set<HookFn<F>> = new Set();
+type HookOptions<F extends AsyncFunc, FailArgs extends unknown[] = [string]> = {
+    callback: HookFn<F, FailArgs>;
+    once?: true;
+    ignoreOnFail?: true;
 }
 
-const allowedExtPoints = new Set([
-    'before',
-    'after',
-    'error'
-]);
-
-type HookExtOptions<F extends AsyncFunc> = {
-    callback: HookFn<F>,
-    once?: true,
-    ignoreOnFail?: true
-}
-
-type HookExtOrOptions<F extends AsyncFunc> = HookFn<F> | HookExtOptions<F>
-
-type MakeHookOptions = {
-    bindTo?: any
-}
+type HookOrOptions<F extends AsyncFunc, FailArgs extends unknown[] = [string]> =
+    HookFn<F, FailArgs> | HookOptions<F, FailArgs>;
 
 type FuncOrNever<T> = T extends AsyncFunc ? T : never;
 
 /**
- * A lightweight, type-safe hook system for extending function behavior.
- *
- * HookEngine allows you to wrap functions and add extensions that run
- * before, after, or on error. Extensions can modify arguments, change
- * results, or abort execution entirely.
- *
- * @example
- *     interface MyApp {
- *         save(data: Data): Promise<Result>;
- *         load(id: string): Promise<Data>;
- *     }
- *
- *     const app = new MyAppImpl();
- *     const hooks = new HookEngine<MyApp>();
- *
- *     // Wrap a method to make it hookable
- *     hooks.wrap(app, 'save');
- *
- *     // Add a validation extension
- *     hooks.extend('save', 'before', async (ctx) => {
- *         if (!ctx.args[0].isValid) {
- *             ctx.fail('Validation failed');
- *         }
- *     });
- *
- *     // Add logging extension
- *     hooks.extend('save', 'after', async (ctx) => {
- *         console.log('Saved:', ctx.results);
- *     });
- *
- * @typeParam Shape - Interface defining the hookable functions
+ * Custom error handler for `ctx.fail()`.
+ * Can be an Error constructor or a function that throws.
  */
-export class HookEngine<Shape> {
+export type HandleFail<Args extends unknown[] = [string]> =
+    | (new (...args: Args) => Error)
+    | ((...args: Args) => never);
 
-    #registered = new Set<keyof Shape>();
-    #hooks: Map<keyof Shape, Hook<FuncOrNever<Shape[keyof Shape]>>> = new Map();
-    #hookFnOpts = new WeakMap();
-    #wrapped = new WeakMap();
+/**
+ * Options for HookEngine constructor.
+ */
+export interface HookEngineOptions<FailArgs extends unknown[] = [string]> {
 
     /**
-     * Add an extension to a registered hook.
-     *
-     * Extensions run at specific points in the hook lifecycle:
-     * - `before`: Runs before the original function. Can modify args or return early.
-     * - `after`: Runs after successful execution. Can modify the result.
-     * - `error`: Runs when the original function throws. Can handle or transform errors.
-     *
-     * @param name - Name of the registered hook to extend
-     * @param extensionPoint - When to run: 'before', 'after', or 'error'
-     * @param cbOrOpts - Extension callback or options object
-     * @returns Cleanup function to remove the extension
+     * Custom handler for `ctx.fail()`.
+     * Can be an Error constructor or a function that throws.
      *
      * @example
-     *     // Simple callback
-     *     const cleanup = hooks.extend('save', 'before', async (ctx) => {
-     *         console.log('About to save:', ctx.args);
-     *     });
+     *     // Use Firebase HttpsError
+     *     new HookEngine({ handleFail: HttpsError });
      *
-     *     // With options
-     *     hooks.extend('save', 'after', {
-     *         callback: async (ctx) => { console.log('Saved!'); },
-     *         once: true,           // Remove after first run
-     *         ignoreOnFail: true    // Don't throw if this extension fails
+     *     // Use custom function
+     *     new HookEngine({
+     *         handleFail: (msg, data) => { throw Boom.badRequest(msg, data); }
      *     });
-     *
-     *     // Later: remove the extension
-     *     cleanup();
      */
-    extend<K extends FunctionProps<Shape>>(
-        name: K,
-        extensionPoint: keyof Hook<FuncOrNever<Shape[K]>>,
-        cbOrOpts: HookExtOrOptions<FuncOrNever<Shape[K]>>
-    ) {
-        const callback = typeof cbOrOpts === 'function' ? cbOrOpts : cbOrOpts?.callback;
-        const opts = typeof cbOrOpts === 'function' ? {} as HookExtOptions<FuncOrNever<Shape[K]>> : cbOrOpts;
+    handleFail?: HandleFail<FailArgs>;
+}
 
-        assert(typeof name === 'string', '"name" must be a string');
-        assert(this.#registered.has(name), `'${name.toString()}' is not a registered hook`);
-        assert(typeof extensionPoint === 'string', '"extensionPoint" must be a string');
-        assert(allowedExtPoints.has(extensionPoint), `'${extensionPoint}' is not a valid extension point`);
-        assert(isFunction(callback) || isObject(cbOrOpts), '"cbOrOpts" must be a extension callback or options');
-        assert(isFunction(callback), 'callback must be a function');
+/**
+ * A lightweight, type-safe lifecycle hook system.
+ *
+ * HookEngine allows you to define lifecycle events and subscribe to them.
+ * Callbacks can modify arguments, set results, or abort execution.
+ *
+ * @example
+ *     interface FetchLifecycle {
+ *         preRequest(url: string, options: RequestInit): Promise<Response>;
+ *         rateLimit(error: Error, attempt: number): Promise<void>;
+ *         cacheHit(url: string, data: unknown): Promise<unknown>;
+ *     }
+ *
+ *     const hooks = new HookEngine<FetchLifecycle>();
+ *
+ *     hooks.on('rateLimit', async (ctx) => {
+ *         const [error, attempt] = ctx.args;
+ *         if (attempt > 3) ctx.fail('Max retries exceeded');
+ *         await sleep(error.retryAfter * 1000);
+ *     });
+ *
+ *     hooks.on('cacheHit', async (ctx) => {
+ *         console.log('Cache hit for:', ctx.args[0]);
+ *     });
+ *
+ *     // In your implementation
+ *     const result = await hooks.emit('cacheHit', url, cachedData);
+ *
+ * @typeParam Lifecycle - Interface defining the lifecycle hooks
+ * @typeParam FailArgs - Arguments type for ctx.fail() (default: [string])
+ */
+/**
+ * Default permissive lifecycle type when no type parameter is provided.
+ */
+type DefaultLifecycle = Record<string, AsyncFunc>;
 
-        const hook = this.#hooks.get(name) ?? new Hook<FuncOrNever<Shape[K]>>();
+/**
+ * Extract only function property keys from a type.
+ * This ensures only methods are available as hook names, not data properties.
+ *
+ * @example
+ *     interface Doc {
+ *         id: string;
+ *         save(): Promise<void>;
+ *         delete(): Promise<void>;
+ *     }
+ *
+ *     type DocHooks = HookName<Doc>;  // 'save' | 'delete' (excludes 'id')
+ */
+export type HookName<T> = FunctionProps<T>;
 
-        hook[extensionPoint].add(callback);
+export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[] = [string]> {
 
-        this.#hooks.set(name, hook);
-        this.#hookFnOpts.set(callback, opts);
+    #hooks: Map<HookName<Lifecycle>, Set<HookFn<FuncOrNever<Lifecycle[HookName<Lifecycle>]>, FailArgs>>> = new Map();
+    #hookOpts = new WeakMap<HookFn<any, any>, HookOptions<any, any>>();
+    #handleFail: HandleFail<FailArgs>;
+    #registered: Set<HookName<Lifecycle>> | null = null;
 
-        /**
-         * Removes the registered hook extension
-         */
-        return () => {
+    constructor(options: HookEngineOptions<FailArgs> = {}) {
 
-            hook[extensionPoint].delete(callback);
+        this.#handleFail = options.handleFail ?? ((message: string): never => {
+
+            throw new HookError(message);
+        }) as unknown as HandleFail<FailArgs>;
+    }
+
+    /**
+     * Validate that a hook is registered (if registration is enabled).
+     */
+    #assertRegistered(name: HookName<Lifecycle>, method: string) {
+
+        if (this.#registered !== null && !this.#registered.has(name)) {
+
+            const registered = [...this.#registered].map(String).join(', ');
+            throw new Error(
+                `Hook "${String(name)}" is not registered. ` +
+                `Call register("${String(name)}") before using ${method}(). ` +
+                `Registered hooks: ${registered || '(none)'}`
+            );
         }
     }
 
     /**
-     * Register a function as a hookable and return the wrapped version.
+     * Register hook names for runtime validation.
+     * Once any hooks are registered, all hooks must be registered before use.
      *
-     * The wrapped function behaves identically to the original but allows
-     * extensions to be added via `extend()`. Use `wrap()` for a simpler API
-     * when working with object methods.
-     *
-     * @param name - Unique name for this hook (must match a key in Shape)
-     * @param cb - The original function to wrap
-     * @param opts - Options for the wrapped function
-     * @returns Wrapped function with hook support
+     * @param names - Hook names to register
+     * @returns this (for chaining)
      *
      * @example
-     *     const hooks = new HookEngine<{ fetch: typeof fetch }>();
+     *     const hooks = new HookEngine<FetchLifecycle>()
+     *         .register('preRequest', 'postRequest', 'rateLimit');
      *
-     *     const hookedFetch = hooks.make('fetch', fetch);
-     *
-     *     hooks.extend('fetch', 'before', async (ctx) => {
-     *         console.log('Fetching:', ctx.args[0]);
-     *     });
-     *
-     *     await hookedFetch('/api/data');
+     *     hooks.on('preRequest', cb);     // OK
+     *     hooks.on('preRequset', cb);     // Error: not registered (typo caught!)
      */
-    make<K extends FunctionProps<Shape>>(
-        name: K,
-        cb: FuncOrNever<Shape[K]>,
-        opts: MakeHookOptions = {}
-    ) {
+    register(...names: HookName<Lifecycle>[]) {
 
-        assert(typeof name === 'string', '"name" must be a string');
-        assert(!this.#registered.has(name), `'${name.toString()}' hook is already registered`);
-        assert(isFunction(cb), '"cb" must be a function');
-        assert(isObject(opts), '"opts" must be an object');
+        assert(names.length > 0, 'register() requires at least one hook name');
 
-        this.#registered.add(name);
+        if (this.#registered === null) {
 
-        if (this.#wrapped.has(cb)) {
-
-            return this.#wrapped.get(cb) as FuncOrNever<Shape[K]>;
+            this.#registered = new Set();
         }
 
-        const callback = async (...origArgs: Parameters<FuncOrNever<Shape[K]>>) => {
+        for (const name of names) {
 
-            let returnEarly = false;
+            assert(typeof name === 'string', `Hook name must be a string, got ${typeof name}`);
+            this.#registered.add(name);
+        }
 
-            const hook = this.#hooks.get(name)!;
+        return this;
+    }
 
-            const context: HookContext<FuncOrNever<Shape[K]>> = {
-                args: origArgs,
-                point: 'before',
-                removeHook() {},
-                returnEarly() {
-                    returnEarly = true;
-                },
-                setArgs(next) {
+    /**
+     * Subscribe to a lifecycle hook.
+     *
+     * @param name - Name of the lifecycle hook
+     * @param cbOrOpts - Callback function or options object
+     * @returns Cleanup function to remove the subscription
+     *
+     * @example
+     *     // Simple callback
+     *     const cleanup = hooks.on('preRequest', async (ctx) => {
+     *         console.log('Request:', ctx.args[0]);
+     *     });
+     *
+     *     // With options
+     *     hooks.on('analytics', {
+     *         callback: async (ctx) => { track(ctx.args); },
+     *         once: true,           // Remove after first run
+     *         ignoreOnFail: true    // Don't throw if callback fails
+     *     });
+     *
+     *     // Remove subscription
+     *     cleanup();
+     */
+    on<K extends HookName<Lifecycle>>(
+        name: K,
+        cbOrOpts: HookOrOptions<FuncOrNever<Lifecycle[K]>, FailArgs>
+    ) {
 
-                    assert(
-                        Array.isArray(next),
-                        `setArgs: next args for '${context.point}' '${name.toString()}' must be an array of arguments`
-                    );
+        const callback = typeof cbOrOpts === 'function' ? cbOrOpts : cbOrOpts?.callback;
+        const opts = typeof cbOrOpts === 'function'
+            ? {} as HookOptions<FuncOrNever<Lifecycle[K]>, FailArgs>
+            : cbOrOpts;
 
-                    context.args = next;
-                },
-                setResult(next) {
-                    context.results = next;
-                },
-                fail(reason) {
+        assert(typeof name === 'string', '"name" must be a string');
+        assert(isFunction(callback) || isObject(cbOrOpts), '"cbOrOpts" must be a callback or options');
+        assert(isFunction(callback), 'callback must be a function');
 
-                    const error = new HookError(`Hook Aborted: ${reason ?? 'unknown'}`);
+        this.#assertRegistered(name, 'on');
 
-                    if (reason instanceof Error) {
+        const hooks = this.#hooks.get(name) ?? new Set();
 
-                        error.originalError = reason;
+        hooks.add(callback as HookFn<FuncOrNever<Lifecycle[keyof Lifecycle]>, FailArgs>);
+
+        this.#hooks.set(name, hooks);
+        this.#hookOpts.set(callback, opts);
+
+        return () => {
+
+            hooks.delete(callback as HookFn<FuncOrNever<Lifecycle[keyof Lifecycle]>, FailArgs>);
+        }
+    }
+
+    /**
+     * Subscribe to a lifecycle hook that fires only once.
+     * Sugar for `on(name, { callback, once: true })`.
+     *
+     * @param name - Name of the lifecycle hook
+     * @param callback - Callback function
+     * @returns Cleanup function to remove the subscription
+     *
+     * @example
+     *     // Log only the first request
+     *     hooks.once('preRequest', async (ctx) => {
+     *         console.log('First request:', ctx.args[0]);
+     *     });
+     */
+    once<K extends HookName<Lifecycle>>(
+        name: K,
+        callback: HookFn<FuncOrNever<Lifecycle[K]>, FailArgs>
+    ) {
+
+        return this.on(name, { callback, once: true });
+    }
+
+    /**
+     * Emit a lifecycle hook, running all subscribed callbacks.
+     *
+     * @param name - Name of the lifecycle hook to emit
+     * @param args - Arguments to pass to callbacks
+     * @returns EmitResult with final args, result, and earlyReturn flag
+     *
+     * @example
+     *     const result = await hooks.emit('cacheCheck', url);
+     *
+     *     if (result.earlyReturn && result.result) {
+     *         return result.result;  // Use cached value
+     *     }
+     *
+     *     // Continue with modified args
+     *     const [modifiedUrl] = result.args;
+     */
+    async emit<K extends HookName<Lifecycle>>(
+        name: K,
+        ...args: Parameters<FuncOrNever<Lifecycle[K]>>
+    ): Promise<EmitResult<FuncOrNever<Lifecycle[K]>>> {
+
+        this.#assertRegistered(name, 'emit');
+
+        let earlyReturn = false;
+
+        const hooks = this.#hooks.get(name);
+
+        const context: HookContext<FuncOrNever<Lifecycle[K]>, FailArgs> = {
+            args,
+            removeHook() {},
+            returnEarly() {
+
+                earlyReturn = true;
+            },
+            setArgs: (next) => {
+
+                assert(
+                    Array.isArray(next),
+                    `setArgs: args for '${String(name)}' must be an array`
+                );
+
+                context.args = next;
+            },
+            setResult: (next) => {
+
+                context.result = next;
+            },
+            fail: ((...failArgs: FailArgs) => {
+
+                const handler = this.#handleFail;
+
+                // Check if handler is a constructor (class or function with prototype)
+                const isConstructor = typeof handler === 'function' &&
+                    handler.prototype?.constructor === handler;
+
+                if (isConstructor) {
+
+                    const error = new (handler as new (...args: FailArgs) => Error)(...failArgs);
+
+                    if (error instanceof HookError) {
+
+                        error.hookName = String(name);
                     }
-
-                    error.extPoint = context.point;
-                    error.hookName = name as string;
 
                     throw error;
-                },
-            }
+                }
 
-            const { before, after, error: errorFns } = hook ?? new Hook<FuncOrNever<Shape[K]>>();
+                // For functions, call them and catch any thrown error to set hookName
+                try {
 
-            const handleSet = async (
-                which: typeof before,
-                point: keyof typeof hook
-            ) => {
+                    (handler as (...args: FailArgs) => never)(...failArgs);
+                }
+                catch (error) {
 
-                context.point = point;
+                    if (error instanceof HookError) {
 
-                for (const fn of which) {
-
-                    context.removeHook = () => which.delete(fn);
-
-                    const opts: HookExtOptions<FuncOrNever<Shape[K]>> = this.#hookFnOpts.get(fn);
-                    const [, err] = await attempt(() => fn({ ...context }));
-
-                    if (opts.once) context.removeHook();
-
-                    if (err && opts.ignoreOnFail !== true) {
-                        throw err;
+                        error.hookName = String(name);
                     }
 
-                    if (returnEarly) break;
+                    throw error;
                 }
-            }
 
-            await handleSet(before, 'before');
+                // If handler didn't throw, we need to throw something
+                throw new HookError('ctx.fail() handler did not throw');
+            }) as (...args: FailArgs) => never
+        };
 
-            if (returnEarly) return context.results!
+        if (!hooks || hooks.size === 0) {
 
-            const [res, err] = await attempt(() => cb.apply(opts?.bindTo || cb, context.args));
+            return {
+                args: context.args,
+                result: context.result,
+                earlyReturn: false
+            };
+        }
 
-            context.results = res;
-            context.error = err;
+        for (const fn of hooks) {
 
-            if (err) {
-                context.point = 'error';
+            context.removeHook = () => hooks.delete(fn as any);
 
-                await handleSet(errorFns, 'error');
+            const opts: HookOptions<any, any> = this.#hookOpts.get(fn) ?? { callback: fn };
+            const [, err] = await attempt(() => fn({ ...context } as any));
+
+            if (opts.once) context.removeHook();
+
+            if (err && opts.ignoreOnFail !== true) {
 
                 throw err;
             }
 
-            await handleSet(after, 'after');
-
-            return context.results!;
+            if (earlyReturn) break;
         }
 
-        return callback as FuncOrNever<Shape[K]>;
+        return {
+            args: context.args,
+            result: context.result,
+            earlyReturn
+        };
     }
 
     /**
-     * Wrap an object method in-place to make it hookable.
-     *
-     * This is a convenience method that combines `make()` with automatic
-     * binding and reassignment. The method is replaced on the instance
-     * with the wrapped version.
-     *
-     * @param instance - Object containing the method to wrap
-     * @param name - Name of the method to wrap
-     * @param opts - Additional options
+     * Clear all registered hooks.
      *
      * @example
-     *     class UserService {
-     *         async save(user: User) { ... }
-     *     }
-     *
-     *     const service = new UserService();
-     *     const hooks = new HookEngine<UserService>();
-     *
-     *     hooks.wrap(service, 'save');
-     *
-     *     // Now service.save() is hookable
-     *     hooks.extend('save', 'before', async (ctx) => {
-     *         console.log('Saving user:', ctx.args[0]);
-     *     });
-     */
-    wrap<K extends FunctionProps<Shape>>(
-        instance: Shape,
-        name: K,
-        opts?: MakeHookOptions
-    ) {
-
-        assert(isObject(instance), '"instance" must be an object');
-
-        const wrapped = this.make(
-            name,
-            instance[name] as FuncOrNever<Shape[K]>,
-            {
-                bindTo: instance,
-                ...opts
-            }
-        );
-
-        this.#wrapped.set(wrapped, instance[name] as AsyncFunc);
-
-        instance[name] = wrapped as Shape[K];
-
-    }
-
-    /**
-     * Clear all registered hooks and extensions.
-     *
-     * After calling this method, all hooks are unregistered and all
-     * extensions are removed. Previously wrapped functions will continue
-     * to work but without any extensions.
-     *
-     * @example
-     *     hooks.wrap(app, 'save');
-     *     hooks.extend('save', 'before', validator);
+     *     hooks.on('preRequest', validator);
+     *     hooks.on('postRequest', logger);
      *
      *     // Reset for testing
      *     hooks.clear();
-     *
-     *     // app.save() still works, but validator no longer runs
      */
     clear() {
 
-        this.#registered.clear();
         this.#hooks.clear();
-        this.#hookFnOpts = new WeakMap();
+        this.#hookOpts = new WeakMap();
+        this.#registered = null;
+    }
+
+    /**
+     * Wrap a function with pre/post lifecycle hooks.
+     *
+     * - Pre hook: emitted with function args, can modify args or returnEarly with result
+     * - Post hook: emitted with [result, ...args], can modify result
+     *
+     * @param fn - The async function to wrap
+     * @param hooks - Object with optional pre and post hook names
+     * @returns Wrapped function with same signature
+     *
+     * @example
+     *     interface Lifecycle {
+     *         preRequest(url: string, opts: RequestInit): Promise<Response>;
+     *         postRequest(result: Response, url: string, opts: RequestInit): Promise<Response>;
+     *     }
+     *
+     *     const hooks = new HookEngine<Lifecycle>();
+     *
+     *     // Add cache check in pre hook
+     *     hooks.on('preRequest', async (ctx) => {
+     *         const cached = cache.get(ctx.args[0]);
+     *         if (cached) {
+     *             ctx.setResult(cached);
+     *             ctx.returnEarly();
+     *         }
+     *     });
+     *
+     *     // Log result in post hook
+     *     hooks.on('postRequest', async (ctx) => {
+     *         const [result, url] = ctx.args;
+     *         console.log(`Fetched ${url}:`, result.status);
+     *     });
+     *
+     *     // Wrap the fetch function
+     *     const wrappedFetch = hooks.wrap(
+     *         async (url: string, opts: RequestInit) => fetch(url, opts),
+     *         { pre: 'preRequest', post: 'postRequest' }
+     *     );
+     */
+    wrap<F extends AsyncFunc>(
+        fn: F,
+        hooks:
+            | { pre: HookName<Lifecycle>; post?: HookName<Lifecycle> }
+            | { pre?: HookName<Lifecycle>; post: HookName<Lifecycle> }
+    ): (...args: Parameters<F>) => Promise<Awaited<ReturnType<F>>> {
+
+        assert(
+            hooks.pre || hooks.post,
+            'wrap() requires at least one of "pre" or "post" hooks'
+        );
+
+        if (hooks.pre) this.#assertRegistered(hooks.pre, 'wrap');
+        if (hooks.post) this.#assertRegistered(hooks.post, 'wrap');
+
+        return async (...args: Parameters<F>): Promise<Awaited<ReturnType<F>>> => {
+
+            let currentArgs = args;
+            let result: Awaited<ReturnType<F>> | undefined;
+
+            // Pre hook
+            if (hooks.pre) {
+
+                const preResult = await this.emit(hooks.pre, ...currentArgs as any);
+
+                currentArgs = preResult.args as Parameters<F>;
+
+                if (preResult.earlyReturn && preResult.result !== undefined) {
+
+                    return preResult.result as Awaited<ReturnType<F>>;
+                }
+            }
+
+            // Execute function
+            result = await fn(...currentArgs);
+
+            // Post hook
+            if (hooks.post) {
+
+                const postResult = await this.emit(
+                    hooks.post,
+                    ...[result, ...currentArgs] as any
+                );
+
+                if (postResult.result !== undefined) {
+
+                    return postResult.result as Awaited<ReturnType<F>>;
+                }
+            }
+
+            return result as Awaited<ReturnType<F>>;
+        };
     }
 }

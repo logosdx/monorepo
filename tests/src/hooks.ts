@@ -1,586 +1,974 @@
 import {
     describe,
     it,
-    beforeEach,
     expect,
     vi
 } from 'vitest'
 
 import { HookEngine, HookError, isHookError } from '../../packages/hooks/src/index.ts';
-import { attempt, noop } from '../../packages/utils/src/index.ts';
+import { attempt } from '../../packages/utils/src/index.ts';
 
 describe('@logosdx/hooks', () => {
 
-    const startFn = vi.fn();
-    const stopFn = vi.fn();
-    const requestFn = vi.fn();
-    const beforeFn = vi.fn();
-    const afterFn = vi.fn();
-    const errorFn = vi.fn();
+    describe('HookEngine instantiation', () => {
 
-    class TestApp {
+        it('instantiates with no options', () => {
 
-        notAFunc = 'hello';
-        start(...args: any[]) { return startFn(...args) }
-        stop(...args: any[]) { return stopFn(...args) }
-        request(...args: any[]) { return requestFn(...args) }
-    };
-
-
-    beforeEach(() => {
-
-        vi.resetAllMocks();
-    });
-
-    it('instantiates', () => {
-
-        new HookEngine();
-    });
-
-    it('runs the happy path', async () => {
-
-        const app = new TestApp();
-        const engine = new HookEngine<TestApp>;
-
-        const wrapped = engine.make('start', app.start, { bindTo: app });
-
-        app.start = wrapped;
-
-        engine.extend('start', 'before', beforeFn);
-        engine.extend('start', 'after', afterFn);
-
-        // @ts-expect-error - testing invalid attribute type (only functions should be picke up)
-        expect(() => engine.extend('notAFunc', 'before', noop)).to.throw();
-
-        await app.start();
-
-        expect(startFn).toHaveBeenCalledOnce();
-        expect(beforeFn).toHaveBeenCalledOnce();
-        expect(afterFn).toHaveBeenCalledOnce();
-    });
-
-    it('rejects invalid usage of extend', () => {
-
-        // [name, extensionPoint, cbOrOpts]
-        const badArgs = [
-            [null],
-            [1],
-            ['nonexistentHook'],
-            ['stop'],
-            ['start'],
-            ['start', 1],
-            ['start', 'invalidExtensionPoint'],
-            ['start', 'before', null],
-            ['start', 'before', {}],
-            ['start', 'before', { callback: null }],
-        ] as unknown as Array<Parameters<HookEngine<TestApp>['extend']>>;
-
-        const app = new TestApp();
-        const engine = new HookEngine<TestApp>;
-
-        engine.make('start', app.start, { bindTo: app });
-
-        for (const args of badArgs) {
-            expect(() => engine.extend(...args)).to.throw();
-        }
-    });
-
-    it('rejects invalid usage of make', () => {
-
-        // [name, cb, opts]
-        const badArgs = [
-            [null],
-            [1],
-            ['stop', null],
-            ['stop', 'notAFunction'],
-            ['stop', noop, 'notAnObject'],
-            ['start', noop], // already registered
-        ] as unknown as Array<Parameters<HookEngine<TestApp>['make']>>;
-
-        const app = new TestApp();
-        const engine = new HookEngine<TestApp>;
-
-        engine.make('start', app.start, { bindTo: app });
-
-        for (const args of badArgs) {
-            expect(() => engine.make(...args)).to.throw();
-        }
-    });
-
-    describe('engine.make()', () => {
-
-        it('registers a hook and returns a wrapped function', async () => {
-
-            const engine = new HookEngine<TestApp>();
-            const app = new TestApp();
-
-            const wrapped = engine.make('start', app.start, { bindTo: app });
-
-            expect(wrapped).to.be.a('function');
-            expect(wrapped).to.not.equal(app.start);
-
-            // Should be able to extend after registration
-            engine.extend('start', 'before', beforeFn);
-
-            await wrapped();
-
-            expect(beforeFn).toHaveBeenCalledOnce();
+            const engine = new HookEngine();
+            expect(engine).to.be.instanceOf(HookEngine);
         });
 
-        it('executes the original function', async () => {
+        it('instantiates with custom handleFail', () => {
 
-            const engine = new HookEngine<TestApp>();
-            const app = new TestApp();
+            class CustomError extends Error {}
 
-            const wrapped = engine.make('start', app.start, { bindTo: app });
+            const engine = new HookEngine({
+                handleFail: CustomError
+            });
 
-            await wrapped();
-
-            expect(startFn).toHaveBeenCalledOnce();
+            expect(engine).to.be.instanceOf(HookEngine);
         });
 
-        it('returns the original function return value', async () => {
+        it('is permissive by default (accepts any hook name)', async () => {
 
-            const engine = new HookEngine<TestApp>();
-            const app = new TestApp();
-            const expectedResult = { success: true };
+            // No type parameter - permissive mode
+            const engine = new HookEngine();
+            const callback = vi.fn();
 
-            startFn.mockReturnValue(expectedResult);
+            engine.on('anyHookName', callback);
+            engine.on('anotherHook', callback);
+            engine.on('yetAnother', callback);
 
-            const wrapped = engine.make('start', app.start, { bindTo: app });
+            await engine.emit('anyHookName');
+            await engine.emit('anotherHook', 'arg1', 'arg2');
 
-            const result = await wrapped();
-
-            expect(result).to.equal(expectedResult);
+            expect(callback).toHaveBeenCalledTimes(2);
         });
 
-        it('keeps the original function arguments', async () => {
+        it('is strict when type parameter is provided', async () => {
 
-            const engine = new HookEngine<TestApp>();
-            const app = new TestApp();
-
-            const wrapped = engine.make('start', app.start, { bindTo: app });
-
-            await wrapped('arg1', 'arg2', 123);
-
-            expect(startFn).toHaveBeenCalledWith('arg1', 'arg2', 123);
-        });
-
-        it('binds the original function to the provided context', async () => {
-
-            const contextCapture = vi.fn();
-
-            class ContextClass {
-
-                value = 42;
-
-                async doWork() {
-
-                    contextCapture(this.value);
-                }
+            interface StrictLifecycle {
+                preRequest(url: string): Promise<void>;
+                postRequest(url: string, response: Response): Promise<void>;
             }
 
-            const instance = new ContextClass();
-            const customEngine = new HookEngine<ContextClass>();
+            const engine = new HookEngine<StrictLifecycle>();
+            const callback = vi.fn();
 
-            const wrapped = customEngine.make('doWork', instance.doWork, { bindTo: instance });
+            // These work because they're defined in the interface
+            engine.on('preRequest', callback);
+            engine.on('postRequest', callback);
 
-            await wrapped();
+            await engine.emit('preRequest', 'https://example.com');
 
-            expect(contextCapture).toHaveBeenCalledWith(42);
+            expect(callback).toHaveBeenCalledOnce();
+
+            // TypeScript would error on: engine.on('undefinedHook', callback)
+            // But we can't test compile-time errors at runtime
         });
-
     });
 
-    describe('hook extensions', () => {
+    describe('engine.register()', () => {
 
-        let app = new TestApp();
-        let engine = new HookEngine<TestApp>;
+        it('returns this for chaining', () => {
 
+            const engine = new HookEngine();
+            const result = engine.register('hook1', 'hook2');
 
-        beforeEach(() => {
-
-            vi.resetAllMocks();
-            app = new TestApp();
-            engine = new HookEngine<TestApp>;
-
-            engine.wrap(app, 'start');
+            expect(result).to.equal(engine);
         });
 
-        it('allows the addition of a before extension', async () => {
+        it('requires at least one hook name', () => {
 
-            engine.extend('start', 'before', beforeFn);
+            const engine = new HookEngine();
 
-            await app.start();
-
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledOnce();
-            expect(beforeFn).toHaveBeenCalledBefore(startFn);
-
-            const ctx = beforeFn.mock.calls[0]![0];
-
-            expect(ctx).to.have.property('point', 'before');
-            expect(ctx).to.have.property('args').that.is.an('array');
-
-            expect(startFn).toHaveBeenCalledWith(...ctx.args);
-
+            expect(() => engine.register()).to.throw();
         });
 
-        it('allows the addition of an after extension', async () => {
+        it('enables strict mode after first registration', async () => {
 
-            engine.extend('start', 'after', afterFn);
+            const engine = new HookEngine();
 
-            await app.start();
+            // Before registration - permissive
+            engine.on('anyHook', async () => {});
 
-            expect(afterFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledOnce();
+            engine.clear();
+            engine.register('allowedHook');
 
-            expect(afterFn).toHaveBeenCalledAfter(startFn);
-
-            const ctx = afterFn.mock.calls[0]![0];
-
-            expect(ctx).to.have.property('point', 'after');
-            expect(ctx).to.have.property('args').that.is.an('array');
-
-            expect(startFn).toHaveBeenCalledWith(...ctx.args);
+            // After registration - strict
+            expect(() => engine.on('unregisteredHook', async () => {})).to.throw(/not registered/);
         });
 
-        it('allows the addition of an error extension', async () => {
+        it('allows registered hooks', async () => {
 
-            engine.extend('start', 'error', errorFn);
+            const engine = new HookEngine();
+            const callback = vi.fn();
 
-            const error = new Error('Test error');
+            engine.register('myHook');
+            engine.on('myHook', callback);
 
-            startFn.mockImplementation(() => { throw error; });
+            await engine.emit('myHook');
 
-            const [, err] = await attempt(() => app.start());
-
-            expect(err).to.equal(error);
-
-            expect(errorFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledOnce();
-
-            expect(errorFn).toHaveBeenCalledAfter(startFn);
-
-            const ctx = errorFn.mock.calls[0]![0];
-
-            expect(ctx).to.have.property('point', 'error');
-            expect(ctx).to.have.property('args').that.is.an('array');
-            expect(ctx).to.have.property('error', error);
-
-            expect(startFn).toHaveBeenCalledWith(...ctx.args);
+            expect(callback).toHaveBeenCalledOnce();
         });
 
-        it('preserves execution order of extensions', async () => {
+        it('throws on unregistered hook in on()', () => {
 
-            engine.extend('start', 'before', beforeFn);
-            engine.extend('start', 'after', afterFn);
-            engine.extend('start', 'error', errorFn);
+            const engine = new HookEngine();
+            engine.register('validHook');
 
-            await app.start();
-
-            expect(beforeFn).toHaveBeenCalledBefore(startFn);
-            expect(afterFn).toHaveBeenCalledAfter(startFn);
-            expect(errorFn).not.toHaveBeenCalled();
-
-            const error = new Error('Test error');
-
-            beforeFn.mockReset();
-            afterFn.mockReset();
-            errorFn.mockReset();
-            startFn.mockReset();
-
-            startFn.mockImplementation(() => { throw error; });
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(err).to.equal(error);
-
-            expect(beforeFn).toHaveBeenCalledBefore(startFn);
-            expect(errorFn).toHaveBeenCalledAfter(startFn);
-            expect(afterFn).not.toHaveBeenCalled();
+            expect(() => engine.on('invalidHook', async () => {})).to.throw(
+                /Hook "invalidHook" is not registered/
+            );
         });
 
-        it('allows the addition of more than one extension per extension point', async () => {
+        it('throws on unregistered hook in emit()', async () => {
 
-            const anotherBeforeFn = vi.fn();
-            const anotherAfterFn = vi.fn();
-            const anotherErrorFn = vi.fn();
+            const engine = new HookEngine();
+            engine.register('validHook');
 
-            engine.extend('start', 'before', beforeFn);
-            engine.extend('start', 'before', anotherBeforeFn);
-
-            engine.extend('start', 'after', afterFn);
-            engine.extend('start', 'after', anotherAfterFn);
-
-            engine.extend('start', 'error', errorFn);
-            engine.extend('start', 'error', anotherErrorFn);
-
-            expect(beforeFn).not.toHaveBeenCalled();
-            expect(anotherBeforeFn).not.toHaveBeenCalled();
-            expect(afterFn).not.toHaveBeenCalled();
-            expect(anotherAfterFn).not.toHaveBeenCalled();
-            expect(errorFn).not.toHaveBeenCalled();
-            expect(anotherErrorFn).not.toHaveBeenCalled();
-
-            await app.start();
-
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(anotherBeforeFn).toHaveBeenCalledOnce();
-
-            expect(beforeFn).toHaveBeenCalledBefore(anotherBeforeFn);
-            expect(anotherBeforeFn).toHaveBeenCalledBefore(startFn);
-
-            expect(afterFn).toHaveBeenCalledOnce();
-            expect(anotherAfterFn).toHaveBeenCalledOnce();
-
-            expect(afterFn).toHaveBeenCalledAfter(startFn);
-            expect(anotherAfterFn).toHaveBeenCalledAfter(afterFn);
-
-            const error = new Error('Test error');
-
-            beforeFn.mockReset();
-            anotherBeforeFn.mockReset();
-            afterFn.mockReset();
-            anotherAfterFn.mockReset();
-            errorFn.mockReset();
-            anotherErrorFn.mockReset();
-            startFn.mockReset();
-
-            startFn.mockImplementation(() => { throw error; });
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(err).to.equal(error);
-
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(anotherBeforeFn).toHaveBeenCalledOnce();
-
-            expect(beforeFn).toHaveBeenCalledBefore(anotherBeforeFn);
-            expect(anotherBeforeFn).toHaveBeenCalledBefore(startFn);
-
-            expect(errorFn).toHaveBeenCalledOnce();
-            expect(anotherErrorFn).toHaveBeenCalledOnce();
-
-            expect(errorFn).toHaveBeenCalledAfter(startFn);
-            expect(anotherErrorFn).toHaveBeenCalledAfter(errorFn);
+            await expect(engine.emit('invalidHook')).rejects.toThrow(
+                /Hook "invalidHook" is not registered/
+            );
         });
 
-        it('allows the cleanup of an extension point', async () => {
+        it('throws on unregistered hook in wrap()', () => {
 
-            const cleanup = engine.extend('start', 'before', beforeFn);
+            const engine = new HookEngine();
+            engine.register('preValid');
 
-            expect(beforeFn).not.toHaveBeenCalled();
+            expect(() => engine.wrap(
+                async () => 'result',
+                { pre: 'preInvalid' }
+            )).to.throw(/Hook "preInvalid" is not registered/);
+        });
 
-            await app.start();
+        it('shows registered hooks in error message', () => {
 
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledOnce();
+            const engine = new HookEngine();
+            engine.register('preRequest', 'postRequest', 'rateLimit');
+
+            expect(() => engine.on('preRequset', async () => {})).to.throw(
+                /Registered hooks: preRequest, postRequest, rateLimit/
+            );
+        });
+
+        it('clear() resets to permissive mode', async () => {
+
+            const engine = new HookEngine();
+            engine.register('strictHook');
+
+            expect(() => engine.on('unregistered', async () => {})).to.throw();
+
+            engine.clear();
+
+            // Back to permissive
+            engine.on('anyHook', async () => {});
+            await engine.emit('anyHook');
+        });
+    });
+
+    describe('wrap() runtime validation', () => {
+
+        it('throws when neither pre nor post provided', () => {
+
+            const engine = new HookEngine();
+
+            // Cast to bypass TypeScript - test runtime validation
+            expect(() => engine.wrap(
+                async () => 'result',
+                {} as any
+            )).to.throw(/requires at least one of "pre" or "post"/);
+        });
+
+        it('validates pre hook is registered', () => {
+
+            const engine = new HookEngine();
+            engine.register('validPre');
+
+            expect(() => engine.wrap(
+                async () => 'result',
+                { pre: 'invalidPre' }
+            )).to.throw(/not registered/);
+        });
+
+        it('validates post hook is registered', () => {
+
+            const engine = new HookEngine();
+            engine.register('validPost');
+
+            expect(() => engine.wrap(
+                async () => 'result',
+                { post: 'invalidPost' }
+            )).to.throw(/not registered/);
+        });
+
+        it('validates both pre and post hooks are registered', () => {
+
+            const engine = new HookEngine();
+            engine.register('validPre', 'validPost');
+
+            // This should work
+            const wrapped = engine.wrap(
+                async (x: number) => x * 2,
+                { pre: 'validPre', post: 'validPost' }
+            );
+
+            expect(wrapped).to.be.a('function');
+        });
+    });
+
+    describe('engine.on()', () => {
+
+        it('registers a hook callback', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
+
+            engine.on('test', callback);
+
+            await engine.emit('test');
+
+            expect(callback).toHaveBeenCalledOnce();
+        });
+
+        it('returns a cleanup function', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
+
+            const cleanup = engine.on('test', callback);
+
+            await engine.emit('test');
+            expect(callback).toHaveBeenCalledOnce();
 
             cleanup();
 
-            await app.start();
-
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledTimes(2);
+            await engine.emit('test');
+            expect(callback).toHaveBeenCalledOnce(); // Still 1, not called again
         });
 
-        it('allows extensions to modify the original function arguments', async () => {
+        it('accepts options object with callback', async () => {
 
-            const modifiedArgs = ['modified', 'args'];
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
 
-            engine.extend('start', 'before', async (ctx) => {
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
 
-                ctx.setArgs(modifiedArgs as any);
+            engine.on('test', { callback });
+
+            await engine.emit('test');
+
+            expect(callback).toHaveBeenCalledOnce();
+        });
+
+        it('rejects invalid name', () => {
+
+            // Permissive mode - any string hook name works
+            const engine = new HookEngine();
+
+            expect(() => engine.on(null as any, async () => {})).to.throw();
+            expect(() => engine.on(123 as any, async () => {})).to.throw();
+        });
+
+        it('rejects invalid callback', () => {
+
+            // Permissive mode - any string hook name works
+            const engine = new HookEngine();
+
+            expect(() => engine.on('test', null as any)).to.throw();
+            expect(() => engine.on('test', 'notAFunction' as any)).to.throw();
+            expect(() => engine.on('test', {} as any)).to.throw();
+            expect(() => engine.on('test', { callback: null } as any)).to.throw();
+        });
+
+        it('does not duplicate callbacks added more than once', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
+
+            engine.on('test', callback);
+            engine.on('test', callback);
+            engine.on('test', callback);
+
+            await engine.emit('test');
+
+            expect(callback).toHaveBeenCalledOnce();
+        });
+
+        it('runs callbacks in insertion order', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const order: number[] = [];
+
+            engine.on('test', async () => { order.push(1); });
+            engine.on('test', async () => { order.push(2); });
+            engine.on('test', async () => { order.push(3); });
+
+            await engine.emit('test');
+
+            expect(order).to.deep.equal([1, 2, 3]);
+        });
+    });
+
+    describe('engine.emit()', () => {
+
+        it('returns EmitResult with args', async () => {
+
+            interface Lifecycle {
+                test(a: string, b: number): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            const result = await engine.emit('test', 'hello', 42);
+
+            expect(result.args).to.deep.equal(['hello', 42]);
+            expect(result.earlyReturn).to.be.false;
+            expect(result.result).to.be.undefined;
+        });
+
+        it('returns EmitResult when no callbacks registered', async () => {
+
+            interface Lifecycle {
+                test(a: string): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            const result = await engine.emit('test', 'value');
+
+            expect(result.args).to.deep.equal(['value']);
+            expect(result.earlyReturn).to.be.false;
+        });
+
+        it('passes context to callbacks', async () => {
+
+            interface Lifecycle {
+                test(url: string): Promise<string>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            let receivedContext: any;
+
+            engine.on('test', async (ctx) => {
+
+                receivedContext = ctx;
             });
 
-            await app.start();
+            await engine.emit('test', 'https://example.com');
 
-            expect(startFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledWith(...modifiedArgs);
+            expect(receivedContext).to.have.property('args').that.deep.equals(['https://example.com']);
+            expect(receivedContext).to.have.property('setArgs').that.is.a('function');
+            expect(receivedContext).to.have.property('setResult').that.is.a('function');
+            expect(receivedContext).to.have.property('returnEarly').that.is.a('function');
+            expect(receivedContext).to.have.property('fail').that.is.a('function');
+            expect(receivedContext).to.have.property('removeHook').that.is.a('function');
+        });
+    });
+
+    describe('context.setArgs()', () => {
+
+        it('modifies args for subsequent callbacks', async () => {
+
+            interface Lifecycle {
+                test(value: string): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const secondCallback = vi.fn();
+
+            engine.on('test', async (ctx) => {
+
+                ctx.setArgs(['modified']);
+            });
+
+            engine.on('test', secondCallback);
+
+            await engine.emit('test', 'original');
+
+            const receivedCtx = secondCallback.mock.calls[0]![0];
+            expect(receivedCtx.args).to.deep.equal(['modified']);
         });
 
-        it('allows extensions to return early from the hook chain', async () => {
+        it('returns modified args in EmitResult', async () => {
 
-            const earlyResult = { early: true };
+            interface Lifecycle {
+                test(value: string): Promise<void>;
+            }
 
-            engine.extend('start', 'before', async (ctx) => {
+            const engine = new HookEngine<Lifecycle>();
 
-                ctx.setResult(earlyResult as any);
+            engine.on('test', async (ctx) => {
+
+                ctx.setArgs(['modified']);
+            });
+
+            const result = await engine.emit('test', 'original');
+
+            expect(result.args).to.deep.equal(['modified']);
+        });
+
+        it('rejects non-array args', async () => {
+
+            interface Lifecycle {
+                test(value: string): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('test', async (ctx) => {
+
+                ctx.setArgs('not an array' as any);
+            });
+
+            const [, err] = await attempt(() => engine.emit('test', 'value'));
+
+            expect(err).to.be.instanceOf(Error);
+        });
+    });
+
+    describe('context.setResult()', () => {
+
+        it('sets result in EmitResult', async () => {
+
+            interface Lifecycle {
+                test(): Promise<string>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('test', async (ctx) => {
+
+                ctx.setResult('my result');
+            });
+
+            const result = await engine.emit('test');
+
+            expect(result.result).to.equal('my result');
+        });
+
+        it('subsequent callbacks can read and modify result', async () => {
+
+            interface Lifecycle {
+                test(): Promise<number>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('test', async (ctx) => {
+
+                ctx.setResult(10);
+            });
+
+            engine.on('test', async (ctx) => {
+
+                ctx.setResult((ctx.result ?? 0) * 2);
+            });
+
+            const result = await engine.emit('test');
+
+            expect(result.result).to.equal(20);
+        });
+    });
+
+    describe('context.returnEarly()', () => {
+
+        it('stops processing remaining callbacks', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const firstCallback = vi.fn(async (ctx) => ctx.returnEarly());
+            const secondCallback = vi.fn();
+
+            engine.on('test', firstCallback);
+            engine.on('test', secondCallback);
+
+            await engine.emit('test');
+
+            expect(firstCallback).toHaveBeenCalledOnce();
+            expect(secondCallback).not.toHaveBeenCalled();
+        });
+
+        it('sets earlyReturn flag in EmitResult', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('test', async (ctx) => {
+
                 ctx.returnEarly();
             });
 
-            const result = await app.start();
+            const result = await engine.emit('test');
 
-            expect(startFn).not.toHaveBeenCalled();
-            expect(result).to.equal(earlyResult);
+            expect(result.earlyReturn).to.be.true;
         });
 
-        it('doesnt duplicate extensions added more than once', async () => {
+        it('preserves result set before returnEarly', async () => {
 
-            engine.extend('start', 'before', beforeFn);
-            engine.extend('start', 'before', beforeFn);
-            engine.extend('start', 'before', beforeFn);
+            interface Lifecycle {
+                test(): Promise<string>;
+            }
 
-            await app.start();
+            const engine = new HookEngine<Lifecycle>();
 
-            expect(beforeFn).toHaveBeenCalledOnce();
+            engine.on('test', async (ctx) => {
+
+                ctx.setResult('cached value');
+                ctx.returnEarly();
+            });
+
+            const result = await engine.emit('test');
+
+            expect(result.result).to.equal('cached value');
+            expect(result.earlyReturn).to.be.true;
+        });
+    });
+
+    describe('context.fail()', () => {
+
+        it('throws HookError by default', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('test', async (ctx) => {
+
+                ctx.fail('Validation failed');
+            });
+
+            const [, err] = await attempt(() => engine.emit('test'));
+
+            expect(isHookError(err)).to.be.true;
+            expect(err).to.have.property('message').that.includes('Validation failed');
         });
 
-        it('can run an extension only once when specified', async () => {
+        it('sets hookName on HookError', async () => {
 
-            engine.extend('start', 'before', {
-                callback: beforeFn,
+            interface Lifecycle {
+                validate(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('validate', async (ctx) => {
+
+                ctx.fail('Invalid');
+            });
+
+            const [, err] = await attempt(() => engine.emit('validate'));
+
+            expect(isHookError(err)).to.be.true;
+            expect(err).to.have.property('hookName', 'validate');
+        });
+
+        it('stops processing remaining callbacks', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const secondCallback = vi.fn();
+
+            engine.on('test', async (ctx) => {
+
+                ctx.fail('Stop here');
+            });
+
+            engine.on('test', secondCallback);
+
+            await attempt(() => engine.emit('test'));
+
+            expect(secondCallback).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('context.removeHook()', () => {
+
+        it('removes the callback from future emissions', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            let callCount = 0;
+
+            engine.on('test', async (ctx) => {
+
+                callCount++;
+
+                if (callCount >= 2) {
+                    ctx.removeHook();
+                }
+            });
+
+            await engine.emit('test');
+            await engine.emit('test');
+            await engine.emit('test');
+            await engine.emit('test');
+
+            expect(callCount).to.equal(2);
+        });
+
+        it('removes only the current callback', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const firstFn = vi.fn();
+            const selfRemovingFn = vi.fn(async (ctx) => ctx.removeHook());
+            const lastFn = vi.fn();
+
+            engine.on('test', firstFn);
+            engine.on('test', selfRemovingFn);
+            engine.on('test', lastFn);
+
+            await engine.emit('test');
+
+            expect(firstFn).toHaveBeenCalledOnce();
+            expect(selfRemovingFn).toHaveBeenCalledOnce();
+            expect(lastFn).toHaveBeenCalledOnce();
+
+            firstFn.mockReset();
+            selfRemovingFn.mockReset();
+            lastFn.mockReset();
+
+            await engine.emit('test');
+
+            expect(firstFn).toHaveBeenCalledOnce();
+            expect(selfRemovingFn).not.toHaveBeenCalled();
+            expect(lastFn).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe('once option', () => {
+
+        it('removes callback after first execution', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
+
+            engine.on('test', {
+                callback,
                 once: true
             });
 
-            await app.start();
-            await app.start();
-            await app.start();
+            await engine.emit('test');
+            await engine.emit('test');
+            await engine.emit('test');
 
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledTimes(3);
+            expect(callback).toHaveBeenCalledOnce();
         });
+    });
 
-        it('captures and re-throws errors from the original function in error extensions', async () => {
+    describe('ignoreOnFail option', () => {
 
-            const originalError = new Error('Original function error');
+        it('swallows errors from callback', async () => {
 
-            startFn.mockImplementation(() => { throw originalError; });
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
 
-            engine.extend('start', 'error', errorFn);
+            const engine = new HookEngine<Lifecycle>();
+            const afterCallback = vi.fn();
 
-            const [, err] = await attempt(() => app.start());
-
-            expect(err).to.equal(originalError);
-            expect(errorFn).toHaveBeenCalledOnce();
-
-            const ctx = errorFn.mock.calls[0]![0];
-
-            expect(ctx).to.have.property('error', originalError);
-            expect(ctx).to.have.property('point', 'error');
-        });
-
-        it('captures and re-throws errors from before extensions', async () => {
-
-            const beforeError = new Error('Before extension error');
-
-            engine.extend('start', 'before', async () => {
-
-                throw beforeError;
-            });
-
-            engine.extend('start', 'error', errorFn);
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(err).to.equal(beforeError);
-            expect(startFn).not.toHaveBeenCalled();
-            expect(errorFn).not.toHaveBeenCalled();
-        });
-
-        it('captures and re-throws errors from after extensions', async () => {
-
-            const afterError = new Error('After extension error');
-
-            engine.extend('start', 'after', async () => {
-
-                throw afterError;
-            });
-
-            engine.extend('start', 'error', errorFn);
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(err).to.equal(afterError);
-            expect(startFn).toHaveBeenCalledOnce();
-            expect(errorFn).not.toHaveBeenCalled();
-        });
-
-        it('captures and re-throws errors from error extensions as well', async () => {
-
-            const originalError = new Error('Original error');
-            const errorExtensionError = new Error('Error extension error');
-
-            startFn.mockImplementation(() => { throw originalError; });
-
-            engine.extend('start', 'error', async () => {
-
-                throw errorExtensionError;
-            });
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(err).to.equal(errorExtensionError);
-        });
-
-        it('ignores errors thrown by extension if specified', async () => {
-
-            const extensionError = new Error('Extension error');
-
-            engine.extend('start', 'before', {
-                callback: async () => { throw extensionError; },
+            engine.on('test', {
+                callback: async () => { throw new Error('Should be ignored'); },
                 ignoreOnFail: true
             });
 
-            engine.extend('start', 'after', afterFn);
+            engine.on('test', afterCallback);
 
-            const [, err] = await attempt(() => app.start());
+            const [, err] = await attempt(() => engine.emit('test'));
 
             expect(err).to.be.null;
-            expect(startFn).toHaveBeenCalledOnce();
-            expect(afterFn).toHaveBeenCalledOnce();
+            expect(afterCallback).toHaveBeenCalledOnce();
         });
 
-        it('captures results from original function', async () => {
+        it('swallows ctx.fail() errors', async () => {
 
-            const originalResult = { data: 'test' };
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
 
-            startFn.mockReturnValue(originalResult);
+            const engine = new HookEngine<Lifecycle>();
+            const afterCallback = vi.fn();
 
-            engine.extend('start', 'after', afterFn);
-
-            const result = await app.start();
-
-            expect(result).to.equal(originalResult);
-
-            const ctx = afterFn.mock.calls[0]![0];
-
-            expect(ctx).to.have.property('results', originalResult);
-        });
-
-        it('captures results from before extensions when early return is used', async () => {
-
-            const earlyResult = { early: 'result' };
-
-            engine.extend('start', 'before', async (ctx) => {
-
-                ctx.setResult(earlyResult as any);
-                ctx.returnEarly();
+            engine.on('test', {
+                callback: async (ctx) => { ctx.fail('Should be ignored'); },
+                ignoreOnFail: true
             });
 
-            const result = await app.start();
+            engine.on('test', afterCallback);
 
-            expect(result).to.equal(earlyResult);
-            expect(startFn).not.toHaveBeenCalled();
+            const [, err] = await attempt(() => engine.emit('test'));
+
+            expect(err).to.be.null;
+            expect(afterCallback).toHaveBeenCalledOnce();
         });
+    });
 
-        it('captures results from after extensions via setResult', async () => {
+    describe('error handling', () => {
 
-            const originalResult = { original: true };
-            const modifiedResult = { modified: true };
+        it('propagates user-thrown errors as-is (not wrapped in HookError)', async () => {
 
-            startFn.mockReturnValue(originalResult);
+            class CustomError extends Error {
+                code = 'CUSTOM';
+            }
 
-            engine.extend('start', 'after', async (ctx) => {
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
 
-                expect(ctx.results).to.equal(originalResult);
-                ctx.setResult(modifiedResult as any);
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('test', async () => {
+
+                throw new CustomError('Custom error');
             });
 
-            const result = await app.start();
+            const [, err] = await attempt(() => engine.emit('test'));
 
-            expect(result).to.equal(modifiedResult);
+            expect(err).to.be.instanceOf(CustomError);
+            expect(isHookError(err)).to.be.false;
+            expect((err as CustomError).code).to.equal('CUSTOM');
+        });
+
+        it('stops at first error without ignoreOnFail', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const secondCallback = vi.fn();
+
+            engine.on('test', async () => {
+
+                throw new Error('First error');
+            });
+
+            engine.on('test', secondCallback);
+
+            await attempt(() => engine.emit('test'));
+
+            expect(secondCallback).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('custom handleFail', () => {
+
+        it('uses Error constructor with single argument', async () => {
+
+            class CustomError extends Error {
+                name = 'CustomError';
+            }
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle, [string]>({
+                handleFail: CustomError
+            });
+
+            engine.on('test', async (ctx) => {
+
+                ctx.fail('Custom message');
+            });
+
+            const [, err] = await attempt(() => engine.emit('test'));
+
+            expect(err).to.be.instanceOf(CustomError);
+            expect(err).to.have.property('message', 'Custom message');
+        });
+
+        it('uses Error constructor with multiple arguments (Firebase-style)', async () => {
+
+            // Simulates Firebase HttpsError: new HttpsError(code, message, details?)
+            class HttpsError extends Error {
+
+                code: string;
+                details?: object | undefined;
+
+                constructor(code: string, message: string, details?: object | undefined) {
+
+                    super(message);
+                    this.code = code;
+                    this.details = details;
+                }
+            }
+
+            interface Lifecycle {
+                validate(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle, [string, string, object?]>({
+                handleFail: HttpsError
+            });
+
+            engine.on('validate', async (ctx) => {
+
+                ctx.fail('failed-precondition', 'Email is required', { field: 'email' });
+            });
+
+            const [, err] = await attempt(() => engine.emit('validate'));
+
+            expect(err).to.be.instanceOf(HttpsError);
+            expect(err).to.have.property('code', 'failed-precondition');
+            expect(err).to.have.property('message', 'Email is required');
+            expect(err).to.have.property('details').that.deep.equals({ field: 'email' });
+        });
+
+        it('uses custom function that throws', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle, [string, number]>({
+                handleFail: (message: string, code: number): never => {
+
+                    const error = new Error(message);
+                    (error as any).code = code;
+                    throw error;
+                }
+            });
+
+            engine.on('test', async (ctx) => {
+
+                ctx.fail('Error message', 500);
+            });
+
+            const [, err] = await attempt(() => engine.emit('test'));
+
+            expect(err).to.have.property('message', 'Error message');
+            expect(err).to.have.property('code', 500);
+        });
+
+        it('passes all arguments to handleFail function', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const receivedArgs: unknown[] = [];
+
+            const engine = new HookEngine<Lifecycle, [string, object, number]>({
+                handleFail: (message: string, data: object, code: number): never => {
+
+                    receivedArgs.push(message, data, code);
+                    throw new Error('fail');
+                }
+            });
+
+            engine.on('test', async (ctx) => {
+
+                ctx.fail('message', { data: true }, 123);
+            });
+
+            await attempt(() => engine.emit('test'));
+
+            expect(receivedArgs).to.deep.equal(['message', { data: true }, 123]);
+        });
+
+        it('default handleFail accepts string only', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            // No FailArgs specified - defaults to [string]
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('test', async (ctx) => {
+
+                // This should only accept a string
+                ctx.fail('Just a message');
+            });
+
+            const [, err] = await attempt(() => engine.emit('test'));
+
+            expect(err).to.have.property('message', 'Just a message');
+        });
+    });
+
+    describe('engine.clear()', () => {
+
+        it('removes all hooks', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
+
+            engine.on('test', callback);
+
+            await engine.emit('test');
+            expect(callback).toHaveBeenCalledOnce();
+
+            engine.clear();
+
+            await engine.emit('test');
+            expect(callback).toHaveBeenCalledOnce(); // Still 1
+        });
+
+        it('allows re-registration after clear', async () => {
+
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const callback1 = vi.fn();
+            const callback2 = vi.fn();
+
+            engine.on('test', callback1);
+            engine.clear();
+            engine.on('test', callback2);
+
+            await engine.emit('test');
+
+            expect(callback1).not.toHaveBeenCalled();
+            expect(callback2).toHaveBeenCalledOnce();
         });
     });
 
@@ -610,308 +998,427 @@ describe('@logosdx/hooks', () => {
         });
     });
 
-    describe('HookError properties via fail()', () => {
+    describe('engine.once()', () => {
 
-        let app: TestApp;
-        let engine: HookEngine<TestApp>;
+        it('is sugar for on() with once: true', async () => {
 
-        beforeEach(() => {
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
 
-            vi.resetAllMocks();
-            app = new TestApp();
-            engine = new HookEngine<TestApp>();
-            engine.wrap(app, 'start');
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
+
+            engine.once('test', callback);
+
+            await engine.emit('test');
+            await engine.emit('test');
+            await engine.emit('test');
+
+            expect(callback).toHaveBeenCalledOnce();
         });
 
-        it('sets hookName and extPoint when fail() is called in before', async () => {
+        it('returns cleanup function', async () => {
 
-            engine.extend('start', 'before', async (ctx) => {
+            interface Lifecycle {
+                test(): Promise<void>;
+            }
 
-                ctx.fail('Test failure');
-            });
+            const engine = new HookEngine<Lifecycle>();
+            const callback = vi.fn();
 
-            const [, err] = await attempt(() => app.start());
+            const cleanup = engine.once('test', callback);
+            cleanup();
 
-            expect(isHookError(err)).to.be.true;
-            expect(err).to.have.property('hookName', 'start');
-            expect(err).to.have.property('extPoint', 'before');
-            expect(err).to.have.property('message').that.includes('Test failure');
+            await engine.emit('test');
+
+            expect(callback).not.toHaveBeenCalled();
         });
 
-        it('sets hookName and extPoint when fail() is called in after', async () => {
+        it('receives full context', async () => {
 
-            engine.extend('start', 'after', async (ctx) => {
+            interface Lifecycle {
+                test(value: string): Promise<string>;
+            }
 
-                ctx.fail('After failure');
+            const engine = new HookEngine<Lifecycle>();
+            let receivedContext: any;
+
+            engine.once('test', async (ctx) => {
+
+                receivedContext = ctx;
+                ctx.setResult('modified');
             });
 
-            const [, err] = await attempt(() => app.start());
+            const result = await engine.emit('test', 'original');
 
-            expect(isHookError(err)).to.be.true;
-            expect(err).to.have.property('hookName', 'start');
-            expect(err).to.have.property('extPoint', 'after');
-        });
-
-        it('sets hookName and extPoint when fail() is called in error', async () => {
-
-            const originalError = new Error('Original');
-
-            startFn.mockImplementation(() => { throw originalError; });
-
-            engine.extend('start', 'error', async (ctx) => {
-
-                ctx.fail('Error handler failure');
-            });
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(isHookError(err)).to.be.true;
-            expect(err).to.have.property('hookName', 'start');
-            expect(err).to.have.property('extPoint', 'error');
-        });
-
-        it('sets originalError when fail() is called with an Error', async () => {
-
-            const originalError = new Error('Original error');
-
-            engine.extend('start', 'before', async (ctx) => {
-
-                ctx.fail(originalError);
-            });
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(isHookError(err)).to.be.true;
-            expect(err).to.have.property('originalError', originalError);
-        });
-
-        it('does not set originalError when fail() is called with a string', async () => {
-
-            engine.extend('start', 'before', async (ctx) => {
-
-                ctx.fail('String message');
-            });
-
-            const [, err] = await attempt(() => app.start());
-
-            expect(isHookError(err)).to.be.true;
-            expect(err).to.have.property('originalError', undefined);
+            expect(receivedContext.args).to.deep.equal(['original']);
+            expect(result.result).to.equal('modified');
         });
     });
 
     describe('engine.wrap()', () => {
 
-        it('wraps an object method in-place', async () => {
+        it('wraps a function with pre hook', async () => {
 
-            const app = new TestApp();
-            const engine = new HookEngine<TestApp>();
-            const originalStart = app.start;
-
-            engine.wrap(app, 'start');
-
-            expect(app.start).to.not.equal(originalStart);
-            expect(app.start).to.be.a('function');
-
-            await app.start();
-
-            expect(startFn).toHaveBeenCalledOnce();
-        });
-
-        it('binds to the instance automatically', async () => {
-
-            const contextCapture = vi.fn();
-
-            class ContextApp {
-
-                value = 'instance-value';
-
-                async getValue() {
-
-                    contextCapture(this.value);
-                    return this.value;
-                }
+            interface Lifecycle {
+                preProcess(value: number): Promise<number>;
             }
 
-            const app = new ContextApp();
-            const engine = new HookEngine<ContextApp>();
+            const engine = new HookEngine<Lifecycle>();
+            const preCallback = vi.fn();
 
-            engine.wrap(app, 'getValue');
+            engine.on('preProcess', preCallback);
 
-            const result = await app.getValue();
+            const wrapped = engine.wrap(
+                async (value: number) => value * 2,
+                { pre: 'preProcess' }
+            );
 
-            expect(contextCapture).toHaveBeenCalledWith('instance-value');
-            expect(result).to.equal('instance-value');
+            const result = await wrapped(5);
+
+            expect(result).to.equal(10);
+            expect(preCallback).toHaveBeenCalledOnce();
         });
 
-        it('allows extensions after wrapping', async () => {
+        it('wraps a function with post hook', async () => {
 
-            const app = new TestApp();
-            const engine = new HookEngine<TestApp>();
+            interface Lifecycle {
+                postProcess(result: number, value: number): Promise<number>;
+            }
 
-            engine.wrap(app, 'start');
-            engine.extend('start', 'before', beforeFn);
-            engine.extend('start', 'after', afterFn);
+            const engine = new HookEngine<Lifecycle>();
+            const postCallback = vi.fn();
 
-            await app.start();
+            engine.on('postProcess', postCallback);
 
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(startFn).toHaveBeenCalledOnce();
-            expect(afterFn).toHaveBeenCalledOnce();
+            const wrapped = engine.wrap(
+                async (value: number) => value * 2,
+                { post: 'postProcess' }
+            );
+
+            const result = await wrapped(5);
+
+            expect(result).to.equal(10);
+            expect(postCallback).toHaveBeenCalledOnce();
         });
 
-        it('rejects invalid instance', () => {
+        it('pre hook can modify arguments', async () => {
 
-            const engine = new HookEngine<TestApp>();
+            interface Lifecycle {
+                preAdd(a: number, b: number): Promise<number>;
+            }
 
-            expect(() => engine.wrap(null as any, 'start')).to.throw();
-            expect(() => engine.wrap(undefined as any, 'start')).to.throw();
-            expect(() => engine.wrap('string' as any, 'start')).to.throw();
+            const engine = new HookEngine<Lifecycle>();
+
+            engine.on('preAdd', async (ctx) => {
+
+                const [a, b] = ctx.args;
+                ctx.setArgs([a * 10, b * 10]);
+            });
+
+            const wrapped = engine.wrap(
+                async (a: number, b: number) => a + b,
+                { pre: 'preAdd' }
+            );
+
+            const result = await wrapped(2, 3);
+
+            expect(result).to.equal(50); // (2*10) + (3*10)
         });
 
-        it('preserves arguments and return values', async () => {
+        it('pre hook can return early with cached result', async () => {
 
-            const app = new TestApp();
-            const engine = new HookEngine<TestApp>();
-            const expectedResult = { wrapped: true };
+            interface Lifecycle {
+                preGet(key: string): Promise<string>;
+            }
 
-            startFn.mockReturnValue(expectedResult);
+            const engine = new HookEngine<Lifecycle>();
+            const cache = new Map([['foo', 'cached-foo']]);
+            const actualFn = vi.fn(async (key: string) => `fetched-${key}`);
 
-            engine.wrap(app, 'start');
+            engine.on('preGet', async (ctx) => {
 
-            const result = await app.start('arg1', 'arg2');
+                const [key] = ctx.args;
+                const cached = cache.get(key);
 
-            expect(startFn).toHaveBeenCalledWith('arg1', 'arg2');
-            expect(result).to.equal(expectedResult);
-        });
-    });
-
-    describe('engine.clear()', () => {
-
-        it('removes all extensions', async () => {
-
-            const app = new TestApp();
-            const engine = new HookEngine<TestApp>();
-
-            engine.wrap(app, 'start');
-            engine.extend('start', 'before', beforeFn);
-            engine.extend('start', 'after', afterFn);
-
-            await app.start();
-
-            expect(beforeFn).toHaveBeenCalledOnce();
-            expect(afterFn).toHaveBeenCalledOnce();
-
-            beforeFn.mockReset();
-            afterFn.mockReset();
-
-            engine.clear();
-
-            // Re-wrap after clear
-            engine.wrap(app, 'start');
-
-            await app.start();
-
-            expect(beforeFn).not.toHaveBeenCalled();
-            expect(afterFn).not.toHaveBeenCalled();
-            expect(startFn).toHaveBeenCalled();
-        });
-
-        it('allows re-registration of hooks after clear', async () => {
-
-            const app1 = new TestApp();
-            const app2 = new TestApp();
-            const engine = new HookEngine<TestApp>();
-
-            engine.wrap(app1, 'start');
-
-            engine.clear();
-
-            // Should not throw - hook can be registered again with fresh instance
-            engine.wrap(app2, 'start');
-            engine.extend('start', 'before', beforeFn);
-
-            await app2.start();
-
-            expect(beforeFn).toHaveBeenCalledOnce();
-        });
-
-        it('clears registrations so hooks can be re-made', () => {
-
-            const app = new TestApp();
-            const engine = new HookEngine<TestApp>();
-
-            engine.make('start', app.start, { bindTo: app });
-
-            // Should throw - already registered
-            expect(() => engine.make('start', app.start, { bindTo: app })).to.throw();
-
-            engine.clear();
-
-            // Should not throw after clear
-            expect(() => engine.make('start', app.start, { bindTo: app })).to.not.throw();
-        });
-    });
-
-    describe('context.removeHook()', () => {
-
-        it('allows an extension to remove itself', async () => {
-
-            const app = new TestApp();
-            const engine = new HookEngine<TestApp>();
-
-            engine.wrap(app, 'start');
-
-            let callCount = 0;
-            engine.extend('start', 'before', async (ctx) => {
-
-                callCount++;
-
-                if (callCount >= 2) {
-                    ctx.removeHook();
+                if (cached) {
+                    ctx.setResult(cached);
+                    ctx.returnEarly();
                 }
             });
 
-            await app.start();
-            await app.start();
-            await app.start();
-            await app.start();
+            const wrapped = engine.wrap(actualFn, { pre: 'preGet' });
 
-            expect(callCount).to.equal(2);
+            const cachedResult = await wrapped('foo');
+            expect(cachedResult).to.equal('cached-foo');
+            expect(actualFn).not.toHaveBeenCalled();
+
+            const freshResult = await wrapped('bar');
+            expect(freshResult).to.equal('fetched-bar');
+            expect(actualFn).toHaveBeenCalledOnce();
         });
 
-        it('removes the correct extension from multiple', async () => {
+        it('post hook can modify result', async () => {
 
-            const app = new TestApp();
-            const engine = new HookEngine<TestApp>();
+            interface Lifecycle {
+                postDouble(result: number, input: number): Promise<number>;
+            }
 
-            engine.wrap(app, 'start');
+            const engine = new HookEngine<Lifecycle>();
 
-            const firstFn = vi.fn();
-            const selfRemovingFn = vi.fn(async (ctx) => {
+            engine.on('postDouble', async (ctx) => {
 
-                ctx.removeHook();
+                const [result] = ctx.args;
+                ctx.setResult(result * 2);
             });
-            const lastFn = vi.fn();
 
-            engine.extend('start', 'before', firstFn);
-            engine.extend('start', 'before', selfRemovingFn);
-            engine.extend('start', 'before', lastFn);
+            const wrapped = engine.wrap(
+                async (input: number) => input + 1,
+                { post: 'postDouble' }
+            );
 
-            await app.start();
+            const result = await wrapped(5);
 
-            expect(firstFn).toHaveBeenCalledOnce();
-            expect(selfRemovingFn).toHaveBeenCalledOnce();
-            expect(lastFn).toHaveBeenCalledOnce();
+            expect(result).to.equal(12); // (5 + 1) * 2
+        });
 
-            firstFn.mockReset();
-            selfRemovingFn.mockReset();
-            lastFn.mockReset();
+        it('works with both pre and post hooks', async () => {
 
-            await app.start();
+            interface Lifecycle {
+                preTransform(value: string): Promise<string>;
+                postTransform(result: string, value: string): Promise<string>;
+            }
 
-            expect(firstFn).toHaveBeenCalledOnce();
-            expect(selfRemovingFn).not.toHaveBeenCalled();
-            expect(lastFn).toHaveBeenCalledOnce();
+            const engine = new HookEngine<Lifecycle>();
+            const callOrder: string[] = [];
+
+            engine.on('preTransform', async (ctx) => {
+
+                callOrder.push('pre');
+                const [value] = ctx.args;
+                ctx.setArgs([value.toUpperCase()]);
+            });
+
+            engine.on('postTransform', async (ctx) => {
+
+                callOrder.push('post');
+                const [result] = ctx.args;
+                ctx.setResult(`[${result}]`);
+            });
+
+            const wrapped = engine.wrap(
+                async (value: string) => `processed:${value}`,
+                { pre: 'preTransform', post: 'postTransform' }
+            );
+
+            const result = await wrapped('hello');
+
+            expect(callOrder).to.deep.equal(['pre', 'post']);
+            expect(result).to.equal('[processed:HELLO]');
+        });
+
+        it('pre hook early return skips function and post hook receives early result', async () => {
+
+            interface Lifecycle {
+                preFetch(url: string): Promise<string>;
+                postFetch(result: string, url: string): Promise<string>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const fetchFn = vi.fn(async (url: string) => `fetched:${url}`);
+            const postCallback = vi.fn();
+
+            engine.on('preFetch', async (ctx) => {
+
+                ctx.setResult('cached-result');
+                ctx.returnEarly();
+            });
+
+            engine.on('postFetch', postCallback);
+
+            const wrapped = engine.wrap(fetchFn, { pre: 'preFetch', post: 'postFetch' });
+
+            const result = await wrapped('https://example.com');
+
+            expect(result).to.equal('cached-result');
+            expect(fetchFn).not.toHaveBeenCalled();
+            expect(postCallback).not.toHaveBeenCalled();
+        });
+
+        it('passes result and args to post hook', async () => {
+
+            interface Lifecycle {
+                postLog(result: number, a: number, b: number): Promise<number>;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            let receivedArgs: unknown[] = [];
+
+            engine.on('postLog', async (ctx) => {
+
+                receivedArgs = [...ctx.args];
+            });
+
+            const wrapped = engine.wrap(
+                async (a: number, b: number) => a + b,
+                { post: 'postLog' }
+            );
+
+            await wrapped(3, 7);
+
+            expect(receivedArgs).to.deep.equal([10, 3, 7]); // [result, ...originalArgs]
+        });
+
+        it('works with only pre hook', async () => {
+
+            const engine = new HookEngine();
+
+            const wrapped = engine.wrap(
+                async (value: number) => value * 2,
+                { pre: 'preProcess' }
+            );
+
+            const result = await wrapped(5);
+
+            expect(result).to.equal(10);
+        });
+
+        it('works with only post hook', async () => {
+
+            const engine = new HookEngine();
+
+            const wrapped = engine.wrap(
+                async (value: number) => value * 2,
+                { post: 'postProcess' }
+            );
+
+            const result = await wrapped(5);
+
+            expect(result).to.equal(10);
+        });
+    });
+
+    describe('real-world patterns', () => {
+
+        it('implements caching pattern', async () => {
+
+            interface FetchLifecycle {
+                cacheCheck(url: string): Promise<string | null>;
+            }
+
+            const engine = new HookEngine<FetchLifecycle>();
+            const cache = new Map([['cached-url', 'cached-data']]);
+
+            engine.on('cacheCheck', async (ctx) => {
+
+                const [url] = ctx.args;
+                const cached = cache.get(url);
+
+                if (cached) {
+                    ctx.setResult(cached);
+                    ctx.returnEarly();
+                }
+            });
+
+            const cachedResult = await engine.emit('cacheCheck', 'cached-url');
+            expect(cachedResult.result).to.equal('cached-data');
+            expect(cachedResult.earlyReturn).to.be.true;
+
+            const missResult = await engine.emit('cacheCheck', 'not-cached');
+            expect(missResult.result).to.be.undefined;
+            expect(missResult.earlyReturn).to.be.false;
+        });
+
+        it('implements validation pattern', async () => {
+
+            interface UserLifecycle {
+                validate(data: { email?: string }): Promise<void>;
+            }
+
+            const engine = new HookEngine<UserLifecycle>();
+
+            engine.on('validate', async (ctx) => {
+
+                const [data] = ctx.args;
+
+                if (!data.email) {
+                    ctx.fail('Email is required');
+                }
+            });
+
+            const [, err] = await attempt(() => engine.emit('validate', {}));
+
+            expect(isHookError(err)).to.be.true;
+            expect(err?.message).to.include('Email is required');
+
+            const [result] = await attempt(() => engine.emit('validate', { email: 'test@example.com' }));
+
+            expect(result).to.have.property('earlyReturn', false);
+        });
+
+        it('implements rate limiting pattern', async () => {
+
+            interface ApiLifecycle {
+                rateLimit(retryAfter: number, attempt: number): Promise<void>;
+            }
+
+            const engine = new HookEngine<ApiLifecycle>();
+            const delays: number[] = [];
+
+            engine.on('rateLimit', async (ctx) => {
+
+                const [retryAfter, attempt] = ctx.args;
+
+                if (attempt > 3) {
+                    ctx.fail('Max retries exceeded');
+                }
+
+                delays.push(retryAfter);
+            });
+
+            await engine.emit('rateLimit', 100, 1);
+            await engine.emit('rateLimit', 200, 2);
+            await engine.emit('rateLimit', 300, 3);
+
+            const [, err] = await attempt(() => engine.emit('rateLimit', 400, 4));
+
+            expect(delays).to.deep.equal([100, 200, 300]);
+            expect(isHookError(err)).to.be.true;
+        });
+
+        it('implements analytics pattern with ignoreOnFail', async () => {
+
+            interface AppLifecycle {
+                action(name: string): Promise<void>;
+            }
+
+            const engine = new HookEngine<AppLifecycle>();
+            const tracked: string[] = [];
+            const importantCallback = vi.fn();
+
+            engine.on('action', {
+                callback: async (ctx) => {
+
+                    const [name] = ctx.args;
+
+                    if (name === 'fail') {
+                        throw new Error('Analytics failed');
+                    }
+
+                    tracked.push(name);
+                },
+                ignoreOnFail: true
+            });
+
+            engine.on('action', importantCallback);
+
+            await engine.emit('action', 'click');
+            await engine.emit('action', 'fail');
+            await engine.emit('action', 'scroll');
+
+            expect(tracked).to.deep.equal(['click', 'scroll']);
+            expect(importantCallback).toHaveBeenCalledTimes(3);
         });
     });
 });

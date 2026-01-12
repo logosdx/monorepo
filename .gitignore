@@ -6,6 +6,7 @@ docs/types
 typedoc
 tmp/*
 !tmp/.gitkeep
+packages/hooks/tmp/
 packages/test
 tests/src/experiments/*
 !tests/src/experiments/memory-tests/
