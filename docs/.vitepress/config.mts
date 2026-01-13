@@ -35,7 +35,8 @@ export default defineConfig({
 
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'TypeDocs', link: 'https://typedoc.logosdx.dev' }
+      { text: 'TypeDocs', link: 'https://typedoc.logosdx.dev' },
+      { text: 'llms.txt', link: '/llms.txt' }
     ],
 
 

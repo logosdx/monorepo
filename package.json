@@ -13,14 +13,14 @@
     "dts": "node ./scripts/build.mjs",
     "build:docs": "bash ./scripts/docs.zsh",
     "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
+    "docs:build": "zx scripts/build-llm-txt.mjs && vitepress build docs",
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
     "@changesets/cli": "^2.29.4",
     "@swc/cli": "^0.7.7",
     "@swc/core": "^1.11.29",
-    "@types/node": "^24.10.1",
+    "@types/node": "^24.10.7",
     "tsx": "^4.19.4",
     "typedoc": "^0.28.4",
     "typescript": "^5.8.2"

@@ -11,4 +11,6 @@ packages/test
 tests/src/experiments/*
 !tests/src/experiments/memory-tests/
 docs/.vitepress/cache/*
+docs/public/llms.txt
+docs/public/llm/
 .env
