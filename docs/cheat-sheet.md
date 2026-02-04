@@ -86,9 +86,21 @@ const [data, err] = await attempt(() =>
     api.get<User>('/users/123', {
         headers: { 'X-Include': 'profile' },
         params: { include: 'permissions' },
-        timeout: 10000,
+        totalTimeout: 30000,
+        attemptTimeout: 10000,
         abortController: new AbortController()
     })
+);
+
+// Stream mode — raw Response with unconsumed body
+const [streamRes, err] = await attempt(() =>
+    api.get('/events', { stream: true })
+);
+const reader = streamRes.data.body.getReader();
+
+// Override request ID for distributed tracing
+const [traced, err] = await attempt(() =>
+    api.get('/orders', { requestId: upstreamTraceId })
 );
 ```
 
@@ -186,12 +198,23 @@ if (api.params.has('version')) {
 ### Configuration Management
 
 ```typescript
+// Get config values
+const config = api.config.get();
+const baseUrl = api.config.get('baseUrl');
+const maxAttempts = api.config.get('retry.maxAttempts');
+
 // Change base URL
 api.config.set('baseUrl', 'https://staging.example.com');
 
 // Change other config at runtime
 api.config.set('totalTimeout', 60000);
 api.config.set('retry.maxAttempts', 5);
+
+// Merge partial config
+api.config.set({
+    totalTimeout: 60000,
+    retry: { maxAttempts: 5 }
+});
 ```
 
 
@@ -235,35 +258,70 @@ api.once('response', (event) => {
     console.log('First response:', event.response);
 });
 
-// Listen to all events
-api.on('*', (event) => {
-    console.log(`Event: ${event.type}`);
+// Listen to all events (regex pattern)
+api.on(/./, ({ event, data }) => {
+    console.log(`Event: ${event}`, data);
 });
 
 // Remove listener
 cleanup();
 // or
 api.off('error', callback);
-
-// Emit custom event
-api.emit('custom-event', { data: 'value' });
 ```
 
 #### Available Events
 
-- `before-request` - Before request
-- `after-request` - After request
-- `abort` - Request aborted
-- `error` - Request error
-- `response` - Response received
-- `retry` - Retry attempt
+**Request Lifecycle:**
+- `before-request` - Before each request attempt
+- `after-request` - After response is parsed and ready
+- `response` - When raw response is received (before parsing)
+- `error` - On request failure
+- `retry` - Before retry attempt
+- `abort` - When request is aborted
+
+**Property Changes:**
 - `header-add` - Header added
 - `header-remove` - Header removed
 - `param-add` - Parameter added
 - `param-remove` - Parameter removed
+
+**State Changes:**
 - `state-set` - State updated
 - `state-reset` - State reset
+
+**Configuration Changes:**
+- `config-change` - Config modified
+- `modify-config-change` - modifyConfig function changed
+- `modify-method-config-change` - Method-specific modifier changed
 - `url-change` - Base URL changed
+
+**Deduplication:**
+- `dedupe-start` - New request starts tracking
+- `dedupe-join` - Caller joins existing request
+
+**Cache:**
+- `cache-hit` - Fresh cache hit
+- `cache-stale` - Stale cache hit (SWR)
+- `cache-miss` - Cache miss
+- `cache-set` - Entry cached
+- `cache-revalidate` - SWR revalidation started
+- `cache-revalidate-error` - SWR revalidation failed
+
+**Rate Limiting:**
+- `ratelimit-wait` - Waiting for token
+- `ratelimit-reject` - Request rejected
+- `ratelimit-acquire` - Token acquired
+
+#### Event Timing
+
+Terminal events (`response`, `error`, `abort`) include timing data:
+
+```typescript
+api.on('response', (event) => {
+    const duration = event.requestEnd - event.requestStart;
+    console.log(`Request completed in ${duration}ms`);
+});
+```
 
 
 ### Error Handling
@@ -278,7 +336,14 @@ if (err) {
         console.log('HTTP Error:', err.status, err.message);
         console.log('Failed at step:', err.step);
         console.log('Response data:', err.data);
+        console.log('Request ID:', err.requestId);
         console.log('Was aborted:', err.aborted);
+        console.log('Timed out:', err.timedOut);
+
+        // Convenience methods for 499 errors
+        if (err.isCancelled()) console.log('User/app cancelled');
+        if (err.isTimeout()) console.log('Timeout fired');
+        if (err.isConnectionLost()) console.log('Network failed');
     } else {
         console.log('Network error:', err.message);
     }
@@ -287,7 +352,7 @@ if (err) {
 
 #### Error Status Codes
 
-- `499` - Request aborted by server
+- `499` - Request aborted (user cancel, timeout, or connection lost)
 - `999` - Error during response parsing
 
 
@@ -296,6 +361,11 @@ if (err) {
 ```typescript
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
+    totalTimeout: 30000,
+    attemptTimeout: 10000,
+
+    // Distributed tracing — auto-inject request ID header
+    requestIdHeader: 'X-Request-Id',
 
     // Method-specific headers
     methodHeaders: {
@@ -355,6 +425,82 @@ const api = new FetchEngine({
 ```
 
 
+### Resilience Policies
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+
+    // Request deduplication — prevent duplicate concurrent requests
+    dedupePolicy: {
+        enabled: true,
+        methods: ['GET'],
+        rules: [
+            { includes: '/realtime', enabled: false }
+        ]
+    },
+
+    // Response caching with stale-while-revalidate
+    cachePolicy: {
+        enabled: true,
+        methods: ['GET'],
+        ttl: 60000,
+        staleIn: 30000,
+        rules: [
+            { startsWith: '/static', ttl: 3600000 },
+            { startsWith: '/user/me', ttl: 300000 },
+            { includes: '/realtime', enabled: false }
+        ]
+    },
+
+    // Rate limiting — protect against overwhelming the API
+    rateLimitPolicy: {
+        enabled: true,
+        maxCalls: 100,
+        windowMs: 60000,
+        waitForToken: true,
+        rules: [
+            { startsWith: '/api/search', maxCalls: 10 },
+            { startsWith: '/api/bulk', waitForToken: false }
+        ]
+    }
+});
+```
+
+
+### Cache Management
+
+```typescript
+// Clear all cache entries
+api.clearCache();
+
+// Invalidate specific path (marks stale for SWR)
+api.invalidatePath('/users/123');
+
+// Invalidate with predicate
+api.invalidateCache((key) => key.includes('/users'));
+
+// Delete a specific cache entry
+api.deleteCache('/users/123');
+
+// Get cache statistics
+const stats = api.cacheStats();
+```
+
+
+### Lifecycle Management
+
+```typescript
+// Destroy engine — aborts all pending requests
+api.destroy();
+
+// Check if destroyed before making requests
+if (!api.isDestroyed()) {
+    await api.get('/users');
+}
+```
+
+
 ### TypeScript Module Declaration
 
 ```typescript
@@ -394,6 +540,43 @@ const [loginResponse, err] = await attempt(() =>
 if (!err && loginResponse) {
     api.state.set('authToken', loginResponse.data.token);
     api.headers.set('Authorization', `Bearer ${loginResponse.data.token}`);
+}
+```
+
+#### Distributed Tracing
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    requestIdHeader: 'X-Request-Id'
+});
+
+// Request ID auto-generated and sent as header
+api.on('error', (event) => {
+    errorReporting.captureException(event.error, {
+        tags: { requestId: event.requestId }
+    });
+});
+
+// Override with upstream trace ID
+await api.get('/orders', { requestId: incomingTraceId });
+```
+
+#### Stream Mode
+
+```typescript
+// Raw Response with unconsumed body (skips cache/dedupe)
+const [sse, err] = await attempt(() =>
+    api.get('/events', { stream: true })
+);
+
+if (!err) {
+    const reader = sse.data.body.getReader();
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        console.log(new TextDecoder().decode(value));
+    }
 }
 ```
 
@@ -476,7 +659,8 @@ const observer = new ObserverEngine<AppEvents>({
     spy: (action) => console.log(action.fn, action.event),
     emitValidator: (event, data) => {
         if (!data) throw new Error('Data required')
-    }
+    },
+    signal: abortController.signal  // Auto-cleanup on abort
 });
 ```
 
@@ -510,6 +694,14 @@ console.log('First login:', loginData.userId);
 observer.on(/^user:/, ({ event, data }) => {
     console.log(`User event ${event}:`, data);
 });
+
+// With AbortSignal — auto-removes listener on abort
+const controller = new AbortController();
+observer.on('user:login', handler, { signal: controller.signal });
+controller.abort(); // Listener removed
+
+// Once with AbortSignal — rejects promise on abort
+const data = await observer.once('user:login', { signal: controller.signal });
 ```
 
 
@@ -580,6 +772,11 @@ enhanced.on('open', () => {
 
 enhanced.emit('open');
 enhanced.cleanup(); // Remove component listeners
+
+// With AbortSignal — auto-cleanup on abort
+const controller = new AbortController();
+const component = observer.observe(widget, { signal: controller.signal });
+controller.abort(); // Component listeners auto-cleaned
 ```
 
 

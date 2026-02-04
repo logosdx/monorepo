@@ -179,12 +179,18 @@ interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     status: number;
     method: HttpMethods;
     path: string;
-    aborted?: boolean;   // True if request was aborted (any cause)
-    timedOut?: boolean;  // True if aborted due to timeout (attemptTimeout or totalTimeout)
+    aborted?: boolean;    // True if request was aborted (any cause)
+    timedOut?: boolean;   // True if aborted due to timeout (attemptTimeout or totalTimeout)
+    requestId?: string;   // Unique request ID for tracing (consistent across retries)
     attempt?: number;
     step?: 'fetch' | 'parse' | 'response';
     url?: string;
     headers?: H;
+
+    // Convenience methods for distinguishing 499 errors
+    isCancelled(): boolean;     // status === 499 && aborted && !timedOut
+    isTimeout(): boolean;       // status === 499 && timedOut
+    isConnectionLost(): boolean; // status === 499 && step === 'fetch' && !aborted
 }
 
 // Error checking - FetchError is thrown on failure
@@ -330,12 +336,52 @@ enum FetchEventNames {
     'ratelimit-acquire' = 'ratelimit-acquire'  // Token acquired
 }
 
-// Event listeners
-api.on('*', (event) => console.log('Any event:', event.type));
+// Event listeners (use regex to match all events)
+api.on(/./, ({ event, data }) => console.log('Event:', event, data));
 api.on('before-request', (event) => console.log('Request starting:', event.url));
 api.on('error', (event) => console.error('Request failed:', event.error));
 api.off('error', errorHandler); // remove listener
+
+// Event timing — terminal events include requestStart/requestEnd
+api.on('response', (event) => {
+    const duration = event.requestEnd - event.requestStart;
+    console.log(`[${event.requestId}] ${event.method} ${event.path} completed in ${duration}ms`);
+});
 ```
+
+### Event Data Fields
+
+Request lifecycle events receive `EventData<S, H, P>`:
+
+```typescript
+interface EventData<S, H, P> {
+    state: S;
+    url?: string | URL;
+    method?: HttpMethods;
+    headers?: DictAndT<H>;
+    params?: DictAndT<P>;
+    error?: Error | FetchError;
+    response?: Response;
+    data?: unknown;
+    payload?: unknown;
+    attempt?: number;
+    nextAttempt?: number;
+    delay?: number;
+    step?: 'fetch' | 'parse' | 'response';
+    status?: number;
+    path?: string;
+    aborted?: boolean;
+    requestId?: string;      // Unique ID for this request (consistent across retries)
+    requestStart?: number;   // Date.now() when request entered pipeline (all request events)
+    requestEnd?: number;     // Date.now() when request resolved (response, error, abort only)
+}
+```
+
+| Field | Present in | Description |
+|-------|-----------|-------------|
+| `requestStart` | All request events | Timestamp when the request entered the execution pipeline |
+| `requestEnd` | `response`, `error`, `abort` | Timestamp when the request resolved |
+| `requestId` | All request events | Unique ID, consistent across retries of the same request |
 
 ## Request Deduplication
 
@@ -587,7 +633,7 @@ When deduplicating, each caller can have independent timeout/abort constraints:
 
 ```typescript
 // Caller A: 10s timeout
-const promiseA = api.get('/slow', { timeout: 10000 });
+const promiseA = api.get('/slow', { totalTimeout: 10000 });
 
 // Caller B: 2s timeout (joins A's request)
 const promiseB = api.get('/slow', { totalTimeout: 2000 });
@@ -678,6 +724,34 @@ if (isFetchError(err)) {
 | Server closed connection | 499 | `false` | `undefined` | `'fetch'` |
 | Network error | 499 | `false` | `undefined` | `'fetch'` |
 
+## Stream Mode
+
+Return raw `Response` objects with unconsumed body streams. Cache and deduplication are skipped (each caller needs its own readable stream). Rate limiting and lifecycle events still fire normally.
+
+```typescript
+// Stream mode — raw Response with unconsumed body
+const [sse, err] = await attempt(() =>
+    api.get('/events', { stream: true })
+);
+
+if (!err) {
+    const reader = sse.data.body.getReader();
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        console.log(new TextDecoder().decode(value));
+    }
+}
+
+// Works with all HTTP methods
+const [response, err] = await attempt(() =>
+    api.post('/upload-stream', largePayload, { stream: true })
+);
+
+// Type signature: when stream: true, data is Response
+// api.get<Response>(path, { stream: true }): AbortablePromise<FetchResponse<Response>>
+```
+
 ## Advanced Features
 
 ```typescript
@@ -758,13 +832,12 @@ api.config.set('modifyMethodConfig', { POST: undefined });
 // Per-request options
 const [response, err] = await attempt(() =>
     api.get('/users', {
-        timeout: 10000,
+        totalTimeout: 30000,
+        attemptTimeout: 10000,
         headers: { 'X-Request-ID': '123' },
         params: { include: 'profile' },
         requestId: 'upstream-trace-id',  // Override auto-generated request ID
-        onBeforeReq: (opts) => console.log('Making request:', opts),
-        onAfterReq: (response) => console.log('Response:', response.status),
-        onError: (error) => console.error('Error:', error),
+        stream: false,                   // Set true for raw Response with unconsumed body
         retry: { maxAttempts: 5 }
     })
 );
