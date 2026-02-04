@@ -34,7 +34,7 @@ features:
   - title: Fetch
     details: Native fetch without the verbosity. Retries, state management, and more.
     icon: { src: /images/svg/cloud.svg, alt: Fetch }
-    link: /packages/fetch
+    link: /packages/fetch/
   - title: Storage
     details: Storage API that works with any interface that looks like LocalStorage or SessionStorage.
     icon: { src: /images/svg/box.svg, alt: Storage }

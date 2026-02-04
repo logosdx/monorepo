@@ -1,9 +1,10 @@
-import { FetchEngine } from './engine.ts';
+// New modular imports
+import { FetchEngine } from './engine/index.ts';
 
 export {
     FetchError,
     isFetchError
-} from './helpers.ts';
+} from './helpers/index.ts';
 
 export type {
     FetchResponse,
@@ -19,11 +20,7 @@ export type {
     RequestSerializer
 } from './types.ts';
 
-export {
-    defaultRequestSerializer,
-    defaultRateLimitSerializer
-} from './helpers.ts';
-
+// Serializers (requestSerializer for dedupe/cache, endpointSerializer for rate-limit)
 export {
     endpointSerializer,
     requestSerializer
@@ -44,19 +41,51 @@ export type {
     RateLimitPolicyState
 } from './policies/index.ts';
 
-export {
-    PropertyStore
-} from './property-store.ts';
+export { FetchEngine } from './engine/index.ts';
+export { FetchState } from './state/index.ts';
+export { ConfigStore } from './options/index.ts';
+export { HeadersManager } from './properties/headers.ts';
+export { ParamsManager } from './properties/params.ts';
+export { PropertyStore } from './properties/store.ts';
+
+export type {
+    FetchEngineCore,
+    InternalReqOptions,
+    ExecuteResult,
+    CallConfig,
+    AbortablePromise,
+    InstanceResponseHeaders
+} from './engine/index.ts';
+
+export type {
+    EventMap,
+    EventData,
+    DedupeEventData,
+    CacheEventData,
+    RateLimitEventData,
+    StateEventData,
+    PropertyEventData,
+    OptionsEventData
+} from './engine/index.ts';
+
+export type {
+    EngineConfig,
+    EngineType,
+    EngineRequestConfig as EngineRequestOpts,
+    EngineLifecycle,
+    ValidateConfig,
+    ModifyConfigFn,
+    DetermineTypeFn,
+    InstanceHeaders,
+    InstanceParams,
+    InstanceState
+} from './options/types.ts';
 
 export type {
     PropertyStoreOptions,
     PropertyValidateFn,
     MethodOverrides
-} from './property-store.ts';
-
-export {
-    FetchEngine
-} from './engine.ts';
+} from './properties/store.ts';
 
 const baseEngine = new FetchEngine({
     baseUrl: globalThis?.location?.origin ?? 'https://logosdx.dev',
@@ -67,6 +96,9 @@ export const request = baseEngine.request.bind(baseEngine);
 
 /** See {@link FetchEngine.options}. */
 export const options = baseEngine.options.bind(baseEngine);
+
+/** See {@link FetchEngine.head}. */
+export const head = baseEngine.head.bind(baseEngine);
 
 /** See {@link FetchEngine.get}. */
 export const get = baseEngine.get.bind(baseEngine);
@@ -83,61 +115,24 @@ export const put = baseEngine.put.bind(baseEngine);
 /** See {@link FetchEngine.patch}. */
 export const patch = baseEngine.patch.bind(baseEngine);
 
+/** See {@link FetchEngine.headers}. */
+export const headers = baseEngine.headers;
 
+/** See {@link FetchEngine.params}. */
+export const params = baseEngine.params;
 
+/** See {@link FetchEngine.state}. */
+export const state = baseEngine.state;
 
-/** See {@link FetchEngine.removeHeader}. */
-export const removeHeader = baseEngine.removeHeader.bind(baseEngine);
+/** See {@link FetchEngine.config}. */
+export const config = baseEngine.config;
 
-/** See {@link FetchEngine.removeParam}. */
-export const removeParam = baseEngine.removeParam.bind(baseEngine);
-
-
-
-/** See {@link FetchEngine.addHeader}. */
-export const addHeader = baseEngine.addHeader.bind(baseEngine);
-
-/** See {@link FetchEngine.addParam}. */
-export const addParam = baseEngine.addParam.bind(baseEngine);
-
-
-
-/** See {@link FetchEngine.hasHeader}. */
-export const hasHeader = baseEngine.hasHeader.bind(baseEngine);
-
-/** See {@link FetchEngine.hasParam}. */
-export const hasParam = baseEngine.hasParam.bind(baseEngine);
-
-
-
-/** See {@link FetchEngine.setState}. */
-export const setState = baseEngine.setState.bind(baseEngine);
-
-/** See {@link FetchEngine.resetState}. */
-export const resetState = baseEngine.resetState.bind(baseEngine);
-
-
-
-/** See {@link FetchEngine.getState}. */
-export const getState = baseEngine.getState.bind(baseEngine);
-
-/** See {@link FetchEngine.changeBaseUrl}. */
-export const changeBaseUrl = baseEngine.changeBaseUrl.bind(baseEngine);
-
-/** See {@link FetchEngine.changeModifyOptions}. */
-export const changeModifyOptions = baseEngine.changeModifyOptions.bind(baseEngine);
-
-/** See {@link FetchEngine.changeModifyMethodOptions}. */
-export const changeModifyMethodOptions = baseEngine.changeModifyMethodOptions.bind(baseEngine);
-
-
-
+// Event methods
 /** See {@link FetchEngine.on}. */
 export const on = baseEngine.on.bind(baseEngine);
 
 /** See {@link FetchEngine.off}. */
 export const off = baseEngine.off.bind(baseEngine);
-
 
 
 /** See {@link FetchEngine}. */

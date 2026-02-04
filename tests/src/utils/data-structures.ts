@@ -2,8 +2,6 @@ import {
     describe,
     it,
     beforeAll,
-    after,
-    afterEach,
     expect
 } from 'vitest'
 

@@ -23,7 +23,7 @@ The rational principles that create order from development complexity.
 
 1. **Explicit error handling control flow**: Utilities like `attempt`/`attemptSync` return `[value, error]` tuples, which eliminates the need for try/catch— no more invisible error paths due to nested logic. This makes tests, retries, and fallbacks straightforward and more legible.
 
-2. **Resilience is a primary concern**: `retry`, `withTimeout`, `circuitBreaker`, and `rateLimit` are available as primitives. The `FetchEngine` adds timeouts, retries, backoff, and gives you abstractions to handle common patterns (e.g., honor `Retry-After`) on top of the standard Fetch API.
+2. **Resilience is a primary concern**: `retry`, `withTimeout`, `circuitBreaker`, and `rateLimit` are available as primitives. `FetchEngine` adds timeouts, retries, backoff, and gives you abstractions to handle common patterns (e.g., honor `Retry-After`) on top of the standard Fetch API.
 
 3. **It offers observability, but more advanced**: `ObserverEngine` provides typed topics, regex subscriptions, async iteration, and priority queues so you can coordinate workloads. TypeScript and debugging aren't an afterthought.
 
@@ -73,24 +73,23 @@ import { attempt } from '@logosdx/utils'
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     retry: { maxAttempts: 3, baseDelay: 250 },
-    timeoutMs: 5_000,
+    totalTimeout: 5_000,
     defaultType: 'json',
     headers: {
         'Content-Type': 'application/json',
     },
-    state: {
-        userId: '123',
-    },
 });
 
-const [res, err] = await attempt(() => api.get('/orders'))
+api.state.set({ userId: '123' });
+
+const [response, err] = await attempt(() => api.get('/orders'))
 
 if (isFetchError(err)) {
     // Handle error appropriately
 }
 
 // Or use the global instance
-const [res, err] = await attempt(() => Fetch.get('https://logosdx.dev/cheat-sheet.html'));
+const [response, err] = await attempt(() => Fetch.get('https://logosdx.dev/cheat-sheet.html'));
 ```
 
 The `ObserverEngine` is a mature event system with typed topics, regex subscriptions, async iteration, and priority queues. It's a great way to coordinate work across your application. Use it to build event-driven systems, background work, and more.
@@ -160,7 +159,7 @@ const api = new FetchEngine<
     AppState,
 >({
     baseUrl: window.location.origin,
-    modifyOptions: (opts, state) => {
+    modifyConfig: async (opts, state) => {
 
         if (opts.url.includes('/api/')) {
             opts.headers['X-Client-Version'] = '1.0.0';
@@ -179,7 +178,7 @@ const api = new FetchEngine<
 
         return opts;
     },
-    modifyMethodOptions: {
+    modifyMethodConfig: {
         POST: (opts) => {
 
             const tag = $('meta[name="csrf-token"]').pop();
@@ -190,7 +189,7 @@ const api = new FetchEngine<
     }
 });
 
-api.on('fetch-state-set', (state) => storage.set('apiState', state));
+api.on('state-set', (state) => storage.set('apiState', state));
 
 const app = async () => {
 
@@ -198,7 +197,7 @@ const app = async () => {
 
     if (apiErr) throw apiErr;
 
-    api.setState(apiState); // Restore the state after a refresh
+    api.state.set(apiState); // Restore the state after a refresh
 
     bus.emit('app:ready');
 }

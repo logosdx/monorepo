@@ -323,6 +323,155 @@ describe('@logosdx/utils - SingleFlight', () => {
             expect(stats.inflightCount).to.equal(1);
         });
 
+        it('should invalidate cache entries matching predicate', async () => {
+
+            const flight = new SingleFlight<string>();
+
+            await flight.setCache('user:1', 'alice');
+            await flight.setCache('user:2', 'bob');
+            await flight.setCache('post:1', 'hello');
+            await flight.setCache('post:2', 'world');
+
+            const deleted = await flight.invalidateCache(key => key.startsWith('user:'));
+
+            expect(deleted).to.equal(2);
+            expect(await flight.hasCache('user:1')).to.be.false;
+            expect(await flight.hasCache('user:2')).to.be.false;
+            expect(await flight.hasCache('post:1')).to.be.true;
+            expect(await flight.hasCache('post:2')).to.be.true;
+        });
+
+        it('should return 0 when no entries match predicate', async () => {
+
+            const flight = new SingleFlight<string>();
+
+            await flight.setCache('user:1', 'alice');
+            await flight.setCache('user:2', 'bob');
+
+            const deleted = await flight.invalidateCache(key => key.startsWith('post:'));
+
+            expect(deleted).to.equal(0);
+            expect(flight.stats().cacheSize).to.equal(2);
+        });
+
+        it('should return 0 when cache is empty', async () => {
+
+            const flight = new SingleFlight<string>();
+
+            const deleted = await flight.invalidateCache(key => key.startsWith('user:'));
+
+            expect(deleted).to.equal(0);
+        });
+
+        it('should invalidate all entries when predicate always returns true', async () => {
+
+            const flight = new SingleFlight<string>();
+
+            await flight.setCache('key1', 'value1');
+            await flight.setCache('key2', 'value2');
+            await flight.setCache('key3', 'value3');
+
+            const deleted = await flight.invalidateCache(() => true);
+
+            expect(deleted).to.equal(3);
+            expect(flight.stats().cacheSize).to.equal(0);
+        });
+
+        it('should work with complex predicate patterns', async () => {
+
+            const flight = new SingleFlight<string>();
+
+            await flight.setCache('api:v1:users:1', 'user1');
+            await flight.setCache('api:v1:users:2', 'user2');
+            await flight.setCache('api:v2:users:1', 'user1-v2');
+            await flight.setCache('api:v1:posts:1', 'post1');
+            await flight.setCache('cache:temp:1', 'temp');
+
+            // Delete only v1 users
+            const deleted = await flight.invalidateCache(
+                key => key.includes(':v1:') && key.includes(':users:')
+            );
+
+            expect(deleted).to.equal(2);
+            expect(await flight.hasCache('api:v1:users:1')).to.be.false;
+            expect(await flight.hasCache('api:v1:users:2')).to.be.false;
+            expect(await flight.hasCache('api:v2:users:1')).to.be.true;
+            expect(await flight.hasCache('api:v1:posts:1')).to.be.true;
+            expect(await flight.hasCache('cache:temp:1')).to.be.true;
+        });
+
+        it('should work with regex-based predicate', async () => {
+
+            const flight = new SingleFlight<string>();
+
+            await flight.setCache('user:123', 'alice');
+            await flight.setCache('user:456', 'bob');
+            await flight.setCache('user:abc', 'charlie');
+            await flight.setCache('post:123', 'post');
+
+            // Delete user entries with numeric IDs
+            const pattern = /^user:\d+$/;
+            const deleted = await flight.invalidateCache(key => pattern.test(key));
+
+            expect(deleted).to.equal(2);
+            expect(await flight.hasCache('user:123')).to.be.false;
+            expect(await flight.hasCache('user:456')).to.be.false;
+            expect(await flight.hasCache('user:abc')).to.be.true;
+            expect(await flight.hasCache('post:123')).to.be.true;
+        });
+
+        it('should return 0 when adapter does not support keys()', async () => {
+
+            const store = new Map<string, CacheItem<string>>();
+
+            // Adapter without keys() method
+            const adapterWithoutKeys: CacheAdapter<string> = {
+
+                async get(key) {
+
+                    return store.get(key) ?? null;
+                },
+
+                async set(key, item) {
+
+                    store.set(key, item);
+                },
+
+                async delete(key) {
+
+                    return store.delete(key);
+                },
+
+                async has(key) {
+
+                    return store.has(key);
+                },
+
+                async clear() {
+
+                    store.clear();
+                },
+
+                get size() {
+
+                    return store.size;
+                }
+            };
+
+            const flight = new SingleFlight<string>({
+                adapter: adapterWithoutKeys,
+                defaultTtl: 60000
+            });
+
+            await flight.setCache('key1', 'value1');
+            await flight.setCache('key2', 'value2');
+
+            const deleted = await flight.invalidateCache(() => true);
+
+            expect(deleted).to.equal(0);
+            expect(store.size).to.equal(2); // Entries still exist
+        });
+
         it('should return accurate stats', async () => {
 
             const flight = new SingleFlight<string>();
@@ -359,7 +508,7 @@ describe('@logosdx/utils - SingleFlight', () => {
                 async get(key) {
 
                     await wait(10);
-                    return store.get(key);
+                    return store.get(key) ?? null;
                 },
 
                 async set(key, item) {
@@ -412,7 +561,7 @@ describe('@logosdx/utils - SingleFlight', () => {
 
                 async get(key) {
 
-                    return store.get(key);
+                    return store.get(key) ?? null;
                 },
 
                 async set(key, item) {
@@ -463,7 +612,7 @@ describe('@logosdx/utils - SingleFlight', () => {
 
                 async get(key) {
 
-                    return store.get(key);
+                    return store.get(key) ?? null;
                 },
 
                 async set(key, item) {
@@ -512,7 +661,7 @@ describe('@logosdx/utils - SingleFlight', () => {
 
                 async get(key) {
 
-                    return store.get(key);
+                    return store.get(key) ?? null;
                 },
 
                 async set(key, item) {

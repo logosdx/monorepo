@@ -392,6 +392,55 @@ export class SingleFlight<T = unknown> {
     }
 
     /**
+     * Invalidate cache entries matching a predicate.
+     *
+     * Uses adapter's `keys()` method if available (MapCacheAdapter has it).
+     * Returns 0 if adapter doesn't support key iteration.
+     *
+     * @param predicate - Function that returns true for keys to delete
+     * @returns Number of entries deleted
+     *
+     * @example
+     * ```typescript
+     * // Delete all user-related entries
+     * const count = await flight.invalidateCache(key => key.startsWith('user:'));
+     * ```
+     */
+    async invalidateCache(predicate: (key: string) => boolean): Promise<number> {
+
+        const adapter = this.#adapter as CacheAdapter<T> & { keys?: () => IterableIterator<string> };
+
+        if (typeof adapter.keys !== 'function') {
+
+            return 0;
+        }
+
+        const keysToDelete: string[] = [];
+
+        for (const key of adapter.keys()) {
+
+            if (predicate(key)) {
+
+                keysToDelete.push(key);
+            }
+        }
+
+        let deleted = 0;
+
+        for (const key of keysToDelete) {
+
+            const wasDeleted = await this.#adapter.delete(key);
+
+            if (wasDeleted) {
+
+                deleted++;
+            }
+        }
+
+        return deleted;
+    }
+
+    /**
      * Get statistics about current state.
      *
      * @returns Cache size and in-flight count

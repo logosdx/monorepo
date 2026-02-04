@@ -250,11 +250,7 @@ describe('@logosdx/utils', () => {
 
         it('should handle retry with circuit breaker', async () => {
 
-            let callCount = 0;
-
             const originalFn = vi.fn(async (_x: number) => {
-
-                callCount++;
 
                 // Always throw to test max retries behavior
                 throw new Error('Service temporarily down');
@@ -304,13 +300,10 @@ describe('@logosdx/utils', () => {
 
         it('should simulate resilientFetch with all production options', async () => {
 
-            let callCount = 0;
             let flakyCount = 0;
 
             // Mock fetch-like function that simulates real network behavior
             const mockFetch = vi.fn(async (url: string) => {
-
-                callCount++;
 
                 // Simulate different failure modes based on URL
                 if (url.includes('/slow-endpoint')) {
@@ -404,7 +397,7 @@ describe('@logosdx/utils', () => {
         it('should handle realistic API failure scenarios with resilientFetch', async () => {
 
             let orderCallCount = 0;
-            let paymentCallCount = 0;
+            let _paymentCallCount = 0;
 
             const mockApiCall = vi.fn(async (endpoint: string) => {
 
@@ -425,7 +418,7 @@ describe('@logosdx/utils', () => {
 
                 if (endpoint === '/api/payment/process') {
 
-                    paymentCallCount++;
+                    _paymentCallCount++;
 
                     // Consistently fail to test circuit breaker
                     throw new Error('Payment service down');
@@ -460,7 +453,7 @@ describe('@logosdx/utils', () => {
             expect(orderCallCount).to.equal(3); // Failed twice, succeeded on 3rd attempt
 
             // Test circuit breaker with payment service
-            paymentCallCount = 0;
+            _paymentCallCount = 0;
             let circuitTripped = false;
 
             // Make enough failed calls to trip circuit breaker

@@ -7,11 +7,11 @@ import type {
     RequestKeyOptions
 } from '../types.ts';
 
-import type { FetchEngine } from '../engine.ts';
+import type { RequestExecutor } from '../engine/executor.ts';
+import { requestSerializer } from '../serializers/index.ts';
+import { validateMatchRules } from './helpers.ts';
 
 import { ResiliencePolicy } from './base.ts';
-import { requestSerializer } from '../serializers/index.ts';
-import { validateMatchRules } from '../helpers.ts';
 
 
 /**
@@ -124,8 +124,8 @@ export class CachePolicy<
     P = unknown
 > extends ResiliencePolicy<CacheConfig<S, H, P>, CacheRule<S, H, P>, S, H, P> {
 
-    /** Reference to the FetchEngine instance */
-    #engine: FetchEngine<H, P, S>;
+    /** Reference to the RequestExecutor instance */
+    #executor: RequestExecutor<S, H, P>;
 
     /**
      * Extended state with cache-specific fields.
@@ -138,10 +138,10 @@ export class CachePolicy<
      */
     #adapter: CacheAdapter<unknown> | undefined;
 
-    constructor(engine: FetchEngine<H, P, S>) {
+    constructor(executor: RequestExecutor<S, H, P>) {
 
         super();
-        this.#engine = engine;
+        this.#executor = executor;
     }
 
     /**
@@ -377,7 +377,7 @@ export class CachePolicy<
         }
 
         const key = config.serializer!(normalizedOpts);
-        const cached = await this.#engine._flight.getCache(key);
+        const cached = await this.#executor.flight.getCache(key);
 
         if (cached) {
 
@@ -386,12 +386,12 @@ export class CachePolicy<
             if (!cached.isStale) {
 
                 // Fresh cache hit
-                this.#engine.emit('fetch-cache-hit' as any, {
+                this.#executor.engine.emit('cache-hit' as any, {
                     ...normalizedOpts,
                     key,
                     isStale: false,
                     expiresIn,
-                });
+                } as any);
 
                 clearTimeout();
 
@@ -399,24 +399,24 @@ export class CachePolicy<
             }
 
             // Stale - return immediately + trigger background revalidation
-            this.#engine.emit('fetch-cache-stale' as any, {
+            this.#executor.engine.emit('cache-stale' as any, {
                 ...normalizedOpts,
                 key,
                 isStale: true,
                 expiresIn,
-            });
+            } as any);
 
-            this.#engine._triggerBackgroundRevalidation(method, path, options as any, key, config);
+            this.#executor.triggerBackgroundRevalidation(method, path, options as any, key, config as any);
             clearTimeout();
 
             return { hit: true, value: cached.value as T, key };
         }
 
         // Cache miss
-        this.#engine.emit('fetch-cache-miss' as any, {
+        this.#executor.engine.emit('cache-miss' as any, {
             ...normalizedOpts,
             key,
-        });
+        } as any);
 
         return { hit: false, key, config };
     }

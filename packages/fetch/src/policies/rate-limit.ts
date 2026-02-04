@@ -11,8 +11,7 @@ import type {
 
 import { ResiliencePolicy } from './base.ts';
 import { endpointSerializer } from '../serializers/index.ts';
-import { validateMatchRules } from '../helpers.ts';
-
+import { validateMatchRules } from './helpers.ts';
 
 /**
  * Execution context for rate limit guard.
@@ -351,7 +350,7 @@ export class RateLimitPolicy<
             if (!config.waitForToken) {
 
                 // Reject immediately
-                emit('fetch-ratelimit-reject', eventData);
+                emit('ratelimit-reject', eventData);
                 clearTimeout();
 
                 throw new RateLimitError(
@@ -361,7 +360,7 @@ export class RateLimitPolicy<
             }
 
             // Wait for token
-            emit('fetch-ratelimit-wait', eventData);
+            emit('ratelimit-wait', eventData);
 
             // Call the onRateLimit callback if configured
             if (this.onRateLimit) {
@@ -384,7 +383,7 @@ export class RateLimitPolicy<
             // Token acquired after waiting
             const postWaitSnapshot = bucket.snapshot;
 
-            emit('fetch-ratelimit-acquire', {
+            emit('ratelimit-acquire', {
                 ...normalizedOpts,
                 key,
                 currentTokens: postWaitSnapshot.currentTokens,
@@ -401,7 +400,7 @@ export class RateLimitPolicy<
             // Get post-consumption snapshot for event data
             const postConsumeSnapshot = bucket.snapshot;
 
-            emit('fetch-ratelimit-acquire', {
+            emit('ratelimit-acquire', {
                 ...normalizedOpts,
                 key,
                 currentTokens: postConsumeSnapshot.currentTokens,

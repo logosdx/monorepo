@@ -10,7 +10,7 @@ import type {
     PolicyInternalState
 } from './types.ts';
 
-import { findMatchingRule, validateMatchRules } from '../helpers.ts';
+import { findMatchingRule, validateMatchRules } from './helpers.ts';
 
 
 /**

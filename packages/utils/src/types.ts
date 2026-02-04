@@ -119,6 +119,7 @@ export type PathNames<T> = T extends object ? { [K in keyof T]:
     }`}`
 }[keyof T] : never
 
+
 /**
  * Generates only the leaf paths (final values) for an object type.
  *
@@ -129,8 +130,12 @@ export type PathNames<T> = T extends object ? { [K in keyof T]:
  * interface User { profile: { name: string; age: number; }; }
  * type UserLeaves = PathLeaves<User>; // 'profile.name' | 'profile.age'
  */
-export type PathLeaves<T> = T extends object ? { [K in keyof T]:
-    `${Exclude<K, symbol>}${PathLeaves<T[K]> extends never ? "" : `.${PathLeaves<T[K]>}`}`
+export type PathLeaves<T> = T extends object ? {
+    [K in keyof T]-?: (
+        T[K] extends undefined
+        ? never
+        : `${Exclude<K, symbol>}${PathLeaves<T[K]> extends never ? "" : `.${PathLeaves<T[K]>}`}`
+    )
 }[keyof T] : never
 
 /**

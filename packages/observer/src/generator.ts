@@ -1,4 +1,4 @@
-import { Deferred } from '@logosdx/utils';
+import { Deferred, PriorityQueue } from '@logosdx/utils';
 
 import { type EventData, EventPromise, EventError } from './helpers.ts';
 import { type ObserverEngine } from './engine.ts';
@@ -18,7 +18,8 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
 
     #observer: ObserverEngine<S>;
     #event: E | RegExp;
-    #defer: DeferredEvent<EventData<S, E>>;
+    #buffer: PriorityQueue<EventData<S, E>>;
+    #waiting: DeferredEvent<EventData<S, E>> | null = null;
     #done: boolean = false;
     #listener: ObserverEngine.EventCallback<S> | null = null;
     #lastValue: unknown | null = null;
@@ -49,18 +50,22 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
 
         this.#observer = observer;
         this.#event = event;
-
-        this.#defer = new DeferredEvent();
-        this.#defer.promise.cleanup = this.cleanup;
-        this.#defer.promise.resolve = this.#defer.resolve;
+        this.#buffer = new PriorityQueue<EventData<S, E>>();
 
         this.#listener = (data: unknown) => {
 
             this.#lastValue = data;
-            this.#defer.resolve(data as EventData<S, E>);
-            this.#defer = new DeferredEvent();
-            this.#defer.promise.cleanup = this.cleanup;
-            this.#defer.promise.resolve = this.#defer.resolve;
+
+            if (this.#waiting) {
+
+                const defer = this.#waiting;
+                this.#waiting = null;
+                defer.resolve(data as EventData<S, E>);
+            }
+            else {
+
+                this.#buffer.push(data as EventData<S, E>);
+            }
         }
 
         const off = observer.on(
@@ -75,7 +80,21 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
 
             this.#assertNotDestroyed();
 
-            return this.#defer.promise
+            const buffered = this.#buffer.pop();
+
+            if (buffered !== null) {
+
+                return Promise.resolve(buffered);
+            }
+
+            if (!this.#waiting) {
+
+                this.#waiting = new DeferredEvent();
+                this.#waiting.promise.cleanup = this.cleanup;
+                this.#waiting.promise.resolve = this.#waiting.resolve;
+            }
+
+            return this.#waiting.promise;
         };
 
         this.cleanup = () => {
@@ -85,14 +104,22 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
             off();
             this.#done = true;
 
-            // Resolve all lingering promises
+            // Resolve the waiting deferred with the last value
+            if (this.#waiting) {
+
+                this.#waiting.resolve(this.#lastValue as EventData<S, E>);
+                this.#waiting = null;
+            }
+
+            // Resolve all lingering iterator promises
             // with the last value
             this.#_iterPromise.forEach(promise => {
                 promise.resolve?.(this.#lastValue as EventData<S, E>);
             });
 
-            // Cleanup the set
+            // Cleanup the set and buffer
             this.#_iterPromise.clear();
+            this.#buffer.clear();
             this.#lastValue = null;
 
             // Abort the generator's abort controller if it exists

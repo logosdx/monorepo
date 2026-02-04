@@ -9,7 +9,6 @@ import {
 import { mockHelpers } from '../../_helpers';
 
 import {
-    attempt,
     attemptSync,
     throttle,
     wait,

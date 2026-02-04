@@ -1,10 +1,9 @@
 import { DefaultTheme, defineConfig } from 'vitepress'
 
-const packages: DefaultTheme.SidebarItem[] = [
+const simplePackages: DefaultTheme.SidebarItem[] = [
   ['Observer', 'observer'],
   ['Hooks', 'hooks'],
   ['Utils', 'utils'],
-  ['Fetch', 'fetch'],
   ['Dom', 'dom'],
   ['Storage', 'storage'],
   ['Localize', 'localize'],
@@ -13,6 +12,24 @@ const packages: DefaultTheme.SidebarItem[] = [
   text,
   link: `/packages/${link}`,
 }));
+
+const packages: DefaultTheme.SidebarItem[] = [
+  ...simplePackages.slice(0, 3), // Observer, Hooks, Utils
+  {
+    text: 'Fetch',
+    link: '/packages/fetch/',
+    collapsed: true,
+    items: [
+      { text: 'Configuration', link: '/packages/fetch/configuration' },
+      { text: 'Making Requests', link: '/packages/fetch/requests' },
+      { text: 'Resilience', link: '/packages/fetch/resilience' },
+      { text: 'Policies', link: '/packages/fetch/policies' },
+      { text: 'Events', link: '/packages/fetch/events' },
+      { text: 'Advanced', link: '/packages/fetch/advanced' },
+    ]
+  },
+  ...simplePackages.slice(3), // Dom, Storage, Localize
+];
 
 const metadata = {
   title: 'Logos DX',

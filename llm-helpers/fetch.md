@@ -34,14 +34,14 @@ console.log('User:', user);
 console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
 
 // Global instance (simplified usage)
-import fetch, { get, post, setState, addHeader } from '@logosdx/fetch';
+import fetch, { get, post, headers, params, state, config, on, off } from '@logosdx/fetch';
 
 // Global instance auto-uses current domain as base URL
 const [{ data: users }, err] = await attempt(() => fetch.get('/api/users'));
 
 // Or use destructured methods
-addHeader('Authorization', 'Bearer token');
-setState('userId', '123');
+headers.set('Authorization', 'Bearer token');
+state.set('userId', '123');
 const [{ data: user }, err] = await attempt(() => get('/api/users/123'));
 
 // Smart URL handling - absolute URLs bypass base URL
@@ -94,14 +94,14 @@ const request = api.get('/users');
 setTimeout(() => request.abort('User cancelled'), 2000);
 
 // Dynamic request modification
-api.changeModifyOptions(fn?: (opts: RequestOpts, state: S) => RequestOpts)
-api.changeModifyMethodOptions(method: HttpMethods, fn?: (opts: RequestOpts, state: S) => RequestOpts)
+api.config.set('modifyConfig', fn?: (opts: RequestOpts, state: S) => RequestOpts)
+api.config.set('modifyMethodConfig', { [method]: fn?: (opts: RequestOpts, state: S) => RequestOpts })
 ```
 
 ## Configuration
 
 ```typescript
-interface FetchEngine.Options<H, P, S> {
+interface FetchEngine.Config<H, P, S> {
     baseUrl: string;
     defaultType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData';
 
@@ -135,12 +135,12 @@ interface FetchEngine.Options<H, P, S> {
     } | false;
 
     // Request modification (initial setup)
-    modifyOptions?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
-    modifyMethodOptions?: {
+    modifyConfig?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
+    modifyMethodConfig?: {
         GET?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
         // ... other methods
     };
-    // Note: Use changeModifyOptions() and changeModifyMethodOptions() for runtime changes
+    // Note: Use config.set('modifyConfig', fn) and config.set('modifyMethodConfig', {...}) for runtime changes
 
     // Validation
     validate?: {
@@ -191,11 +191,11 @@ if (isFetchError(error)) {
 }
 
 // Lifecycle events
-api.on('fetch-error', (event: FetchEvent) => {
+api.on('error', (event: FetchEvent) => {
     console.error('Request failed:', event.error);
 });
 
-api.on('fetch-retry', (event: FetchEvent) => {
+api.on('retry', (event: FetchEvent) => {
     console.log(`Retrying attempt ${event.nextAttempt} after ${event.delay}ms`);
 });
 ```
@@ -204,38 +204,45 @@ api.on('fetch-retry', (event: FetchEvent) => {
 
 ```typescript
 // Headers
-api.addHeader('Authorization', 'Bearer new-token');
-api.addHeader({ 'X-API-Version': 'v2', 'X-Client': 'web' });
-api.addHeader('Content-Type', 'application/json', 'POST'); // method-specific
-api.rmHeader('Authorization');
-api.rmHeader(['X-API-Version', 'X-Client']);
-api.hasHeader('Authorization'); // boolean
+api.headers.set('Authorization', 'Bearer new-token');
+api.headers.set({ 'X-API-Version': 'v2', 'X-Client': 'web' });
+api.headers.set('Content-Type', 'application/json', 'POST'); // method-specific
+api.headers.remove('Authorization');
+api.headers.remove(['X-API-Version', 'X-Client']);
+api.headers.has('Authorization'); // boolean
 
 // Parameters
-api.addParam('version', 'v1');
-api.addParam({ api_key: 'abc123', format: 'json' });
-api.addParam('page', '1', 'GET'); // method-specific
-api.rmParams('version');
-api.hasParam('api_key'); // boolean
+api.params.set('version', 'v1');
+api.params.set({ api_key: 'abc123', format: 'json' });
+api.params.set('page', '1', 'GET'); // method-specific
+api.params.remove('version');
+api.params.has('api_key'); // boolean
 
 // Access current configuration
-const { default: globalHeaders, get: getHeaders } = api.headers;
-const { default: globalParams, get: getParams } = api.params;
+api.headers.defaults;           // Default headers (global)
+api.headers.all;                // All headers including method overrides
+api.headers.resolve('GET');     // Resolved headers for a specific method
 
-// With global instance and destructured methods
-import { addHeader, addParam, rmHeader, hasHeader, changeModifyOptions, changeModifyMethodOptions } from '@logosdx/fetch';
-addHeader('X-API-Key', 'key123');
-addParam('version', 'v1');
+api.params.defaults;            // Default params (global)
+api.params.all;                 // All params including method overrides
+api.params.resolve('GET');      // Resolved params for a specific method
+
+// With global instance and destructured managers
+import { headers, params, config } from '@logosdx/fetch';
+headers.set('X-API-Key', 'key123');
+params.set('version', 'v1');
 
 // Dynamic request modification
-changeModifyOptions((opts, state) => {
+config.set('modifyConfig', (opts, state) => {
     opts.headers['X-Request-ID'] = crypto.randomUUID();
     return opts;
 });
 
-changeModifyMethodOptions('POST', (opts, state) => {
-    opts.headers['Content-Type'] = 'application/json';
-    return opts;
+config.set('modifyMethodConfig', {
+    POST: (opts, state) => {
+        opts.headers['Content-Type'] = 'application/json';
+        return opts;
+    }
 });
 ```
 
@@ -243,20 +250,20 @@ changeModifyMethodOptions('POST', (opts, state) => {
 
 ```typescript
 // Internal state for auth tokens, user context, etc.
-api.setState('authToken', 'bearer-token-123');
-api.setState({
+api.state.set('authToken', 'bearer-token-123');
+api.state.set({
     userId: '456',
     sessionId: 'abc',
     preferences: { theme: 'dark' }
 });
 
-const state = api.getState(); // deep clone
-api.resetState(); // clear all state
+const currentState = api.state.get(); // deep clone
+api.state.reset(); // clear all state
 
 // Use state in request modification
 const api = new FetchEngine<MyHeaders, MyParams, MyState>({
     baseUrl: 'https://api.example.com',
-    modifyOptions: (opts, state) => {
+    modifyConfig: (opts, state) => {
         if (state.authToken) {
             opts.headers.Authorization = `Bearer ${state.authToken}`;
         }
@@ -282,47 +289,48 @@ if (response.status === 200) {
 ```typescript
 enum FetchEventNames {
     // Request lifecycle
-    'fetch-before' = 'fetch-before',
-    'fetch-after' = 'fetch-after',
-    'fetch-abort' = 'fetch-abort',
-    'fetch-error' = 'fetch-error',
-    'fetch-response' = 'fetch-response',
-    'fetch-retry' = 'fetch-retry',
+    'before-request' = 'before-request',
+    'after-request' = 'after-request',
+    'abort' = 'abort',
+    'error' = 'error',
+    'response' = 'response',
+    'retry' = 'retry',
 
     // Configuration changes
-    'fetch-header-add' = 'fetch-header-add',
-    'fetch-header-remove' = 'fetch-header-remove',
-    'fetch-param-add' = 'fetch-param-add',
-    'fetch-param-remove' = 'fetch-param-remove',
-    'fetch-state-set' = 'fetch-state-set',
-    'fetch-state-reset' = 'fetch-state-reset',
-    'fetch-url-change' = 'fetch-url-change',
-    'fetch-modify-options-change' = 'fetch-modify-options-change',
-    'fetch-modify-method-options-change' = 'fetch-modify-method-options-change',
+    'header-add' = 'header-add',
+    'header-remove' = 'header-remove',
+    'param-add' = 'param-add',
+    'param-remove' = 'param-remove',
+    'state-set' = 'state-set',
+    'state-reset' = 'state-reset',
+    'url-change' = 'url-change',
+    'config-change' = 'config-change',
+    'modify-config-change' = 'modify-config-change',
+    'modify-method-config-change' = 'modify-method-config-change',
 
     // Deduplication events
-    'fetch-dedupe-start' = 'fetch-dedupe-start',   // New request tracked
-    'fetch-dedupe-join' = 'fetch-dedupe-join',     // Caller joined existing
+    'dedupe-start' = 'dedupe-start',   // New request tracked
+    'dedupe-join' = 'dedupe-join',     // Caller joined existing
 
     // Caching events
-    'fetch-cache-hit' = 'fetch-cache-hit',         // Fresh cache hit
-    'fetch-cache-stale' = 'fetch-cache-stale',     // Stale cache hit (SWR)
-    'fetch-cache-miss' = 'fetch-cache-miss',       // No cache entry
-    'fetch-cache-set' = 'fetch-cache-set',         // New cache entry stored
-    'fetch-cache-revalidate' = 'fetch-cache-revalidate',           // SWR background refresh started
-    'fetch-cache-revalidate-error' = 'fetch-cache-revalidate-error', // SWR background refresh failed
+    'cache-hit' = 'cache-hit',         // Fresh cache hit
+    'cache-stale' = 'cache-stale',     // Stale cache hit (SWR)
+    'cache-miss' = 'cache-miss',       // No cache entry
+    'cache-set' = 'cache-set',         // New cache entry stored
+    'cache-revalidate' = 'cache-revalidate',           // SWR background refresh started
+    'cache-revalidate-error' = 'cache-revalidate-error', // SWR background refresh failed
 
     // Rate limiting events
-    'fetch-ratelimit-wait' = 'fetch-ratelimit-wait',       // Waiting for token
-    'fetch-ratelimit-reject' = 'fetch-ratelimit-reject',   // Rejected (waitForToken: false)
-    'fetch-ratelimit-acquire' = 'fetch-ratelimit-acquire'  // Token acquired
+    'ratelimit-wait' = 'ratelimit-wait',       // Waiting for token
+    'ratelimit-reject' = 'ratelimit-reject',   // Rejected (waitForToken: false)
+    'ratelimit-acquire' = 'ratelimit-acquire'  // Token acquired
 }
 
 // Event listeners
 api.on('*', (event) => console.log('Any event:', event.type));
-api.on('fetch-before', (event) => console.log('Request starting:', event.url));
-api.on('fetch-error', (event) => console.error('Request failed:', event.error));
-api.off('fetch-error', errorHandler); // remove listener
+api.on('before-request', (event) => console.log('Request starting:', event.url));
+api.on('error', (event) => console.error('Request failed:', event.error));
+api.off('error', errorHandler); // remove listener
 ```
 
 ## Request Deduplication
@@ -359,8 +367,8 @@ const api = new FetchEngine({
 });
 
 // Events
-api.on('fetch-dedupe-start', (e) => console.log('New request:', e.key));
-api.on('fetch-dedupe-join', (e) => console.log('Joined request:', e.key, 'waiters:', e.waitingCount));
+api.on('dedupe-start', (e) => console.log('New request:', e.key));
+api.on('dedupe-join', (e) => console.log('Joined request:', e.key, 'waiters:', e.waitingCount));
 ```
 
 ### Deduplication Types
@@ -418,11 +426,11 @@ const api = new FetchEngine({
 });
 
 // Cache events
-api.on('fetch-cache-hit', (e) => console.log('Cache hit:', e.key, 'stale:', e.isStale));
-api.on('fetch-cache-miss', (e) => console.log('Cache miss:', e.key));
-api.on('fetch-cache-set', (e) => console.log('Cached:', e.key, 'expires in:', e.expiresIn));
-api.on('fetch-cache-stale', (e) => console.log('Stale:', e.key));
-api.on('fetch-cache-revalidate', (e) => console.log('Revalidating:', e.key));
+api.on('cache-hit', (e) => console.log('Cache hit:', e.key, 'stale:', e.isStale));
+api.on('cache-miss', (e) => console.log('Cache miss:', e.key));
+api.on('cache-set', (e) => console.log('Cached:', e.key, 'expires in:', e.expiresIn));
+api.on('cache-stale', (e) => console.log('Stale:', e.key));
+api.on('cache-revalidate', (e) => console.log('Revalidating:', e.key));
 
 // Cache invalidation API
 await api.clearCache();                                    // Clear all
@@ -493,9 +501,9 @@ const api = new FetchEngine({
 // So cached responses don't consume rate limit tokens
 
 // Events
-api.on('fetch-ratelimit-wait', (e) => console.log('Waiting for token:', e.key, e.waitTimeMs));
-api.on('fetch-ratelimit-reject', (e) => console.log('Rate limited:', e.key));
-api.on('fetch-ratelimit-acquire', (e) => console.log('Token acquired:', e.key, 'remaining:', e.currentTokens));
+api.on('ratelimit-wait', (e) => console.log('Waiting for token:', e.key, e.waitTimeMs));
+api.on('ratelimit-reject', (e) => console.log('Rate limited:', e.key));
+api.on('ratelimit-acquire', (e) => console.log('Token acquired:', e.key, 'remaining:', e.currentTokens));
 ```
 
 ### Rate Limiting Types
@@ -721,10 +729,10 @@ const api = new FetchEngine({
 });
 
 // Environment switching
-api.changeBaseUrl('https://api.staging.com');
+api.config.set('baseUrl', 'https://api.staging.com');
 
 // Dynamic request modification
-api.changeModifyOptions((opts, state) => {
+api.config.set('modifyConfig', (opts, state) => {
     if (state.authToken) {
         opts.headers.Authorization = `Bearer ${state.authToken}`;
     }
@@ -732,14 +740,16 @@ api.changeModifyOptions((opts, state) => {
     return opts;
 });
 
-api.changeModifyMethodOptions('POST', (opts, state) => {
-    opts.headers['Content-Type'] = 'application/json';
-    return opts;
+api.config.set('modifyMethodConfig', {
+    POST: (opts, state) => {
+        opts.headers['Content-Type'] = 'application/json';
+        return opts;
+    }
 });
 
 // Clear modifiers
-api.changeModifyOptions(undefined);
-api.changeModifyMethodOptions('POST', undefined);
+api.config.set('modifyConfig', undefined);
+api.config.set('modifyMethodConfig', { POST: undefined });
 
 // Per-request options
 const [response, err] = await attempt(() =>
@@ -816,8 +826,8 @@ const api = new FetchEngine<
 });
 
 // Global instance automatically gets the extended types
-import { setState, getState, get, put, post, patch, del, options } from '@logosdx/fetch';
-setState('authToken', 'token123'); // ✅ Typed
+import { state, get, put, post, patch, del, options } from '@logosdx/fetch';
+state.set('authToken', 'token123'); // Typed
 
 // Response is properly typed with FetchResponse including typed config
 const response = await get<User>('/api/user');
@@ -856,8 +866,8 @@ await api.get('/users'); // throws: "Cannot make requests on destroyed FetchEngi
 
 // Listener cleanup - Option 1: Use on() with cleanup function (recommended)
 // Listeners added via on() are automatically removed when destroy() is called
-const cleanup1 = api.on('fetch-error', (e) => console.error(e));
-const cleanup2 = api.on('fetch-response', (e) => console.log(e));
+const cleanup1 = api.on('error', (e) => console.error(e));
+const cleanup2 = api.on('response', (e) => console.log(e));
 
 // Manual cleanup (if you stored the cleanup functions)
 cleanup1();
@@ -870,20 +880,20 @@ api.destroy();
 const errorHandler = (e) => console.error(e);
 const responseHandler = (e) => console.log(e);
 
-api.on('fetch-error', errorHandler);
-api.on('fetch-response', responseHandler);
+api.on('error', errorHandler);
+api.on('response', responseHandler);
 
 // Remove specific listeners manually
-api.off('fetch-error', errorHandler);
-api.off('fetch-response', responseHandler);
+api.off('error', errorHandler);
+api.off('response', responseHandler);
 api.destroy();
 
 // Listener cleanup - Option 3: Use addEventListener with your own AbortController
 // For advanced use cases where you need fine-grained control
 const controller = new AbortController();
 
-api.addEventListener('fetch-error', errorHandler, { signal: controller.signal });
-api.addEventListener('fetch-response', responseHandler, { signal: controller.signal });
+api.addEventListener('error', errorHandler, { signal: controller.signal });
+api.addEventListener('response', responseHandler, { signal: controller.signal });
 
 // Remove all listeners at once
 controller.abort();
@@ -896,8 +906,8 @@ class MyComponent {
 
         // on() returns cleanup function and automatically cleaned on destroy()
         this.cleanups = [
-            this.api.on('fetch-error', this.handleError),
-            this.api.on('fetch-response', this.handleResponse)
+            this.api.on('error', this.handleError),
+            this.api.on('response', this.handleResponse)
         ];
     }
 
@@ -928,7 +938,7 @@ class MyComponent {
 const api = new FetchEngine({
     baseUrl: process.env.API_BASE_URL,
     defaultType: 'json',
-    timeout: 5000,
+    totalTimeout: 5000,
 
     // Deduplication - prevent duplicate concurrent requests
     dedupePolicy: {
@@ -969,7 +979,7 @@ const api = new FetchEngine({
 });
 
 // Global error handling
-api.on('fetch-error', (event) => {
+api.on('error', (event) => {
     // Log to monitoring service
     console.error('API Error:', {
         url: event.url,
@@ -979,15 +989,15 @@ api.on('fetch-error', (event) => {
     });
 });
 
-api.on('fetch-retry', (event) => {
-    console.log(`Retry ${event.nextAttempt}/${api.retry.maxAttempts} after ${event.delay}ms`);
+api.on('retry', (event) => {
+    console.log(`Retry ${event.nextAttempt}/${api.config.get('retry.maxAttempts')} after ${event.delay}ms`);
 });
 
 // Dynamic state management
-api.setState('authToken', await getAuthToken());
+api.state.set('authToken', await getAuthToken());
 
-// Use changeModifyOptions for dynamic auth token injection
-api.changeModifyOptions((opts, state) => {
+// Use config.set for dynamic auth token injection
+api.config.set('modifyConfig', (opts, state) => {
     if (state.authToken) {
         opts.headers.Authorization = `Bearer ${state.authToken}`;
     }
@@ -996,7 +1006,7 @@ api.changeModifyOptions((opts, state) => {
 
 // Environment switching
 if (process.env.NODE_ENV === 'development') {
-    api.changeBaseUrl('https://api.dev.com');
+    api.config.set('baseUrl', 'https://api.dev.com');
 }
 
 // AbortablePromise with timeout

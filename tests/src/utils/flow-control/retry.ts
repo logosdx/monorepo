@@ -13,7 +13,6 @@ import {
     retry,
     makeRetryable,
     wait,
-    RetryError,
     isRetryError,
 } from '../../../../packages/utils/src/index.ts';
 
@@ -405,8 +404,8 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
             // onRetry is called before attempts 2 and 3 (not before attempt 1)
             calledExactly(onRetry, 2, 'onRetry called twice');
-            expect(onRetry.mock.calls[0][1]).to.equal(1); // attempt number 1
-            expect(onRetry.mock.calls[1][1]).to.equal(2); // attempt number 2
+            expect(onRetry.mock.calls[0]![1]).to.equal(1); // attempt number 1
+            expect(onRetry.mock.calls[1]![1]).to.equal(2); // attempt number 2
         });
 
         it('should not call onRetry on the first attempt', async () => {
@@ -473,8 +472,8 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
             // onRetry is called before attempt 2 with Error #1, and before attempt 3 with Error #2
             expect(capturedErrors).to.have.length(2);
-            expect(capturedErrors[0].message).to.equal('Error #1');
-            expect(capturedErrors[1].message).to.equal('Error #2');
+            expect(capturedErrors[0]!.message).to.equal('Error #1');
+            expect(capturedErrors[1]!.message).to.equal('Error #2');
         });
     });
 
@@ -499,7 +498,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
 
             expect(result).to.deep.equal({ fallback: true, originalMessage: 'Network failure' });
             calledExactly(onRetryExhausted, 1, 'onRetryExhausted called once');
-            expect(onRetryExhausted.mock.calls[0][0]).to.equal(originalError);
+            expect(onRetryExhausted.mock.calls[0]![0]).to.equal(originalError);
         });
 
         it('should support async onRetryExhausted callback', async () => {
@@ -631,7 +630,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
         it('should work with onRetry and onRetryExhausted together', async () => {
 
             const callOrder: string[] = [];
-            const onRetry = vi.fn(() => callOrder.push('onRetry'));
+            const onRetry = vi.fn(() => { callOrder.push('onRetry'); });
             const onRetryExhausted = vi.fn(() => {
                 callOrder.push('exhausted');
                 return 'fallback';
@@ -657,7 +656,7 @@ describe('@logosdx/utils - flow-control: retry', () => {
         it('should work with onRetry and throwLastError together', async () => {
 
             const onRetryCalls: number[] = [];
-            const onRetry = vi.fn((_, attempt) => onRetryCalls.push(attempt));
+            const onRetry = vi.fn((_: Error, attempt: number) => { onRetryCalls.push(attempt); });
             const originalError = new Error('original');
 
             const fn = vi.fn(() => {

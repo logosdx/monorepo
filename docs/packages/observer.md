@@ -331,7 +331,7 @@ Enable/disable debug tracing.
 
 ## EventGenerator
 
-Async iterator for event streams with manual control.
+Async iterator for event streams with manual control. Events are internally buffered, so none are lost even if they arrive faster than the consumer can process them.
 
 ### Properties
 
@@ -397,6 +397,34 @@ for await (const data of generator) {
         break
     }
 }
+```
+
+### Event Buffering
+
+Events that arrive while the consumer is busy (e.g., doing async work between iterations) are buffered internally and delivered in FIFO order on the next `next()` call. This guarantees no events are dropped during async iteration.
+
+```typescript
+const generator = observer.on('job:complete')
+
+for await (const result of generator) {
+    // Even if multiple 'job:complete' events fire during this await,
+    // they are buffered and delivered on subsequent iterations.
+    await saveToDatabase(result)
+}
+```
+
+Events emitted before any call to `next()` are also buffered:
+
+```typescript
+const generator = observer.on('status')
+
+observer.emit('status', 'a')
+observer.emit('status', 'b')
+observer.emit('status', 'c')
+
+await generator.next() // 'a'
+await generator.next() // 'b'
+await generator.next() // 'c'
 ```
 
 ## EventQueue

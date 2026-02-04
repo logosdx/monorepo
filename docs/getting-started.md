@@ -33,7 +33,7 @@ Or in your browser, use the CDN:
 <script>
     const { ObserverEngine } = LogosDX.Observer;
     const { composeFlow, attempt } = LogosDX.Utils;
-    const { FetchFactory } = LogosDX.Fetch;
+    const { FetchEngine } = LogosDX.Fetch;
 
     // ...
 </script>
@@ -90,7 +90,7 @@ observer.on('stop-being-nosy', () => stopBeingNosy());
 **Let's give these users something to actually log in to.**
 
 ```ts
-import { FetchFactory } from '@logosdx/fetch';
+import { FetchEngine } from '@logosdx/fetch';
 import { attempt } from '@logosdx/utils'
 
 // Your Fetch instance can have a state from which you can make
@@ -110,7 +110,7 @@ type ApiQueryParams = {
     page: string;
 }
 
-const api = new FetchFactory<ApiHeaders, ApiQueryParams, ApiState>({
+const api = new FetchEngine<ApiHeaders, ApiQueryParams, ApiState>({
     baseUrl: 'https://rainbow-loans.com',
     retry: {
         maxAttempts: 3,
@@ -120,7 +120,7 @@ const api = new FetchFactory<ApiHeaders, ApiQueryParams, ApiState>({
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     },
-    modifyOptions: (opts, state) => {
+    modifyConfig: (opts, state) => {
 
         if (state.authToken) {
             opts.headers.Authorization = `Bearer ${state.authToken}`
@@ -138,20 +138,20 @@ observer.on('user:login', ({ userId, token }) => {
 
     // Once you have a token, you can set the state of the
     // Fetch instance to use it in the next request.
-    api.setState({ authToken: token, userId });
+    api.state.set({ authToken: token, userId });
 });
 
 observer.on('user:logout', () => {
 
     // When the user logs out, you can clear the state of the
     // Fetch instance to avoid using the token in the next request.
-    api.setState({ authToken: null, userId: null });
+    api.state.set({ authToken: null, userId: null });
 });
 
 export const signIn = async (user: string, password: string) => {
 
     // Go-style error handling, with type safety.
-    const [resPayload, err] = await attempt(() => api.post('/signin', { user, password }));
+    const [response, err] = await attempt(() => api.post('/signin', { user, password }));
 
     if (err) {
 
@@ -163,7 +163,7 @@ export const signIn = async (user: string, password: string) => {
         throw err;
     }
 
-    const { userId, token } = resPayload;
+    const { userId, token } = response.data;
 
     observer.emit('user:login', {
         userId: user,
@@ -180,7 +180,7 @@ export const signIn = async (user: string, password: string) => {
 ```ts
 import { composeFlow, attempt } from '@logosdx/utils';
 
-const painPal = new FetchFactory({
+const painPal = new FetchEngine({
     baseUrl: 'https://painpal.com',
     retry: {
         maxAttempts: 3,
@@ -195,7 +195,7 @@ const painPal = new FetchFactory({
 
 const _makePayment = async (paymentToken: string, amount: number) => {
 
-    const [resPayload, err] = await attempt(() => api.post('/payments', { paymentToken, amount }));
+    const [response, err] = await attempt(() => api.post('/payments', { paymentToken, amount }));
 
     if (err) {
 
@@ -214,7 +214,7 @@ const _makePayment = async (paymentToken: string, amount: number) => {
         timestamp: Date.now()
     });
 
-    return resPayload;
+    return response.data;
 }
 
 // This makePayment function is now rate-limited to 10
@@ -254,7 +254,7 @@ Get start with the packages:
 
 - [@logosdx/observer](/packages/observer)
 - [@logosdx/utils](/packages/utils)
-- [@logosdx/fetch](/packages/fetch)
+- [@logosdx/fetch](/packages/fetch/)
 - [@logosdx/dom](/packages/dom)
 - [@logosdx/storage](/packages/storage)
 - [@logosdx/localize](/packages/localize)

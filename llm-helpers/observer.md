@@ -76,13 +76,17 @@ observer.emit(/^user:/, { type: 'broadcast' })
 
 ## EventGenerator - Async Iteration
 
+Events are buffered internally in FIFO order. No events are dropped even if
+they arrive faster than the consumer iterates.
+
 ```ts
 // Generator from on() without callback
 const userEvents = observer.on('user:login')
 
-// Async iteration
+// Async iteration (events buffered while doing async work between iterations)
 for await (const loginData of userEvents) {
     console.log('User logged in:', loginData.userId)
+    await saveToDatabase(loginData) // buffered events won't be lost here
 
     if (shouldStop) {
         userEvents.cleanup()
@@ -93,6 +97,12 @@ for await (const loginData of userEvents) {
 // Manual iteration
 const loginData = await userEvents.next()
 console.log(loginData) // { userId: string; timestamp: number }
+
+// Events emitted before next() is called are also buffered
+observer.emit('user:login', first)
+observer.emit('user:login', second)
+await userEvents.next() // first
+await userEvents.next() // second
 
 // Generator properties
 userEvents.lastValue // last received value

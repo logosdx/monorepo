@@ -440,6 +440,59 @@ describe('@logosdx/observer', function () {
             expect(events).to.deep.eq(['a', 'b', 'c']);
         });
 
+        it('should not drop events emitted faster than the consumer iterates', async () => {
+
+            const { observer } = stub;
+            const generator = observer.on('test');
+
+            const events: string[] = [];
+
+            const listen = (async () => {
+
+                for await (const event of generator) {
+
+                    events.push(event as never);
+
+                    // Simulate async work between iterations
+                    await wait(10);
+                }
+            })();
+
+            // Emit multiple events synchronously before the consumer
+            // has a chance to loop back and call next()
+            generator.emit('a');
+            generator.emit('b');
+            generator.emit('c');
+
+            // Wait long enough for all iterations to complete
+            await wait(50);
+
+            expect(events).to.deep.eq(['a', 'b', 'c']);
+
+            generator.cleanup();
+            await listen;
+        });
+
+        it('should buffer events emitted before next() is called', async () => {
+
+            const { observer } = stub;
+            const generator = observer.on('test');
+
+            // Emit before anyone calls next()
+            generator.emit('a');
+            generator.emit('b');
+            generator.emit('c');
+
+            const r1 = await generator.next();
+            const r2 = await generator.next();
+            const r3 = await generator.next();
+
+            expect(r1).to.eq('a');
+            expect(r2).to.eq('b');
+            expect(r3).to.eq('c');
+
+            generator.cleanup();
+        });
 
         it('handles regex with EventGenerators', async () => {
 

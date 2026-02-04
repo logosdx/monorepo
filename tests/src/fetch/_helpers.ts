@@ -32,7 +32,7 @@ export interface RegexCallbackArg {
 }
 
 // Augment the FetchEngine module with custom response headers for testing
-declare module '../../../packages/fetch/src/engine.ts' {
+declare module '../../../packages/fetch/src/engine/index.ts' {
 
     namespace FetchEngine {
 

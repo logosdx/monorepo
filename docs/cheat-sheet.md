@@ -15,7 +15,7 @@ import { FetchEngine } from '@logosdx/fetch';
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     defaultType: 'json',
-    timeout: 5000
+    totalTimeout: 5000
 });
 
 // With typed headers, params, and state
@@ -115,43 +115,43 @@ if (err && request.isAborted) {
 
 ```typescript
 // Set entire state
-api.setState({
+api.state.set({
     userId: '123',
     sessionId: 'abc'
 });
 
 // Set individual property
-api.setState('userId', '456');
+api.state.set('userId', '456');
 
 // Get state (returns deep clone)
-const state = api.getState();
+const state = api.state.get();
 
 // Reset state
-api.resetState();
+api.state.reset();
 ```
 
 
 ### Headers Management
 
 ```typescript
-// Add global header
-api.addHeader('Authorization', 'Bearer token123');
+// Set global header
+api.headers.set('Authorization', 'Bearer token123');
 
-// Add multiple headers
-api.addHeader({
+// Set multiple headers
+api.headers.set({
     'X-API-Version': 'v2',
     'X-Client': 'web-app'
 });
 
-// Add method-specific header
-api.addHeader('X-CSRF-Token', 'csrf123', 'POST');
+// Set method-specific header
+api.headers.set('X-CSRF-Token', 'csrf123', 'POST');
 
 // Remove headers
-api.rmHeader('Authorization');
-api.rmHeader(['X-API-Version', 'X-Client']);
+api.headers.remove('Authorization');
+api.headers.remove(['X-API-Version', 'X-Client']);
 
 // Check header existence
-if (api.hasHeader('Authorization')) {
+if (api.headers.has('Authorization')) {
     // Header exists
 }
 ```
@@ -160,34 +160,38 @@ if (api.hasHeader('Authorization')) {
 ### Parameters Management
 
 ```typescript
-// Add global parameter
-api.addParam('version', 'v1');
+// Set global parameter
+api.params.set('version', 'v1');
 
-// Add multiple parameters
-api.addParam({
+// Set multiple parameters
+api.params.set({
     format: 'json',
     locale: 'en-US'
 });
 
-// Add method-specific parameter
-api.addParam('include_deleted', true, 'GET');
+// Set method-specific parameter
+api.params.set('include_deleted', true, 'GET');
 
 // Remove parameters
-api.rmParam('version');
-api.rmParam(['format', 'locale']);
+api.params.remove('version');
+api.params.remove(['format', 'locale']);
 
 // Check parameter existence
-if (api.hasParam('version')) {
+if (api.params.has('version')) {
     // Parameter exists
 }
 ```
 
 
-### URL Management
+### Configuration Management
 
 ```typescript
 // Change base URL
-api.changeBaseUrl('https://staging.example.com');
+api.config.set('baseUrl', 'https://staging.example.com');
+
+// Change other config at runtime
+api.config.set('totalTimeout', 60000);
+api.config.set('retry.maxAttempts', 5);
 ```
 
 
@@ -222,12 +226,12 @@ const api = new FetchEngine({
 
 ```typescript
 // Listen to events
-const cleanup = api.on('fetch-error', (event) => {
+const cleanup = api.on('error', (event) => {
     console.error('Request failed:', event.error?.message);
 });
 
 // Listen once
-api.once('fetch-response', (event) => {
+api.once('response', (event) => {
     console.log('First response:', event.response);
 });
 
@@ -239,7 +243,7 @@ api.on('*', (event) => {
 // Remove listener
 cleanup();
 // or
-api.off('fetch-error', callback);
+api.off('error', callback);
 
 // Emit custom event
 api.emit('custom-event', { data: 'value' });
@@ -247,19 +251,19 @@ api.emit('custom-event', { data: 'value' });
 
 #### Available Events
 
-- `fetch-before` - Before request
-- `fetch-after` - After request
-- `fetch-abort` - Request aborted
-- `fetch-error` - Request error
-- `fetch-response` - Response received
-- `fetch-retry` - Retry attempt
-- `fetch-header-add` - Header added
-- `fetch-header-remove` - Header removed
-- `fetch-param-add` - Parameter added
-- `fetch-param-remove` - Parameter removed
-- `fetch-state-set` - State updated
-- `fetch-state-reset` - State reset
-- `fetch-url-change` - Base URL changed
+- `before-request` - Before request
+- `after-request` - After request
+- `abort` - Request aborted
+- `error` - Request error
+- `response` - Response received
+- `retry` - Retry attempt
+- `header-add` - Header added
+- `header-remove` - Header removed
+- `param-add` - Parameter added
+- `param-remove` - Parameter removed
+- `state-set` - State updated
+- `state-reset` - State reset
+- `url-change` - Base URL changed
 
 
 ### Error Handling
@@ -305,16 +309,16 @@ const api = new FetchEngine({
         DELETE: { soft: true }
     },
 
-    // Modify options before request
-    modifyOptions: (opts, state) => {
+    // Modify config before request
+    modifyConfig: (opts, state) => {
         if (state.authToken) {
             opts.headers.Authorization = `Bearer ${state.authToken}`;
         }
         return opts;
     },
 
-    // Method-specific option modification
-    modifyMethodOptions: {
+    // Method-specific config modification
+    modifyMethodConfig: {
         POST: (opts, state) => {
             opts.headers['X-User-ID'] = state.userId;
             return opts;
@@ -346,10 +350,7 @@ const api = new FetchEngine({
             return 'blob';
         }
         return FetchEngine.useDefault;
-    },
-
-    // Format headers
-    formatHeaders: 'lowercase' // or 'uppercase' or custom function
+    }
 });
 ```
 
@@ -391,8 +392,8 @@ const [loginResponse, err] = await attempt(() =>
 );
 
 if (!err && loginResponse) {
-    api.setState('authToken', loginResponse.token);
-    api.addHeader('Authorization', `Bearer ${loginResponse.token}`);
+    api.state.set('authToken', loginResponse.data.token);
+    api.headers.set('Authorization', `Bearer ${loginResponse.data.token}`);
 }
 ```
 
@@ -447,8 +448,8 @@ const urls = {
 };
 
 observer.on('environment-changed', ({ env }) => {
-    api.changeBaseUrl(urls[env]);
-    api.resetState(); // Clear auth on env change
+    api.config.set('baseUrl', urls[env]);
+    api.state.reset(); // Clear auth on env change
 });
 ```
 

@@ -289,7 +289,6 @@ describe('@logosdx/storage', () => {
         });
 
         const getKeys = (setTo: Partial<StorageItems>) => Object.keys(setTo) as (keyof StorageItems)[];
-        const getVals = (setTo: Partial<StorageItems>) => Object.keys(setTo) as (StorageItems[keyof StorageItems])[];
         const mapArgs = <S extends SinonSpy<[StorageEvent<StorageItems>]>>(spy: S) => spy.args.map(([e]) => e)
 
         it('dispatches events on set', () => {

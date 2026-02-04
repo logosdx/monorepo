@@ -6,7 +6,7 @@ import type {
     RequestKeyOptions
 } from '../types.ts';
 
-import type { FetchEngine } from '../engine.ts';
+import type { RequestExecutor } from '../engine/executor.ts';
 
 import { ResiliencePolicy } from './base.ts';
 import { requestSerializer } from '../serializers/index.ts';
@@ -84,13 +84,13 @@ export class DedupePolicy<
     P = unknown
 > extends ResiliencePolicy<DeduplicationConfig<S, H, P>, DedupeRule<S, H, P>, S, H, P> {
 
-    /** Reference to the FetchEngine instance */
-    #engine: FetchEngine<H, P, S>;
+    /** Reference to the RequestExecutor instance */
+    #executor: RequestExecutor<S, H, P>;
 
-    constructor(engine: FetchEngine<H, P, S>) {
+    constructor(executor: RequestExecutor<S, H, P>) {
 
         super();
-        this.#engine = engine;
+        this.#executor = executor;
     }
 
     /**
@@ -171,18 +171,18 @@ export class DedupePolicy<
         }
 
         const key = config.serializer!(normalizedOpts);
-        const inflight = this.#engine._flight.getInflight(key);
+        const inflight = this.#executor.flight.getInflight(key);
 
         if (inflight) {
 
             // Join existing in-flight request
-            const waitingCount = this.#engine._flight.joinInflight(key);
+            const waitingCount = this.#executor.flight.joinInflight(key);
 
-            this.#engine.emit('fetch-dedupe-join' as any, {
+            this.#executor.engine.emit('dedupe-join' as any, {
                 ...normalizedOpts,
                 key,
                 waitingCount,
-            });
+            } as any);
 
             return {
                 joined: true,
@@ -192,10 +192,10 @@ export class DedupePolicy<
         }
 
         // No in-flight request - emit start event, caller will track
-        this.#engine.emit('fetch-dedupe-start' as any, {
+        this.#executor.engine.emit('dedupe-start' as any, {
             ...normalizedOpts,
             key,
-        });
+        } as any);
 
         return {
             joined: false,
