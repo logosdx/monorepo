@@ -1,5 +1,16 @@
 # @logosdx/observer
 
+## 2.3.1-beta.0
+
+### Patch Changes
+
+- 11e8233: ### Fixed
+
+  - **EventGenerator buffering**: Fixed a race condition where events emitted faster than the async iterator could consume them were silently dropped. Replaced single Deferred pattern with a PriorityQueue buffer, ensuring no events are lost under burst conditions. All existing consumer code continues to work unchanged.
+
+- Updated dependencies [11e8233]
+  - @logosdx/utils@6.1.0-beta.0
+
 ## 2.3.0
 
 ### Minor Changes

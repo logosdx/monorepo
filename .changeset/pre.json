@@ -13,7 +13,11 @@
     "@logosdx/tests": "0.0.1"
   },
   "changesets": [
+    "bright-dogs-swim",
+    "calm-trees-grow",
+    "quiet-birds-sing",
     "rich-pears-jam",
-    "thin-crews-vanish"
+    "thin-crews-vanish",
+    "warm-lights-shine"
   ]
 }
