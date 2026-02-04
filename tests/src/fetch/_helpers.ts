@@ -9,6 +9,8 @@ import net from 'net';
 import Hapi, { Lifecycle } from '@hapi/hapi';
 import Boom from '@hapi/boom';
 import Joi from 'joi';
+import { createSession } from 'better-sse';
+import type { ServerResponse } from 'http';
 
 import {
     FetchEngine,
@@ -109,6 +111,22 @@ export const makeTestStubs = async (port?: number) => {
     let failOnceCallCount = 0;
     const resetFailOnce = () => { failOnceCallCount = 0; };
 
+    // SSE connection tracking for cleanup
+    const activeResponses: ServerResponse[] = [];
+
+    const closeConnections = () => {
+
+        for (const res of activeResponses) {
+
+            if (!res.writableEnded) {
+
+                res.end();
+            }
+        }
+
+        activeResponses.length = 0;
+    };
+
     server.route(
         [
             mkHapiRoute('/bad-content-type', (_, h) => h.response().header('content-type', 'habibti/allah')),
@@ -120,6 +138,52 @@ export const makeTestStubs = async (port?: number) => {
             mkHapiRoute('/abandon', (_, h) => h.abandon),
             mkHapiRoute('/empty', () => { return null; }),
             mkHapiRoute('/empty2', (_, h) => { return h.response().code(204); }),
+
+            // SSE endpoint: pushes two events and keeps connection open
+            {
+                method: 'GET' as const,
+                path: '/sse',
+                handler: (async (request, h) => {
+
+                    activeResponses.push(request.raw.res);
+                    callStub(request);
+
+                    const session = await createSession(
+                        request.raw.req,
+                        request.raw.res
+                    );
+
+                    session.push('hello');
+                    session.push('world');
+
+                    return h.abandon;
+                }) as Lifecycle.Method
+            },
+
+            // SSE endpoint: pushes a configurable number of events
+            {
+                method: 'GET' as const,
+                path: '/sse/events',
+                handler: (async (request, h) => {
+
+                    activeResponses.push(request.raw.res);
+                    callStub(request);
+
+                    const session = await createSession(
+                        request.raw.req,
+                        request.raw.res
+                    );
+
+                    const count = Number(request.query.count) || 3;
+
+                    for (let i = 0; i < count; i++) {
+
+                        session.push(`event-${i}`);
+                    }
+
+                    return h.abandon;
+                }) as Lifecycle.Method
+            },
 
             // Flaky endpoint: succeeds on first call, fails on subsequent calls
             // Useful for testing SWR revalidation error handling
@@ -235,6 +299,7 @@ export const makeTestStubs = async (port?: number) => {
 
     afterAll(async () => {
 
+        closeConnections();
         await server.stop();
     });
 
@@ -243,7 +308,8 @@ export const makeTestStubs = async (port?: number) => {
         callStub.reset();
         resetFlaky();
         resetFailOnce();
+        closeConnections();
     });
 
-    return { callStub, server, testUrl, resetFlaky, resetFailOnce };
+    return { callStub, server, testUrl, resetFlaky, resetFailOnce, closeConnections };
 }

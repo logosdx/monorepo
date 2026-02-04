@@ -141,6 +141,7 @@ interface EventData<S, H, P> {
     status?: number;
     path?: string;
     aborted?: boolean;
+    requestId?: string;     // Unique ID for this request (consistent across retries)
     requestStart?: number;  // Timestamp (ms) when request entered pipeline
     requestEnd?: number;    // Timestamp (ms) when request resolved
 }
@@ -253,6 +254,37 @@ api.on('after-request', (data) => {
 api.on('error', (data) => {
     console.error(`✗ ${data.status} ${data.path}: ${data.error?.message}`);
 });
+```
+
+
+### Distributed Tracing
+
+
+Use `requestIdHeader` to automatically send the request ID to the server, then use events to correlate client and server logs:
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    requestIdHeader: 'X-Request-Id'
+});
+
+api.on('before-request', (data) => {
+    console.log(`→ [${data.requestId}] ${data.method} ${data.path}`);
+});
+
+api.on('after-request', (data) => {
+    console.log(`← [${data.requestId}] ${data.status} ${data.path}`);
+});
+
+api.on('error', (data) => {
+    // Same requestId is available on the server via the X-Request-Id header
+    errorReporting.captureException(data.error, {
+        tags: { requestId: data.requestId }
+    });
+});
+
+// Override the request ID per-request to propagate an upstream trace
+await api.get('/orders', { requestId: incomingTraceId });
 ```
 
 
@@ -407,7 +439,8 @@ api.on('error', (data) => {
         tags: {
             endpoint: data.path,
             method: data.method,
-            status: data.status
+            status: data.status,
+            requestId: data.requestId
         },
         extra: {
             attempt: data.attempt

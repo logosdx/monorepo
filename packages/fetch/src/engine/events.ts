@@ -30,6 +30,9 @@ export interface EventData<S = unknown, H = unknown, P = unknown> {
     path?: string | undefined;
     aborted?: boolean | undefined;
 
+    /** Unique ID for this request, flows through all events */
+    requestId?: string | undefined;
+
     /** Timestamp (ms) when the request entered the execution pipeline */
     requestStart?: number | undefined;
 

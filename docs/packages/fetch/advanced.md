@@ -260,6 +260,9 @@ const api = new FetchEngine({
     totalTimeout: 30000,      // 30s max for entire operation
     attemptTimeout: 10000,    // 10s per attempt
 
+    // Distributed tracing - sends requestId as header to server
+    requestIdHeader: 'X-Request-Id',
+
     // Global headers
     headers: {
         'Content-Type': 'application/json',

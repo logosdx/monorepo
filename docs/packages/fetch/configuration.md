@@ -33,6 +33,8 @@ The `FetchEngine.Config` interface defines all options for creating a FetchEngin
 | `dedupePolicy` | `boolean \| DeduplicationConfig` | Request deduplication configuration |
 | `cachePolicy` | `boolean \| CacheConfig` | Response caching configuration |
 | `rateLimitPolicy` | `boolean \| RateLimitConfig` | Rate limiting configuration |
+| `generateRequestId` | `() => string` | Custom function to generate request IDs for tracing |
+| `requestIdHeader` | `string` | Header name for sending the request ID with every outgoing request |
 | `determineType` | `(response: Response) => DetermineTypeResult` | Custom response type detection |
 | `name` | `string` | Instance name for debugging |
 | `onBeforeReq` | `(opts) => void` | Lifecycle hook before each request |
@@ -77,6 +79,51 @@ const api = new FetchEngine({
     }
 });
 ```
+
+
+### Distributed Tracing
+
+
+FetchEngine generates a unique `requestId` for every request, visible in all lifecycle events and `FetchError` instances. To propagate this ID to the server, set `requestIdHeader`:
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    requestIdHeader: 'X-Request-Id'
+});
+
+// Every outgoing request now includes the X-Request-Id header
+// with the same value available in before-request, after-request, and error events
+api.on('before-request', (data) => {
+    console.log('Request ID:', data.requestId);
+});
+```
+
+When combined with `generateRequestId`, the custom ID is used in both the header and all events:
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    generateRequestId: () => `trace-${crypto.randomUUID()}`,
+    requestIdHeader: 'X-Trace-Id'
+});
+```
+
+The request ID can also be overridden per-request. This is useful for propagating an external trace ID from an upstream service:
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    requestIdHeader: 'X-Request-Id'
+});
+
+// Use the upstream trace ID instead of generating a new one
+await api.get('/orders', { requestId: incomingTraceId });
+```
+
+::: info
+When `requestIdHeader` is not set, no header is injected. This is opt-in to avoid unexpected headers in environments with strict CORS policies.
+:::
 
 
 ## ConfigStore

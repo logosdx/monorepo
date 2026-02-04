@@ -159,6 +159,12 @@ export interface InternalReqOptions<H = unknown, P = unknown, S = unknown>
 
     // === Runtime state ===
 
+    /** When true, returns raw Response without body parsing */
+    stream?: boolean | undefined;
+
+    /** Unique ID for this request, flows through all events */
+    requestId?: string | undefined;
+
     /** Current attempt number (1-based) */
     attempt?: number | undefined;
 

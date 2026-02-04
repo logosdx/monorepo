@@ -118,6 +118,34 @@ export interface CallConfig<H = InstanceHeaders, P = InstanceParams>
     /** AbortController for manual request cancellation */
     abortController?: AbortController | undefined;
 
+    /**
+     * Return raw Response without body parsing.
+     *
+     * When true, the response `data` will be the raw `Response` object
+     * with an unconsumed body stream. Cache and deduplication are skipped
+     * because each caller needs their own readable stream.
+     *
+     * Rate limiting and lifecycle events (before-request, after-request,
+     * response) still fire normally.
+     */
+    stream?: boolean | undefined;
+
+    /**
+     * Override the auto-generated request ID for this request.
+     *
+     * When provided, this value is used instead of `generateRequestId()`
+     * or the default `generateId()`. Useful for propagating an external
+     * trace ID from an upstream service or user-defined correlation ID.
+     *
+     * @example
+     * ```typescript
+     * await api.get('/orders', {
+     *     requestId: incomingTraceId
+     * });
+     * ```
+     */
+    requestId?: string | undefined;
+
     /** @deprecated Use totalTimeout instead */
     timeout?: number | undefined;
 }
@@ -265,6 +293,28 @@ export interface EngineConfig<
      * Rate limit policy configuration.
      */
     rateLimitPolicy?: boolean | RateLimitConfig<S, H, P> | undefined;
+
+    /**
+     * Custom function to generate request IDs for tracing.
+     * When omitted, uses `generateId` from `@logosdx/utils`.
+     */
+    generateRequestId?: (() => string) | undefined;
+
+    /**
+     * Header name for sending the request ID with every request.
+     *
+     * When set, each outgoing request includes this header with the
+     * generated `requestId` value, enabling end-to-end distributed tracing.
+     *
+     * @example
+     * ```typescript
+     * const api = new FetchEngine({
+     *     baseUrl: 'https://api.example.com',
+     *     requestIdHeader: 'X-Request-Id'
+     * });
+     * ```
+     */
+    requestIdHeader?: string | undefined;
 
     // From RequestOpts
     totalTimeout?: number | undefined;

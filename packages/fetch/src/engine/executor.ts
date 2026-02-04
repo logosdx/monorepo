@@ -4,6 +4,7 @@ import {
     SingleFlight,
     Deferred,
     assert,
+    generateId,
 } from '@logosdx/utils';
 
 import type {
@@ -175,6 +176,7 @@ export class RequestExecutor<
                 'timeout' in payloadOrOptions ||
                 'retry' in payloadOrOptions ||
                 'abortController' in payloadOrOptions ||
+                'stream' in payloadOrOptions ||
                 'onError' in payloadOrOptions ||
                 'onBeforeReq' in payloadOrOptions ||
                 'onAfterReq' in payloadOrOptions;
@@ -318,6 +320,8 @@ export class RequestExecutor<
             signal,
             determineType,
             retry,
+            stream,
+            requestId: perRequestId,
             headers: requestHeaders,
             // RequestInit options (per-request overrides config defaults)
             ...perRequestInit
@@ -412,12 +416,25 @@ export class RequestExecutor<
             ? {}
             : (opts.retry === false ? { maxAttempts: 0 } : opts.retry);
 
+        // Generate request ID for tracing across all events
+        const generateRequestId = this.engine.config.get('generateRequestId');
+        const requestId = perRequestId || (generateRequestId ? generateRequestId() : generateId());
+
+        const requestIdHeader = this.engine.config.get('requestIdHeader');
+
+        if (requestIdHeader) {
+
+            headers = { ...headers, [requestIdHeader]: requestId } as DictAndT<H>;
+        }
+
         // Return normalized options
         // opts now contains all RequestInit options (config + per-request + modifyConfig)
         return {
             // Spread opts to get all RequestInit options after modifyConfig
             ...opts,
             // Explicit values (override anything from opts)
+            stream,
+            requestId,
             method,
             path,
             payload,
@@ -663,6 +680,7 @@ export class RequestExecutor<
             }
         }
 
+        err.requestId = normalizedOpts.requestId;
         err.attempt = attemptNum;
         err.status = err.status || status!;
         err.method = err.method || method!;
@@ -787,6 +805,44 @@ export class RequestExecutor<
         });
 
         onAfterRequest && await onAfterRequest(response.clone(), callbackOpts);
+
+        // Stream mode: return raw Response without body parsing.
+        // Non-ok statuses are returned as-is — the consumer checks status.
+        if (options.stream) {
+
+            const responseHeaders = {} as Partial<ResHdr>;
+
+            response.headers.forEach((value, key) => {
+
+                responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
+            });
+
+            this.engine.emit('response', {
+                ...options,
+                response,
+                data: response,
+                status: response.status,
+                requestEnd: Date.now()
+            });
+
+            const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
+                baseUrl: this.baseUrl.toString(),
+                attemptTimeout: options.attemptTimeout,
+                method,
+                headers: reqHeaders,
+                params,
+                retry: this.retryConfig,
+                determineType,
+            };
+
+            return {
+                data: response as unknown as Res,
+                headers: responseHeaders,
+                status: response.status,
+                request: new Request(url, fetchOpts),
+                config
+            };
+        }
 
         const [data, parseErr] = await attempt(async () => {
 
@@ -948,7 +1004,12 @@ export class RequestExecutor<
             // Check if parent (totalTimeout) already aborted - stop retrying
             if (options.controller.signal.aborted) {
 
-                const err = lastError ?? new FetchError('Request aborted by totalTimeout');
+                const err = lastError ?? new FetchError('Request aborted');
+                err.aborted = true;
+                err.method = err.method || options.method;
+                err.path = err.path || options.path;
+                err.status = err.status || 499;
+                err.step = err.step || 'fetch';
                 err.timedOut = options.getTotalTimeoutFired?.() ?? false;
                 throw err;
             }
@@ -1226,33 +1287,38 @@ export class RequestExecutor<
         normalizedOpts.requestStart = Date.now();
 
         const { method, path, controller } = normalizedOpts;
-
-        // === Cache Check ===
-        // Cache runs first: cached responses return immediately without consuming rate limit tokens.
-        const cacheResult = await this.cachePolicy.checkCache<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>({
-            method,
-            path,
-            normalizedOpts: normalizedOpts as any,
-            options: normalizedOpts as any,
-            clearTimeout: () => totalTimeout?.clear()
-        });
+        const isStream = normalizedOpts.stream === true;
 
         let cacheKey: string | null = null;
         let cacheConfig: CacheRule<H, P, S> | null = null;
 
-        if (cacheResult?.hit) {
+        // === Cache Check ===
+        // Cache runs first: cached responses return immediately without consuming rate limit tokens.
+        // Stream requests skip cache — each caller needs their own Response body.
+        if (!isStream) {
 
-            return cacheResult.value;
-        }
+            const cacheResult = await this.cachePolicy.checkCache<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>({
+                method,
+                path,
+                normalizedOpts: normalizedOpts as any,
+                options: normalizedOpts as any,
+                clearTimeout: () => totalTimeout?.clear()
+            });
 
-        if (cacheResult && !cacheResult.hit) {
+            if (cacheResult?.hit) {
 
-            cacheKey = cacheResult.key;
-            cacheConfig = cacheResult.config as CacheRule<H, P, S>;
+                return cacheResult.value;
+            }
+
+            if (cacheResult && !cacheResult.hit) {
+
+                cacheKey = cacheResult.key;
+                cacheConfig = cacheResult.config as CacheRule<H, P, S>;
+            }
         }
 
         // === Rate Limit Check ===
-        // Rate limiting only gates actual outbound requests (after cache miss).
+        // Rate limiting still gates stream requests (they're real outbound calls).
         await this.rateLimitPolicy.executeGuard({
             method,
             path,
@@ -1272,31 +1338,35 @@ export class RequestExecutor<
             }
         });
 
-        // === Deduplication Check ===
-        // Cast normalizedOpts for policy compatibility (internal type order mismatch)
-        const dedupeResult = this.dedupePolicy.checkInflight<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>({
-            method,
-            path,
-            normalizedOpts: normalizedOpts as any
-        });
-
         let dedupeKey: string | null = null;
         let cleanup: (() => void) | null = null;
 
-        if (dedupeResult?.joined) {
+        // === Deduplication Check ===
+        // Stream requests skip deduplication — each caller needs their own Response body.
+        if (!isStream) {
 
-            return this.#awaitWithIndependentTimeout(
-                dedupeResult.promise,
-                controller,
-                totalTimeout,
-                normalizedOpts.method,
-                path
-            );
-        }
+            // Cast normalizedOpts for policy compatibility (internal type order mismatch)
+            const dedupeResult = this.dedupePolicy.checkInflight<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>({
+                method,
+                path,
+                normalizedOpts: normalizedOpts as any
+            });
 
-        if (dedupeResult && !dedupeResult.joined) {
+            if (dedupeResult?.joined) {
 
-            dedupeKey = dedupeResult.key;
+                return this.#awaitWithIndependentTimeout(
+                    dedupeResult.promise,
+                    controller,
+                    totalTimeout,
+                    normalizedOpts.method,
+                    path
+                );
+            }
+
+            if (dedupeResult && !dedupeResult.joined) {
+
+                dedupeKey = dedupeResult.key;
+            }
         }
 
         // === Execute Request ===

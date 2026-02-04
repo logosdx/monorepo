@@ -224,12 +224,19 @@ export class FetchEngine<
      * const { data: users } = await api.get('/users');
      * ```
      */
+    get(
+        path: string,
+        options: CallConfig<H, P> & { stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     get<Res = unknown, ResHdr = RH>(
         path: string,
-        options: CallConfig<H, P> = {}
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        options?: CallConfig<H, P>
+    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
 
-        return this.request<Res, null, ResHdr>('GET', path, options);
+    get(path: string, options: CallConfig<H, P> = {}): any {
+
+        return this.request('GET', path, options);
     }
 
     /**
@@ -245,13 +252,21 @@ export class FetchEngine<
      * const { data: user } = await api.post('/users', { name: 'John' });
      * ```
      */
+    post<Data = unknown>(
+        path: string,
+        payload: Data | undefined,
+        options: CallConfig<H, P> & { stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     post<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
-        options: CallConfig<H, P> = {}
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        options?: CallConfig<H, P>
+    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
 
-        return this.#executor.execute<Res, Data, ResHdr>('POST', path, payload, options);
+    post(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
+
+        return this.#executor.execute('POST', path, payload, options);
     }
 
     /**
@@ -267,13 +282,21 @@ export class FetchEngine<
      * const { data: user } = await api.put('/users/123', { name: 'Jane' });
      * ```
      */
+    put<Data = unknown>(
+        path: string,
+        payload: Data | undefined,
+        options: CallConfig<H, P> & { stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     put<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
-        options: CallConfig<H, P> = {}
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        options?: CallConfig<H, P>
+    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
 
-        return this.#executor.execute<Res, Data, ResHdr>('PUT', path, payload, options);
+    put(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
+
+        return this.#executor.execute('PUT', path, payload, options);
     }
 
     /**
@@ -289,13 +312,21 @@ export class FetchEngine<
      * const { data } = await api.patch('/users/123', { email: 'new@example.com' });
      * ```
      */
+    patch<Data = unknown>(
+        path: string,
+        payload: Data | undefined,
+        options: CallConfig<H, P> & { stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     patch<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
-        options: CallConfig<H, P> = {}
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        options?: CallConfig<H, P>
+    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
 
-        return this.#executor.execute<Res, Data, ResHdr>('PATCH', path, payload, options);
+    patch(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
+
+        return this.#executor.execute('PATCH', path, payload, options);
     }
 
     /**
@@ -311,13 +342,21 @@ export class FetchEngine<
      * await api.delete('/users/123');
      * ```
      */
+    delete<Data = unknown>(
+        path: string,
+        payload: Data | undefined,
+        options: CallConfig<H, P> & { stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     delete<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
-        options: CallConfig<H, P> = {}
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        options?: CallConfig<H, P>
+    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
 
-        return this.#executor.execute<Res, Data, ResHdr>('DELETE', path, payload, options);
+    delete(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
+
+        return this.#executor.execute('DELETE', path, payload, options);
     }
 
     /**
@@ -336,12 +375,19 @@ export class FetchEngine<
      * const { headers } = await api.request('OPTIONS', '/users');
      * ```
      */
+    options(
+        path: string,
+        opts: CallConfig<H, P> & { stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     options<Res = unknown, ResHdr = RH>(
         path: string,
-        opts: CallConfig<H, P> = {}
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        opts?: CallConfig<H, P>
+    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
 
-        return this.request<Res, null, ResHdr>('OPTIONS', path, opts);
+    options(path: string, opts: CallConfig<H, P> = {}): any {
+
+        return this.request('OPTIONS', path, opts);
     }
 
     /**
@@ -360,12 +406,19 @@ export class FetchEngine<
      * const { headers } = await api.request('HEAD', '/users/123');
      * ```
      */
+    head(
+        path: string,
+        opts: CallConfig<H, P> & { stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     head<ResHdr = RH>(
         path: string,
-        opts: CallConfig<H, P> = {}
-    ): AbortablePromise<FetchResponse<null, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        opts?: CallConfig<H, P>
+    ): AbortablePromise<FetchResponse<null, DictAndT<H>, DictAndT<P>, ResHdr>>;
 
-        return this.request<null, null, ResHdr>('HEAD', path, opts);
+    head(path: string, opts: CallConfig<H, P> = {}): any {
+
+        return this.request('HEAD', path, opts);
     }
 
     /**
@@ -381,11 +434,23 @@ export class FetchEngine<
      * const response = await api.request('GET', '/users');
      * ```
      */
+    request<Data = unknown>(
+        method: HttpMethods,
+        path: string,
+        options: CallConfig<H, P> & { payload?: Data; stream: true }
+    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
+
     request<Res = unknown, Data = unknown, ResHdr = RH>(
         method: HttpMethods,
         path: string,
-        options: CallConfig<H, P> & { payload?: Data } = {}
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+        options?: CallConfig<H, P> & { payload?: Data }
+    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+
+    request(
+        method: HttpMethods,
+        path: string,
+        options: CallConfig<H, P> & { payload?: unknown } = {}
+    ): any {
 
         if (this.#destroyed) {
 
@@ -404,7 +469,7 @@ export class FetchEngine<
             instanceSignal.addEventListener('abort', () => controller.abort('FetchEngine destroyed'), { once: true });
         }
 
-        return this.#executor.execute<Res, Data, ResHdr>(
+        return this.#executor.execute(
             method,
             path,
             payload,

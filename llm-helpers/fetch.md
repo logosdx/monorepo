@@ -153,6 +153,10 @@ interface FetchEngine.Config<H, P, S> {
         };
     };
 
+    // Request ID tracing
+    generateRequestId?: () => string;          // Custom ID generator (default: generateId from utils)
+    requestIdHeader?: string;                  // Header name for sending requestId to server
+
     // Response type determination
     determineType?: (response: Response) => 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | Symbol;
 
@@ -757,6 +761,7 @@ const [response, err] = await attempt(() =>
         timeout: 10000,
         headers: { 'X-Request-ID': '123' },
         params: { include: 'profile' },
+        requestId: 'upstream-trace-id',  // Override auto-generated request ID
         onBeforeReq: (opts) => console.log('Making request:', opts),
         onAfterReq: (response) => console.log('Response:', response.status),
         onError: (error) => console.error('Error:', error),
@@ -939,6 +944,9 @@ const api = new FetchEngine({
     baseUrl: process.env.API_BASE_URL,
     defaultType: 'json',
     totalTimeout: 5000,
+
+    // Distributed tracing - sends requestId as header to server
+    requestIdHeader: 'X-Request-Id',
 
     // Deduplication - prevent duplicate concurrent requests
     dedupePolicy: {

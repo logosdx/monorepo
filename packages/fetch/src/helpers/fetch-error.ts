@@ -20,6 +20,7 @@ export interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
      */
     timedOut?: boolean | undefined;
 
+    requestId?: string | undefined;
     attempt?: number | undefined;
     step?: 'fetch' | 'parse' | 'response' | undefined;
     url?: string | undefined;

@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - "release"
+      - "beta"
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -16,11 +17,32 @@ permissions:
 
 
 jobs:
+  check-prerelease:
+    if: github.ref == 'refs/heads/beta'
+    runs-on: ubuntu-latest
+    outputs:
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - name: Check if pre-release mode is enabled
+        id: check
+        run: |
+          if [ -f ".changeset/pre.json" ]; then
+            echo "Pre-release mode is enabled"
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "Pre-release mode is not enabled, skipping publish"
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
   publish:
+    needs: check-prerelease
+    if: always() && (github.ref == 'refs/heads/release' || needs.check-prerelease.outputs.is_prerelease == 'true')
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
 
       - uses: actions/checkout@v6
@@ -33,6 +55,7 @@ jobs:
         with:
           node-version: 22.x
           cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
 
       - run: pnpm install --frozen-lockfile
 
@@ -42,7 +65,9 @@ jobs:
           publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   docs:
+    if: github.ref == 'refs/heads/release'
     needs: publish
     uses: ./.github/workflows/docs.yml
     secrets:
