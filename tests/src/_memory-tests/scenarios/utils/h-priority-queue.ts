@@ -17,7 +17,7 @@
  * - Backing array buffer shrinks after mass pop (implementation dependent)
  */
 
-import { PriorityQueue } from '../../../../../../packages/utils/src/index.ts';
+import { PriorityQueue } from '../../../../../packages/utils/src/index.ts';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import { createLargeObject } from './_helpers.ts';

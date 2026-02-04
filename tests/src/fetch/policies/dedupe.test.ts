@@ -10,9 +10,8 @@ import {
     FetchEngine,
 } from '../../../../packages/fetch/src/index.ts';
 
-import { attempt, wait } from '../../../../packages/utils/src/index.ts';
+import { attempt, attemptSync, wait } from '../../../../packages/utils/src/index.ts';
 import { makeTestStubs } from '../_helpers.ts';
-import { attemptSync } from '../../../../packages/kit/src/index.ts';
 
 describe('@logosdx/fetch: deduplication',  async () => {
 

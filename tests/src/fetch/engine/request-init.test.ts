@@ -140,7 +140,7 @@ describe('FetchEngine: RequestInit options', async () => {
 
             expect(mockFetch).toHaveBeenCalledTimes(1);
 
-            const [, init] = mockFetch.mock.calls[0];
+            const [, init] = mockFetch.mock.calls[0]!;
 
             expect(init?.integrity).to.equal('sha256-abc123');
 

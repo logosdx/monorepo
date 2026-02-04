@@ -15,7 +15,7 @@
  * - No growth in retained closures
  */
 
-import { ObserverEngine } from '../../../../../../packages/observer/src/index.ts';
+import { ObserverEngine } from '../../../../../packages/observer/src/index.ts';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import { getObserverStats } from './_helpers.ts';

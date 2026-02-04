@@ -21,7 +21,7 @@ import {
     circuitBreakerSync,
     CircuitBreakerError,
     isCircuitBreakerError
-} from '../../../../../../packages/utils/src/index.ts';
+} from '../../../../../packages/utils/src/index.ts';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import { createLargeObject } from './_helpers.ts';

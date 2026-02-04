@@ -12,8 +12,8 @@ import {
     wait,
     memoizeSync,
     memoize,
+    attemptSync
 } from '../../../../packages/utils/src/index.ts';
-import { attemptSync } from '../../../../packages/kit/src/index.ts';
 
 describe('@logosdx/utils', () => {
 

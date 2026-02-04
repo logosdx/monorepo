@@ -24,7 +24,7 @@
  * The retained memory is from undici, not our code.
  */
 
-import { FetchEngine } from '../../../../../../packages/fetch/src/index.ts';
+import { FetchEngine } from '../../../../../packages/fetch/src/index.ts';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import {

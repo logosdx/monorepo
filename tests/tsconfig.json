@@ -7,5 +7,9 @@
     },
     "include": [
         "src"
+    ],
+    "exclude": [
+        "src/_memory-tests",
+        "src/_playground.ts"
     ]
 }

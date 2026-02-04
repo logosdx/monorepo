@@ -15,7 +15,7 @@
  * - Zombie promises accumulate (documents known limitation)
  */
 
-import { withInflightDedup } from '../../../../../../packages/utils/src/index.ts';
+import { withInflightDedup } from '../../../../../packages/utils/src/index.ts';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import { createLargeObject, delay } from './_helpers.ts';

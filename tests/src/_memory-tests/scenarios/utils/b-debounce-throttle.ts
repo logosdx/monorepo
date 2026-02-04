@@ -26,7 +26,7 @@ import {
     throttle,
     type DebouncedFunction,
     type ThrottledFunction
-} from '../../../../../../packages/utils/src/index.ts';
+} from '../../../../../packages/utils/src/index.ts';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import { createLargeObject, delay } from './_helpers.ts';

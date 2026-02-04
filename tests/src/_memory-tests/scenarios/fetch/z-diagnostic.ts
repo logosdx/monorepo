@@ -21,8 +21,8 @@
  * This is expected behavior, not a bug in FetchEngine.
  */
 
-import { FetchEngine } from '../../../../../../packages/fetch/src/index.ts';
-import { attempt } from '../../../../../../packages/utils/src/index.ts';
+import { FetchEngine } from '../../../../../packages/fetch/src/index.ts';
+import { attempt } from '../../../../../packages/utils/src/index.ts';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import {
@@ -121,7 +121,7 @@ export const diagnostic: Scenario<DiagnosticContext> = {
             context.gc();
             const before = process.memoryUsage().heapUsed;
 
-            const { ObserverEngine } = await import('../../../../../../packages/observer/src/index.ts');
+            const { ObserverEngine } = await import('../../../../../packages/observer/src/index.ts');
 
             for (let i = 0; i < 100; i++) {
 
@@ -142,7 +142,7 @@ export const diagnostic: Scenario<DiagnosticContext> = {
             context.gc();
             const before = process.memoryUsage().heapUsed;
 
-            const { ObserverEngine } = await import('../../../../../../packages/observer/src/index.ts');
+            const { ObserverEngine } = await import('../../../../../packages/observer/src/index.ts');
 
             const sharedState = { token: 'abc', user: { id: 1 } };
 
