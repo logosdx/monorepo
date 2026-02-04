@@ -1,5 +1,12 @@
 # @logosdx/localize
 
+## 1.0.22-beta.0
+
+### Patch Changes
+
+- Updated dependencies [11e8233]
+  - @logosdx/utils@6.1.0-beta.0
+
 ## 1.0.21
 
 ### Patch Changes
