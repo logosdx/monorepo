@@ -440,6 +440,7 @@ const Pkg = {
     homepage: RootPkg.homepage,
     bugs: RootPkg.bugs,
     author: RootPkg.author,
+    repository: LibPkg.repository,
     keywords: LibPkg.keywords,
     sideEffects: false,
     files: process.env.CI ? LibPkg.files.concat(RootPkg.files) : ['**/*'],

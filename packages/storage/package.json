@@ -2,6 +2,11 @@
   "name": "@logosdx/storage",
   "version": "1.0.22-beta.0",
   "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/logosdx/monorepo",
+    "directory": "packages/storage"
+  },
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",

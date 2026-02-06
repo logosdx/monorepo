@@ -53,9 +53,15 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
+
+      # Workaround: setup-node injects a fake NODE_AUTH_TOKEN placeholder
+      # that prevents npm OIDC trusted publishing from activating.
+      # See: https://github.com/actions/setup-node/issues/1440
+      - name: Enable OIDC publishing
+        run: npm config delete //registry.npmjs.org/:_authToken
 
       - run: pnpm install --frozen-lockfile
 
@@ -64,9 +70,8 @@ jobs:
         with:
           publish: pnpm run release
         env:
-          NPM_TOKEN: ""
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ""
 
   docs:
     if: github.ref == 'refs/heads/release'

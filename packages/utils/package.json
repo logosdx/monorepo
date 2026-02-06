@@ -2,6 +2,11 @@
   "name": "@logosdx/utils",
   "version": "6.1.0-beta.0",
   "description": "A small, common set of JS and TS utilities for LogosDX",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/logosdx/monorepo",
+    "directory": "packages/utils"
+  },
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",

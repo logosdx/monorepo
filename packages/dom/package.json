@@ -2,6 +2,11 @@
   "name": "@logosdx/dom",
   "version": "2.0.18-beta.0",
   "description": "A small set of utilities for DOM manipulation",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/logosdx/monorepo",
+    "directory": "packages/dom"
+  },
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",

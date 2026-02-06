@@ -2,6 +2,11 @@
   "name": "@logosdx/fetch",
   "version": "8.0.0-beta.1",
   "description": "A full-feature wrapper around the Fetch API",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/logosdx/monorepo",
+    "directory": "packages/fetch"
+  },
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
