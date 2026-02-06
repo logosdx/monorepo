@@ -1,8 +1,8 @@
 import { describe, it, beforeAll,afterEach, expect } from 'vitest'
 
 
-import { ObserverEngine } from '../../../packages/observer/src/index.ts';
-import { wait } from '../../../packages/utils/src/index.ts';
+import { ObserverEngine, EventError } from '../../../packages/observer/src/index.ts';
+import { attempt, wait } from '../../../packages/utils/src/index.ts';
 
 import { sandbox } from '../_helpers.ts';
 
@@ -470,7 +470,11 @@ describe('@logosdx/observer', function () {
             expect(events).to.deep.eq(['a', 'b', 'c']);
 
             generator.cleanup();
-            await listen;
+
+            const [, err] = await attempt(() => listen);
+
+            expect(err).to.be.instanceOf(EventError);
+            expect(err!.message).to.eq('Aborted');
         });
 
         it('should buffer events emitted before next() is called', async () => {
@@ -1640,6 +1644,64 @@ describe('@logosdx/observer', function () {
                 generator.cleanup();
 
                 expect(observer.$facts().listenerCounts['test']).to.be.undefined;
+            });
+
+            it('next() rejects with EventError when cleanup() is called while waiting', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const generator = observer.on('test');
+
+                const pending = generator.next();
+
+                generator.cleanup();
+
+                const [, err] = await attempt(() => pending);
+
+                expect(err).to.be.instanceOf(EventError);
+                expect(err!.message).to.eq('Aborted');
+            });
+
+            it('next() rejects with EventError when signal aborts while waiting', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const controller = new AbortController();
+                const generator = observer.on('test', { signal: controller.signal });
+
+                const pending = generator.next();
+
+                controller.abort();
+
+                const [, err] = await attempt(() => pending);
+
+                expect(err).to.be.instanceOf(EventError);
+                expect(err!.message).to.eq('Aborted');
+            });
+
+            it('for await...of exits with EventError on cleanup', async () => {
+
+                const observer = new ObserverEngine<AppEvents>();
+                const generator = observer.on('test');
+
+                const events: string[] = [];
+
+                const listen = (async () => {
+
+                    for await (const event of generator) {
+
+                        events.push(event as never);
+                    }
+                })();
+
+                observer.emit('test', 'first');
+                await wait(1);
+
+                generator.cleanup();
+
+                const [, err] = await attempt(() => listen);
+
+                expect(err).to.be.instanceOf(EventError);
+                expect(err!.message).to.eq('Aborted');
+                expect(events).to.deep.eq(['first']);
             });
         });
 

@@ -92,6 +92,7 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
                 this.#waiting = new DeferredEvent();
                 this.#waiting.promise.cleanup = this.cleanup;
                 this.#waiting.promise.resolve = this.#waiting.resolve;
+                this.#waiting.promise.reject = this.#waiting.reject;
             }
 
             return this.#waiting.promise;
@@ -104,17 +105,22 @@ export class EventGenerator<S extends Record<string, any>, E extends Events<S> |
             off();
             this.#done = true;
 
-            // Resolve the waiting deferred with the last value
+            // Reject pending promises on cancellation
+            const abortError = new EventError('Aborted', {
+                event: this.#event as string,
+                listener: this.#listener!,
+                data: null
+            });
+
             if (this.#waiting) {
 
-                this.#waiting.resolve(this.#lastValue as EventData<S, E>);
+                this.#waiting.reject(abortError);
                 this.#waiting = null;
             }
 
-            // Resolve all lingering iterator promises
-            // with the last value
+            // Reject all lingering iterator promises
             this.#_iterPromise.forEach(promise => {
-                promise.resolve?.(this.#lastValue as EventData<S, E>);
+                promise.reject?.(abortError);
             });
 
             // Cleanup the set and buffer
