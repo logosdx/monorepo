@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/localize",
-  "version": "1.0.22-beta.0",
+  "version": "1.0.22-beta.1",
   "description": "A small, strongly-typed, full feature localization utility",
   "repository": {
     "type": "git",

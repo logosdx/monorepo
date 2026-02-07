@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/react",
-  "version": "0.0.1",
+  "version": "0.1.0-beta.0",
   "description": "React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, and Localize",
   "repository": {
     "type": "git",
@@ -22,10 +22,10 @@
     "lint": "pnpm tsc --noEmit --project tsconfig.json"
   },
   "files": [
-      "dist/",
-      "docs/",
-      "readme.md",
-      "LICENSE"
+    "dist/",
+    "docs/",
+    "readme.md",
+    "LICENSE"
   ],
   "keywords": [
     "react",
@@ -54,10 +54,18 @@
     "@logosdx/localize": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@logosdx/observer": { "optional": true },
-    "@logosdx/fetch": { "optional": true },
-    "@logosdx/storage": { "optional": true },
-    "@logosdx/localize": { "optional": true }
+    "@logosdx/observer": {
+      "optional": true
+    },
+    "@logosdx/fetch": {
+      "optional": true
+    },
+    "@logosdx/storage": {
+      "optional": true
+    },
+    "@logosdx/localize": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

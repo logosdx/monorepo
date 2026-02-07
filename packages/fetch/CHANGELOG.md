@@ -1,5 +1,12 @@
 # @logosdx/fetch
 
+## 8.0.0-beta.2
+
+### Patch Changes
+
+- Updated dependencies [3dc7890]
+  - @logosdx/observer@2.3.1-beta.1
+
 ## 8.0.0-beta.1
 
 ### Minor Changes
