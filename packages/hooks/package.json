@@ -15,6 +15,7 @@
     }
   },
   "sideEffects": false,
+  "watch": true,
   "browserNamespace": "LogosDx.Hooks",
   "scripts": {
     "build": "node ../../scripts/build.mjs",

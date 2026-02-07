@@ -16,7 +16,7 @@
  * - Closures captured by listeners are released
  */
 
-import { FetchEngine, FetchEventNames } from '../../../../../packages/fetch/src/index.ts';
+import { FetchEngine, FetchEventNames } from '@logosdx/fetch';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import {

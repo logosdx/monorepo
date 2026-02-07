@@ -14,9 +14,9 @@ import type { ServerResponse } from 'http';
 
 import {
     FetchEngine,
-} from '../../../packages/fetch/src/index.ts';
+} from '@logosdx/fetch';
 
-import { Deferred, wait } from '../../../packages/utils/src/index.ts';
+import { Deferred, wait } from '@logosdx/utils';
 import { sandbox } from '../_helpers.ts';
 
 
@@ -34,7 +34,7 @@ export interface RegexCallbackArg {
 }
 
 // Augment the FetchEngine module with custom response headers for testing
-declare module '../../../packages/fetch/src/engine/index.ts' {
+declare module '@logosdx/fetch' {
 
     namespace FetchEngine {
 

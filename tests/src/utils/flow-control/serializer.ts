@@ -5,7 +5,7 @@ import {
 } from 'vitest'
 
 
-import { serializer } from '../../../../packages/utils/src/misc/index.ts';
+import { serializer } from '@logosdx/utils';
 
 describe('@logosdx/utils: serializer', () => {
 

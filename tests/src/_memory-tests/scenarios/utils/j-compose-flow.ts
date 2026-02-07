@@ -24,7 +24,7 @@ import {
     withTimeout,
     rateLimit,
     withInflightDedup
-} from '../../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import { createLargeObject } from './_helpers.ts';

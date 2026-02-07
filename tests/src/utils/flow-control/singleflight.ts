@@ -7,12 +7,12 @@ import {
 import {
     wait,
     SingleFlight,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 import type {
     CacheAdapter,
     CacheItem,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils - SingleFlight', () => {
 

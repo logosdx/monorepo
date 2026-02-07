@@ -13,7 +13,7 @@ import {
     equals,
     merge,
     addHandlerFor
-} from '../../../packages/utils/src/data-structures/index.ts';
+} from '@logosdx/utils';
 
 import { stubWarn } from '../_helpers.ts';
 

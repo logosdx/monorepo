@@ -41,7 +41,7 @@ declare module './engine.ts' {
             listener?: Function | null | undefined,
             data?: unknown | undefined,
             fn: FuncName,
-            context: ObserverEngine<Ev>
+            context: ObserverEngine<any>
         }
 
         export interface Spy<Ev extends Record<string, any>> {

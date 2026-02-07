@@ -15,6 +15,7 @@
     }
   },
   "sideEffects": false,
+  "watch": true,
   "browserNamespace": "LogosDx.Dom",
   "scripts": {
     "build": "zx ../../scripts/build.mjs",

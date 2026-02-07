@@ -32,12 +32,12 @@ import {
     isDisabledValue,
     hasEnabledOrDisabledValue,
     allItemsValid,
-} from '../../../packages/utils/src/validation/index.ts';
+} from '@logosdx/utils';
 
 /**
  * Type tests for PathValue with Maps and Sets
  */
-import type { PathValue, PathNames } from '../../../packages/utils/src/types.ts'
+import type { PathValue, PathNames } from '@logosdx/utils'
 
 // Test interface with various collection types
 interface TestData {

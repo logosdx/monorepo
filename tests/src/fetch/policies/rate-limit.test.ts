@@ -6,12 +6,12 @@ import {
 
 import {
     FetchEngine,
-} from '../../../../packages/fetch/src/index.ts';
+} from '@logosdx/fetch';
 
 import {
     attempt,
     isRateLimitError
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 import { makeTestStubs } from '../_helpers.ts';
 

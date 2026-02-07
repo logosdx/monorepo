@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 
-import { StorageAdapter } from '../../../packages/storage/src/index.ts';
-import { createStorageContext } from '../../../packages/react/src/index.ts';
+import { StorageAdapter } from '@logosdx/storage';
+import { createStorageContext } from '@logosdx/react';
 import { renderHook } from './_helpers.ts';
 
 

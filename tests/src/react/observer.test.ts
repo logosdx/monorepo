@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act } from 'react';
 
-import { ObserverEngine } from '../../../packages/observer/src/index.ts';
-import { createObserverContext } from '../../../packages/react/src/index.ts';
+import { ObserverEngine } from '@logosdx/observer';
+import { createObserverContext } from '@logosdx/react';
 import { renderHook, flush } from './_helpers.ts';
 
 

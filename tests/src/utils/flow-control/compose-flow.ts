@@ -12,7 +12,7 @@ import {
     composeFlow,
     attempt,
     wait,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils', () => {
 

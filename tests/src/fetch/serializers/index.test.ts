@@ -7,7 +7,7 @@ import {
 import {
     endpointSerializer,
     requestSerializer
-} from '../../../../packages/fetch/src/serializers/index.ts';
+} from '@logosdx/fetch';
 
 
 describe('@logosdx/fetch: serializers', () => {

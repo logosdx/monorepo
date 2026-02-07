@@ -12,7 +12,7 @@ import {
     attemptSync,
     wait,
     withInflightDedup,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils - Inflight Deduplication', () => {
 

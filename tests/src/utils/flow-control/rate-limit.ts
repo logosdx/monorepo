@@ -16,7 +16,7 @@ import {
     RateLimitError,
     wait,
     RateLimitTokenBucket
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils - RateLimit', () => {
 

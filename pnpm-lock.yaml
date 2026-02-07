@@ -30,6 +30,9 @@ importers:
         specifier: ^5.8.2
         version: 5.8.3
     devDependencies:
+      fast-glob:
+        specifier: ^3.3.3
+        version: 3.3.3
       nodemon:
         specifier: ^3.1.10
         version: 3.1.10
@@ -48,6 +51,9 @@ importers:
       vitepress:
         specifier: 2.0.0-alpha.16
         version: 2.0.0-alpha.16(@types/node@24.10.10)(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.8.0)
+      vue:
+        specifier: ^3.5.27
+        version: 3.5.27(typescript@5.8.3)
       zx:
         specifier: ^8.8.5
         version: 8.8.5
@@ -135,6 +141,33 @@ importers:
       '@hapi/hoek':
         specifier: ^11.0.7
         version: 11.0.7
+      '@logosdx/dom':
+        specifier: workspace:^
+        version: link:../packages/dom
+      '@logosdx/fetch':
+        specifier: workspace:^
+        version: link:../packages/fetch
+      '@logosdx/hooks':
+        specifier: workspace:^
+        version: link:../packages/hooks
+      '@logosdx/localize':
+        specifier: workspace:^
+        version: link:../packages/localize
+      '@logosdx/observer':
+        specifier: workspace:^
+        version: link:../packages/observer
+      '@logosdx/react':
+        specifier: workspace:^
+        version: link:../packages/react
+      '@logosdx/state-machine':
+        specifier: workspace:^
+        version: link:../packages/state-machine
+      '@logosdx/storage':
+        specifier: workspace:^
+        version: link:../packages/storage
+      '@logosdx/utils':
+        specifier: workspace:^
+        version: link:../packages/utils
       '@types/chai':
         specifier: ^5.2.2
         version: 5.2.2
@@ -1811,8 +1844,8 @@ packages:
   fast-fifo@1.3.2:
     resolution: {integrity: sha512-/d9sfos4yxzpwkDkuN7k2SqFKtYNmCTzgfEpz82x34IM9/zc8KGxQoXg1liNC/izpRM/MBdt44Nmx41ZWqk+FQ==}
 
-  fast-glob@3.2.12:
-    resolution: {integrity: sha512-DVj4CQIYYow0BlaelwK1pHl5n5cRSJfM60UA0zK891sVInoPri2Ekj7+e1CT3/3qxXenpI+nBBmQAcJPJgaj4w==}
+  fast-glob@3.3.3:
+    resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
     engines: {node: '>=8.6.0'}
 
   fastq@1.15.0:
@@ -2144,10 +2177,6 @@ packages:
 
   micromark-util-types@2.0.2:
     resolution: {integrity: sha512-Yw0ECSpJoViF1qTU4DC6NwtC4aWGt1EkzaQB8KPPyCRR8z9TWeV0HbEFGTO+ZY1wB22zmxnJqhPyTpOVCpeHTA==}
-
-  micromatch@4.0.5:
-    resolution: {integrity: sha512-DMy+ERcEW2q8Z2Po+WNXuw3c5YaUSFjAO5GsJqfEl7UjvtIuFKO6ZrKvcItdy98dwFI2N1tg3zNIdKaQT+aNdA==}
-    engines: {node: '>=8.6'}
 
   micromatch@4.0.8:
     resolution: {integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==}
@@ -3863,7 +3892,7 @@ snapshots:
       '@swc/counter': 0.1.3
       '@xhmikosr/bin-wrapper': 13.0.5
       commander: 8.3.0
-      fast-glob: 3.2.12
+      fast-glob: 3.3.3
       minimatch: 9.0.5
       piscina: 4.9.2
       semver: 7.5.3
@@ -4582,13 +4611,13 @@ snapshots:
 
   fast-fifo@1.3.2: {}
 
-  fast-glob@3.2.12:
+  fast-glob@3.3.3:
     dependencies:
       '@nodelib/fs.stat': 2.0.5
       '@nodelib/fs.walk': 1.2.8
       glob-parent: 5.1.2
       merge2: 1.4.1
-      micromatch: 4.0.5
+      micromatch: 4.0.8
 
   fastq@1.15.0:
     dependencies:
@@ -4671,7 +4700,7 @@ snapshots:
     dependencies:
       array-union: 2.1.0
       dir-glob: 3.0.1
-      fast-glob: 3.2.12
+      fast-glob: 3.3.3
       ignore: 5.2.4
       merge2: 1.4.1
       slash: 3.0.0
@@ -4954,11 +4983,6 @@ snapshots:
   micromark-util-symbol@2.0.1: {}
 
   micromark-util-types@2.0.2: {}
-
-  micromatch@4.0.5:
-    dependencies:
-      braces: 3.0.2
-      picomatch: 2.3.1
 
   micromatch@4.0.8:
     dependencies:
@@ -5469,7 +5493,7 @@ snapshots:
 
   type-coverage-core@2.29.7(typescript@5.8.3):
     dependencies:
-      fast-glob: 3.2.12
+      fast-glob: 3.3.3
       minimatch: 10.0.1
       normalize-path: 3.0.0
       tslib: 2.8.1

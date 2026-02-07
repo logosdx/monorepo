@@ -15,6 +15,7 @@
     }
   },
   "sideEffects": false,
+  "watch": true,
   "browserNamespace": "LogosDx.Fetch",
   "scripts": {
     "build": "zx ../../scripts/build.mjs",

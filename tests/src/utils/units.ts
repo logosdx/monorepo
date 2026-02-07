@@ -23,7 +23,7 @@ import {
     parseTimeDuration,
     formatByteSize,
     formatTimeDuration,
-} from '../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils', () => {
 

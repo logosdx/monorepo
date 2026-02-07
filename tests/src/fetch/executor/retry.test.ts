@@ -9,9 +9,9 @@ import {
 import {
     FetchError,
     FetchEngine,
-} from '../../../../packages/fetch/src/index.ts';
+} from '@logosdx/fetch';
 
-import { attempt } from '../../../../packages/utils/src/index.ts';
+import { attempt } from '@logosdx/utils';
 import { sandbox } from '../../_helpers.ts';
 import { makeTestStubs } from '../_helpers.ts';
 

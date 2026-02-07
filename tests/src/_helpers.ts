@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'fs';
 import { basename, join } from 'path';
 import Sinon from 'sinon';
 import { Mock, vi } from 'vitest';
-import { Func } from '../../packages/utils/src';
+import { Func } from '@logosdx/utils';
 
 
 const globalConsole = globalThis.console;

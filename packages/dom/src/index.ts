@@ -12,6 +12,7 @@ import { HtmlCss } from './css.ts';
 import { HtmlAttr } from './attrs.ts';
 import { HtmlEvents } from './events.ts';
 import { HtmlBehaviors } from './behaviors.ts';
+export { MutationObserverUnavailableError } from './behaviors.ts';
 
 export type {
     CssPropNames,

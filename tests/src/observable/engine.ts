@@ -1,8 +1,8 @@
 import { describe, it, beforeAll,afterEach, expect } from 'vitest'
 
 
-import { ObserverEngine, EventError } from '../../../packages/observer/src/index.ts';
-import { attempt, wait } from '../../../packages/utils/src/index.ts';
+import { ObserverEngine, EventError } from '@logosdx/observer';
+import { attempt, wait } from '@logosdx/utils';
 
 import { sandbox } from '../_helpers.ts';
 

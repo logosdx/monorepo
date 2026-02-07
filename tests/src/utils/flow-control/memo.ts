@@ -13,7 +13,7 @@ import {
     memoizeSync,
     memoize,
     attemptSync
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils', () => {
 

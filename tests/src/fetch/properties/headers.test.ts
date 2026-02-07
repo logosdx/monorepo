@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { HeadersManager } from '../../../../packages/fetch/src/properties/headers.ts';
+import { HeadersManager } from '@logosdx/fetch';
 
 
 /**

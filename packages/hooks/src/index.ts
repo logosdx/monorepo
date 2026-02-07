@@ -2,6 +2,7 @@ import {
     assert,
     AsyncFunc,
     attempt,
+    attemptSync,
     FunctionProps,
     isFunction,
     isObject
@@ -394,24 +395,17 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
                 const isConstructor = typeof handler === 'function' &&
                     handler.prototype?.constructor === handler;
 
-                if (isConstructor) {
+                const [, error] = attemptSync(() => {
 
-                    const error = new (handler as new (...args: FailArgs) => Error)(...failArgs);
+                    if (isConstructor) {
 
-                    if (error instanceof HookError) {
-
-                        error.hookName = String(name);
+                        throw new (handler as new (...args: FailArgs) => Error)(...failArgs);
                     }
 
-                    throw error;
-                }
-
-                // For functions, call them and catch any thrown error to set hookName
-                try {
-
                     (handler as (...args: FailArgs) => never)(...failArgs);
-                }
-                catch (error) {
+                });
+
+                if (error) {
 
                     if (error instanceof HookError) {
 

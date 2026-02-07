@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 
-import { StateMachine } from '../../packages/state-machine/src/index.ts';
+import { StateMachine } from '@logosdx/state-machine';
 
 const stub: any = {};
 

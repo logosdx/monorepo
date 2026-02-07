@@ -13,7 +13,7 @@ import {
     withTimeout,
     TimeoutError,
     wait,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils - flow-control: withTimeout', () => {
 

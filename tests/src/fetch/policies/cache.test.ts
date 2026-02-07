@@ -5,13 +5,13 @@ import {
     vi
 } from 'vitest'
 
-import { FetchEngine } from '../../../../packages/fetch/src/index.ts';
+import { FetchEngine } from '@logosdx/fetch';
 
 import {
     attempt,
     attemptSync,
     wait
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 import { makeTestStubs } from '../_helpers.ts';
 

@@ -3,7 +3,7 @@
   "license": "BSD-3-Clause",
   "private": true,
   "scripts": {
-    "watch": "nodemon -e 'ts' -x 'pnpm recursive run build'",
+    "watch": "node ./scripts/watch/index.mjs",
     "test": "cd tests; pnpm run test",
     "test:coverage": "cd tests; pnpm run test:coverage",
     "clear": "rm -r packages/*/dist packages/*/node_modules tests/node_modules node_modules;",
@@ -49,12 +49,14 @@
     ]
   },
   "devDependencies": {
+    "fast-glob": "^3.3.3",
     "nodemon": "^3.1.10",
     "type-coverage": "^2.29.7",
     "typedoc-plugin-mdn-links": "^5.0.3",
     "typedoc-plugin-missing-exports": "^4.0.0",
     "vite": "^7",
     "vitepress": "2.0.0-alpha.16",
+    "vue": "^3.5.27",
     "zx": "^8.8.5"
   }
 }

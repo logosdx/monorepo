@@ -15,7 +15,7 @@
  * - State objects are properly replaced, not accumulated
  */
 
-import { FetchEngine } from '../../../../../packages/fetch/src/index.ts';
+import { FetchEngine } from '@logosdx/fetch';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import {

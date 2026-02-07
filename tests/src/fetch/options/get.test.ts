@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ConfigStore } from '../../../../packages/fetch/src/options/index.ts';
+import { ConfigStore } from '@logosdx/fetch';
 
 
 describe('ConfigStore.get', () => {

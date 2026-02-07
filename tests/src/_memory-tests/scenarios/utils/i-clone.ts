@@ -19,7 +19,7 @@ import {
     clone,
     merge,
     equals
-} from '../../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import {

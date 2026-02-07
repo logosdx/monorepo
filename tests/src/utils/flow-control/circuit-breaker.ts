@@ -15,7 +15,7 @@ import {
     CircuitBreakerError,
     circuitBreakerSync,
     wait,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils', () => {
 

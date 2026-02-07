@@ -4,7 +4,7 @@
  * Shared utilities for observer memory test scenarios.
  */
 
-import type { ObserverEngine } from '../../../../../packages/observer/src/index.ts';
+import type { ObserverEngine } from '@logosdx/observer';
 
 import type { ObserverStats } from '../../types.ts';
 

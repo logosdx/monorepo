@@ -3,9 +3,9 @@ import { describe, it, expect } from 'vitest'
 
 import {
     LocaleManager
-} from '../../packages/localize/src/index.ts';
+} from '@logosdx/localize';
 
-import { DeepOptional } from '../../packages/utils/src/index.ts';
+import { DeepOptional } from '@logosdx/utils';
 import { sandbox } from './_helpers';
 
 const english = {

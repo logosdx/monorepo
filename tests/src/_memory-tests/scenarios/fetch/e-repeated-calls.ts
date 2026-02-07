@@ -26,8 +26,8 @@
  * and internal state are properly garbage collected.
  */
 
-import { FetchEngine } from '../../../../../packages/fetch/src/index.ts';
-import { attempt } from '../../../../../packages/utils/src/index.ts';
+import { FetchEngine } from '@logosdx/fetch';
+import { attempt } from '@logosdx/utils';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import {

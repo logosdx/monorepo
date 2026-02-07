@@ -20,7 +20,7 @@ import {
     nTimes,
     castValuesToTypes,
     makeNestedConfig,
-} from '../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils', () => {
 

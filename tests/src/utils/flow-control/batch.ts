@@ -12,7 +12,7 @@ import {
     attempt,
     batch,
     wait,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils - flow-control: batch', () => {
 

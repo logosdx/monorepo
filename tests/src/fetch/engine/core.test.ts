@@ -10,10 +10,10 @@ import Hapi from '@hapi/hapi';
 import {
     FetchError,
     FetchEngine,
-} from '../../../../packages/fetch/src/index.ts';
+} from '@logosdx/fetch';
 
-import logosFetch from '../../../../packages/fetch/src/index.ts';
-import { attempt, noop } from '../../../../packages/utils/src/index.ts';
+import logosFetch from '@logosdx/fetch';
+import { attempt, noop } from '@logosdx/utils';
 import { sandbox } from '../../_helpers.ts';
 import { EventData, RegexCallbackArg, makeTestStubs } from '../_helpers.ts';
 

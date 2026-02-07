@@ -14,7 +14,7 @@
  * - GC pauses don't exceed thresholds
  */
 
-import { ObserverEngine } from '../../../../../packages/observer/src/index.ts';
+import { ObserverEngine } from '@logosdx/observer';
 
 import type { Scenario, ScenarioContext } from '../../types.ts';
 import { getObserverStats } from './_helpers.ts';

@@ -2,9 +2,9 @@ import { describe, it, beforeAll, beforeEach, afterAll, afterEach, expect } from
 
 import Sinon from 'sinon';
 
-import * as Lib from '../../packages/dom/src/index.ts';
-import { CssPropNames, CssProps } from '../../packages/dom/src/index.ts';
-import { MutationObserverUnavailableError } from '../../packages/dom/src/behaviors.ts';
+import * as Lib from '@logosdx/dom';
+import { CssPropNames, CssProps } from '@logosdx/dom';
+import { MutationObserverUnavailableError } from '@logosdx/dom';
 
 import { sandbox } from './_helpers';
 

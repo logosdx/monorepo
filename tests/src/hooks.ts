@@ -5,8 +5,8 @@ import {
     vi
 } from 'vitest'
 
-import { HookEngine, HookError, isHookError } from '../../packages/hooks/src/index.ts';
-import { attempt } from '../../packages/utils/src/index.ts';
+import { HookEngine, HookError, isHookError } from '@logosdx/hooks';
+import { attempt } from '@logosdx/utils';
 
 describe('@logosdx/hooks', () => {
 

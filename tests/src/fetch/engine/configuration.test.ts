@@ -6,9 +6,9 @@ import {
 
 import {
     FetchEngine,
-} from '../../../../packages/fetch/src/index.ts';
+} from '@logosdx/fetch';
 
-import { attempt, attemptSync } from '../../../../packages/utils/src/index.ts';
+import { attempt, attemptSync } from '@logosdx/utils';
 import { makeTestStubs } from '../_helpers.ts';
 
 

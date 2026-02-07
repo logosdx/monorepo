@@ -14,7 +14,7 @@ import {
     makeRetryable,
     wait,
     isRetryError,
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 describe('@logosdx/utils - flow-control: retry', () => {
 

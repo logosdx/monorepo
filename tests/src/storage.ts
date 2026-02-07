@@ -6,7 +6,7 @@ import {
     StorageEvent,
     StorageAdapter,
     StorageImplementation
-} from '../../packages/storage/src/index.ts';
+} from '@logosdx/storage';
 
 import { sandbox } from './_helpers';
 

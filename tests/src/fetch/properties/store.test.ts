@@ -5,7 +5,7 @@ import {
     vi
 } from 'vitest'
 
-import { PropertyStore } from '../../../../packages/fetch/src/properties/store.ts';
+import { PropertyStore } from '@logosdx/fetch';
 
 
 type TestHeaders = Record<string, string>;

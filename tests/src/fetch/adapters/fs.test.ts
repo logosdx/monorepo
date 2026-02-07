@@ -14,12 +14,12 @@ import {
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { FetchEngine } from '../../../../packages/fetch/src/index.ts';
+import { FetchEngine } from '@logosdx/fetch';
 
 import {
     CacheAdapter,
     CacheItem
-} from '../../../../packages/utils/src/index.ts';
+} from '@logosdx/utils';
 
 import { makeTestStubs } from '../_helpers.ts';
 

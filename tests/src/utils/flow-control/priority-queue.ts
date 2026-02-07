@@ -1,7 +1,7 @@
 import { test, describe, expect } from 'vitest'
 
 
-import { PriorityQueue } from '../../../../packages/utils/src/index.ts';
+import { PriorityQueue } from '@logosdx/utils';
 
 describe('PriorityQueue', () => {
 

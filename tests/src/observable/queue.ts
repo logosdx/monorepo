@@ -9,8 +9,8 @@ import {
 } from 'vitest'
 
 
-import { wait, attempt, noop, attemptSync, isAssertError } from '../../../packages/utils/src/index.ts';
-import { ObserverEngine, EventQueue, QueueOpts, InternalQueueEvent } from '../../../packages/observer/src/index.ts';
+import { wait, attempt, noop, attemptSync, isAssertError } from '@logosdx/utils';
+import { ObserverEngine, EventQueue, QueueOpts, InternalQueueEvent } from '@logosdx/observer';
 
 import { sandbox, runTimers } from '../_helpers.ts';
 

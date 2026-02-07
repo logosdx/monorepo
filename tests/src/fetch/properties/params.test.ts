@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ParamsManager } from '../../../../packages/fetch/src/properties/params.ts';
+import { ParamsManager } from '@logosdx/fetch';
 
 
 /**

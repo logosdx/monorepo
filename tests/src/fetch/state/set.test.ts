@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { FetchState } from '../../../../packages/fetch/src/state/index.ts';
+import { FetchState } from '@logosdx/fetch';
 
 
 /**

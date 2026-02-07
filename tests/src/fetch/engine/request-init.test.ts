@@ -7,7 +7,7 @@ import {
     afterEach,
 } from 'vitest';
 
-import { FetchEngine } from '../../../../packages/fetch/src/index.ts';
+import { FetchEngine } from '@logosdx/fetch';
 import { makeTestStubs } from '../_helpers.ts';
 
 
