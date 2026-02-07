@@ -38,15 +38,11 @@
 - `@logosdx/storage`: One API for your many key-value stores.
 - `@logosdx/localize`: Localization utilities for everything from languages to customer-specific strings.
 - `@logosdx/dom`: For those who like to raw-dawg the DOM.
+- `@logosdx/react`: The above, but for React. Use it in Next.js, React Native, or anywhere else.
 
 ## Under-construction
 
 - `@logosdx/state-machine`: State management as streams, not stores.
-- `@logosdx/kit`: Bootstrap your app. Type-safe from day one. All the packages in one place.
-
-## Roadmap
-
-- `@logosdx/react`: All of the above, but for React. Use it in Next.js, React Native, or anywhere else.
 
 ## LLM Helpers
 

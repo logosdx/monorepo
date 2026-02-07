@@ -63,7 +63,7 @@ pnpm tdd                   # Watch specific tests
 
 ```
 monorepo/
-├── packages/                    # 8 @logosdx packages in layered architecture
+├── packages/                    # 9 @logosdx packages in layered architecture
 │   ├── utils/                  # Foundation layer (all packages depend on this)
 │   ├── dom/                    # Browser utilities (depends on utils)
 │   ├── fetch/                  # HTTP client (depends on utils)
@@ -71,6 +71,7 @@ monorepo/
 │   ├── localize/               # i18n system (depends on utils)
 │   ├── state-machine/          # State management (depends on utils)
 │   ├── storage/                # Persistence layer (depends on utils)
+│   ├── react/                  # React bindings (optional peer deps on above)
 │   └── kit/                    # Orchestrator (depends on all above)
 │
 ├── tests/                       # Comprehensive test suite
@@ -100,12 +101,15 @@ monorepo/
     ├── @logosdx/state-machine ──┤
     ├── @logosdx/storage ────────┤
     └── @logosdx/dom ────────────┘
+
+@logosdx/react (bindings - optional peer deps on observer, fetch, storage, localize)
 ```
 
 **Key Architectural Principles:**
 - **Foundation Layer**: `@logosdx/utils` provides core utilities used by all packages
 - **Specialized Layers**: Each package focuses on specific domain (HTTP, DOM, events, etc.)
 - **Orchestration Layer**: `@logosdx/kit` provides unified API and conditional instantiation
+- **Binding Layer**: `@logosdx/react` provides React context providers and hooks for any engine
 - **Zero Circular Dependencies**: Clean dependency tree with utils as foundation
 - **Event-Driven Integration**: Most packages integrate with observer system
 

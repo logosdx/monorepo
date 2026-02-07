@@ -58,30 +58,30 @@ const lifoCompare = <T>(a: Node<T>, b: Node<T>): number => {
  * Space Complexity: O(n) where n is the number of items in the queue
  */
 export class PriorityQueue<T> {
-    private heap: Node<T>[] = [];
-    private insertionCounter = 0;
-    private compare: (a: Node<T>, b: Node<T>) => number;
+    #heap: Node<T>[] = [];
+    #insertionCounter = 0;
+    #compare: (a: Node<T>, b: Node<T>) => number;
 
-    private options: PriorityQueueOptions<T>;
+    #options: PriorityQueueOptions<T>;
 
     constructor(options: PriorityQueueOptions<T> = {}) {
 
         /**
          * Default compare function
          */
-        this.compare = options.lifo ? lifoCompare : fifoCompare;
+        this.#compare = options.lifo ? lifoCompare : fifoCompare;
 
         if (options.compare) {
-            this.compare = options.compare;
+            this.#compare = options.compare;
         }
 
         if (options.maxHeap) {
 
-            const originalCompare = this.compare;
-            this.compare = (a, b) => -originalCompare(a, b);
+            const originalCompare = this.#compare;
+            this.#compare = (a, b) => -originalCompare(a, b);
         }
 
-        this.options = options;
+        this.#options = options;
 
     }
 
@@ -95,9 +95,9 @@ export class PriorityQueue<T> {
      */
     push(value: T, priority: number = 0): void {
 
-        const node: Node<T> = { value, priority, order: this.insertionCounter++ };
-        this.heap.push(node);
-        this.bubbleUp(this.heap.length - 1);
+        const node: Node<T> = { value, priority, order: this.#insertionCounter++ };
+        this.#heap.push(node);
+        this.#bubbleUp(this.#heap.length - 1);
     }
 
     /**
@@ -109,15 +109,15 @@ export class PriorityQueue<T> {
      */
     pop(): T | null {
 
-        if (this.heap.length === 0) return null;
+        if (this.#heap.length === 0) return null;
 
-        const top = this.heap[0];
-        const last = this.heap.pop()!;
+        const top = this.#heap[0];
+        const last = this.#heap.pop()!;
 
-        if (this.heap.length > 0) {
+        if (this.#heap.length > 0) {
 
-            this.heap[0] = last;
-            this.bubbleDown(0);
+            this.#heap[0] = last;
+            this.#bubbleDown(0);
         }
 
         return top!.value;
@@ -135,8 +135,8 @@ export class PriorityQueue<T> {
             return items;
         }
 
-        if (count > this.heap.length) {
-            count = this.heap.length;
+        if (count > this.#heap.length) {
+            count = this.#heap.length;
         }
 
         for (let i = count; i > 0; i--) {
@@ -151,14 +151,14 @@ export class PriorityQueue<T> {
      */
     peek(): T | null {
 
-        return this.isEmpty() ? null : this.heap[0]!.value;
+        return this.isEmpty() ? null : this.#heap[0]!.value;
     }
 
     /**
      * Returns the next item to be dequeued without removing it.
      */
     peekMany(count: number = 1): T[] {
-        return this.heap.slice(0, count).map(node => node.value);
+        return this.#heap.slice(0, count).map(node => node.value);
     }
 
     /**
@@ -166,7 +166,7 @@ export class PriorityQueue<T> {
      */
     find(predicate: (value: T) => boolean): T | null {
 
-        return this.heap.find(node => predicate(node.value))?.value ?? null;
+        return this.#heap.find(node => predicate(node.value))?.value ?? null;
     }
 
     /**
@@ -177,19 +177,19 @@ export class PriorityQueue<T> {
      */
     heapify(items: Node<T>[]): void {
 
-        this.heap = items.slice(0);
-        this.insertionCounter = items.length;
+        this.#heap = items.slice(0);
+        this.#insertionCounter = items.length;
 
-        for (let i = Math.floor(this.heap.length / 2); i >= 0; i--) {
-            this.bubbleDown(i);
+        for (let i = Math.floor(this.#heap.length / 2); i >= 0; i--) {
+            this.#bubbleDown(i);
         }
     }
 
     clone(): PriorityQueue<T> {
 
-        const clone = new PriorityQueue<T>(this.options);
+        const clone = new PriorityQueue<T>(this.#options);
 
-        clone.heapify(this.heap);
+        clone.heapify(this.#heap);
 
         return clone;
     }
@@ -202,7 +202,7 @@ export class PriorityQueue<T> {
         const clone = this.clone();
         const sorted: T[] = [];
 
-        while (clone.heap.length > 0) {
+        while (clone.#heap.length > 0) {
             sorted.push(clone.pop()!);
         }
 
@@ -216,7 +216,7 @@ export class PriorityQueue<T> {
 
         const clone = this.clone();
 
-        while (clone.heap.length > 0) {
+        while (clone.#heap.length > 0) {
             yield clone.pop()!;
         }
     }
@@ -226,7 +226,7 @@ export class PriorityQueue<T> {
      */
     size(): number {
 
-        return this.heap.length;
+        return this.#heap.length;
     }
 
     /**
@@ -234,7 +234,7 @@ export class PriorityQueue<T> {
      */
     isEmpty(): boolean {
 
-        return this.heap.length === 0;
+        return this.#heap.length === 0;
     }
 
     /**
@@ -242,8 +242,8 @@ export class PriorityQueue<T> {
      */
     clear(): void {
 
-        this.heap = [];
-        this.insertionCounter = 0;
+        this.#heap = [];
+        this.#insertionCounter = 0;
     }
 
     /**
@@ -252,7 +252,7 @@ export class PriorityQueue<T> {
      * Time Complexity: O(log n)
      * Space Complexity: O(1)
      */
-    private bubbleUp(index: number): void {
+    #bubbleUp(index: number): void {
 
         let idx = index;
 
@@ -260,9 +260,9 @@ export class PriorityQueue<T> {
 
             const parentIdx = (idx - 1) >> 1;
 
-            if (this.compare(this.heap[idx]!, this.heap[parentIdx]!) < 0) {
+            if (this.#compare(this.#heap[idx]!, this.#heap[parentIdx]!) < 0) {
 
-                this.swap(idx, parentIdx);
+                this.#swap(idx, parentIdx);
                 idx = parentIdx;
             }
             else {
@@ -278,9 +278,9 @@ export class PriorityQueue<T> {
      * Time Complexity: O(log n)
      * Space Complexity: O(1)
      */
-    private bubbleDown(index: number): void {
+    #bubbleDown(index: number): void {
 
-        const length = this.heap.length;
+        const length = this.#heap.length;
         let idx = index;
 
         while (true) {
@@ -289,11 +289,11 @@ export class PriorityQueue<T> {
             const right = left + 1;
             let smallest = idx;
 
-            if (left < length && this.compare(this.heap[left]!, this.heap[smallest]!) < 0) {
+            if (left < length && this.#compare(this.#heap[left]!, this.#heap[smallest]!) < 0) {
 
                 smallest = left;
             }
-            if (right < length && this.compare(this.heap[right]!, this.heap[smallest]!) < 0) {
+            if (right < length && this.#compare(this.#heap[right]!, this.#heap[smallest]!) < 0) {
 
                 smallest = right;
             }
@@ -302,7 +302,7 @@ export class PriorityQueue<T> {
                 break;
             }
 
-            this.swap(idx, smallest);
+            this.#swap(idx, smallest);
             idx = smallest;
         }
     }
@@ -310,8 +310,8 @@ export class PriorityQueue<T> {
     /**
      * Swaps two nodes in the heap.
      */
-    private swap(i: number, j: number): void {
+    #swap(i: number, j: number): void {
 
-        [this.heap[i], this.heap[j]] = [this.heap[j]!, this.heap[i]!];
+        [this.#heap[i], this.#heap[j]] = [this.#heap[j]!, this.#heap[i]!];
     }
 }

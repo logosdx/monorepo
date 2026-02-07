@@ -5,7 +5,7 @@ This file provides comprehensive context about the LogosDX monorepo package arch
 ## Package Architecture Overview
 
 
-**8 Packages in Layered Architecture:**
+**9 Packages in Layered Architecture:**
 
 ```
 @logosdx/kit (orchestrator - depends on all)
@@ -15,9 +15,12 @@ This file provides comprehensive context about the LogosDX monorepo package arch
     ├── @logosdx/state-machine ──┤
     ├── @logosdx/storage ────────┤
     └── @logosdx/dom ────────────┘
+
+@logosdx/react (React bindings - optional peer deps on observer, fetch, storage, localize)
 ```
 
 All packages depend on `@logosdx/utils` as the foundation layer.
+`@logosdx/react` sits alongside the architecture as a binding layer — its peer dependencies are all optional.
 
 ## Standard Package Structure
 

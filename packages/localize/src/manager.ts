@@ -62,7 +62,7 @@ export class LocaleManager<
     Code extends string = string
 > extends EventTarget {
 
-    private _locales: LocaleManager.ManyLocales<Locale, Code>;
+    #_locales: LocaleManager.ManyLocales<Locale, Code>;
     fallback: Code;
     current: Code;
 
@@ -86,7 +86,7 @@ export class LocaleManager<
      */
     t: LocaleManager<Locale, Code>['text'];
 
-    private _loc!: Locale;
+    #_loc!: Locale;
 
     constructor(opts: LocaleManager.LocaleOpts<Locale, Code>) {
 
@@ -98,13 +98,13 @@ export class LocaleManager<
         assert(typeof opts.locales === 'object', 'Languages config is not an object', TypeError);
         assert(!Array.isArray(opts.locales), 'Languages config can not be an array', TypeError);
 
-        this._locales = opts.locales;
+        this.#_locales = opts.locales;
         this.current = opts.current;
         this.fallback = opts.fallback;
 
         this.t = this.text.bind(this);
 
-        this.merge();
+        this.#merge();
     }
 
     on(
@@ -116,18 +116,18 @@ export class LocaleManager<
         this.addEventListener(ev, listener as any, { once });
     }
 
-    off(ev: LocaleManager.LocaleEventName, listener: EventListenerOrEventListenerObject) {
+    off(ev: LocaleManager.LocaleEventName, listener: LocaleManager.LocaleListener<Code>) {
 
-        this.removeEventListener(ev, listener);
+        this.removeEventListener(ev, listener as any);
     }
 
-    private merge() {
+    #merge() {
 
-        const fallback = clone(this._locales[this.fallback]);
-        const current = clone(this._locales[this.current]);
+        const fallback = clone(this.#_locales[this.fallback]);
+        const current = clone(this.#_locales[this.current]);
 
-        this._loc = merge({} as Locale, fallback.labels) as Locale;
-        this._loc = merge(this._loc, current.labels) as Locale;
+        this.#_loc = merge({} as Locale, fallback.labels) as Locale;
+        this.#_loc = merge(this.#_loc, current.labels) as Locale;
     }
 
     updateLang <C extends Code>(
@@ -135,17 +135,17 @@ export class LocaleManager<
         locale: DeepOptional<Locale>
     ) {
 
-        let labels = merge({} as Locale, this._locales[code].labels) as Locale;
+        let labels = merge({} as Locale, this.#_locales[code].labels) as Locale;
         labels = merge(labels, locale) as Locale;
 
-        this._locales[code] = {
-            ...this._locales[code],
+        this.#_locales[code] = {
+            ...this.#_locales[code],
             labels,
         };
 
         if (this.current === code) {
 
-            this.merge();
+            this.#merge();
 
             const event = new LocaleEvent<Code>(LOC_CHANGE);
             event.code = code;
@@ -160,7 +160,7 @@ export class LocaleManager<
 
         type LangConf = LocaleManager.ManyLocales<Locale, Code>;
 
-        const values = Object.values(this._locales) as LangConf[Code][];
+        const values = Object.values(this.#_locales) as LangConf[Code][];
 
         return values.map(
             ({ code, text }) => ({ code, text })
@@ -169,7 +169,7 @@ export class LocaleManager<
 
     text <K extends PathLeaves<Locale>>(key: K, values?: LocaleManager.LocaleFormatArgs) {
 
-        return getMessage(this._loc, key, values);
+        return getMessage(this.#_loc, key, values);
     }
 
     changeTo(code: Code) {
@@ -180,7 +180,7 @@ export class LocaleManager<
             return;
         }
 
-        if (!this._locales[code]) {
+        if (!this.#_locales[code]) {
 
             console.warn(`WARNING: Locale '${code}' not found. Using fallback '${this.fallback}' instead.`);
             code = this.fallback;
@@ -188,7 +188,7 @@ export class LocaleManager<
 
         this.current = code;
 
-        this.merge();
+        this.#merge();
 
         const event = new LocaleEvent<Code>(LOC_CHANGE);
         event.code = code;
@@ -201,7 +201,7 @@ export class LocaleManager<
         return new LocaleManager<Locale, Code>({
             current: this.current,
             fallback: this.fallback,
-            locales: this._locales
+            locales: this.#_locales
         });
     }
 }

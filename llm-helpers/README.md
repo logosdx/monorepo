@@ -19,4 +19,5 @@ Drop these into your project's `.claude/logosdx` directory and add the following
 - For HTTP requests, use @.claude/logosdx/fetch.md — it provides a FetchAPI wrapper with retry logic, lifecycle hooks, state management, and more.
 - For utility functions for flow-control (debouncing, throttling, retry, rate limiting, etc.), data structures (clone, merge, etc.), and simple runtime validation, use @.claude/logosdx/utils.md.
 - For DOM utilities, use @.claude/logosdx/dom.md — it provides a mature DOM manipulation library with type-safe CSS, attributes, events, behaviors abstraction, and viewport operations.
+- For React bindings, use @.claude/logosdx/react.md — it provides context providers and hooks for Observer, Fetch, Storage, and Localize with full type inference.
 ```

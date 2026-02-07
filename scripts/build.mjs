@@ -283,6 +283,31 @@ const validateReleaseBuild = async () => {
 };
 
 /**
+ * Strips `#private;` lines from all .d.ts files in a directory tree.
+ *
+ * TypeScript emits an opaque `#private;` brand for ES private fields (#field)
+ * in declaration files. This brand makes classes nominally typed based on their
+ * generic parameters, preventing `Engine<A>` from being assignable to
+ * `Engine<B>` even when B is wider. Removing it restores structural
+ * compatibility while keeping runtime privacy intact in the actual JS output.
+ */
+const stripPrivateBrands = async (dir) => {
+
+    const files = await glob(`${dir}/**/*.d.ts`);
+
+    for (const file of files) {
+
+        const content = await fs.readFile(file, 'utf8');
+        const stripped = content.replace(/^\s*#private;?\s*\n/gm, '');
+
+        if (stripped !== content) {
+
+            await fs.writeFile(file, stripped);
+        }
+    }
+};
+
+/**
  * Runs the core build steps (CJS, ESM, browser, types)
  */
 const runBuild = async () => {
@@ -331,6 +356,11 @@ const runBuild = async () => {
 
     // Write dts files to the `types` folder
     await $`pnpm tsc --emitDeclarationOnly --project tsconfig.json`;
+
+    // Strip #private; brands from .d.ts files — ES private fields emit an
+    // opaque #private marker that makes classes nominally typed by their
+    // generics, breaking generic constraints like `F extends Engine<any>`.
+    await stripPrivateBrands(PATHS.TYPES);
 };
 
 /**

@@ -111,7 +111,7 @@ export class StorageAdapter<Values> extends EventTarget {
 
         if (keyOrKeys === undefined) {
 
-            return this.get(this._allKeys() as K[]);
+            return this.get(this.#_allKeys() as K[]);
         }
 
 
@@ -128,7 +128,7 @@ export class StorageAdapter<Values> extends EventTarget {
 
         return JSON.parse(
             this.storage.getItem(
-                this._key(keyOrKeys as K) as string
+                this.#_key(keyOrKeys as K) as string
             ) || 'null'
         ) as Values[K];
     }
@@ -151,7 +151,7 @@ export class StorageAdapter<Values> extends EventTarget {
 
     set(key: unknown, value?: unknown) {
 
-        this._assertKey(key as string);
+        this.#_assertKey(key as string);
 
         if (typeof key === 'object') {
 
@@ -175,7 +175,7 @@ export class StorageAdapter<Values> extends EventTarget {
         );
 
         this.storage.setItem(
-            this._key(key as keyof Values) as string,
+            this.#_key(key as keyof Values) as string,
             JSON.stringify(value)
         );
 
@@ -229,7 +229,7 @@ export class StorageAdapter<Values> extends EventTarget {
      */
     rm <K extends keyof Values>(keyOrKeys: K | K[]): void {
 
-        this._assertKey((keyOrKeys as string[] | string)[0]!);
+        this.#_assertKey((keyOrKeys as string[] | string)[0]!);
 
         if (Array.isArray(keyOrKeys)) {
 
@@ -249,7 +249,7 @@ export class StorageAdapter<Values> extends EventTarget {
             );
 
             this.storage.removeItem(
-                this._key(keyOrKeys) as string
+                this.#_key(keyOrKeys) as string
             );
 
             this.dispatchEvent(
@@ -315,16 +315,16 @@ export class StorageAdapter<Values> extends EventTarget {
 
         const keyOrKeys = _arg as (keyof Values)[]
 
-        this._assertKey(keyOrKeys[0] as string);
+        this.#_assertKey(keyOrKeys[0] as string);
 
         if (Array.isArray(keyOrKeys)) {
 
             return keyOrKeys.map(
-                k => this.storage.hasOwnProperty(this._key(k))
+                k => this.storage.hasOwnProperty(this.#_key(k))
             )
         }
 
-        return this.storage.hasOwnProperty(this._key(keyOrKeys));
+        return this.storage.hasOwnProperty(this.#_key(keyOrKeys));
     }
 
     /**
@@ -333,7 +333,7 @@ export class StorageAdapter<Values> extends EventTarget {
     clear(): void {
 
         this.rm(
-            this._allKeys()
+            this.#_allKeys()
         );
     }
 
@@ -342,7 +342,7 @@ export class StorageAdapter<Values> extends EventTarget {
      */
     keys() {
 
-        return this._allKeys();
+        return this.#_allKeys();
     }
 
     /**
@@ -365,7 +365,7 @@ export class StorageAdapter<Values> extends EventTarget {
         return Object.values(all!);
     }
 
-    private _assertKey(key: string | object) {
+    #_assertKey(key: string | object) {
 
         if (!key) {
 
@@ -373,7 +373,7 @@ export class StorageAdapter<Values> extends EventTarget {
         }
     }
 
-    private _key(key: keyof Values) {
+    #_key(key: keyof Values) {
 
         if (this.prefix) {
 
@@ -383,7 +383,7 @@ export class StorageAdapter<Values> extends EventTarget {
         return key;
     }
 
-    private _allKeys() {
+    #_allKeys() {
 
         let keys = Object.keys(this.storage);
 

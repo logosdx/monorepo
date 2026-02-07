@@ -7,6 +7,7 @@ const simplePackages: DefaultTheme.SidebarItem[] = [
   ['Dom', 'dom'],
   ['Storage', 'storage'],
   ['Localize', 'localize'],
+  ['React', 'react'],
   // ['State Machine', 'state-machine'],
 ].map(([text, link]) => ({
   text,

@@ -1,0 +1,65 @@
+{
+  "name": "@logosdx/react",
+  "version": "0.0.1",
+  "description": "React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, and Localize",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/logosdx/monorepo",
+    "directory": "packages/react"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "sideEffects": false,
+  "browserNamespace": "LogosDx.React",
+  "scripts": {
+    "build": "zx ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [
+      "dist/",
+      "docs/",
+      "readme.md",
+      "LICENSE"
+  ],
+  "keywords": [
+    "react",
+    "hooks",
+    "observer",
+    "fetch",
+    "storage",
+    "localize",
+    "logosdx"
+  ],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "@logosdx/utils": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "@logosdx/observer": "workspace:^",
+    "@logosdx/fetch": "workspace:^",
+    "@logosdx/storage": "workspace:^",
+    "@logosdx/localize": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@logosdx/observer": { "optional": true },
+    "@logosdx/fetch": { "optional": true },
+    "@logosdx/storage": { "optional": true },
+    "@logosdx/localize": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0"
+  }
+}

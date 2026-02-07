@@ -14,6 +14,7 @@ export default defineConfig({
                     exclude: [
                         'src/_helpers.ts',
                         'src/fetch/_helpers.ts',
+                        'src/react/_helpers.ts',
                         'src/_playground.ts',
                         'src/_memory-tests/**',
                         'src/experiments/**',
