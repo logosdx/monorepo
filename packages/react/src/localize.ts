@@ -6,9 +6,8 @@ import {
     useState,
 } from 'react';
 
-import type { PathLeaves } from '@logosdx/utils';
 import type { LocaleManager } from '@logosdx/localize';
-import type { ProviderProps } from './types.ts';
+import type { ProviderProps, UseLocalizeReturn } from './types.ts';
 
 /**
  * Creates a React context + hook pair bound to a specific LocaleManager instance.
@@ -105,18 +104,3 @@ export function createLocalizeContext<
 
     return [Provider, useHook];
 }
-
-
-type UseLocalizeReturn<
-    Locale extends LocaleManager.LocaleType,
-    Code extends string
-> = {
-    t: <K extends PathLeaves<Locale>>(
-        key: K,
-        values?: LocaleManager.LocaleFormatArgs
-    ) => string;
-    locale: Code;
-    changeTo: (code: Code) => void;
-    locales: { code: Code; text: string }[];
-    instance: LocaleManager<Locale, Code>;
-};

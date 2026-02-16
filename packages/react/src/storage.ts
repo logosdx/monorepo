@@ -7,8 +7,7 @@ import {
 } from 'react';
 
 import type { StorageAdapter } from '@logosdx/storage';
-import type { ProviderProps } from './types.ts';
-import { NullableObject } from '../../utils/dist/types/types';
+import type { ProviderProps, UseStorageReturn } from './types.ts';
 
 /**
  * Creates a React context + hook pair bound to a specific StorageAdapter instance.
@@ -121,29 +120,3 @@ export function createStorageContext<Values>(
 
     return [Provider, useHook];
 }
-
-
-type UseStorageReturn<Values> = {
-    get: {
-        (): Values;
-        <K extends keyof Values>(key: K): Values[K];
-    };
-    getMany: {
-        <K extends keyof Values>(keys: K[]): Partial<NullableObject<Values>>;
-    }
-    set: {
-        <K extends keyof Values>(key: K, value: Values[K]): void;
-        (values: Partial<Values>): void;
-    };
-    setMany: (values: Partial<Values>) => void;
-    remove: <K extends keyof Values>(keyOrKeys: K | K[]) => void;
-    assign: <K extends keyof Values>(key: K, val: Partial<Values[K]>) => void;
-    has: {
-        (key: keyof Values): boolean;
-        (keys: (keyof Values)[]): boolean[];
-    };
-    clear: () => void;
-    wrap: StorageAdapter<Values>['wrap'];
-    keys: () => (keyof Values)[];
-    instance: StorageAdapter<Values>;
-};

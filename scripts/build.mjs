@@ -461,6 +461,37 @@ const browserPath = process.env.CI
     ? './dist/browser/bundle.js'
     : './browser/bundle.js';
 
+/**
+ * Resolves pnpm workspace protocol versions (e.g. "workspace:^") to real
+ * semver ranges by reading each referenced package's package.json.
+ * In CI, pnpm publish handles this automatically — locally we must do it ourselves.
+ */
+const resolveWorkspaceDeps = async (deps) => {
+
+    if (!deps) return deps;
+
+    const resolved = {};
+
+    for (const [name, version] of Object.entries(deps)) {
+
+        if (!version.startsWith('workspace:')) {
+
+            resolved[name] = version;
+            continue;
+        }
+
+        const pkgDir = path.join(ROOT, 'packages', name.replace(/^@[^/]+\//, ''));
+        const depPkg = await fs.readJson(path.join(pkgDir, 'package.json'));
+        const modifier = version.replace('workspace:', '');
+
+        resolved[name] = modifier === '*' || modifier === '^' || modifier === '~'
+            ? `${modifier === '*' ? '>=' : modifier}${depPkg.version}`
+            : depPkg.version;
+    }
+
+    return resolved;
+};
+
 const Pkg = {
 
     name: LibPkg.name,
@@ -483,8 +514,8 @@ const Pkg = {
     unpkg: browserPath,
     jsdelivr: browserPath,
 
-    dependencies: LibPkg.dependencies,
-    peerDependencies: LibPkg.peerDependencies,
+    dependencies: await resolveWorkspaceDeps(LibPkg.dependencies),
+    peerDependencies: await resolveWorkspaceDeps(LibPkg.peerDependencies),
 };
 
 log.info('Setting up package.json, LICENSE, and README for release...');

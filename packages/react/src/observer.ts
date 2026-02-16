@@ -9,7 +9,7 @@ import {
 } from 'react';
 
 import type { ObserverEngine } from '@logosdx/observer';
-import type { ProviderProps } from './types.ts';
+import type { ProviderProps, UseObserverReturn } from './types.ts';
 import { noop } from '@logosdx/utils';
 
 /**
@@ -163,25 +163,3 @@ export function createObserverContext<
 
     return [Provider, useHook];
 }
-
-type UseObserverReturn<Shape extends Record<string, any>> = {
-    on: <E extends keyof Shape>(
-        event: E,
-        callback: (data: Shape[E]) => void
-    ) => void;
-    once: <E extends keyof Shape>(
-        event: E,
-        callback: (data: Shape[E]) => void
-    ) => void;
-    oncePromise: <E extends keyof Shape>(
-        event: E
-    ) => readonly [waiting: boolean, data: Shape[E] | null, cancel: () => void];
-    emitFactory: <E extends keyof Shape>(
-        event: E
-    ) => (data?: Shape[E]) => void;
-    emit: <E extends keyof Shape>(
-        event: E,
-        data?: Shape[E]
-    ) => void;
-    instance: ObserverEngine<Shape>;
-};
