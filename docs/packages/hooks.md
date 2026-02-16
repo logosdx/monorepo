@@ -5,7 +5,8 @@ description: A lightweight, type-safe lifecycle hook system for extending behavi
 
 # Hooks
 
-Lifecycle hooks let you respond to events without coupling your code. Unlike traditional events (fire-and-forget), hooks support bidirectional communication - callbacks can modify arguments, set results, return early, or abort execution.
+
+Lifecycle hooks let you respond to events without coupling your code. Unlike traditional events (fire-and-forget), hooks support bidirectional communication — callbacks can modify arguments, set results, short-circuit execution, or abort with errors.
 
 [[toc]]
 
@@ -37,37 +38,36 @@ import { HookEngine } from '@logosdx/hooks';
 interface FetchLifecycle {
     beforeFetch(url: string, options: RequestInit): Promise<Response>;
     afterFetch(response: Response, url: string): Promise<Response>;
-    rateLimit(retryAfter: number, attempt: number): Promise<void>;
 }
 
 const hooks = new HookEngine<FetchLifecycle>()
-    .register('beforeFetch', 'afterFetch', 'rateLimit');
+    .register('beforeFetch', 'afterFetch');
 
-// Subscribe to events
-hooks.on('beforeFetch', async (ctx) => {
-    const [url, options] = ctx.args;
-    ctx.setArgs([url, {
+// Callbacks receive spread args + ctx as last param
+hooks.add('beforeFetch', (url, options, ctx) => {
+    ctx.args(url, {
         ...options,
         headers: { ...options.headers, Authorization: `Bearer ${token}` }
-    }]);
+    });
 });
 
-// Emit in your library code
+// In your library code
 async function fetchWithHooks(url: string, options: RequestInit = {}) {
 
-    const before = await hooks.emit('beforeFetch', url, options);
-    if (before.earlyReturn) return before.result!;
+    const pre = await hooks.run('beforeFetch', url, options);
+    if (pre.returned) return pre.result!;
 
-    const response = await fetch(...before.args);
+    const response = await fetch(...pre.args);
 
-    const after = await hooks.emit('afterFetch', response, url);
-    return after.result ?? response;
+    const post = await hooks.run('afterFetch', response, url);
+    return post.returned ? post.result! : response;
 }
 ```
 
 ## Library Integration
 
-The real power of hooks is giving library users extension points. Use `emit()` at key moments:
+
+The real power of hooks is giving library users extension points. Use `run()` at key moments:
 
 ```typescript
 export class DataService {
@@ -79,11 +79,11 @@ export class DataService {
 
     async save(record: Record) {
 
-        const before = await this.#hooks.emit('beforeSave', record);
-        if (before.earlyReturn) return before.result!;
+        const before = await this.#hooks.run('beforeSave', record);
+        if (before.returned) return before.result!;
 
-        const saved = await this.#db.insert(before.args[0]);
-        await this.#hooks.emit('afterSave', saved);
+        const saved = await this.#db.insert(...before.args);
+        await this.#hooks.run('afterSave', saved);
 
         return saved;
     }
@@ -109,29 +109,13 @@ export class MySdk {
 import { MySdk } from 'your-library';
 
 const sdk = new MySdk();
-sdk.hooks.on('beforeSave', async (ctx) => {
-    console.log('Saving:', ctx.args[0]);
-});
-```
-
-### Standalone Events
-
-Not all hooks need pre/post patterns. Emit events for moments users care about:
-
-```typescript
-// In your library
-await this.hooks.emit('rateLimit', retryAfter, attempt);
-await this.hooks.emit('retry', error, attempt);
-await this.hooks.emit('cacheHit', key, value);
-
-// Consumer subscribes
-sdk.hooks.on('rateLimit', async (ctx) => {
-    const [retryAfter] = ctx.args;
-    await sleep(retryAfter);
+sdk.hooks.add('beforeSave', (record, ctx) => {
+    console.log('Saving:', record);
 });
 ```
 
 ## API Reference
+
 
 ### HookEngine
 
@@ -142,10 +126,11 @@ new HookEngine<Lifecycle, FailArgs>(options?)
 | Method | Description |
 |--------|-------------|
 | `register(...names)` | Enable strict mode. Returns `this` for chaining. |
-| `on(name, cbOrOpts)` | Subscribe. Returns cleanup function. |
-| `once(name, cb)` | Subscribe once. Sugar for `{ callback, once: true }`. |
-| `emit(name, ...args)` | Emit hook. Returns `EmitResult`. |
-| `wrap(fn, { pre?, post? })` | Wrap function with pre/post hooks. |
+| `add(name, callback, options?)` | Subscribe. Returns cleanup function. |
+| `run(name, ...args)` | Run hook async. Returns `Promise<RunResult>`. |
+| `runSync(name, ...args)` | Run hook sync. Returns `RunResult`. |
+| `wrap(fn, { pre?, post? })` | Wrap async function with pre/post hooks. |
+| `wrapSync(fn, { pre?, post? })` | Wrap sync function with pre/post hooks. |
 | `clear()` | Remove all hooks, reset to permissive mode. |
 
 **Constructor Options:**
@@ -158,54 +143,76 @@ const hooks = new HookEngine<Lifecycle, [string, string, object?]>({
     handleFail: HttpsError
 });
 
-hooks.on('validate', async (ctx) => {
+hooks.add('validate', (data, ctx) => {
     ctx.fail('invalid-argument', 'Email invalid', { field: 'email' });
 });
 ```
 
 ### HookContext
 
-Passed to every callback:
+Passed as the last argument to every callback:
 
-| Property/Method | Description |
-|-----------------|-------------|
-| `ctx.args` | Current arguments (readonly) |
-| `ctx.result` | Current result if set (readonly) |
-| `ctx.setArgs(next)` | Replace args for subsequent callbacks |
-| `ctx.setResult(next)` | Set result value |
-| `ctx.returnEarly()` | Stop processing, signal early return |
-| `ctx.fail(...args)` | Abort with error |
-| `ctx.removeHook()` | Remove this callback from future emissions |
+| Method | Returns | Effect |
+|--------|---------|--------|
+| `ctx.args(...newArgs)` | `EarlyReturnSignal` | Replace args for downstream callbacks |
+| `return ctx.args(...)` | — | Replace args **and** stop the chain |
+| `ctx.returns(value)` | `EarlyReturnSignal` | Set result and stop the chain (always use with `return`) |
+| `ctx.fail(...args)` | `never` | Abort with error |
+| `ctx.removeHook()` | `void` | Remove this callback from future runs |
 
-### EmitResult
+**Short-circuit rules:**
+
+| Code | Args changed | Chain stops |
+|------|-------------|-------------|
+| `ctx.args(...)` | yes | no |
+| `return ctx.args(...)` | yes | yes |
+| `return ctx.returns(value)` | n/a | yes |
+| `ctx.fail(...)` | n/a | throws |
+
+### RunResult
 
 ```typescript
-interface EmitResult<F> {
+interface RunResult<F> {
     args: Parameters<F>;      // Final args (possibly modified)
-    result?: ReturnType<F>;   // Result if set
-    earlyReturn: boolean;     // Whether returnEarly() was called
+    result?: ReturnType<F>;   // Result if set via ctx.returns()
+    returned: boolean;        // Whether chain was short-circuited
 }
 ```
 
 Usage pattern:
 
 ```typescript
-const { args, result, earlyReturn } = await hooks.emit('beforeProcess', data);
+const { args, result, returned } = await hooks.run('beforeProcess', data);
 
-if (earlyReturn) return result;
+if (returned) return result;
 
 // Continue with (possibly modified) args
 const actualResult = await doWork(...args);
 ```
 
-### Hook Options
+### AddOptions
 
 ```typescript
-hooks.on('name', {
-    callback: async (ctx) => { /* ... */ },
-    once: true,           // Remove after first run
-    ignoreOnFail: true    // Continue if callback throws
+hooks.add('name', callback, {
+    once: true,           // Remove after first run (sugar for times: 1)
+    times: 3,             // Run N times then auto-remove
+    ignoreOnFail: true,   // Continue if callback throws
+    priority: -10         // Lower runs first, default 0
 });
+```
+
+### Priority & Execution Order
+
+Hooks execute in priority order (lower first). Built-in plugins use negative values, user hooks default to 0.
+
+```
+Execution order for 'beforeRequest':
+  -30: rate-limit plugin
+  -20: cache plugin
+  -10: dedupe plugin
+    0: user hooks (default)
+   10: logging hooks
+    ∞: per-request hook (via RunOptions.append)
 ```
 
 ### Registration
@@ -216,64 +223,105 @@ Catches typos at runtime:
 const hooks = new HookEngine<Lifecycle>()
     .register('beforeFetch', 'afterFetch');
 
-hooks.on('beforeFecth', cb);
+hooks.add('beforeFecth', cb);
 // Error: Hook "beforeFecth" is not registered.
 // Registered hooks: beforeFetch, afterFetch
 ```
 
-### wrap()
+### wrap() / wrapSync()
 
 Shorthand for the pre/post pattern:
 
 ```typescript
+// Async
 const wrappedFetch = hooks.wrap(
     async (url: string) => fetch(url),
     { pre: 'beforeFetch', post: 'afterFetch' }
 );
 
-// Pre: receives args, can modify or returnEarly
-// Post: receives [result, ...args], can modify result
+// Sync
+const wrappedValidate = hooks.wrapSync(
+    (data: UserData) => validate(data),
+    { pre: 'beforeValidate' }
+);
+
+// Pre: receives (...args, ctx) — can modify args or return early
+// Post: receives (result, ...args, ctx) — can transform result
 ```
 
 ## Patterns
 
+
 ### Caching with Early Return
 
 ```typescript
-hooks.on('beforeGet', async (ctx) => {
-    const cached = cache.get(ctx.args[0]);
-    if (cached) {
-        ctx.setResult(cached);
-        ctx.returnEarly();
-    }
+hooks.add('beforeGet', (url, opts, ctx) => {
+    const cached = cache.get(url);
+    if (cached) return ctx.returns(cached);
 });
 
-hooks.on('afterGet', async (ctx) => {
-    const [result, key] = ctx.args;
-    cache.set(key, result);
+hooks.add('afterGet', (response, url, opts, ctx) => {
+    cache.set(url, response);
 });
 ```
 
 ### Validation
 
 ```typescript
-hooks.on('validate', async (ctx) => {
-    const [user] = ctx.args;
+hooks.add('validate', (user, ctx) => {
     if (!user.email) ctx.fail('Email required');
     if (!user.password) ctx.fail('Password required');
+});
+```
+
+### Arg Modification
+
+```typescript
+hooks.add('beforeRequest', (url, opts, ctx) => {
+    // Replace args, continue chain
+    ctx.args(url, {
+        ...opts,
+        headers: { ...opts.headers, 'X-Trace': traceId }
+    });
 });
 ```
 
 ### Non-Critical Hooks
 
 ```typescript
-hooks.on('analytics', {
-    callback: async (ctx) => await track(ctx.args),
-    ignoreOnFail: true  // Don't fail if analytics fails
+hooks.add('analytics', (event) => {
+    track(event);
+}, { ignoreOnFail: true }); // Don't fail if analytics fails
+```
+
+### Composable Middleware
+
+```typescript
+// Auth runs first (low priority)
+hooks.add('beforeRequest', (url, opts, ctx) => {
+    ctx.args(url, { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${token}` } });
+}, { priority: -10 });
+
+// Logging runs last (high priority)
+hooks.add('beforeRequest', (url, opts) => {
+    console.log('Request:', url);
+}, { priority: 10 });
+```
+
+### Per-Request Hooks
+
+One-off hooks scoped to a single request via `RunOptions.append`:
+
+```typescript
+await hooks.run('beforeRequest', url, opts, {
+    append: (url, opts, ctx) => {
+        ctx.args(url, { ...opts, headers: { ...opts.headers, 'X-Trace': traceId } });
+    }
 });
 ```
 
 ## Error Handling
+
 
 ### HookError
 
@@ -309,20 +357,17 @@ const hooks = new HookEngine<Lifecycle, [string, object?]>({
 
 ## Type Definitions
 
-```typescript
-type AsyncFunc = (...args: any[]) => Promise<any>;
 
+```typescript
 // Only function properties are valid hook names
 type HookName<T> = FunctionProps<T>;
 
-type HookFn<F, FailArgs> = (ctx: HookContext<F, FailArgs>) => Promise<void>;
+// Callback: spread params + ctx as last arg
+type HookCallback<F, FailArgs> = F extends (...args: infer A) => infer R
+    ? (...args: [...A, HookContext<A, Awaited<R>, FailArgs>]) => void | EarlyReturnSignal | Promise<void | EarlyReturnSignal>
+    : never;
 
-interface HookOptions<F, FailArgs> {
-    callback: HookFn<F, FailArgs>;
-    once?: true;
-    ignoreOnFail?: true;
-}
-
+// Custom fail handler
 type HandleFail<Args> =
     | (new (...args: Args) => Error)
     | ((...args: Args) => never);
@@ -334,13 +379,13 @@ Only function properties are available as hook names. Data properties are exclud
 
 ```typescript
 interface Doc {
-    id: string;                      // Data property - excluded
-    save(): Promise<void>;           // Function - available as hook
-    delete(): Promise<void>;         // Function - available as hook
+    id: string;                      // Data property — excluded
+    save(): Promise<void>;           // Function — available as hook
+    delete(): Promise<void>;         // Function — available as hook
 }
 
 const hooks = new HookEngine<Doc>();
-hooks.on('save', cb);    // ✓ OK
-hooks.on('delete', cb);  // ✓ OK
-hooks.on('id', cb);      // ✗ Type error - 'id' is not a function
+hooks.add('save', cb);    // ✓ OK
+hooks.add('delete', cb);  // ✓ OK
+hooks.add('id', cb);      // ✗ Type error — 'id' is not a function
 ```
