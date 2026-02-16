@@ -1,5 +1,13 @@
 # @logosdx/react
 
+## 0.1.0-beta.1
+
+### Patch Changes
+
+- f62552d: ## Fixed
+  - `fix(react):` Export return types so consumers can name inferred types portably in `.d.ts` files
+  - `fix(react):` Fix internal import reaching into `@logosdx/utils` dist path
+
 ## 0.1.0-beta.0
 
 ### Minor Changes
