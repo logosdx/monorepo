@@ -5,6 +5,7 @@
  */
 
 import { ObserverEngine } from '@logosdx/observer';
+import { HookEngine } from '@logosdx/hooks';
 
 import type {
     EventMap,
@@ -16,13 +17,17 @@ import type {
     PropertyEventData as EventsPropertyEventData,
     OptionsEventData as EventsOptionsEventData
 } from './events.ts';
-import type { FetchEngineCore } from './types.ts';
+import type { FetchEngineCore, FetchLifecycle, FetchPlugin } from './types.ts';
 import { RequestExecutor } from './executor.ts';
 import { FetchState } from '../state/index.ts';
 import { ConfigStore } from '../options/index.ts';
 import { HeadersManager } from '../properties/headers.ts';
 import { ParamsManager } from '../properties/params.ts';
 import { PropertyStore } from '../properties/store.ts';
+import { retryPlugin } from '../plugins/retry.ts';
+import { dedupePlugin } from '../plugins/dedupe.ts';
+import { cachePlugin } from '../plugins/cache.ts';
+import { rateLimitPlugin } from '../plugins/rate-limit.ts';
 import type {
     EngineConfig,
     EngineType,
@@ -95,12 +100,14 @@ export interface InstanceResponseHeaders extends Record<string, string> {}
  *
  * @example
  * ```typescript
- * // Advanced setup with retry and caching
+ * // Advanced setup with plugins
  * const api = new FetchEngine({
  *     baseUrl: 'https://api.example.com',
- *     retry: { maxAttempts: 3, baseDelay: 1000 },
- *     cachePolicy: { enabled: true, ttl: 60000 },
- *     dedupePolicy: true
+ *     plugins: [
+ *         retryPlugin({ maxAttempts: 3, baseDelay: 1000 }),
+ *         cachePlugin({ ttl: 60000 }),
+ *         dedupePlugin(true)
+ *     ]
  * });
  * ```
  */
@@ -115,17 +122,6 @@ export class FetchEngine<
      * Symbol to use the default value or configuration.
      *
      * When returned from `determineType`, uses built-in content-type detection.
-     *
-     * @example
-     * ```typescript
-     * const api = new FetchEngine({
-     *     baseUrl: 'https://api.example.com',
-     *     determineType: (response) => {
-     *         if (response.url.includes('/download')) return 'blob';
-     *         return FetchEngine.useDefault; // Use built-in detection
-     *     }
-     * });
-     * ```
      */
     static useDefault = Symbol('useDefault');
 
@@ -149,8 +145,18 @@ export class FetchEngine<
      */
     readonly params: ParamsManager<P>;
 
+    /**
+     * Hook engine for the request lifecycle pipeline.
+     *
+     * Register hooks to intercept, modify, or short-circuit requests.
+     * Plugins install their hooks here at negative priorities so user
+     * hooks at priority 0 run after built-in policies.
+     */
+    readonly hooks: HookEngine<FetchLifecycle<H, P, S>>;
+
     #executor: RequestExecutor<H, P, S>;
     #instanceAbortController = new AbortController();
+    #pluginCleanups: (() => void)[] = [];
 
     /**
      * Create a new FetchEngine instance.
@@ -175,17 +181,81 @@ export class FetchEngine<
         this.headers = new HeadersManager(engine);
         this.params = new ParamsManager(engine);
 
-        // Request executor - owns policies and request lifecycle
+        // Hook engine for request lifecycle
+        this.hooks = new HookEngine<FetchLifecycle<H, P, S>>();
+
+        // Request executor - no longer owns policies
         this.#executor = new RequestExecutor(engine);
 
-        // Initialize policies with options from store
-        this.#executor.initPolicies();
+        // Install plugins: explicit plugins take precedence, otherwise build from legacy config
+        const plugins = opts.plugins ?? this.#buildLegacyPlugins(opts);
+
+        for (const plugin of plugins) {
+
+            this.#pluginCleanups.push(this.use(plugin));
+        }
+    }
+
+    /**
+     * Build plugins from legacy configuration options.
+     *
+     * When `opts.plugins` is not provided, this creates plugins from
+     * the traditional config fields (retry, dedupePolicy, cachePolicy, rateLimitPolicy).
+     */
+    #buildLegacyPlugins(opts: EngineConfig<H, P, S>): FetchPlugin<H, P, S>[] {
+
+        const plugins: FetchPlugin<H, P, S>[] = [];
+
+        // Retry plugin (always installed unless explicitly disabled)
+        plugins.push(retryPlugin<H, P, S>(opts.retry === true ? undefined : opts.retry));
+
+        // Dedupe plugin
+        if (opts.dedupePolicy) {
+
+            const dedupe = dedupePlugin<H, P, S>(opts.dedupePolicy as any);
+            this.#dedupePlugin = dedupe;
+            plugins.push(dedupe);
+        }
+
+        // Cache plugin
+        if (opts.cachePolicy) {
+
+            const cache = cachePlugin<H, P, S>(opts.cachePolicy as any);
+            this.#cachePlugin = cache;
+            plugins.push(cache);
+        }
+
+        // Rate limit plugin
+        if (opts.rateLimitPolicy) {
+
+            plugins.push(rateLimitPlugin<H, P, S>(opts.rateLimitPolicy as any));
+        }
+
+        return plugins;
+    }
+
+    /** Reference to the cache plugin for backward compat methods */
+    #cachePlugin: any = null;
+
+    /** Reference to the dedupe plugin for inflight tracking */
+    #dedupePlugin: any = null;
+
+    /**
+     * Install a plugin at runtime.
+     *
+     * The plugin's `install()` method is called with this engine instance.
+     * Returns an unsubscribe function that removes the plugin's hooks.
+     *
+     * @param plugin - Plugin to install
+     * @returns Cleanup function to uninstall the plugin
+     */
+    use(plugin: FetchPlugin<H, P, S>): () => void {
+
+        return plugin.install(this);
     }
 
     /**
      * Property store for headers (FetchEngineCore compliance).
-     *
-     * Internal components access this for header resolution.
      */
     get headerStore(): PropertyStore<DictAndT<H>> {
 
@@ -194,8 +264,6 @@ export class FetchEngine<
 
     /**
      * Property store for params (FetchEngineCore compliance).
-     *
-     * Internal components access this for param resolution.
      */
     get paramStore(): PropertyStore<DictAndT<P>> {
 
@@ -214,15 +282,6 @@ export class FetchEngine<
 
     /**
      * Makes a GET request to retrieve data.
-     *
-     * @param path - Request path relative to base URL
-     * @param options - Request options
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * const { data: users } = await api.get('/users');
-     * ```
      */
     get(
         path: string,
@@ -241,16 +300,6 @@ export class FetchEngine<
 
     /**
      * Makes a POST request to create a new resource.
-     *
-     * @param path - Request path relative to base URL
-     * @param payload - Data to send in the request body
-     * @param options - Request options
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * const { data: user } = await api.post('/users', { name: 'John' });
-     * ```
      */
     post<Data = unknown>(
         path: string,
@@ -271,16 +320,6 @@ export class FetchEngine<
 
     /**
      * Makes a PUT request to replace a resource.
-     *
-     * @param path - Request path relative to base URL
-     * @param payload - Data to send in the request body
-     * @param options - Request options
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * const { data: user } = await api.put('/users/123', { name: 'Jane' });
-     * ```
      */
     put<Data = unknown>(
         path: string,
@@ -301,16 +340,6 @@ export class FetchEngine<
 
     /**
      * Makes a PATCH request to partially update a resource.
-     *
-     * @param path - Request path relative to base URL
-     * @param payload - Partial data to update
-     * @param options - Request options
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * const { data } = await api.patch('/users/123', { email: 'new@example.com' });
-     * ```
      */
     patch<Data = unknown>(
         path: string,
@@ -331,16 +360,6 @@ export class FetchEngine<
 
     /**
      * Makes a DELETE request to remove a resource.
-     *
-     * @param path - Request path relative to base URL
-     * @param payload - Optional payload for the request body
-     * @param options - Request options
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * await api.delete('/users/123');
-     * ```
      */
     delete<Data = unknown>(
         path: string,
@@ -361,19 +380,6 @@ export class FetchEngine<
 
     /**
      * Makes an HTTP OPTIONS request to check server capabilities.
-     *
-     * You can also use `request('OPTIONS', path, opts)` directly.
-     *
-     * @param path - Request path relative to base URL
-     * @param opts - Request options
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * const { headers } = await api.options('/users');
-     * // Or use request() directly:
-     * const { headers } = await api.request('OPTIONS', '/users');
-     * ```
      */
     options(
         path: string,
@@ -392,19 +398,6 @@ export class FetchEngine<
 
     /**
      * Makes an HTTP HEAD request to retrieve headers only.
-     *
-     * You can also use `request('HEAD', path, opts)` directly.
-     *
-     * @param path - Request path relative to base URL
-     * @param opts - Request options
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * const { headers } = await api.head('/users/123');
-     * // Or use request() directly:
-     * const { headers } = await api.request('HEAD', '/users/123');
-     * ```
      */
     head(
         path: string,
@@ -423,16 +416,6 @@ export class FetchEngine<
 
     /**
      * Makes an HTTP request with the specified method.
-     *
-     * @param method - HTTP method (GET, POST, PUT, PATCH, DELETE, OPTIONS)
-     * @param path - Request path relative to base URL
-     * @param options - Request options (may include payload)
-     * @returns AbortablePromise that resolves to FetchResponse
-     *
-     * @example
-     * ```typescript
-     * const response = await api.request('GET', '/users');
-     * ```
      */
     request<Data = unknown>(
         method: HttpMethods,
@@ -459,8 +442,6 @@ export class FetchEngine<
 
         const { payload, ...rest } = options;
 
-        // Create a controller that's linked to the instance abort signal
-        // so destroy() can abort all in-flight requests
         const controller = rest.abortController ?? new AbortController();
         const instanceSignal = this.#instanceAbortController.signal;
 
@@ -477,118 +458,60 @@ export class FetchEngine<
         );
     }
 
-    // ===== Cache Methods =====
+    // ===== Cache Methods (backward compat - delegate to cache plugin) =====
 
     /**
      * Clear all cached responses.
-     *
-     * @example
-     * ```typescript
-     * api.clearCache();
-     * ```
      */
     clearCache(): void {
 
-        this.#executor.flight.clearCache();
+        this.#cachePlugin?.clearCache();
     }
 
     /**
      * Clear a specific cache entry.
-     *
-     * @param key - Cache key to clear
      */
     clearCacheKey(key: string): void {
 
-        this.#executor.flight.deleteCache(key);
+        this.#cachePlugin?.clearCacheKey(key);
     }
 
     /**
      * Delete a specific cache entry.
-     *
-     * @param key - Cache key to delete
-     * @returns true if entry existed and was deleted
-     *
-     * @example
-     * ```typescript
-     * const deleted = await api.deleteCache('cache-key');
-     * if (deleted) {
-     *     console.log('Cache entry removed');
-     * }
-     * ```
      */
     deleteCache(key: string): Promise<boolean> {
 
-        return this.#executor.flight.deleteCache(key);
+        return this.#cachePlugin?.deleteCache(key) ?? Promise.resolve(false);
     }
 
     /**
      * Invalidate cache entries matching a predicate.
-     *
-     * @param predicate - Function that returns true for keys to delete
-     * @returns Number of entries deleted
-     *
-     * @example
-     * ```typescript
-     * // Delete all entries containing 'user'
-     * const count = await api.invalidateCache(key => key.includes('user'));
-     * ```
      */
     invalidateCache(predicate: (key: string) => boolean): Promise<number> {
 
-        return this.#executor.flight.invalidateCache(predicate);
+        return this.#cachePlugin?.invalidateCache(predicate) ?? Promise.resolve(0);
     }
 
     /**
      * Invalidate cache entries by path pattern.
-     *
-     * Accepts a string (prefix match), RegExp, or predicate function.
-     *
-     * @param pattern - String prefix, RegExp, or predicate function
-     * @returns Number of entries deleted
-     *
-     * @example
-     * ```typescript
-     * // By prefix - invalidates /users, /users/123, etc.
-     * await api.invalidatePath('/users');
-     *
-     * // By RegExp
-     * await api.invalidatePath(/\/users\/\d+/);
-     *
-     * // By predicate
-     * await api.invalidatePath(key => key.includes('/api/v1'));
-     * ```
      */
     invalidatePath(pattern: string | RegExp | ((key: string) => boolean)): Promise<number> {
 
-        if (typeof pattern === 'function') {
-
-            return this.#executor.flight.invalidateCache(pattern);
-        }
-
-        if (pattern instanceof RegExp) {
-
-            return this.#executor.flight.invalidateCache(key => pattern.test(key));
-        }
-
-        // String - match as prefix
-        return this.#executor.flight.invalidateCache(key => key.includes(pattern));
+        return this.#cachePlugin?.invalidatePath(pattern) ?? Promise.resolve(0);
     }
 
     /**
      * Get cache statistics.
-     *
-     * @returns Object with `inflightCount` and `cacheSize` properties
-     *
-     * @example
-     * ```typescript
-     * const stats = api.cacheStats();
-     * console.log('Inflight:', stats.inflightCount);
-     * console.log('Cache size:', stats.cacheSize);
-     * ```
      */
     cacheStats() {
 
-        return this.#executor.cacheStats();
+        const cacheStats = this.#cachePlugin?.stats() ?? { cacheSize: 0, inflightCount: 0 };
+        const dedupeInflight = this.#dedupePlugin?.inflightCount() ?? 0;
+
+        return {
+            ...cacheStats,
+            inflightCount: cacheStats.inflightCount + dedupeInflight
+        };
     }
 
     // ===== Lifecycle Methods =====
@@ -598,15 +521,6 @@ export class FetchEngine<
      *
      * Aborts all pending requests and cleans up resources.
      * After calling destroy(), the instance cannot be used.
-     *
-     * @example
-     * ```typescript
-     * // In React effect cleanup
-     * useEffect(() => {
-     *     const api = new FetchEngine({ baseUrl: '/api' });
-     *     return () => api.destroy();
-     * }, []);
-     * ```
      */
     destroy(): void {
 
@@ -619,14 +533,23 @@ export class FetchEngine<
         // Abort all pending requests
         this.#instanceAbortController.abort('FetchEngine destroyed');
 
+        // Clean up plugins
+        for (const cleanup of this.#pluginCleanups) {
+
+            cleanup();
+        }
+
+        this.#pluginCleanups.length = 0;
+
+        // Clear hooks
+        this.hooks.clear();
+
         // Clear cache
         this.clearCache();
     }
 
     /**
      * Check if the engine has been destroyed.
-     *
-     * @returns true if destroy() has been called
      */
     isDestroyed(): boolean {
 
@@ -636,85 +559,21 @@ export class FetchEngine<
 
 
 // ===== FetchEngine Namespace Declaration =====
-// Uses declaration merging - namespace must come AFTER the class
 
 /**
  * Namespace for FetchEngine types.
- *
- * Contains all types associated with FetchEngine using declaration merging.
- * This allows users to reference types as `FetchEngine.Options`, `FetchEngine.EventData`, etc.
- *
- * **Augmentable Interfaces:**
- *
- * Users can extend these interfaces via module augmentation to add custom properties:
- *
- * @example
- * ```typescript
- * // In your app's type declaration file
- * declare module '@logosdx/fetch' {
- *     namespace FetchEngine {
- *         interface InstanceHeaders {
- *             'X-Custom-Header': string;
- *             Authorization: string;
- *         }
- *
- *         interface InstanceParams {
- *             apiKey: string;
- *         }
- *
- *         interface InstanceState {
- *             userId: string;
- *             token: string;
- *         }
- *
- *         interface InstanceResponseHeaders {
- *             'x-rate-limit': string;
- *             'x-request-id': string;
- *         }
- *     }
- * }
- * ```
  */
 export namespace FetchEngine {
 
     // ===== Augmentable Interfaces =====
-    // These are empty by default but can be extended via module augmentation
 
-    /**
-     * Override this interface with the headers you intend to use throughout your app.
-     *
-     * @example
-     * ```typescript
-     * declare module '@logosdx/fetch' {
-     *     namespace FetchEngine {
-     *         interface InstanceHeaders {
-     *             Authorization: string;
-     *             'X-API-Key': string;
-     *         }
-     *     }
-     * }
-     * ```
-     */
     export interface InstanceHeaders extends OptionsInstanceHeaders {}
-
-    /**
-     * Override this interface with the URL params you intend to use throughout your app.
-     */
     export interface InstanceParams extends OptionsInstanceParams {}
-
-    /**
-     * Override this interface with the state you intend to use throughout your app.
-     */
     export interface InstanceState extends OptionsInstanceState {}
-
-    /**
-     * Override this interface with the response headers you expect from your API.
-     */
     export interface InstanceResponseHeaders extends Record<string, string> {}
 
 
     // ===== Type Aliases =====
-    // Forward types from modular implementations
 
     /** Response body type (json, text, blob, etc.) */
     export type Type = EngineType;
@@ -757,7 +616,6 @@ export namespace FetchEngine {
 
 
     // ===== Event Types =====
-    // Re-export event types for namespace access using type aliases
 
     /** Event data for FetchEngine events */
     export type EventData<S = InstanceState, H = InstanceHeaders, P = InstanceParams> = EventsEventData<S, H, P>;

@@ -1,383 +1,873 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+import { StateMachine, StateHub } from '../../packages/state-machine/src/index.ts';
+import type { StorageAdapter } from '../../packages/state-machine/src/index.ts';
 
 
-import { StateMachine } from '@logosdx/state-machine';
+// --- Helpers ---
 
-const stub: any = {};
+interface CounterContext {
+    count: number
+    error: string | null
+}
 
-describe('@logosdx/state-machine', function () {
+interface CounterEvents {
+    INCREMENT: void
+    DECREMENT: void
+    SET: { value: number }
+    RESET: void
+    FAIL: { message: string }
+    RETRY: void
+    FETCH: void
+    SUCCESS: { value: number }
+    FAILURE: { message: string }
+}
 
-    it('has functions to manage state, modifiers and listeners', () => {
+function makeCounterMachine() {
 
-        const stream = new StateMachine({});
-        expect(stream.addReducer).to.be.an.instanceof(Function);
-        expect(stream.removeReducer).to.be.an.instanceof(Function);
-
-        expect(stream.addListener).to.be.an.instanceof(Function);
-        expect(stream.removeListener).to.be.an.instanceof(Function);
-
-        expect(stream.states).to.be.an.instanceof(Function);
-
+    return new StateMachine<CounterContext, CounterEvents>({
+        initial: 'idle',
+        context: { count: 0, error: null },
+        transitions: {
+            idle: {
+                on: {
+                    INCREMENT: {
+                        target: 'idle',
+                        action: (ctx) => ({ ...ctx, count: ctx.count + 1 }),
+                    },
+                    DECREMENT: {
+                        target: 'idle',
+                        action: (ctx) => ({ ...ctx, count: ctx.count - 1 }),
+                    },
+                    SET: {
+                        target: 'idle',
+                        action: (ctx, data) => ({ ...ctx, count: data.value }),
+                    },
+                    RESET: {
+                        target: 'idle',
+                        action: () => ({ count: 0, error: null }),
+                    },
+                    FAIL: {
+                        target: 'error',
+                        action: (ctx, data) => ({ ...ctx, error: data.message }),
+                    },
+                    FETCH: 'loading',
+                },
+            },
+            loading: {
+                on: {
+                    SUCCESS: {
+                        target: 'idle',
+                        action: (ctx, data) => ({ ...ctx, count: data.value }),
+                    },
+                    FAILURE: {
+                        target: 'error',
+                        action: (ctx, data) => ({ ...ctx, error: data.message }),
+                    },
+                },
+            },
+            error: {
+                on: {
+                    RETRY: 'loading',
+                    RESET: {
+                        target: 'idle',
+                        action: () => ({ count: 0, error: null }),
+                    },
+                },
+            },
+        },
     });
+}
 
-    it('returns array of states', () => {
 
-        const stream = new StateMachine({});
+describe('@logosdx/state-machine', () => {
 
-        const states = stream.states();
-        expect(states.constructor).to.eq(Array);
-    });
+    describe('StateMachine: construction', () => {
 
-    it('returns current state', () => {
+        it('creates a machine with initial state and context', () => {
 
-        const stream = new StateMachine({});
+            const machine = makeCounterMachine();
 
-        const state = stream.state();
-        expect(state.constructor).to.eq(Object);
-    });
-
-    it('sets empty object as default state', () => {
-
-        const stream = new StateMachine({});
-
-        const state = stream.state();
-        expect(Object.keys(state)).to.have.length(0);
-    });
-
-    it('sets passed state in state holder', () => {
-
-        const check = { test: true };
-
-        const stream = new StateMachine(check);
-        const state = stream.state();
-
-        expect(state).to.eql(check)
-    });
-
-    it('listens for changes', () => {
-
-        const start = { oy: true };
-        const stream = new StateMachine(start);
-
-        stub.reducer = (next: any, prev: any) => ({
-            ...prev,
-            ...next
+            expect(machine.state).to.equal('idle');
+            expect(machine.context).to.deep.equal({ count: 0, error: null });
         });
 
-        stub.listener = (next: any, prev: any) => {
+        it('context is cloned — mutations do not affect internal state', () => {
 
-            stub.next = next;
-            stub.prev = prev;
-        };
+            const machine = makeCounterMachine();
+            const ctx = machine.context;
 
-        stream.addReducer(stub.reducer);
+            ctx.count = 999;
 
-        stream.addListener(stub.listener);
-
-        const check = { blyot: true };
-        stream.dispatch(check);
-
-        expect(stub.next).to.eql({
-            oy: true,
-            blyot: true
+            expect(machine.context.count).to.equal(0);
         });
 
-        expect(stub.prev).to.eql(start);
+        it('throws on missing config', () => {
+
+            expect(() => new StateMachine(null as any)).to.throw();
+        });
+
+        it('throws on invalid initial state', () => {
+
+            expect(() => new StateMachine({
+                initial: 'nonexistent',
+                context: {},
+                transitions: { idle: {} },
+            } as any)).to.throw(/does not exist/);
+        });
+
+        it('throws when transition target references a nonexistent state', () => {
+
+            expect(() => new StateMachine({
+                initial: 'idle',
+                context: {},
+                transitions: {
+                    idle: {
+                        on: { GO: 'nowhere' },
+                    },
+                },
+            } as any)).to.throw(/does not exist/);
+        });
+
+        it('throws when a final state has transitions', () => {
+
+            expect(() => new StateMachine({
+                initial: 'idle',
+                context: {},
+                transitions: {
+                    idle: { on: { DONE: 'end' } },
+                    end: { final: true, on: { BACK: 'idle' } },
+                },
+            } as any)).to.throw(/Final state/);
+        });
     });
 
-    it('removes listener', () => {
 
-        const start = { oy: true };
-        const stream = new StateMachine(start);
+    describe('StateMachine: send', () => {
 
-        stream.addListener(stub.listener);
+        it('transitions to a new state via string shorthand', () => {
 
-        stub.next = null;
-        stub.prev = null;
+            const machine = makeCounterMachine();
 
-        stream.removeListener(stub.listener);
-        stream.dispatch({ pepe: true });
+            machine.send('FETCH');
 
-        expect(stub).to.include({ next: null, prev: null });
+            expect(machine.state).to.equal('loading');
+        });
+
+        it('transitions with action that modifies context', () => {
+
+            const machine = makeCounterMachine();
+
+            machine.send('INCREMENT');
+
+            expect(machine.state).to.equal('idle');
+            expect(machine.context.count).to.equal(1);
+        });
+
+        it('passes typed data to action', () => {
+
+            const machine = makeCounterMachine();
+
+            machine.send('SET', { value: 42 });
+
+            expect(machine.context.count).to.equal(42);
+        });
+
+        it('chains multiple transitions', () => {
+
+            const machine = makeCounterMachine();
+
+            machine.send('INCREMENT');
+            machine.send('INCREMENT');
+            machine.send('INCREMENT');
+
+            expect(machine.context.count).to.equal(3);
+        });
+
+        it('transitions through multiple states', () => {
+
+            const machine = makeCounterMachine();
+
+            machine.send('FETCH');
+            expect(machine.state).to.equal('loading');
+
+            machine.send('FAILURE', { message: 'Network error' });
+            expect(machine.state).to.equal('error');
+            expect(machine.context.error).to.equal('Network error');
+
+            machine.send('RETRY');
+            expect(machine.state).to.equal('loading');
+
+            machine.send('SUCCESS', { value: 10 });
+            expect(machine.state).to.equal('idle');
+            expect(machine.context.count).to.equal(10);
+        });
     });
 
-    it('adds a reducer', () => {
 
-        const stream = new StateMachine({});
+    describe('StateMachine: rejected transitions', () => {
 
-        expect(stream._reducers.size).to.eq(0);
+        it('ignores events not valid for the current state', () => {
 
-        stub.reducer = (state: any) => {
+            const machine = makeCounterMachine();
 
-            state.updated = true;
-            return state;
-        };
+            machine.send('RETRY');
 
-        stream.addReducer(stub.reducer);
-        expect(stream._reducers.size).to.eq(1);
+            expect(machine.state).to.equal('idle');
+        });
+
+        it('emits $rejected with no_transition reason', () => {
+
+            const machine = makeCounterMachine();
+            const rejected = vi.fn();
+
+            machine.on('$rejected', rejected);
+            machine.send('RETRY');
+
+            expect(rejected).toHaveBeenCalledOnce();
+            expect(rejected.mock.calls[0][0]).to.deep.include({
+                state: 'idle',
+                event: 'RETRY',
+                reason: 'no_transition',
+            });
+        });
+
+        it('emits $rejected with guard_failed reason', () => {
+
+            const machine = new StateMachine<{ count: number }, { INCREMENT: void }>({
+                initial: 'idle',
+                context: { count: 0 },
+                transitions: {
+                    idle: {
+                        on: {
+                            INCREMENT: {
+                                target: 'idle',
+                                action: (ctx) => ({ count: ctx.count + 1 }),
+                                guard: (ctx) => ctx.count < 3,
+                            },
+                        },
+                    },
+                },
+            });
+
+            machine.send('INCREMENT');
+            machine.send('INCREMENT');
+            machine.send('INCREMENT');
+
+            const rejected = vi.fn();
+
+            machine.on('$rejected', rejected);
+            machine.send('INCREMENT');
+
+            expect(machine.context.count).to.equal(3);
+            expect(rejected).toHaveBeenCalledOnce();
+            expect(rejected.mock.calls[0][0].reason).to.equal('guard_failed');
+        });
     });
 
-    it('modifies a new state', () => {
 
-        const stream = new StateMachine({});
-        stream.addReducer(stub.reducer);
+    describe('StateMachine: guards', () => {
 
-        expect((stream.state() as any).updated).to.eq(undefined);
+        it('prevents transition when guard returns false', () => {
 
-        stream.dispatch({ updated: false });
+            const machine = new StateMachine<{ count: number }, { INCREMENT: void }>({
+                initial: 'idle',
+                context: { count: 5 },
+                transitions: {
+                    idle: {
+                        on: {
+                            INCREMENT: {
+                                target: 'idle',
+                                action: (ctx) => ({ count: ctx.count + 1 }),
+                                guard: (ctx) => ctx.count < 5,
+                            },
+                        },
+                    },
+                },
+            });
 
-        expect((stream.state() as any).updated).to.eq(true);
+            machine.send('INCREMENT');
 
+            expect(machine.context.count).to.equal(5);
+        });
+
+        it('allows transition when guard returns true', () => {
+
+            const machine = new StateMachine<{ count: number }, { INCREMENT: void }>({
+                initial: 'idle',
+                context: { count: 3 },
+                transitions: {
+                    idle: {
+                        on: {
+                            INCREMENT: {
+                                target: 'idle',
+                                action: (ctx) => ({ count: ctx.count + 1 }),
+                                guard: (ctx) => ctx.count < 5,
+                            },
+                        },
+                    },
+                },
+            });
+
+            machine.send('INCREMENT');
+
+            expect(machine.context.count).to.equal(4);
+        });
+
+        it('receives event data in guard', () => {
+
+            const guardFn = vi.fn(() => true);
+
+            const machine = new StateMachine<{}, { GO: { target: string } }>({
+                initial: 'a',
+                context: {},
+                transitions: {
+                    a: {
+                        on: {
+                            GO: {
+                                target: 'a',
+                                guard: guardFn,
+                            },
+                        },
+                    },
+                },
+            });
+
+            machine.send('GO', { target: 'test' });
+
+            expect(guardFn).toHaveBeenCalledWith({}, { target: 'test' });
+        });
     });
 
-    it('removes a reducer', () => {
 
-        stub.store = new StateMachine({});
-        const stream = stub.store;
+    describe('StateMachine: on / off', () => {
 
-        const reducer = (state: any) => {
+        it('listens for a specific state entry', () => {
 
-            state.updated = true;
-            return state;
-        };
+            const machine = makeCounterMachine();
+            const listener = vi.fn();
 
-        stream.addReducer(reducer);
-        expect(stream._reducers.size).to.eq(1);
-        stream.removeReducer(reducer);
+            machine.on('loading', listener);
+            machine.send('FETCH');
 
-        stream.dispatch({ updated: false });
+            expect(listener).toHaveBeenCalledOnce();
+            expect(listener.mock.calls[0][0]).to.deep.include({
+                from: 'idle',
+                to: 'loading',
+                event: 'FETCH',
+            });
+        });
 
-        expect(stream._reducers.size).to.eq(0);
-        expect(stream.state().updated).to.eq(false);
+        it('wildcard * catches all transitions', () => {
+
+            const machine = makeCounterMachine();
+            const listener = vi.fn();
+
+            machine.on('*', listener);
+            machine.send('INCREMENT');
+            machine.send('INCREMENT');
+
+            expect(listener).toHaveBeenCalledTimes(2);
+        });
+
+        it('regex pattern matching works', () => {
+
+            const machine = makeCounterMachine();
+            const listener = vi.fn();
+
+            machine.on(/error|loading/, listener);
+
+            machine.send('FETCH');
+            machine.send('FAILURE', { message: 'oops' });
+
+            expect(listener).toHaveBeenCalledTimes(2);
+        });
+
+        it('on returns a cleanup function', () => {
+
+            const machine = makeCounterMachine();
+            const listener = vi.fn();
+
+            const cleanup = machine.on('idle', listener);
+
+            machine.send('INCREMENT');
+            expect(listener).toHaveBeenCalledOnce();
+
+            cleanup();
+            machine.send('INCREMENT');
+            expect(listener).toHaveBeenCalledOnce();
+        });
+
+        it('off removes a listener', () => {
+
+            const machine = makeCounterMachine();
+            const listener = vi.fn();
+
+            machine.on('idle', listener);
+            machine.send('INCREMENT');
+            expect(listener).toHaveBeenCalledOnce();
+
+            machine.off('idle', listener);
+            machine.send('INCREMENT');
+            expect(listener).toHaveBeenCalledOnce();
+        });
     });
 
-    it('makes current state the passed value if no modifiers exist', () => {
 
-        const check = { blyat: true };
-        stub.store.dispatch(check);
-        const state = stub.store.state();
+    describe('StateMachine: invoke', () => {
 
-        expect(state).to.eql(check)
+        it('runs async src on entering a state with invoke', async () => {
+
+            const machine = new StateMachine<
+                { data: string | null, error: string | null },
+                { FETCH: void }
+            >({
+                initial: 'idle',
+                context: { data: null, error: null },
+                transitions: {
+                    idle: {
+                        on: { FETCH: 'loading' },
+                    },
+                    loading: {
+                        invoke: {
+                            src: async () => 'hello',
+                            onDone: {
+                                target: 'idle',
+                                action: (ctx, result) => ({ ...ctx, data: result }),
+                            },
+                            onError: {
+                                target: 'error',
+                                action: (ctx, err) => ({ ...ctx, error: err.message }),
+                            },
+                        },
+                    },
+                    error: {},
+                },
+            });
+
+            machine.send('FETCH');
+            expect(machine.state).to.equal('loading');
+
+            await vi.waitFor(() => {
+
+                expect(machine.state).to.equal('idle');
+            });
+
+            expect(machine.context.data).to.equal('hello');
+        });
+
+        it('transitions to error state on rejection', async () => {
+
+            const machine = new StateMachine<
+                { error: string | null },
+                { FETCH: void }
+            >({
+                initial: 'idle',
+                context: { error: null },
+                transitions: {
+                    idle: {
+                        on: { FETCH: 'loading' },
+                    },
+                    loading: {
+                        invoke: {
+                            src: async () => { throw new Error('boom'); },
+                            onDone: { target: 'idle' },
+                            onError: {
+                                target: 'error',
+                                action: (ctx, err) => ({ ...ctx, error: err.message }),
+                            },
+                        },
+                    },
+                    error: {},
+                },
+            });
+
+            machine.send('FETCH');
+
+            await vi.waitFor(() => {
+
+                expect(machine.state).to.equal('error');
+            });
+
+            expect(machine.context.error).to.equal('boom');
+        });
+
+        it('cancels stale invoke when state changes before settling', async () => {
+
+            let resolvePromise: (val: string) => void;
+
+            const machine = new StateMachine<
+                { data: string | null },
+                { FETCH: void, CANCEL: void }
+            >({
+                initial: 'idle',
+                context: { data: null },
+                transitions: {
+                    idle: {
+                        on: { FETCH: 'loading' },
+                    },
+                    loading: {
+                        on: { CANCEL: 'idle' },
+                        invoke: {
+                            src: () => new Promise((r) => { resolvePromise = r; }),
+                            onDone: {
+                                target: 'idle',
+                                action: (ctx, result) => ({ ...ctx, data: result }),
+                            },
+                            onError: { target: 'error' },
+                        },
+                    },
+                    error: {},
+                },
+            });
+
+            const cancelledListener = vi.fn();
+
+            machine.on('$invoke.cancelled', cancelledListener);
+
+            machine.send('FETCH');
+            machine.send('CANCEL');
+
+            expect(machine.state).to.equal('idle');
+
+            resolvePromise!('stale data');
+
+            await vi.waitFor(() => {
+
+                expect(cancelledListener).toHaveBeenCalledOnce();
+            });
+
+            expect(machine.context.data).to.equal(null);
+        });
     });
 
-    it('does not update state if reducer returns ignore', () => {
 
-        const stream = new StateMachine({ oy: true, shouldIgnore: true });
+    describe('StateMachine: persistence', () => {
 
-        const modifier1 = function (next: any, prev: any, ignore: Symbol) {
+        it('hydrates from storage adapter on ready()', async () => {
 
-
-            if (next.shouldIgnore) {
-
-                return ignore;
-            }
-
-            next.didUpdate = true;
-
-            return {
-                ...prev,
-                ...next
+            const adapter: StorageAdapter = {
+                load: async () => ({
+                    state: 'error',
+                    context: { count: 42, error: 'saved error' },
+                }),
+                save: vi.fn(async () => {}),
             };
-        };
 
-        const modifier2 = (n: any, o: any) => ({
-            ...n,
-            ...o,
-            otherModifier: true
+            const machine = new StateMachine<CounterContext, CounterEvents>(
+                {
+                    initial: 'idle',
+                    context: { count: 0, error: null },
+                    transitions: {
+                        idle: { on: { FETCH: 'loading' } },
+                        loading: {},
+                        error: {
+                            on: {
+                                RESET: {
+                                    target: 'idle',
+                                    action: () => ({ count: 0, error: null }),
+                                },
+                            },
+                        },
+                    },
+                },
+                { persistence: { key: 'test', adapter } },
+            );
+
+            await machine.ready();
+
+            expect(machine.state).to.equal('error');
+            expect(machine.context.count).to.equal(42);
         });
 
-        stream.addReducer(modifier1 as any);
-        stream.addReducer(modifier2);
+        it('falls back to initial if hydrated state does not exist', async () => {
 
-        stream.dispatch({ blyot: true, shouldIgnore: true });
+            const adapter: StorageAdapter = {
+                load: async () => ({
+                    state: 'deleted_state',
+                    context: { count: 99, error: null },
+                }),
+                save: vi.fn(async () => {}),
+            };
 
-        const state = stream.state();
+            const machine = new StateMachine<CounterContext, CounterEvents>(
+                {
+                    initial: 'idle',
+                    context: { count: 0, error: null },
+                    transitions: {
+                        idle: { on: { FETCH: 'loading' } },
+                        loading: {},
+                        error: {},
+                    },
+                },
+                { persistence: { key: 'test', adapter } },
+            );
 
+            await machine.ready();
 
-        expect(state).to.have.keys([
-            'otherModifier',
-            'blyot',
-            'oy',
-            'shouldIgnore'
-        ]);
-
-        expect(state).to.not.have.key('didUpate');
-    });
-
-    it('keeps only a specified number of states', () => {
-
-        const stream = new StateMachine({}, {
-
-            statesToKeep: 3
+            expect(machine.state).to.equal('idle');
         });
 
-        stream.dispatch({ a: 1 });
-        stream.dispatch({ a: 2 });
-        stream.dispatch({ a: 3 });
-        stream.dispatch({ a: 4 });
-        stream.dispatch({ a: 5 });
+        it('saves after each transition', async () => {
 
-        expect(stream.states()).to.have.length(3);
-    });
+            const saveFn = vi.fn(async () => {});
 
+            const adapter: StorageAdapter = {
+                load: async () => null,
+                save: saveFn,
+            };
 
-    it('removes states after they have been dispatched to listeners', () => {
+            const machine = new StateMachine<CounterContext, CounterEvents>(
+                {
+                    initial: 'idle',
+                    context: { count: 0, error: null },
+                    transitions: {
+                        idle: {
+                            on: {
+                                INCREMENT: {
+                                    target: 'idle',
+                                    action: (ctx) => ({ ...ctx, count: ctx.count + 1 }),
+                                },
+                            },
+                        },
+                    },
+                },
+                { persistence: { key: 'counter', adapter } },
+            );
 
-        const stream = new StateMachine({}, {
+            await machine.ready();
 
-            flushOnRead: true
+            machine.send('INCREMENT');
+
+            expect(saveFn).toHaveBeenCalledWith('counter', {
+                state: 'idle',
+                context: { count: 1, error: null },
+            });
         });
 
-        stream.dispatch({ a: 1 });
-        stream.dispatch({ a: 2 });
+        it('ready() resolves immediately with no persistence', async () => {
 
-        const beforeListeners = stream.states().length;
+            const machine = makeCounterMachine();
 
-        stream.addListener(() => {});
+            await machine.ready();
 
-        stream.dispatch({ a: 3 });
-        stream.dispatch({ a: 4 });
-        stream.dispatch({ a: 5 });
-
-        const afterListeners = stream.states().length;
-
-        expect({
-            beforeListeners,
-            afterListeners
-        }).to.eql({
-            beforeListeners: 3,
-            afterListeners: 1
+            expect(machine.state).to.equal('idle');
         });
-    });
-
-    it('goes backward in state', () => {
-
-        stub.store = new StateMachine({}, {
-
-            statesToKeep: 10
-        });
-
-        stub.store.dispatch({ a: 1 });
-        stub.store.dispatch({ a: 2 });
-        stub.store.dispatch({ a: 3 });
-        stub.store.dispatch({ a: 4 });
-        stub.store.dispatch({ a: 5 });
-
-        const current = stub.store.state();
-
-        stub.store.prevState();
-
-        const actual = stub.store.state();
-
-        expect([current.a, actual.a]).to.eql([5, 4]);
-    });
-
-
-    it('goes forward in state', () => {
-
-        const current = stub.store.state();
-
-        stub.store.prevState();
-        stub.store.prevState();
-        stub.store.nextState();
-
-        const actual = stub.store.state();
-
-        expect([current.a, actual.a]).to.eql([4, 3]);
     });
 
 
-    it('resets to current state', () => {
+    describe('StateHub', () => {
 
-        const current = stub.store.state();
+        it('returns machines by key', () => {
 
-        stub.store.prevState();
-        stub.store.prevState();
-        stub.store.resetState();
+            const counter = makeCounterMachine();
 
-        const actual = stub.store.state();
+            const hub = new StateHub({ counter });
 
-        expect([current.a, actual.a]).to.eql([3, 5]);
+            expect(hub.get('counter')).to.equal(counter);
+        });
+
+        it('connects machines — entering a state triggers event on another', () => {
+
+            interface AuthContext { user: string | null }
+            interface AuthEvents { LOGIN: { user: string }, LOGOUT: void }
+
+            const auth = new StateMachine<AuthContext, AuthEvents>({
+                initial: 'loggedOut',
+                context: { user: null },
+                transitions: {
+                    loggedOut: {
+                        on: {
+                            LOGIN: {
+                                target: 'loggedIn',
+                                action: (ctx, data) => ({ user: data.user }),
+                            },
+                        },
+                    },
+                    loggedIn: {
+                        on: { LOGOUT: 'loggedOut' },
+                    },
+                },
+            });
+
+            const counter = makeCounterMachine();
+
+            const hub = new StateHub({ auth, counter });
+
+            hub.connect({
+                from: 'auth',
+                enters: 'loggedOut',
+                to: 'counter',
+                send: 'RESET',
+            });
+
+            counter.send('INCREMENT');
+            counter.send('INCREMENT');
+            expect(counter.context.count).to.equal(2);
+
+            auth.send('LOGIN', { user: 'admin' });
+            auth.send('LOGOUT');
+
+            expect(counter.context.count).to.equal(0);
+        });
+
+        it('connect returns a cleanup function', () => {
+
+            interface SimpleEvents { GO: void }
+
+            const a = new StateMachine<{}, SimpleEvents>({
+                initial: 'off',
+                context: {},
+                transitions: {
+                    off: { on: { GO: 'on' } },
+                    on: { on: { GO: 'off' } },
+                },
+            });
+
+            const b = makeCounterMachine();
+            const hub = new StateHub({ a, b });
+
+            const cleanup = hub.connect({
+                from: 'a',
+                enters: 'on',
+                to: 'b',
+                send: 'INCREMENT',
+            });
+
+            a.send('GO');
+            expect(b.context.count).to.equal(1);
+
+            cleanup();
+
+            a.send('GO');
+            a.send('GO');
+            expect(b.context.count).to.equal(1);
+        });
+
+        it('connect passes mapped data', () => {
+
+            interface SrcContext { items: string[] }
+            interface SrcEvents { ADD: { item: string } }
+
+            const src = new StateMachine<SrcContext, SrcEvents>({
+                initial: 'idle',
+                context: { items: [] },
+                transitions: {
+                    idle: {
+                        on: {
+                            ADD: {
+                                target: 'updated',
+                                action: (ctx, data) => ({
+                                    items: [...ctx.items, data.item],
+                                }),
+                            },
+                        },
+                    },
+                    updated: {
+                        on: {
+                            ADD: {
+                                target: 'updated',
+                                action: (ctx, data) => ({
+                                    items: [...ctx.items, data.item],
+                                }),
+                            },
+                        },
+                    },
+                },
+            });
+
+            const counter = makeCounterMachine();
+            const hub = new StateHub({ src, counter });
+
+            hub.connect({
+                from: 'src',
+                enters: 'updated',
+                to: 'counter',
+                send: 'SET',
+                data: (ctx: SrcContext) => ({ value: ctx.items.length }),
+            });
+
+            src.send('ADD', { item: 'a' });
+            expect(counter.context.count).to.equal(1);
+
+            src.send('ADD', { item: 'b' });
+            expect(counter.context.count).to.equal(2);
+        });
     });
 
-    it('creates a clone of stream that has a one way data flow from parent to child', () => {
 
-        const stream = new StateMachine({ a: 0 });
+    describe('StateMachine: debug mode', () => {
 
-        stub.parentListener = 0;
-        stub.parentModifier = 0;
+        it('logs transitions when debug is true', () => {
 
-        stream.addListener(() => {
-            stub.parentListener++;
+            const logSpy = vi.spyOn(console, 'log');
+
+            const machine = new StateMachine<{ count: number }, { INCREMENT: void }>({
+                initial: 'idle',
+                context: { count: 0 },
+                debug: true,
+                transitions: {
+                    idle: {
+                        on: {
+                            INCREMENT: {
+                                target: 'idle',
+                                action: (ctx) => ({ count: ctx.count + 1 }),
+                            },
+                        },
+                    },
+                },
+            });
+
+            machine.send('INCREMENT');
+
+            expect(logSpy).toHaveBeenCalled();
         });
-
-        stream.addReducer((n, o) => {
-            stub.parentModifier++;
-            return { ...(o!), ...n };
-        });
-
-        stream.dispatch ({ a: 1 });
-
-        const parent1stState = stream.state();
-        const clone = stream.clone();
-        const clone1stSate = clone.state();
-
-        clone.dispatch({ a: 2 });
-
-        const parent2ndState = stream.state();
-        const clone2ndState = clone.state();
-
-        stream.dispatch ({ a: 3 });
-
-        const parent3rdState = stream.state();
-        const clone3rdState = clone.state();
-
-        expect(parent1stState.a).to.equal(1);
-        expect(clone1stSate.a).to.equal(1);
-        expect(parent2ndState.a).to.equal(1);
-        expect(clone2ndState.a).to.equal(2);
-        expect(parent3rdState.a).to.equal(3);
-        expect(clone3rdState.a).to.equal(3);
-        expect(stub.parentListener).to.equal(2);
-        expect(stub.parentModifier).to.equal(4);
     });
 
-    it('creates a clone with bidirectional data flow', () => {
 
-        const stream = new StateMachine({ a: 0 });
+    describe('StateMachine: edge cases', () => {
 
-        stub.parentListener = 0;
-        stub.reducer = 0;
+        it('handles void events without data argument', () => {
 
-        stream.addListener(() => {
-            stub.parentListener++;
+            const machine = makeCounterMachine();
+
+            machine.send('INCREMENT');
+            machine.send('DECREMENT');
+
+            expect(machine.context.count).to.equal(0);
         });
 
-        stream.addReducer((n, o) => {
-            stub.reducer++;
-            return { ...(o!), ...n };
+        it('self-transitions fire listeners', () => {
+
+            const machine = makeCounterMachine();
+            const listener = vi.fn();
+
+            machine.on('idle', listener);
+            machine.send('INCREMENT');
+
+            expect(listener).toHaveBeenCalledOnce();
         });
 
-        const clone = stream.clone({ bidirectional: true });
+        it('final state accepts no events', () => {
 
-        expect(stream.states()).to.have.length(1);
-        expect(clone.states()).to.have.length(1);
+            const machine = new StateMachine<{}, { DONE: void }>({
+                initial: 'active',
+                context: {},
+                transitions: {
+                    active: { on: { DONE: 'complete' } },
+                    complete: { final: true },
+                },
+            });
 
-        stream.dispatch({ parent: true });
+            machine.send('DONE');
+            expect(machine.state).to.equal('complete');
 
-        expect(stream.states()).to.have.length(2);
-        expect(clone.states()).to.have.length(2);
+            const rejected = vi.fn();
 
-        clone.dispatch({ child: true });
+            machine.on('$rejected', rejected);
+            machine.send('DONE');
 
-        expect(stream.states()).to.have.length(3);
-        expect(clone.states()).to.have.length(3);
-
-        expect(stub.reducer).to.equal(4);
-
-        expect(clone.state()).to.include.keys('parent', 'child');
-        expect(stream.state()).to.include.keys('parent', 'child');
-
+            expect(rejected).toHaveBeenCalledOnce();
+        });
     });
-
 });

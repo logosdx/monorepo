@@ -2,22 +2,24 @@ export { ResiliencePolicy } from './base.ts';
 
 export {
     DedupePolicy,
-    type DedupeCheckResult,
-    type DedupeExecutionContext
+    dedupePlugin
 } from './dedupe.ts';
 
 export {
     CachePolicy,
+    cachePlugin,
     type CachePolicyState,
-    type CacheCheckResult,
-    type CacheExecutionContext
 } from './cache.ts';
 
 export {
     RateLimitPolicy,
+    rateLimitPlugin,
     type RateLimitPolicyState,
-    type RateLimitExecutionContext
 } from './rate-limit.ts';
+
+export {
+    retryPlugin
+} from './retry.ts';
 
 export type {
     BasePolicyRule,

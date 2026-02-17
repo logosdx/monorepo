@@ -500,10 +500,17 @@ api.on('ratelimit-acquire', (event) => {
 ### Rate Limiting Order
 
 
-Rate limiting is evaluated **after** the cache check but **before** deduplication:
+Rate limiting is evaluated **after** the cache check but **before** deduplication and retry:
 
 ```
-Request → Cache Check → Rate Limit → Dedupe Check → Network
+beforeRequest (run):
+  Cache Check → Rate Limit → [user hooks]
+
+execute (pipe):
+  Dedupe → Retry → Network Request
+
+afterRequest (run):
+  Cache Store → [user hooks]
 ```
 
 This means:
@@ -511,7 +518,7 @@ This means:
 - Cached responses return immediately **without** consuming rate limit tokens
 - Rate limiting only gates actual outbound requests (after cache miss)
 - Deduplicated requests only consume one token (the initiator's)
-- Rate limiting protects your API from being overwhelmed
+- Retry wraps the network call, not the entire pipeline
 
 
 ### Per-User Rate Limiting
@@ -902,31 +909,41 @@ rules: [
 ### Policy Execution Order
 
 
-Policies are evaluated in a specific order during request processing:
+FetchEngine uses a 3-phase hook pipeline powered by `@logosdx/hooks`:
 
 ```
-Request
+beforeRequest (run — priority order):
     │
-    ├── 1. Cache Check ────────────────┐
-    │       └── Hit? Return cached     │
-    │                                  │
-    ├── 2. Rate Limit (guard) ─────────┤
-    │       └── Wait or reject         │
-    │                                  │
-    ├── 3. Dedupe Check ───────────────┤
-    │       └── In-flight? Join it     │
-    │                                  │
-    ├── 4. Network Request ────────────┤
-    │                                  │
-    ├── 5. Store Cache (on success) ───┤
-    │                                  │
-    └── Response ──────────────────────┘
+    ├── -30: Cache Check ──────────────────┐
+    │        └── Hit? Return cached        │
+    │                                      │
+    ├── -20: Rate Limit (guard) ───────────┤
+    │        └── Wait or reject            │
+    │                                      │
+    └──  0:  User hooks ──────────────────┘
+
+execute (pipe — onion middleware):
+    │
+    ├── -30: Dedupe ───────────────────────┐
+    │        └── In-flight? Join it        │
+    │                                      │
+    ├── -20: Retry ────────────────────────┤
+    │        └── Wrap with retry logic     │
+    │                                      │
+    └── core: Network Request ─────────────┘
+
+afterRequest (run — priority order):
+    │
+    ├── -10: Cache Store ──────────────────┐
+    │        └── Store response            │
+    │                                      │
+    └──  0:  User hooks ──────────────────┘
 ```
 
 **Key implications:**
 - Cache checks run **first** — cached responses return immediately without consuming rate limit tokens
 - Rate limiting only runs on cache misses — it protects the upstream API, not local cache reads
-- Deduplication runs **after** rate limiting — joining an in-flight request avoids a new API call
+- Deduplication and retry wrap the actual network call via pipe middleware
 - Only the request initiator consumes a rate limit token; joiners share the result
 
 

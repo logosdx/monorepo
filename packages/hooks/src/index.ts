@@ -59,6 +59,62 @@ export type HandleFail<Args extends unknown[] = [string]> =
     | (new (...args: Args) => Error)
     | ((...args: Args) => never);
 
+/**
+ * Request-scoped state bag that flows across hook runs and engine instances.
+ *
+ * Use symbols for private plugin state and strings for shared cross-plugin contracts.
+ *
+ * @example
+ *     // Private plugin state (symbol key)
+ *     const CACHE_STATE = Symbol('cache');
+ *     ctx.scope.set(CACHE_STATE, { key, rule });
+ *
+ *     // Shared cross-plugin contract (string key)
+ *     ctx.scope.set('serializedKey', key);
+ */
+export class HookScope {
+
+    #data = new Map<symbol | string, unknown>();
+
+    /**
+     * Get a value from the scope.
+     *
+     * @example
+     *     const state = ctx.scope.get<CacheState>(CACHE_STATE);
+     */
+    get<T = unknown>(key: symbol | string): T | undefined {
+
+        return this.#data.get(key) as T | undefined;
+    }
+
+    /**
+     * Set a value in the scope.
+     *
+     * @example
+     *     ctx.scope.set(CACHE_STATE, { key: 'abc', rule });
+     */
+    set<T = unknown>(key: symbol | string, value: T): void {
+
+        this.#data.set(key, value);
+    }
+
+    /**
+     * Check if a key exists in the scope.
+     */
+    has(key: symbol | string): boolean {
+
+        return this.#data.has(key);
+    }
+
+    /**
+     * Delete a key from the scope.
+     */
+    delete(key: symbol | string): boolean {
+
+        return this.#data.delete(key);
+    }
+}
+
 const EARLY_RETURN: unique symbol = Symbol('early-return');
 type EarlyReturnSignal = typeof EARLY_RETURN;
 
@@ -113,16 +169,30 @@ export class HookContext<
     #hookName: string;
     #removeFn: () => void;
 
+    /**
+     * Request-scoped state bag shared across hook runs and engine instances.
+     *
+     * @example
+     *     // In beforeRequest hook
+     *     ctx.scope.set(CACHE_KEY, serializedKey);
+     *
+     *     // In afterRequest hook (same scope)
+     *     const key = ctx.scope.get<string>(CACHE_KEY);
+     */
+    readonly scope: HookScope;
+
     /** @internal */
     constructor(
         handleFail: HandleFail<FailArgs>,
         hookName: string,
-        removeFn: () => void
+        removeFn: () => void,
+        scope: HookScope
     ) {
 
         this.#handleFail = handleFail;
         this.#hookName = hookName;
         this.#removeFn = removeFn;
+        this.scope = scope;
     }
 
     /**
@@ -222,6 +292,107 @@ export class HookContext<
 }
 
 /**
+ * Context object passed as the last argument to pipe middleware callbacks.
+ * Simpler than HookContext — no `returns()` needed since you control
+ * flow by calling or not calling `next()`.
+ *
+ * @example
+ *     hooks.add('execute', async (next, opts, ctx) => {
+ *         // Modify opts for inner layers
+ *         ctx.args({ ...opts, headers: { ...opts.headers, Auth: token } });
+ *
+ *         // Call next to continue the chain, or don't to short-circuit
+ *         return next();
+ *     });
+ */
+export class PipeContext<
+    FailArgs extends unknown[] = [string]
+> {
+
+    #handleFail: HandleFail<FailArgs>;
+    #hookName: string;
+    #removeFn: () => void;
+    #setArgs: (args: unknown[]) => void;
+
+    /**
+     * Request-scoped state bag shared across hook runs and engine instances.
+     */
+    readonly scope: HookScope;
+
+    /** @internal */
+    constructor(
+        handleFail: HandleFail<FailArgs>,
+        hookName: string,
+        removeFn: () => void,
+        scope: HookScope,
+        setArgs: (args: unknown[]) => void
+    ) {
+
+        this.#handleFail = handleFail;
+        this.#hookName = hookName;
+        this.#removeFn = removeFn;
+        this.scope = scope;
+        this.#setArgs = setArgs;
+    }
+
+    /**
+     * Replace args for `next()` and downstream middleware.
+     *
+     * @example
+     *     ctx.args({ ...opts, timeout: 5000 });
+     *     return next(); // next receives modified opts
+     */
+    args(...args: unknown[]): void {
+
+        this.#setArgs(args);
+    }
+
+    /**
+     * Abort execution with an error.
+     *
+     * @example
+     *     ctx.fail('Rate limit exceeded');
+     */
+    fail(...args: FailArgs): never {
+
+        const handler = this.#handleFail;
+
+        const isConstructor = typeof handler === 'function' &&
+            handler.prototype?.constructor === handler;
+
+        const [, error] = attemptSync(() => {
+
+            if (isConstructor) {
+
+                throw new (handler as new (...a: FailArgs) => Error)(...args);
+            }
+
+            (handler as (...a: FailArgs) => never)(...args);
+        });
+
+        if (error) {
+
+            if (error instanceof HookError) {
+
+                error.hookName = this.#hookName;
+            }
+
+            throw error;
+        }
+
+        throw new HookError('ctx.fail() handler did not throw');
+    }
+
+    /**
+     * Remove this middleware from future runs.
+     */
+    removeHook(): void {
+
+        this.#removeFn();
+    }
+}
+
+/**
  * Callback type for hooks. Receives spread args + ctx as last param.
  *
  * @example
@@ -236,6 +407,19 @@ export type HookCallback<
     : never;
 
 /**
+ * Callback type for pipe middleware. Receives `(next, ...args, ctx)`.
+ *
+ * @example
+ *     type ExecuteMiddleware = PipeCallback<[opts: RequestOpts]>;
+ *     // (next: () => Promise<R>, opts: RequestOpts, ctx: PipeContext) => R | Promise<R>
+ */
+export type PipeCallback<
+    Args extends unknown[] = unknown[],
+    R = unknown,
+    FailArgs extends unknown[] = [string]
+> = (next: () => R | Promise<R>, ...args: [...Args, PipeContext<FailArgs>]) => R | Promise<R>;
+
+/**
  * Result returned from `run()`/`runSync()` after executing all hook callbacks.
  */
 export interface RunResult<F extends (...args: any[]) => any = (...args: any[]) => any> {
@@ -248,6 +432,9 @@ export interface RunResult<F extends (...args: any[]) => any = (...args: any[]) 
 
     /** Whether a callback short-circuited via `return ctx.returns()` or `return ctx.args()` */
     returned: boolean;
+
+    /** The scope used during this run (pass to subsequent runs to share state) */
+    scope: HookScope;
 }
 
 type DefaultLifecycle = Record<string, (...args: any[]) => any>;
@@ -448,6 +635,7 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
 
         const { realArgs, runOptions } = this.#extractRunOptions(args);
         let currentArgs = realArgs as Parameters<FuncOrNever<Lifecycle[K]>>;
+        const scope = runOptions?.scope ?? new HookScope();
 
         const hooks = this.#hooks.get(name as string);
         const entries = hooks ? [...hooks] : [];
@@ -477,7 +665,7 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
             }
 
             const removeFn = () => this.#removeEntry(name as string, entry);
-            const ctx = new HookContext<any, any, FailArgs>(this.#handleFail, String(name), removeFn);
+            const ctx = new HookContext<any, any, FailArgs>(this.#handleFail, String(name), removeFn, scope);
 
             if (opts.ignoreOnFail) {
 
@@ -501,7 +689,7 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
             if (returned) break;
         }
 
-        return { args: currentArgs, result, returned };
+        return { args: currentArgs, result, returned, scope };
     }
 
     /**
@@ -517,14 +705,26 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
      */
     runSync<K extends HookName<Lifecycle>>(
         name: K,
-        ...args: Parameters<FuncOrNever<Lifecycle[K]>>
+        ...args: Parameters<FuncOrNever<Lifecycle[K]>> | [...Parameters<FuncOrNever<Lifecycle[K]>>, HookEngine.RunOptions<FuncOrNever<Lifecycle[K]>>]
     ): RunResult<FuncOrNever<Lifecycle[K]>> {
 
         this.#assertRegistered(name, 'runSync');
 
-        let currentArgs = args as Parameters<FuncOrNever<Lifecycle[K]>>;
+        const { realArgs, runOptions } = this.#extractRunOptions(args as unknown[]);
+        let currentArgs = realArgs as Parameters<FuncOrNever<Lifecycle[K]>>;
+        const scope = runOptions?.scope ?? new HookScope();
+
         const hooks = this.#hooks.get(name as string);
         const entries = hooks ? [...hooks] : [];
+
+        if (runOptions?.append) {
+
+            entries.push({
+                callback: runOptions.append as unknown as HookCallback<any, FailArgs>,
+                options: {},
+                priority: Infinity
+            });
+        }
 
         let result: Awaited<ReturnType<FuncOrNever<Lifecycle[K]>>> | undefined;
         let returned = false;
@@ -542,7 +742,7 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
             }
 
             const removeFn = () => this.#removeEntry(name as string, entry);
-            const ctx = new HookContext<any, any, FailArgs>(this.#handleFail, String(name), removeFn);
+            const ctx = new HookContext<any, any, FailArgs>(this.#handleFail, String(name), removeFn, scope);
 
             if (opts.ignoreOnFail) {
 
@@ -566,7 +766,7 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
             if (returned) break;
         }
 
-        return { args: currentArgs, result, returned };
+        return { args: currentArgs, result, returned, scope };
     }
 
     /**
@@ -697,6 +897,212 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
     }
 
     /**
+     * Execute middleware hooks as an onion (nested) composition.
+     *
+     * Unlike `run()` which executes hooks linearly, `pipe()` composes hooks
+     * as nested middleware. Each hook receives a `next` function that calls
+     * the next layer. The innermost layer is `coreFn`. Control flow is
+     * managed by calling or not calling `next()` — no `ctx.returns()` needed.
+     *
+     * Hooks execute in priority order (lower first = outermost layer).
+     *
+     * @param name - Name of the lifecycle hook
+     * @param coreFn - The innermost function to wrap
+     * @param args - Arguments passed to each middleware
+     * @returns The result from the middleware chain
+     *
+     * @example
+     *     // Retry plugin wraps the fetch call
+     *     hooks.add('execute', async (next, opts, ctx) => {
+     *         for (let i = 0; i < 3; i++) {
+     *             const [result, err] = await attempt(next);
+     *             if (!err) return result;
+     *             await wait(1000 * i);
+     *         }
+     *         throw lastError;
+     *     }, { priority: -20 });
+     *
+     *     // Dedupe plugin wraps retry
+     *     hooks.add('execute', async (next, opts, ctx) => {
+     *         const inflight = getInflight(key);
+     *         if (inflight) return inflight;
+     *         const result = await next();
+     *         share(result);
+     *         return result;
+     *     }, { priority: -30 });
+     *
+     *     // Execute: dedupe( retry( makeCall() ) )
+     *     const response = await hooks.pipe(
+     *         'execute',
+     *         () => makeCall(opts),
+     *         opts
+     *     );
+     */
+    async pipe<K extends HookName<Lifecycle>, R = unknown>(
+        name: K,
+        coreFn: () => Promise<R>,
+        ...args: unknown[]
+    ): Promise<R> {
+
+        this.#assertRegistered(name, 'pipe');
+
+        const { realArgs, runOptions } = this.#extractRunOptions(args);
+        const scope = runOptions?.scope ?? new HookScope();
+
+        const hooks = this.#hooks.get(name as string);
+        const entries = hooks ? [...hooks] : [];
+
+        if (runOptions?.append) {
+
+            entries.push({
+                callback: runOptions.append as unknown as HookCallback<any, FailArgs>,
+                options: {},
+                priority: Infinity
+            });
+        }
+
+        let currentArgs = realArgs;
+
+        const buildChain = (index: number): (() => Promise<R>) => {
+
+            if (index >= entries.length) return coreFn;
+
+            return async () => {
+
+                const entry = entries[index]!;
+                const { callback, options: opts } = entry;
+
+                const timesExceeded = this.#checkTimes(callback, opts);
+
+                if (timesExceeded) {
+
+                    this.#removeEntry(name as string, entry);
+                    return buildChain(index + 1)();
+                }
+
+                const removeFn = () => this.#removeEntry(name as string, entry);
+                const ctx = new PipeContext<FailArgs>(
+                    this.#handleFail,
+                    String(name),
+                    removeFn,
+                    scope,
+                    (newArgs) => { currentArgs = newArgs; }
+                );
+
+                const next = buildChain(index + 1);
+                const cb = callback as any;
+
+                if (opts.ignoreOnFail) {
+
+                    const [result, err] = await attempt(
+                        async () => cb(next, ...currentArgs, ctx)
+                    );
+
+                    if (opts.once) removeFn();
+
+                    if (err) return next();
+
+                    return result as R;
+                }
+
+                const result = await cb(next, ...currentArgs, ctx);
+
+                if (opts.once) removeFn();
+
+                return result as R;
+            };
+        };
+
+        return buildChain(0)();
+    }
+
+    /**
+     * Synchronous version of `pipe()`.
+     *
+     * @param name - Name of the lifecycle hook
+     * @param coreFn - The innermost function to wrap
+     * @param args - Arguments passed to each middleware
+     * @returns The result from the middleware chain
+     */
+    pipeSync<K extends HookName<Lifecycle>, R = unknown>(
+        name: K,
+        coreFn: () => R,
+        ...args: unknown[]
+    ): R {
+
+        this.#assertRegistered(name, 'pipeSync');
+
+        const { realArgs, runOptions } = this.#extractRunOptions(args);
+        const scope = runOptions?.scope ?? new HookScope();
+
+        const hooks = this.#hooks.get(name as string);
+        const entries = hooks ? [...hooks] : [];
+
+        if (runOptions?.append) {
+
+            entries.push({
+                callback: runOptions.append as unknown as HookCallback<any, FailArgs>,
+                options: {},
+                priority: Infinity
+            });
+        }
+
+        let currentArgs = realArgs;
+
+        const buildChain = (index: number): (() => R) => {
+
+            if (index >= entries.length) return coreFn;
+
+            return () => {
+
+                const entry = entries[index]!;
+                const { callback, options: opts } = entry;
+
+                const timesExceeded = this.#checkTimes(callback, opts);
+
+                if (timesExceeded) {
+
+                    this.#removeEntry(name as string, entry);
+                    return buildChain(index + 1)();
+                }
+
+                const removeFn = () => this.#removeEntry(name as string, entry);
+                const ctx = new PipeContext<FailArgs>(
+                    this.#handleFail,
+                    String(name),
+                    removeFn,
+                    scope,
+                    (newArgs) => { currentArgs = newArgs; }
+                );
+
+                const next = buildChain(index + 1);
+                const cb = callback as any;
+
+                if (opts.ignoreOnFail) {
+
+                    const [result, err] = attemptSync(
+                        () => cb(next, ...currentArgs, ctx)
+                    );
+
+                    if (opts.once) removeFn();
+
+                    if (err) return next();
+
+                    return result as R;
+                }
+
+                const result = cb(next, ...currentArgs, ctx);
+
+                if (opts.once) removeFn();
+
+                return result as R;
+            };
+        };
+
+        return buildChain(0)();
+    }
+
+    /**
      * Clear all hooks and reset registration state.
      *
      * @example
@@ -782,7 +1188,10 @@ export class HookEngine<Lifecycle = DefaultLifecycle, FailArgs extends unknown[]
 
         const last = args[args.length - 1];
 
-        if (isObject(last) && 'append' in (last as object) && isFunction((last as any).append)) {
+        if (isObject(last) && (
+            ('append' in (last as object) && isFunction((last as any).append)) ||
+            ('scope' in (last as object) && (last as any).scope instanceof HookScope)
+        )) {
 
             return {
                 realArgs: args.slice(0, -1),
@@ -827,5 +1236,17 @@ export namespace HookEngine {
 
         /** Ephemeral callback that runs last (for per-request hooks) */
         append?: HookCallback<F>;
+
+        /** Shared scope that flows across hook runs and engine instances */
+        scope?: HookScope;
+    }
+
+    export interface PipeOptions {
+
+        /** Ephemeral middleware that runs last (innermost before coreFn) */
+        append?: (...args: any[]) => any;
+
+        /** Shared scope that flows across hook runs and engine instances */
+        scope?: HookScope;
     }
 }

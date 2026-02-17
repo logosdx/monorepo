@@ -26,12 +26,17 @@ export {
     requestSerializer
 } from './serializers/index.ts';
 
+// Plugin classes and factory functions
 export {
     ResiliencePolicy,
     DedupePolicy,
+    dedupePlugin,
     CachePolicy,
-    RateLimitPolicy
-} from './policies/index.ts';
+    cachePlugin,
+    RateLimitPolicy,
+    rateLimitPlugin,
+    retryPlugin
+} from './plugins/index.ts';
 
 export type {
     BasePolicyRule,
@@ -39,7 +44,7 @@ export type {
     PolicyInternalState,
     CachePolicyState,
     RateLimitPolicyState
-} from './policies/index.ts';
+} from './plugins/index.ts';
 
 export { FetchEngine } from './engine/index.ts';
 export { FetchState } from './state/index.ts';
@@ -50,6 +55,9 @@ export { PropertyStore } from './properties/store.ts';
 
 export type {
     FetchEngineCore,
+    FetchEnginePublic,
+    FetchLifecycle,
+    FetchPlugin,
     InternalReqOptions,
     ExecuteResult,
     CallConfig,

@@ -129,6 +129,8 @@ new HookEngine<Lifecycle, FailArgs>(options?)
 | `add(name, callback, options?)` | Subscribe. Returns cleanup function. |
 | `run(name, ...args)` | Run hook async. Returns `Promise<RunResult>`. |
 | `runSync(name, ...args)` | Run hook sync. Returns `RunResult`. |
+| `pipe(name, coreFn, ...args)` | Pipe hook async (onion middleware). Returns result. |
+| `pipeSync(name, coreFn, ...args)` | Pipe hook sync. Returns result. |
 | `wrap(fn, { pre?, post? })` | Wrap async function with pre/post hooks. |
 | `wrapSync(fn, { pre?, post? })` | Wrap sync function with pre/post hooks. |
 | `clear()` | Remove all hooks, reset to permissive mode. |
@@ -176,6 +178,7 @@ interface RunResult<F> {
     args: Parameters<F>;      // Final args (possibly modified)
     result?: ReturnType<F>;   // Result if set via ctx.returns()
     returned: boolean;        // Whether chain was short-circuited
+    scope: HookScope;         // Scope used during this run
 }
 ```
 
@@ -205,14 +208,24 @@ hooks.add('name', callback, {
 
 Hooks execute in priority order (lower first). Built-in plugins use negative values, user hooks default to 0.
 
+**FetchEngine hook priorities:**
+
 ```
-Execution order for 'beforeRequest':
-  -30: rate-limit plugin
-  -20: cache plugin
-  -10: dedupe plugin
+beforeRequest (run):
+  -30: cache plugin (return cached before consuming tokens)
+  -20: rate-limit plugin (gate requests on cache miss)
     0: user hooks (default)
    10: logging hooks
     ∞: per-request hook (via RunOptions.append)
+
+execute (pipe):
+  -30: dedupe plugin (join in-flight requests)
+  -20: retry plugin (wrap with retry logic)
+    0: user hooks (default)
+
+afterRequest (run):
+  -10: cache plugin (store response)
+    0: user hooks (default)
 ```
 
 ### Registration
@@ -247,6 +260,53 @@ const wrappedValidate = hooks.wrapSync(
 
 // Pre: receives (...args, ctx) — can modify args or return early
 // Post: receives (result, ...args, ctx) — can transform result
+```
+
+### pipe() / pipeSync()
+
+Onion/middleware composition where each callback wraps the next. Used for cross-cutting concerns like retry, deduplication, and caching execution.
+
+```typescript
+interface PipeLifecycle {
+    execute(opts: RequestOpts): Promise<Response>;
+}
+
+const hooks = new HookEngine<PipeLifecycle>()
+    .register('execute');
+
+// Add middleware — receives (next, ...args, ctx)
+hooks.add('execute', async (next, opts, ctx) => {
+    console.log('before core');
+    const result = await next();   // call next middleware or core function
+    console.log('after core');
+    return result;
+}, { priority: -10 });
+
+// Run the pipe — core function is the innermost call
+const result = await hooks.pipe('execute',
+    async (opts) => fetch(opts.url, opts),  // core function
+    opts                                      // spread args
+);
+```
+
+**PipeContext** — a simpler context for pipe callbacks:
+
+| Method | Effect |
+|--------|--------|
+| `ctx.args(...newArgs)` | Replace args for downstream callbacks |
+| `ctx.fail(...args)` | Abort with error |
+| `ctx.removeHook()` | Remove this callback from future runs |
+| `ctx.scope` | Request-scoped state bag |
+
+> **Note:** Pipe callbacks do not have `ctx.returns()`. To return a value, simply `return` from your callback. To short-circuit, don't call `next()`.
+
+**Sync version:**
+
+```typescript
+const result = hooks.pipeSync('validate',
+    (data) => validate(data),
+    data
+);
 ```
 
 ## Patterns
@@ -318,6 +378,78 @@ await hooks.run('beforeRequest', url, opts, {
         ctx.args(url, { ...opts, headers: { ...opts.headers, 'X-Trace': traceId } });
     }
 });
+```
+
+### HookScope
+
+A request-scoped state bag that flows across hook runs and engine instances. Use symbols for private plugin state and strings for shared cross-plugin contracts.
+
+```typescript
+import { HookScope } from '@logosdx/hooks';
+
+const scope = new HookScope();
+```
+
+| Method | Description |
+|--------|-------------|
+| `scope.get<T>(key)` | Get a value by symbol or string key |
+| `scope.set(key, value)` | Set a value |
+| `scope.has(key)` | Check if a key exists |
+| `scope.delete(key)` | Remove a key |
+
+#### Private plugin state (symbol keys)
+
+```typescript
+const CACHE_STATE = Symbol('cache');
+
+hooks.add('beforeRequest', (url, opts, ctx) => {
+    ctx.scope.set(CACHE_STATE, { key: serialize(url), rule: resolvedRule });
+});
+
+hooks.add('afterRequest', (response, url, opts, ctx) => {
+    const state = ctx.scope.get<{ key: string }>(CACHE_STATE);
+    if (state) cache.store(state.key, response);
+});
+```
+
+#### Shared cross-plugin contracts (string keys)
+
+```typescript
+// Cache plugin sets a shared key
+hooks.add('beforeRequest', (url, opts, ctx) => {
+    ctx.scope.set('serializedKey', serialize(url, opts));
+}, { priority: -30 });
+
+// Dedupe plugin reads it instead of re-serializing
+hooks.add('beforeRequest', (url, opts, ctx) => {
+    const key = ctx.scope.get<string>('serializedKey');
+}, { priority: -10 });
+```
+
+#### Flowing scope across runs
+
+Pass a scope via `RunOptions` to share state across separate `run()` calls:
+
+```typescript
+const scope = new HookScope();
+
+const pre = await hooks.run('beforeRequest', url, opts, { scope });
+// ... do work ...
+const post = await hooks.run('afterRequest', response, url, opts, { scope });
+// Both runs share the same scope — plugins can communicate across phases
+```
+
+#### Flowing scope across engine instances
+
+The same scope can be passed to different HookEngine instances:
+
+```typescript
+// FetchEngine's main hooks
+const scope = new HookScope();
+const pre = await engine.hooks.run('beforeRequest', url, opts, { scope });
+
+// Inside a plugin, calling its own engine with the same scope
+const should = await cachePlugin.hooks.run('shouldCache', url, opts, { scope });
 ```
 
 ## Error Handling

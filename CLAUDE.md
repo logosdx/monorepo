@@ -63,7 +63,7 @@ pnpm tdd                   # Watch specific tests
 
 ```
 monorepo/
-├── packages/                    # 9 @logosdx packages in layered architecture
+├── packages/                    # 10 @logosdx packages in layered architecture
 │   ├── utils/                  # Foundation layer (all packages depend on this)
 │   ├── dom/                    # Browser utilities (depends on utils)
 │   ├── fetch/                  # HTTP client (depends on utils)
@@ -96,6 +96,7 @@ monorepo/
 ```
 @logosdx/kit (orchestrator - depends on all)
     ├── @logosdx/fetch ──────────┐
+    ├── @logosdx/hooks ──────────┤
     ├── @logosdx/localize ───────┤
     ├── @logosdx/observer ───────┤──── @logosdx/utils (foundation)
     ├── @logosdx/state-machine ──┤

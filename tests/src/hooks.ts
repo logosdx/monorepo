@@ -9,7 +9,8 @@ import {
     HookEngine,
     HookError,
     isHookError,
-    HookContext
+    HookContext,
+    HookScope
 } from '../../packages/hooks/src/index.ts';
 
 import { attempt, attemptSync } from '../../packages/utils/src/index.ts';
@@ -1223,6 +1224,239 @@ describe('@logosdx/hooks', () => {
 
             expect(tracked).to.deep.equal(['click', 'scroll']);
             expect(importantCallback).toHaveBeenCalledTimes(3);
+        });
+    });
+
+    describe('HookScope', () => {
+
+        it('provides get/set/has/delete for symbol keys', () => {
+
+            const scope = new HookScope();
+            const KEY = Symbol('test');
+
+            expect(scope.has(KEY)).to.be.false;
+
+            scope.set(KEY, 42);
+            expect(scope.has(KEY)).to.be.true;
+            expect(scope.get(KEY)).to.equal(42);
+
+            scope.delete(KEY);
+            expect(scope.has(KEY)).to.be.false;
+            expect(scope.get(KEY)).to.be.undefined;
+        });
+
+        it('provides get/set/has/delete for string keys', () => {
+
+            const scope = new HookScope();
+
+            scope.set('serializedKey', 'GET|/users');
+            expect(scope.get('serializedKey')).to.equal('GET|/users');
+            expect(scope.has('serializedKey')).to.be.true;
+
+            scope.delete('serializedKey');
+            expect(scope.has('serializedKey')).to.be.false;
+        });
+
+        it('isolates symbol keys from string keys', () => {
+
+            const scope = new HookScope();
+            const KEY = Symbol('name');
+
+            scope.set(KEY, 'symbol-value');
+            scope.set('name', 'string-value');
+
+            expect(scope.get(KEY)).to.equal('symbol-value');
+            expect(scope.get('name')).to.equal('string-value');
+        });
+
+        it('is typed via generics on get', () => {
+
+            const scope = new HookScope();
+            const KEY = Symbol('state');
+
+            scope.set(KEY, { key: 'abc', ttl: 60000 });
+            const state = scope.get<{ key: string; ttl: number }>(KEY);
+
+            expect(state?.key).to.equal('abc');
+            expect(state?.ttl).to.equal(60000);
+        });
+    });
+
+    describe('scope in run()', () => {
+
+        it('creates a fresh scope when none is provided', async () => {
+
+            const engine = new HookEngine();
+            let capturedScope: HookScope | undefined;
+
+            engine.add('test', (_data: unknown, ctx: any) => {
+
+                capturedScope = ctx.scope;
+            });
+
+            const result = await engine.run('test', 'data');
+
+            expect(capturedScope).to.be.instanceOf(HookScope);
+            expect(result.scope).to.equal(capturedScope);
+        });
+
+        it('uses provided scope from RunOptions', async () => {
+
+            const engine = new HookEngine();
+            const scope = new HookScope();
+            scope.set('existing', true);
+
+            let sawExisting = false;
+
+            engine.add('test', (_data: unknown, ctx: any) => {
+
+                sawExisting = ctx.scope.get('existing') === true;
+            });
+
+            await engine.run('test', 'data', { scope });
+
+            expect(sawExisting).to.be.true;
+        });
+
+        it('shares scope across callbacks in same run', async () => {
+
+            const engine = new HookEngine();
+            const KEY = Symbol('shared');
+
+            engine.add('test', (_data: unknown, ctx: any) => {
+
+                ctx.scope.set(KEY, 'from-first');
+            });
+
+            engine.add('test', (_data: unknown, ctx: any) => {
+
+                ctx.scope.set('received', ctx.scope.get(KEY));
+            });
+
+            const result = await engine.run('test', 'data');
+
+            expect(result.scope.get(KEY)).to.equal('from-first');
+            expect(result.scope.get('received')).to.equal('from-first');
+        });
+
+        it('shares scope across separate run() calls via RunOptions', async () => {
+
+            interface Lifecycle {
+                before(data: string): void;
+                after(result: number, data: string): void;
+            }
+
+            const engine = new HookEngine<Lifecycle>();
+            const CACHE_KEY = Symbol('cache');
+
+            engine.add('before', (_data, ctx) => {
+
+                ctx.scope.set(CACHE_KEY, 'computed-key');
+            });
+
+            engine.add('after', (_result, _data, ctx) => {
+
+                ctx.scope.set('afterSaw', ctx.scope.get(CACHE_KEY));
+            });
+
+            const scope = new HookScope();
+            const pre = await engine.run('before', 'input', { scope });
+            const post = await engine.run('after', 42, 'input', { scope });
+
+            expect(post.scope.get(CACHE_KEY)).to.equal('computed-key');
+            expect(post.scope.get('afterSaw')).to.equal('computed-key');
+        });
+
+        it('shares scope across different HookEngine instances', async () => {
+
+            interface MainLifecycle {
+                process(data: string): void;
+            }
+
+            interface PluginLifecycle {
+                validate(data: string): void;
+            }
+
+            const mainEngine = new HookEngine<MainLifecycle>();
+            const pluginEngine = new HookEngine<PluginLifecycle>();
+            const PLUGIN_STATE = Symbol('plugin');
+
+            pluginEngine.add('validate', (_data, ctx) => {
+
+                ctx.scope.set(PLUGIN_STATE, 'validated');
+            });
+
+            mainEngine.add('process', async (_data, ctx) => {
+
+                await pluginEngine.run('validate', 'test', { scope: ctx.scope });
+            });
+
+            const scope = new HookScope();
+            const result = await mainEngine.run('process', 'input', { scope });
+
+            expect(result.scope.get(PLUGIN_STATE)).to.equal('validated');
+        });
+    });
+
+    describe('scope in runSync()', () => {
+
+        it('creates a fresh scope when none is provided', () => {
+
+            const engine = new HookEngine();
+            let capturedScope: HookScope | undefined;
+
+            engine.add('test', (_data: unknown, ctx: any) => {
+
+                capturedScope = ctx.scope;
+            });
+
+            const result = engine.runSync('test', 'data');
+
+            expect(capturedScope).to.be.instanceOf(HookScope);
+            expect(result.scope).to.equal(capturedScope);
+        });
+
+        it('uses provided scope from RunOptions', () => {
+
+            const engine = new HookEngine();
+            const scope = new HookScope();
+            scope.set('pre-set', 123);
+
+            let received: number | undefined;
+
+            engine.add('test', (_data: unknown, ctx: any) => {
+
+                received = ctx.scope.get('pre-set');
+            });
+
+            engine.runSync('test', 'data', { scope });
+
+            expect(received).to.equal(123);
+        });
+
+        it('supports append and scope together in RunOptions', () => {
+
+            const engine = new HookEngine();
+            const scope = new HookScope();
+            const KEY = Symbol('test');
+            const order: string[] = [];
+
+            engine.add('test', (_data: unknown, ctx: any) => {
+
+                ctx.scope.set(KEY, 'main');
+                order.push('main');
+            });
+
+            const result = engine.runSync('test', 'data', {
+                scope,
+                append: ((_data: unknown, ctx: any) => {
+
+                    order.push('append:' + ctx.scope.get(KEY));
+                }) as any
+            });
+
+            expect(order).to.deep.equal(['main', 'append:main']);
+            expect(result.scope).to.equal(scope);
         });
     });
 });

@@ -5,11 +5,12 @@ This file provides comprehensive context about the LogosDX monorepo package arch
 ## Package Architecture Overview
 
 
-**9 Packages in Layered Architecture:**
+**10 Packages in Layered Architecture:**
 
 ```
 @logosdx/kit (orchestrator - depends on all)
     ├── @logosdx/fetch ──────────┐
+    ├── @logosdx/hooks ──────────┤
     ├── @logosdx/localize ───────┤
     ├── @logosdx/observer ───────┤──── @logosdx/utils (foundation)
     ├── @logosdx/state-machine ──┤

@@ -547,8 +547,8 @@ const api = new FetchEngine({
     }
 });
 
-// Rate limiting applies BEFORE cache/dedupe checks
-// So cached responses don't consume rate limit tokens
+// Cache checks run BEFORE rate limiting
+// Cached responses return immediately without consuming rate limit tokens
 
 // Events
 api.on('ratelimit-wait', (e) => console.log('Waiting for token:', e.key, e.waitTimeMs));
@@ -1181,19 +1181,30 @@ ResiliencePolicy
 
 ### Policy Execution Order
 
+FetchEngine uses a 3-phase hook pipeline powered by `@logosdx/hooks`:
+
 ```
-Request
-├── 1. Rate Limit Guard → Wait or reject if exceeded
-├── 2. Cache Check      → Return cached if hit
-├── 3. Dedupe Check     → Join in-flight if exists
-├── 4. Network Request  → Actual HTTP call
-└── 5. Cache Store      → Cache successful response
+beforeRequest (run):
+  -30: cache plugin → return cached if hit (skip network entirely)
+  -20: rate-limit plugin → wait or reject if exceeded
+    0: user hooks
+
+execute (pipe — onion middleware):
+  -30: dedupe plugin → join in-flight if exists
+  -20: retry plugin → wrap with retry logic
+    0: user hooks
+  core: actual HTTP call (makeCall)
+
+afterRequest (run):
+  -10: cache plugin → store response
+    0: user hooks
 ```
 
 **Key implications:**
-- Cached responses don't consume rate limit tokens
-- Dedupe joins happen after cache checks
-- Only initiator consumes rate limit token; joiners share result
+- Cached responses don't consume rate limit tokens (cache runs first)
+- Rate limiting only gates cache misses
+- Dedupe and retry wrap the actual network call via pipe middleware
+- Only the request initiator consumes a rate limit token; joiners share the result
 
 ### Rule Matching
 
@@ -1217,3 +1228,52 @@ interface PolicyInternalState {
     rulesCache: Map<string, Rule | null>; // Memoized rule lookups
 }
 ```
+
+## Plugin Architecture
+
+FetchEngine's resilience features are implemented as plugins using `@logosdx/hooks`. Plugins install hooks on the engine's `HookEngine` instance.
+
+### Plugin Factories
+
+```typescript
+import { cachePlugin, dedupePlugin, retryPlugin, rateLimitPlugin } from '@logosdx/fetch';
+
+// Create plugins
+const cache = cachePlugin({ ttl: 300000, staleIn: 60000 });
+const dedupe = dedupePlugin(true);
+const retry = retryPlugin({ maxAttempts: 3 });
+const rateLimit = rateLimitPlugin({ maxCalls: 100, windowMs: 60000 });
+
+// Use with FetchEngine
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    plugins: [cache, dedupe, retry, rateLimit]
+});
+
+// Access plugin methods directly
+cache.clearCache();
+cache.stats();   // { cacheSize, inflightCount }
+dedupe.inflightCount();
+```
+
+### engine.use(plugin)
+
+Install a plugin at runtime. Returns a cleanup function.
+
+```typescript
+const cleanup = api.use(myPlugin);
+// Later: cleanup() to uninstall
+```
+
+### FetchPlugin Interface
+
+```typescript
+interface FetchPlugin<H, P, S> {
+    name: string;
+    install(engine: FetchEnginePublic<H, P, S>): () => void;
+}
+```
+
+### Backward Compatibility
+
+Legacy config options (`cachePolicy`, `dedupePolicy`, `rateLimitPolicy`, `retry`) are automatically converted to plugins internally. The `plugins` config option takes precedence.

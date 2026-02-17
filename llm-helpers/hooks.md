@@ -1,176 +1,295 @@
 # @logosdx/hooks - LLM Helper
 
+
 A lightweight, type-safe lifecycle hook system for extending behavior without modifying code.
+
 
 ## Core Concept
 
-Lifecycle hooks let you respond to named events with bidirectional communication. Unlike traditional events (fire-and-forget), hooks return `EmitResult` so callers know what happened.
+Lifecycle hooks let you respond to named events with bidirectional communication. Unlike traditional events (fire-and-forget), hooks support arg modification, short-circuiting, and result injection via `HookContext`.
+
+Distinct verbs from Observer: `add`/`run` (hooks) vs `on`/`emit` (observer).
+
 
 ## API Overview
 
 ```typescript
-import { HookEngine, HookError, isHookError } from '@logosdx/hooks';
+import { HookEngine, HookScope, HookError, isHookError } from '@logosdx/hooks';
 
 interface Lifecycle {
-    beforeFetch(url: string): Promise<Response>;
+    beforeFetch(url: string, options: RequestInit): Promise<Response>;
     afterFetch(result: Response, url: string): Promise<Response>;
-    rateLimit(retryAfter: number, attempt: number): Promise<void>;
 }
 
 const hooks = new HookEngine<Lifecycle>()
-    .register('beforeFetch', 'afterFetch', 'rateLimit');
+    .register('beforeFetch', 'afterFetch');
 
-// Subscribe
-hooks.on('beforeFetch', async (ctx) => { /* ... */ });
-hooks.once('init', async (ctx) => { /* one-time */ });
+// Subscribe — callbacks receive spread args + ctx as last param
+const cleanup = hooks.add('beforeFetch', (url, options, ctx) => {
+    ctx.args(url, { ...options, cache: 'no-store' });
+});
 
-// Emit
-const result = await hooks.emit('beforeFetch', url);
-// result.args, result.result, result.earlyReturn
+// Run
+const result = await hooks.run('beforeFetch', url, options);
+// result.args, result.result, result.returned, result.scope
 
 // Wrap function with pre/post hooks
 const wrapped = hooks.wrap(fn, { pre: 'beforeFetch', post: 'afterFetch' });
 
 // Clear all
 hooks.clear();
+
+// Remove subscription
+cleanup();
 ```
+
 
 ## HookEngine Methods
 
 | Method | Description |
 |--------|-------------|
 | `register(...names)` | Register hooks for runtime validation. Returns `this`. |
-| `on(name, cbOrOpts)` | Subscribe to hook. Returns cleanup function. |
-| `once(name, cb)` | Subscribe once. Sugar for `on(name, { callback, once: true })`. |
-| `emit(name, ...args)` | Emit hook. Returns `EmitResult`. |
-| `wrap(fn, { pre?, post? })` | Wrap function with pre/post hooks. |
+| `add(name, callback, options?)` | Subscribe to hook. Returns cleanup function. |
+| `run(name, ...args)` | Run hook async. Returns `Promise<RunResult>`. |
+| `runSync(name, ...args)` | Run hook sync. Returns `RunResult`. |
+| `pipe(name, coreFn, ...args)` | Pipe hook async (onion middleware). Returns `Promise<result>`. |
+| `pipeSync(name, coreFn, ...args)` | Pipe hook sync. Returns result. |
+| `wrap(fn, { pre?, post? })` | Wrap async function with pre/post hooks. |
+| `wrapSync(fn, { pre?, post? })` | Wrap sync function with pre/post hooks. |
 | `clear()` | Remove all hooks, reset to permissive mode. |
+
 
 ## HookContext Methods
 
-Passed to every callback:
+Passed as the last argument to every callback:
 
-| Method | Description |
-|--------|-------------|
-| `ctx.args` | Current arguments |
-| `ctx.result` | Current result (if set) |
-| `ctx.setArgs(next)` | Replace args for subsequent callbacks |
-| `ctx.setResult(next)` | Set result value |
-| `ctx.returnEarly()` | Stop processing, signal early return |
-| `ctx.fail(...args)` | Abort with error |
-| `ctx.removeHook()` | Remove this callback from future emissions |
+| Method | Returns | Effect |
+|--------|---------|--------|
+| `ctx.args(...newArgs)` | `EarlyReturnSignal` | Replace args for downstream callbacks |
+| `return ctx.args(...)` | — | Replace args **and** stop the chain |
+| `ctx.returns(value)` | `EarlyReturnSignal` | Set result and stop (always use with `return`) |
+| `ctx.fail(...args)` | `never` | Abort with error |
+| `ctx.removeHook()` | `void` | Remove this callback from future runs |
+| `ctx.scope` | `HookScope` | Request-scoped state bag |
 
-## EmitResult
+**Short-circuit rules:**
+
+| Code | Args changed | Chain stops |
+|------|-------------|-------------|
+| `ctx.args(...)` | yes | no |
+| `return ctx.args(...)` | yes | yes |
+| `return ctx.returns(value)` | n/a | yes |
+| `ctx.fail(...)` | n/a | throws |
+
+
+## RunResult
 
 ```typescript
-interface EmitResult<F> {
-    args: Parameters<F>;        // Final args (possibly modified)
-    result?: ReturnType<F>;     // Result (if set)
-    earlyReturn: boolean;       // Whether returnEarly() was called
+interface RunResult<F> {
+    args: Parameters<F>;      // Final args (possibly modified)
+    result?: ReturnType<F>;   // Result if set via ctx.returns()
+    returned: boolean;        // Whether chain was short-circuited
+    scope: HookScope;         // Scope used during this run
 }
 ```
 
+
+## AddOptions
+
+```typescript
+hooks.add('name', callback, {
+    once: true,           // Remove after first run (sugar for times: 1)
+    times: 3,             // Run N times then auto-remove
+    ignoreOnFail: true,   // Continue if callback throws
+    priority: -10         // Lower runs first, default 0
+});
+```
+
+
+## RunOptions
+
+```typescript
+await hooks.run('beforeRequest', url, opts, {
+    append: (url, opts, ctx) => { /* ephemeral, runs last */ },
+    scope: existingScope   // Share state across runs/engines
+});
+```
+
+
+## pipe() — Middleware Composition
+
+Onion/middleware pattern where each callback wraps the next. Used for cross-cutting concerns like retry, dedupe, caching execution.
+
+```typescript
+// Core function is the innermost call
+const result = await hooks.pipe('execute',
+    async (opts) => fetch(opts.url, opts),  // core
+    opts                                      // args
+);
+
+// Callbacks: (next, ...args, ctx) — call next() to proceed
+hooks.add('execute', async (next, opts, ctx) => {
+    const start = Date.now();
+    const result = await next();
+    console.log(`Took ${Date.now() - start}ms`);
+    return result;
+}, { priority: -10 });
+```
+
+**PipeContext** — simpler than HookContext:
+
+| Method | Effect |
+|--------|--------|
+| `ctx.args(...newArgs)` | Replace args for downstream callbacks |
+| `ctx.fail(...args)` | Abort with error |
+| `ctx.removeHook()` | Remove this callback from future runs |
+| `ctx.scope` | Request-scoped state bag |
+
+Note: No `ctx.returns()` in pipe — return from callback directly.
+
+
+## HookScope
+
+Request-scoped state bag that flows across hook runs and engine instances.
+
+```typescript
+import { HookScope } from '@logosdx/hooks';
+
+const scope = new HookScope();
+scope.set(Symbol('private'), value);   // Symbol keys for private state
+scope.set('shared', value);            // String keys for cross-plugin contracts
+scope.get<T>(key);
+scope.has(key);
+scope.delete(key);
+```
+
+**Flowing across runs:**
+
+```typescript
+const scope = new HookScope();
+const pre = await hooks.run('beforeRequest', url, opts, { scope });
+const post = await hooks.run('afterRequest', res, url, opts, { scope });
+// Both runs share the same scope
+```
+
+**Flowing across engine instances:**
+
+```typescript
+// Main engine hook calls a plugin's own engine with the same scope
+mainEngine.add('process', async (data, ctx) => {
+    await pluginEngine.run('validate', data, { scope: ctx.scope });
+});
+```
+
+
+## Priority & Execution Order
+
+Hooks execute in priority order (lower first). Built-in plugins use negative values, user hooks default to 0.
+
+**FetchEngine hook priorities:**
+
+```
+beforeRequest (run):
+  -30: cache plugin (return cached before consuming tokens)
+  -20: rate-limit plugin (gate requests on cache miss)
+    0: user hooks (default)
+    ∞: per-request hook (via RunOptions.append)
+
+execute (pipe):
+  -30: dedupe plugin (join in-flight requests)
+  -20: retry plugin (wrap with retry logic)
+    0: user hooks (default)
+
+afterRequest (run):
+  -10: cache plugin (store response)
+    0: user hooks (default)
+```
+
+
 ## Library Integration
 
-Use `emit()` to provide extension points in your library:
+Use `run()` to provide extension points in your library:
 
 ```typescript
 async function fetchWithHooks(url: string, options: RequestInit = {}) {
 
-    const before = await hooks.emit('beforeFetch', url, options);
-    if (before.earlyReturn) return before.result!;
+    const scope = new HookScope();
 
-    const response = await fetch(...before.args);
+    const pre = await hooks.run('beforeFetch', url, options, { scope });
+    if (pre.returned) return pre.result!;
 
-    const after = await hooks.emit('afterFetch', response, url);
-    return after.result ?? response;
+    const response = await fetch(...pre.args);
+
+    const post = await hooks.run('afterFetch', response, url, { scope });
+    return post.returned ? post.result! : response;
 }
 ```
 
-Expose hooks via instance or export:
 
-```typescript
-// Via instance
-export class MySdk {
-    hooks = new HookEngine<Lifecycle>();
-}
+## Registration
 
-// Via export
-export const hooks = new HookEngine<Lifecycle>();
-```
-
-## Hook Options
-
-```typescript
-hooks.on('name', {
-    callback: async (ctx) => { /* ... */ },
-    once: true,           // Remove after first run
-    ignoreOnFail: true    // Continue if callback throws
-});
-```
-
-## Registration System
-
-Once `register()` is called, ALL hooks must be registered:
+Catches typos at runtime:
 
 ```typescript
 const hooks = new HookEngine<Lifecycle>()
     .register('beforeFetch', 'afterFetch');
 
-hooks.on('beforeFecth', cb);
+hooks.add('beforeFecth', cb);
 // Error: Hook "beforeFecth" is not registered.
 // Registered hooks: beforeFetch, afterFetch
 ```
 
+
 ## Custom Error Handler
 
 ```typescript
-// Firebase HttpsError
+// Error constructor
 const hooks = new HookEngine<Lifecycle, [string, string, object?]>({
     handleFail: HttpsError
 });
 
-hooks.on('validate', async (ctx) => {
-    ctx.fail('invalid-argument', 'Email invalid', { field: 'email' });
-});
-
-// Custom function
+// Function that throws
 const hooks = new HookEngine<Lifecycle, [string, object?]>({
     handleFail: (msg, data) => { throw Boom.badRequest(msg, data); }
 });
 ```
+
 
 ## Common Patterns
 
 ### Caching with Early Return
 
 ```typescript
-hooks.on('beforeGet', async (ctx) => {
-    const cached = cache.get(ctx.args[0]);
-    if (cached) {
-        ctx.setResult(cached);
-        ctx.returnEarly();
-    }
+hooks.add('beforeGet', (url, opts, ctx) => {
+    const cached = cache.get(url);
+    if (cached) return ctx.returns(cached);
 });
 ```
 
 ### Validation
 
 ```typescript
-hooks.on('validate', async (ctx) => {
-    const [data] = ctx.args;
-    if (!data.email) ctx.fail('Email required');
+hooks.add('validate', (user, ctx) => {
+    if (!user.email) ctx.fail('Email required');
+});
+```
+
+### Arg Modification
+
+```typescript
+hooks.add('beforeRequest', (url, opts, ctx) => {
+    ctx.args(url, { ...opts, headers: { ...opts.headers, 'X-Trace': traceId } });
 });
 ```
 
 ### Non-Critical Hooks
 
 ```typescript
-hooks.on('analytics', {
-    callback: async (ctx) => { await track(ctx.args); },
-    ignoreOnFail: true
-});
+hooks.add('analytics', (event) => {
+    track(event);
+}, { ignoreOnFail: true });
 ```
+
 
 ## Type Parameters
 
@@ -178,17 +297,17 @@ hooks.on('analytics', {
 new HookEngine<Lifecycle, FailArgs>()
 ```
 
-- `Lifecycle` - Interface defining hooks (default: permissive `Record<string, AsyncFunc>`)
-- `FailArgs` - Tuple for `ctx.fail()` args (default: `[string]`)
+- `Lifecycle` — Interface defining hooks (default: permissive `Record<string, Func>`)
+- `FailArgs` — Tuple for `ctx.fail()` args (default: `[string]`)
 
-**Only function properties are valid hook names:**
+Only function properties are valid hook names:
 
 ```typescript
 interface Doc {
-    id: string;                // Excluded - data property
+    id: string;                // Excluded — data property
     save(): Promise<void>;     // Available as hook
 }
 
-hooks.on('save', cb);  // ✓ OK
-hooks.on('id', cb);    // ✗ Type error
+hooks.add('save', cb);  // ✓ OK
+hooks.add('id', cb);    // ✗ Type error
 ```

@@ -1,8 +1,6 @@
 import {
     attempt,
     wait,
-    SingleFlight,
-    Deferred,
     assert,
     generateId,
 } from '@logosdx/utils';
@@ -12,7 +10,6 @@ import type {
     _InternalHttpMethods,
     FetchResponse,
     RetryConfig,
-    CacheRule,
     DictAndT,
     FetchConfig,
 } from '../types.ts';
@@ -21,14 +18,9 @@ import type { EngineRequestConfig, CallConfig } from '../options/types.ts';
 
 import { FetchError, DEFAULT_RETRY_CONFIG } from '../helpers/index.ts';
 
-import { DedupePolicy } from '../policies/dedupe.ts';
-import { CachePolicy } from '../policies/cache.ts';
-import { RateLimitPolicy } from '../policies/rate-limit.ts';
-
 import type { FetchEngineCore, InternalReqOptions } from './types.ts';
 
-
-// CallOptions removed - using CallConfig from options/types.ts
+import { HookScope } from '@logosdx/hooks';
 
 
 /**
@@ -41,31 +33,17 @@ interface AbortablePromise<T> extends Promise<T> {
 }
 
 /**
- * Handles request execution with retry logic, timeouts, and policy integration.
+ * Handles request execution with the hook-based pipeline.
  *
- * The RequestExecutor is the core request processing engine, responsible for:
- * - Building normalized request options from method/path/options
- * - Executing requests with retry logic and timeout handling
- * - Coordinating with policies (dedupe, cache, rate-limit)
- * - Managing SingleFlight for deduplication and caching
- *
- * All policies receive this executor and access the engine through `executor.engine`.
- * This provides policies access to `engine.emit()` for type-safe event emission.
+ * The RequestExecutor builds normalized request options and runs them
+ * through the 3-phase pipeline:
+ * 1. `beforeRequest` (run) - plugins can modify args or short-circuit
+ * 2. `execute` (pipe) - onion-wrapped execution (retry, dedupe, etc.)
+ * 3. `afterRequest` (run) - plugins can modify or cache the response
  *
  * @template S - Instance state type
  * @template H - Headers type
  * @template P - Params type
- *
- * @example
- * ```typescript
- * const executor = new RequestExecutor(engine);
- *
- * // Policies access engine through executor
- * executor.engine.emit('cache-hit', { key: '...', ... });
- *
- * // Execute a request
- * const response = await executor.execute('GET', '/users', options);
- * ```
  */
 export class RequestExecutor<
     H = unknown,
@@ -73,30 +51,12 @@ export class RequestExecutor<
     S = unknown
 > {
 
-    /** Reference to the FetchEngine instance (public for policy access) */
+    /** Reference to the FetchEngine instance */
     engine: FetchEngineCore<H, P, S>;
-
-    /** SingleFlight for deduplication and caching */
-    flight: SingleFlight<unknown>;
-
-    /** Deduplication policy */
-    dedupePolicy: DedupePolicy<H, P, S>;
-
-    /** Cache policy */
-    cachePolicy: CachePolicy<H, P, S>;
-
-    /** Rate limit policy */
-    rateLimitPolicy: RateLimitPolicy<H, P, S>;
 
     constructor(engine: FetchEngineCore<H, P, S>) {
 
         this.engine = engine;
-        this.flight = new SingleFlight<unknown>();
-
-        // Policies receive this executor - they access engine through executor.engine
-        this.dedupePolicy = new DedupePolicy(this);
-        this.cachePolicy = new CachePolicy(this);
-        this.rateLimitPolicy = new RateLimitPolicy();
     }
 
     /**
@@ -106,13 +66,11 @@ export class RequestExecutor<
 
         const config = this.engine.config.get('retry');
 
-        // retry: false explicitly disables retry
         if (config === false) {
 
             return { ...DEFAULT_RETRY_CONFIG, maxAttempts: 0 };
         }
 
-        // retry: undefined or true uses defaults
         if (!config || config === true) {
 
             return DEFAULT_RETRY_CONFIG;
@@ -142,15 +100,9 @@ export class RequestExecutor<
     // =====================================================================
 
     /**
-     * Execute a request with the full lifecycle: timeout, options building, policies, fetch.
+     * Execute a request with the full lifecycle: timeout, options building, pipeline.
      *
      * This is the main entry point called by FetchEngine HTTP methods.
-     *
-     * @param method - HTTP method
-     * @param path - Request path
-     * @param payloadOrOptions - Payload (for POST/PUT/PATCH) or options
-     * @param options - Call options
-     * @returns AbortablePromise with FetchResponse
      */
     execute<Res = unknown, Data = unknown, ResHdr = unknown>(
         method: HttpMethods,
@@ -159,7 +111,6 @@ export class RequestExecutor<
         options?: CallConfig<H, P>
     ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
 
-        // Normalize arguments: POST/PUT/PATCH/DELETE have payload, GET/OPTIONS don't
         let payload: Data | undefined;
         let opts: CallConfig<H, P>;
 
@@ -170,7 +121,6 @@ export class RequestExecutor<
         }
         else if (payloadOrOptions && typeof payloadOrOptions === 'object' && !Array.isArray(payloadOrOptions)) {
 
-            // Check if it's call options or payload
             const hasCallOptionKeys = 'headers' in payloadOrOptions ||
                 'params' in payloadOrOptions ||
                 'timeout' in payloadOrOptions ||
@@ -199,7 +149,6 @@ export class RequestExecutor<
 
         const controller = opts.abortController ?? new AbortController();
 
-        // Resolve timeout options
         const totalTimeoutMs = opts.totalTimeout ?? opts.timeout ?? this.engine.config.get('totalTimeout');
         const attemptTimeoutMs = opts.attemptTimeout ?? this.engine.config.get('attemptTimeout');
 
@@ -213,10 +162,8 @@ export class RequestExecutor<
             assert(attemptTimeoutMs >= 0, 'attemptTimeout must be non-negative number');
         }
 
-        // Track if totalTimeout fires
         let totalTimeoutFired = false;
 
-        // Set up totalTimeout
         const totalTimeout = typeof totalTimeoutMs === 'number' ? wait(totalTimeoutMs) : undefined;
 
         totalTimeout?.then(() => {
@@ -225,7 +172,6 @@ export class RequestExecutor<
             controller.abort();
         });
 
-        // Execute async logic
         const promise = this.#executeWithOptions<Res, ResHdr>(
             method,
             path,
@@ -237,7 +183,6 @@ export class RequestExecutor<
             () => totalTimeoutFired
         );
 
-        // Wrap as AbortablePromise
         return this.#wrapAsAbortable<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>(
             promise,
             controller
@@ -270,7 +215,6 @@ export class RequestExecutor<
             options.onError?.apply(this, args as never);
         };
 
-        // Build normalized options
         const normalizedOpts = this.makeRequestOptions(
             method,
             path,
@@ -290,11 +234,6 @@ export class RequestExecutor<
 
     /**
      * Build normalized request options from method/path/options.
-     *
-     * @param method - HTTP method
-     * @param path - Request path
-     * @param options - Call options with payload and controller
-     * @returns Normalized InternalReqOptions
      */
     makeRequestOptions(
         _method: HttpMethods,
@@ -323,20 +262,16 @@ export class RequestExecutor<
             stream,
             requestId: perRequestId,
             headers: requestHeaders,
-            // RequestInit options (per-request overrides config defaults)
             ...perRequestInit
         } = options;
 
         const method = _method.toUpperCase() as _InternalHttpMethods;
         const state = this.engine.state.get();
 
-        // Build URL with merged params
         const url = this.#makeUrl(path, requestParams, method);
 
-        // Merge headers
         let headers = this.engine.headerStore.resolve(method, requestHeaders) as DictAndT<H>;
 
-        // Build body for mutating methods
         let body: BodyInit | undefined;
         const type = this.defaultType;
 
@@ -364,15 +299,11 @@ export class RequestExecutor<
             }
         }
 
-        // Build opts for modifyConfig - include RequestInit options from config + per-request
         const config = this.engine.config.get();
 
         let opts: EngineRequestConfig<H, P> = {
-            // RequestInit options from config (credentials, mode, cache, etc.)
             ...config,
-            // Per-request RequestInit overrides
             ...perRequestInit,
-            // Explicit values
             method,
             signal: signal || controller.signal,
             controller,
@@ -382,7 +313,6 @@ export class RequestExecutor<
             retry,
         };
 
-        // Apply global modifyConfig
         const modifyConfig = this.engine.config.get('modifyConfig');
 
         if (modifyConfig) {
@@ -390,7 +320,6 @@ export class RequestExecutor<
             opts = modifyConfig(opts, state) as EngineRequestConfig<H, P>;
         }
 
-        // Apply method-specific modifyConfig
         const modifyMethodConfig = this.engine.config.get('modifyMethodConfig');
         const methodSpecificModify = modifyMethodConfig?.[method];
 
@@ -399,11 +328,9 @@ export class RequestExecutor<
             opts = methodSpecificModify(opts, state) as EngineRequestConfig<H, P>;
         }
 
-        // Extract final values after modification
         headers = (opts.headers || {}) as DictAndT<H>;
         body = opts.body ?? undefined;
 
-        // Per-request validation
         const validate = this.engine.config.get('validate');
 
         if (validate?.perRequest?.headers && validate.headers) {
@@ -411,12 +338,10 @@ export class RequestExecutor<
             validate.headers(headers, method);
         }
 
-        // Normalize retry (convert true to {}, false to maxAttempts: 0)
         const normalizedRetry = opts.retry === true
             ? {}
             : (opts.retry === false ? { maxAttempts: 0 } : opts.retry);
 
-        // Generate request ID for tracing across all events
         const generateRequestId = this.engine.config.get('generateRequestId');
         const requestId = perRequestId || (generateRequestId ? generateRequestId() : generateId());
 
@@ -427,12 +352,8 @@ export class RequestExecutor<
             headers = { ...headers, [requestIdHeader]: requestId } as DictAndT<H>;
         }
 
-        // Return normalized options
-        // opts now contains all RequestInit options (config + per-request + modifyConfig)
         return {
-            // Spread opts to get all RequestInit options after modifyConfig
             ...opts,
-            // Explicit values (override anything from opts)
             stream,
             requestId,
             method,
@@ -493,7 +414,6 @@ export class RequestExecutor<
             url.searchParams.set(key, value as string);
         }
 
-        // Per-request param validation
         const validate = this.engine.config.get('validate');
 
         if (validate?.perRequest?.params && validate.params) {
@@ -517,7 +437,6 @@ export class RequestExecutor<
         abortable.isFinished = false;
         abortable.isAborted = false;
 
-        // Listen to abort signal to update isAborted when aborted externally
         controller.signal.addEventListener('abort', () => {
 
             abortable.isAborted = true;
@@ -534,7 +453,6 @@ export class RequestExecutor<
             abortable.isFinished = true;
         }).catch(() => {
 
-            // Only set isFinished if not aborted
             if (!abortable.isAborted) {
 
                 abortable.isFinished = true;
@@ -549,28 +467,7 @@ export class RequestExecutor<
     // =====================================================================
 
     /**
-     * Calculate delay for retry attempt using exponential backoff.
-     *
-     * @param attemptNo - Current attempt number (1-based)
-     * @param retry - Retry configuration with delay settings
-     * @returns Delay in milliseconds before next retry attempt
-     */
-    calculateRetryDelay(attemptNo: number, retry: Required<RetryConfig>): number {
-
-        const { baseDelay, maxDelay, useExponentialBackoff } = retry;
-
-        if (!useExponentialBackoff) return Math.min(baseDelay, maxDelay!);
-
-        const delay = baseDelay * Math.pow(2, attemptNo - 1);
-
-        return Math.min(delay, maxDelay!);
-    }
-
-    /**
      * Determine response type based on content-type header.
-     *
-     * @param response - Fetch response
-     * @returns Type, isJson flag, and whether the content-type is recognized
      */
     determineType(response: Response): { type: 'json' | 'text' | 'blob' | 'arrayBuffer'; isJson: boolean; isRecognized: boolean } {
 
@@ -586,17 +483,7 @@ export class RequestExecutor<
             return { type: 'text', isJson: false, isRecognized: true };
         }
 
-        // Default to configured type for unknown content-types
         return { type: this.defaultType, isJson: false, isRecognized: false };
-    }
-
-    /**
-     * Extract retry configuration from request options.
-     */
-    #extractRetry(opts: InternalReqOptions<H, P, S>): RetryConfig | undefined {
-
-        // retry is already normalized (true converted to {} in makeRequestOptions)
-        return opts.retry;
     }
 
     /**
@@ -654,7 +541,6 @@ export class RequestExecutor<
             let errors = asAgg.errors as Error[];
             let errCode = '';
 
-            // Handle undici errors
             if (
                 !errors ||
                 errors.length === 0 &&
@@ -690,7 +576,6 @@ export class RequestExecutor<
         err.step = err.step || step;
         err.headers = err.headers || headers;
 
-        // Emit error event with normalizedOpts as base
         const eventData = {
             ...normalizedOpts,
             error: err,
@@ -717,43 +602,29 @@ export class RequestExecutor<
 
     /**
      * Makes an API call using fetch and returns enhanced response object.
-     *
-     * @param options - Flat normalized request options (InternalReqOptions)
-     * @returns FetchResponse object with data, headers, status, request, and config
      */
     async makeCall<Res, ResHdr = unknown>(
         options: InternalReqOptions<H, P, S>
     ): Promise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
 
         const {
-            // Request identity
             method,
             headers: reqHeaders,
             params,
-
-            // URL
             url,
-
-            // Execution plumbing
             signal,
             controller,
             body,
             timeout,
             retry,
             determineType,
-
-            // Callbacks
             onBeforeRequest,
             onAfterRequest,
-
-            // RequestInit options (rest spread)
             ...requestInit
         } = options;
 
-        // Emit before event
         this.engine.emit('before-request', options);
 
-        // Build RequestOpts for callbacks (legacy compatibility)
         const callbackOpts = {
             method,
             signal,
@@ -767,7 +638,6 @@ export class RequestExecutor<
 
         onBeforeRequest && await onBeforeRequest(callbackOpts);
 
-        // Build fetch options - spread RequestInit options, then our explicit overrides
         const fetchOpts: RequestInit = {
             ...requestInit,
             method,
@@ -781,7 +651,6 @@ export class RequestExecutor<
             return await fetch(url, fetchOpts) as Response;
         });
 
-        // Fetch will only throw if the request is aborted, denied, timed out, etc.
         if (resErr) {
 
             this.#handleError(options, {
@@ -794,9 +663,6 @@ export class RequestExecutor<
 
         this.engine.emit('after-request', {
             ...options,
-            // Clone response if after-request listeners exist
-            // to prevent body stream locking issues, allow multiple
-            // reads, and copying an entire body stream into memory.
             response: (
                 this.engine.$has('after-request') ?
                 response.clone() :
@@ -806,8 +672,6 @@ export class RequestExecutor<
 
         onAfterRequest && await onAfterRequest(response.clone(), callbackOpts);
 
-        // Stream mode: return raw Response without body parsing.
-        // Non-ok statuses are returned as-is — the consumer checks status.
         if (options.stream) {
 
             const responseHeaders = {} as Partial<ResHdr>;
@@ -852,10 +716,8 @@ export class RequestExecutor<
 
             const { type, isJson } = typeResult;
 
-            // Custom determineType may not return isRecognized, default to true if not provided
             const isRecognized = 'isRecognized' in typeResult ? (typeResult as any).isRecognized : true;
 
-            // Handle 204 No Content - always return null regardless of content-type
             if (response.status === 204) {
 
                 return null;
@@ -874,17 +736,14 @@ export class RequestExecutor<
             }
             else if (isRecognized) {
 
-                // Known non-JSON content-type (e.g., text/*)
                 return await response[type]() as Res;
             }
             else {
 
-                // Unknown content-type - try text first to check if body exists
                 const text = await response.text();
 
                 if (text) {
 
-                    // Has content but unknown content-type - try default parsing
                     if (type === 'json') {
 
                         return JSON.parse(text) as Res;
@@ -893,7 +752,6 @@ export class RequestExecutor<
                     return text as Res;
                 }
 
-                // Empty body with unknown content-type - throw parse error
                 throw new Error(`Unknown content-type: ${response.headers.get('content-type')}`);
             }
         });
@@ -922,7 +780,6 @@ export class RequestExecutor<
             throw new FetchError(response.statusText);
         }
 
-        // Emit response event
         this.engine.emit('response', {
             ...options,
             response,
@@ -940,10 +797,8 @@ export class RequestExecutor<
             determineType: determineType,
         };
 
-        // Create the Request object for the response
         const request = new Request(url, fetchOpts);
 
-        // Convert response headers to plain object for typed access
         const responseHeaders = {} as Partial<ResHdr>;
 
         response.headers.forEach((value, key) => {
@@ -951,7 +806,6 @@ export class RequestExecutor<
             responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
         });
 
-        // Return the enhanced response object
         return {
             data: data!,
             headers: responseHeaders,
@@ -962,322 +816,11 @@ export class RequestExecutor<
     }
 
     /**
-     * Attempts a call with retry logic.
+     * Executes a request through the 3-phase hook pipeline.
      *
-     * @param options - Normalized request options
-     * @returns Response from successful attempt
-     */
-    async attemptCall<Res, ResHdr = unknown>(
-        options: InternalReqOptions<H, P, S>
-    ): Promise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
-
-        const mergedRetry = {
-            ...this.retryConfig,
-            ...this.#extractRetry(options)
-        };
-
-        if (mergedRetry.maxAttempts === 0) {
-
-            const [result, err] = await attempt(
-                async () => this.makeCall<Res, ResHdr>(options)
-            );
-
-            if (err) {
-
-                // Set timedOut flag if the abort was caused by totalTimeout
-                if ((err as FetchError).aborted && options.getTotalTimeoutFired?.()) {
-
-                    (err as FetchError).timedOut = true;
-                }
-
-                throw err;
-            }
-
-            return result;
-        }
-
-        let _attempt = 1;
-        let lastError: FetchError<{}, DictAndT<H>> | undefined;
-
-        while (_attempt <= mergedRetry.maxAttempts!) {
-
-            // Check if parent (totalTimeout) already aborted - stop retrying
-            if (options.controller.signal.aborted) {
-
-                const err = lastError ?? new FetchError('Request aborted');
-                err.aborted = true;
-                err.method = err.method || options.method;
-                err.path = err.path || options.path;
-                err.status = err.status || 499;
-                err.step = err.step || 'fetch';
-                err.timedOut = options.getTotalTimeoutFired?.() ?? false;
-                throw err;
-            }
-
-            // Create child controller for this attempt if using attemptTimeout
-            let attemptController: AbortController;
-            let attemptTimeoutPromise: ReturnType<typeof wait> | undefined;
-            let attemptTimeoutFired = false;
-
-            if (options.attemptTimeout !== undefined) {
-
-                attemptController = new AbortController();
-
-                // Link child to parent - if parent aborts, child aborts
-                options.controller.signal.addEventListener('abort', () => {
-
-                    attemptTimeoutPromise?.clear();
-                    attemptController.abort();
-                }, { once: true });
-
-                // Set up per-attempt timeout
-                attemptTimeoutPromise = wait(options.attemptTimeout);
-                attemptTimeoutPromise.then(() => {
-
-                    attemptTimeoutFired = true;
-                    attemptController.abort();
-                });
-            }
-            else {
-
-                attemptController = options.controller;
-            }
-
-            const [result, err] = await attempt(
-                async () => (
-                    this.makeCall<Res, ResHdr>({
-                        ...options,
-                        controller: attemptController,
-                        signal: attemptController.signal,
-                        attempt: _attempt
-                    })
-                )
-            );
-
-            // Always cleanup attempt timeout (success or failure)
-            attemptTimeoutPromise?.clear();
-
-            if (err === null) {
-
-                return result;
-            }
-
-            lastError = err as FetchError<{}, DictAndT<H>>;
-
-            // Set timedOut flag only when a timeout actually fired
-            if (lastError!.aborted) {
-
-                const totalTimeoutFired = options.getTotalTimeoutFired?.() ?? false;
-
-                if (attemptTimeoutFired || totalTimeoutFired) {
-
-                    lastError!.timedOut = true;
-                }
-            }
-
-            // If parent controller aborted (totalTimeout), don't retry
-            if (options.controller.signal.aborted) {
-
-                throw lastError!;
-            }
-
-            // Check if we should retry
-            const shouldRetry = await mergedRetry.shouldRetry(lastError!, _attempt);
-
-            if (shouldRetry && _attempt < mergedRetry.maxAttempts!) {
-
-                // If shouldRetry is a number, use it as the delay
-                const delay = (
-                    typeof shouldRetry === 'number' ?
-                    shouldRetry :
-                    this.calculateRetryDelay(_attempt, mergedRetry)
-                );
-
-                this.engine.emit('retry', {
-                    ...options,
-                    error: lastError,
-                    attempt: _attempt,
-                    nextAttempt: _attempt + 1,
-                    delay
-                });
-
-                await wait(delay);
-
-                // Check if parent controller aborted during the delay
-                if (options.controller.signal.aborted) {
-
-                    // Update timedOut flag if totalTimeout fired during delay
-                    if (options.getTotalTimeoutFired?.()) {
-
-                        lastError!.timedOut = true;
-                    }
-
-                    throw lastError!;
-                }
-
-                _attempt++;
-                continue;
-            }
-
-            throw lastError!;
-        }
-
-        // This should never be reached
-        throw new FetchError('Unexpected end of retry logic');
-    }
-
-    /**
-     * Awaits a shared promise with independent timeout/abort for the joiner.
-     */
-    #awaitWithIndependentTimeout<T>(
-        sharedPromise: Promise<T>,
-        controller: AbortController,
-        timeout: ReturnType<typeof wait> | undefined,
-        method: string,
-        path: string
-    ): Promise<T> {
-
-        const deferred = new Deferred<T>();
-        let isSettled = false;
-
-        const settle = (fn: () => void) => {
-
-            if (isSettled) return;
-            isSettled = true;
-            timeout?.clear();
-            fn();
-        };
-
-        const createJoinerError = (message: string): FetchError => {
-
-            const err = new FetchError(message);
-            err.aborted = true;
-            err.method = method as HttpMethods;
-            err.path = path;
-            err.status = 0;
-            err.step = 'fetch';
-
-            return err;
-        };
-
-        timeout?.then(() => {
-
-            settle(() => deferred.reject(createJoinerError('Request timed out (joiner)')));
-        });
-
-        controller.signal.addEventListener('abort', () => {
-
-            settle(() => deferred.reject(createJoinerError('Request aborted (joiner)')));
-        }, { once: true });
-
-        sharedPromise
-            .then((value) => settle(() => deferred.resolve(value)))
-            .catch((error) => settle(() => deferred.reject(error)));
-
-        return deferred.promise;
-    }
-
-    /**
-     * Triggers a background revalidation for stale-while-revalidate.
-     * Fire and forget - errors are emitted as events, not propagated.
-     *
-     * @param method - HTTP method
-     * @param path - Request path
-     * @param options - Original request options
-     * @param normalizedOpts - Normalized options for makeRequestOptions
-     * @param cacheKey - Cache key for the entry
-     * @param cacheConfig - Cache configuration
-     */
-    async triggerBackgroundRevalidation<Res, ResHdr = unknown>(
-        _method: HttpMethods,
-        _path: string,
-        normalizedOpts: InternalReqOptions<H, P, S>,
-        cacheKey: string,
-        cacheConfig: CacheRule<S, H, P>
-    ): Promise<void> {
-
-        // Prevent multiple concurrent revalidations for the same key
-        if (this.cachePolicy.isRevalidating(cacheKey)) {
-
-            return;
-        }
-
-        this.cachePolicy.markRevalidating(cacheKey);
-
-        // Build normalized options for the background request
-        // Disable retries for background revalidation to fail fast
-        const controller = new AbortController();
-        const bgOptions: InternalReqOptions<H, P, S> = {
-            ...normalizedOpts,
-            controller,
-            signal: controller.signal,
-            retry: { maxAttempts: 0 }
-        };
-
-        this.engine.emit('cache-revalidate', {
-            ...bgOptions,
-            key: cacheKey
-        });
-
-        const [res, fetchErr] = await attempt(() =>
-            this.attemptCall<Res, ResHdr>(bgOptions)
-        );
-
-        this.cachePolicy.unmarkRevalidating(cacheKey);
-
-        if (fetchErr) {
-
-            this.engine.emit('cache-revalidate-error', {
-                ...bgOptions,
-                key: cacheKey,
-                error: fetchErr
-            });
-
-            return;
-        }
-
-        const [, cacheErr] = await attempt(() => (
-
-            this.flight.setCache(cacheKey, res, {
-                ttl: cacheConfig.ttl,
-                staleIn: cacheConfig.staleIn
-            })
-        ));
-
-        if (cacheErr) {
-
-            this.engine.emit('cache-revalidate-error', {
-                ...bgOptions,
-                key: cacheKey,
-                error: cacheErr
-            });
-
-            return;
-        }
-
-        this.cachePolicy.markActive(cacheKey);
-
-        this.engine.emit('cache-set', {
-            ...bgOptions,
-            key: cacheKey,
-            expiresIn: cacheConfig.ttl
-        });
-    }
-
-    /**
-     * Executes a request with cache checking, deduplication, and rate limiting.
-     *
-     * This is the main entry point for request execution. It:
-     * 1. Checks cache (returns cached value if hit)
-     * 2. Checks rate limit (blocks if needed)
-     * 3. Checks for in-flight request (joins if found)
-     * 4. Executes the actual request
-     * 5. Stores result in cache if applicable
-     *
-     * @param normalizedOpts - Normalized request options
-     * @param options - Original options (for background revalidation)
-     * @param totalTimeout - Total timeout promise
-     * @returns Response from the request
+     * 1. beforeRequest (run) - plugins can modify args or short-circuit with cached response
+     * 2. execute (pipe) - onion-wrapped execution (retry wraps dedupe wraps makeCall)
+     * 3. afterRequest (run) - plugins can modify response or store in cache
      */
     async executeRequest<Res, ResHdr = unknown>(
         normalizedOpts: InternalReqOptions<H, P, S>,
@@ -1286,178 +829,49 @@ export class RequestExecutor<
 
         normalizedOpts.requestStart = Date.now();
 
-        const { method, path, controller } = normalizedOpts;
-        const isStream = normalizedOpts.stream === true;
+        const scope = new HookScope();
 
-        let cacheKey: string | null = null;
-        let cacheConfig: CacheRule<H, P, S> | null = null;
+        // Phase 1: beforeRequest (run)
+        const pre = await this.engine.hooks.run(
+            'beforeRequest',
+            normalizedOpts.url,
+            normalizedOpts as any,
+            { scope }
+        );
 
-        // === Cache Check ===
-        // Cache runs first: cached responses return immediately without consuming rate limit tokens.
-        // Stream requests skip cache — each caller needs their own Response body.
-        if (!isStream) {
+        if (pre.returned) {
 
-            const cacheResult = await this.cachePolicy.checkCache<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>({
-                method,
-                path,
-                normalizedOpts: normalizedOpts as any,
-                options: normalizedOpts as any,
-                clearTimeout: () => totalTimeout?.clear()
-            });
-
-            if (cacheResult?.hit) {
-
-                return cacheResult.value;
-            }
-
-            if (cacheResult && !cacheResult.hit) {
-
-                cacheKey = cacheResult.key;
-                cacheConfig = cacheResult.config as CacheRule<H, P, S>;
-            }
+            totalTimeout?.clear();
+            return pre.result as FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
         }
 
-        // === Rate Limit Check ===
-        // Rate limiting still gates stream requests (they're real outbound calls).
-        await this.rateLimitPolicy.executeGuard({
-            method,
-            path,
-            normalizedOpts: normalizedOpts as any,
-            controller,
-            emit: (event, data) => this.engine.emit(event as any, data as any),
-            clearTimeout: () => totalTimeout?.clear(),
-            createAbortError: (message) => {
+        // Use potentially-modified opts from hooks
+        const finalOpts = (pre.args[1] ?? normalizedOpts) as InternalReqOptions<H, P, S>;
 
-                const err = new FetchError(message);
-                err.aborted = true;
-                err.method = normalizedOpts.method;
-                err.path = path;
-                err.status = 0;
-                err.step = 'fetch';
-                return err;
-            }
-        });
-
-        let dedupeKey: string | null = null;
-        let cleanup: (() => void) | null = null;
-
-        // === Deduplication Check ===
-        // Stream requests skip deduplication — each caller needs their own Response body.
-        if (!isStream) {
-
-            // Cast normalizedOpts for policy compatibility (internal type order mismatch)
-            const dedupeResult = this.dedupePolicy.checkInflight<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>({
-                method,
-                path,
-                normalizedOpts: normalizedOpts as any
-            });
-
-            if (dedupeResult?.joined) {
-
-                return this.#awaitWithIndependentTimeout(
-                    dedupeResult.promise,
-                    controller,
-                    totalTimeout,
-                    normalizedOpts.method,
-                    path
-                );
-            }
-
-            if (dedupeResult && !dedupeResult.joined) {
-
-                dedupeKey = dedupeResult.key;
-            }
-        }
-
-        // === Execute Request ===
-        let deferred: Deferred<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> | null = null;
-
-        if (dedupeKey) {
-
-            deferred = new Deferred<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>();
-
-            // Attach a no-op catch handler to prevent unhandled rejection warnings
-            deferred.promise.catch(() => { /* handled by the request flow */ });
-
-            cleanup = this.flight.trackInflight(dedupeKey, deferred.promise);
-        }
-
-        const requestPromise = this.attemptCall<Res, ResHdr>(normalizedOpts);
-
-        const [res, err] = await attempt(() => requestPromise);
+        // Phase 2: execute (pipe)
+        const response = await this.engine.hooks.pipe<'execute', FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>(
+            'execute',
+            () => this.makeCall<Res, ResHdr>(finalOpts),
+            finalOpts,
+            { scope }
+        );
 
         totalTimeout?.clear();
 
-        if (err) {
+        // Phase 3: afterRequest (run)
+        const post = await this.engine.hooks.run(
+            'afterRequest',
+            response as any,
+            finalOpts.url,
+            finalOpts as any,
+            { scope }
+        );
 
-            deferred?.reject(err);
-            cleanup?.();
-            throw err;
+        if (post.returned) {
+
+            return post.result as FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
         }
 
-        deferred?.resolve(res);
-        cleanup?.();
-
-        if (cacheKey && cacheConfig) {
-
-            await this.flight.setCache(cacheKey, res, {
-                ttl: cacheConfig.ttl,
-                staleIn: cacheConfig.staleIn
-            });
-
-            this.cachePolicy.markActive(cacheKey);
-
-            this.engine.emit('cache-set', {
-                ...normalizedOpts,
-                key: cacheKey,
-                expiresIn: cacheConfig.ttl,
-            });
-        }
-
-        return res;
-    }
-
-    /**
-     * Initialize policies with configuration from engine options.
-     *
-     * Called during engine construction after options are set.
-     */
-    initPolicies(): void {
-
-        const dedupeConfig = this.engine.config.get('dedupePolicy');
-        const cacheConfig = this.engine.config.get('cachePolicy');
-        const rateLimitConfig = this.engine.config.get('rateLimitPolicy');
-
-        this.dedupePolicy.init(dedupeConfig as any);
-        this.cachePolicy.init(cacheConfig as any);
-        this.rateLimitPolicy.init(rateLimitConfig as any);
-
-        // Re-initialize SingleFlight with cache adapter if provided
-        if (cacheConfig && cacheConfig !== true) {
-
-            const config = cacheConfig as { adapter?: unknown; ttl?: number; staleIn?: number };
-
-            this.flight = new SingleFlight<unknown>({
-                adapter: config.adapter as any,
-                defaultTtl: this.cachePolicy.defaultTtl,
-                defaultStaleIn: this.cachePolicy.defaultStaleIn
-            });
-        }
-    }
-
-    /**
-     * Clear the cache.
-     */
-    clearCache(): void {
-
-        this.flight.clearCache();
-    }
-
-    /**
-     * Get cache statistics.
-     */
-    cacheStats() {
-
-        return this.flight.stats();
+        return response;
     }
 }

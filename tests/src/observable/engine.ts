@@ -1863,5 +1863,313 @@ describe('@logosdx/observer', function () {
             });
         });
     });
+
+    describe('ObserverEngine.transfer(source, target)', () => {
+
+        afterEach(() => {
+
+            sandbox.resetHistory();
+        });
+
+        it('should move all string listeners from source to target', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
+
+            source.on('test', fake1);
+            source.on('test1', fake2);
+
+            ObserverEngine.transfer(source, target);
+
+            target.emit('test', 'hello');
+            target.emit('test1', 'world');
+            source.emit('test', 'nope');
+            source.emit('test1', 'nope');
+
+            expect(fake1.callCount).to.eq(1);
+            expect(fake2.callCount).to.eq(1);
+            expect(fake1.calledWith('hello')).to.be.true;
+            expect(fake2.calledWith('world')).to.be.true;
+
+            expect(source.$facts().listeners).to.have.length(0);
+            expect(target.$facts().listeners).to.include.members(['test', 'test1']);
+        });
+
+        it('should move regex listeners from source to target', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake = sandbox.stub();
+
+            source.on(/test/, fake);
+
+            ObserverEngine.transfer(source, target);
+
+            target.emit('test', 'hello');
+            source.emit('test', 'nope');
+
+            expect(fake.callCount).to.eq(1);
+
+            expect(source.$facts().rgxListeners).to.have.length(0);
+            expect(target.$facts().rgxListeners).to.include('/test/');
+        });
+
+        it('should stack with existing target listeners', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const sourceFake = sandbox.stub();
+            const targetFake = sandbox.stub();
+
+            target.on('test', targetFake);
+            source.on('test', sourceFake);
+
+            ObserverEngine.transfer(source, target);
+
+            target.emit('test', 'hello');
+
+            expect(sourceFake.callCount).to.eq(1);
+            expect(targetFake.callCount).to.eq(1);
+
+            expect(target.$facts().listenerCounts['test']).to.eq(2);
+        });
+
+        it('should filter with opt-in filter (string)', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
+
+            source.on('test', fake1);
+            source.on('test1', fake2);
+
+            ObserverEngine.transfer(source, target, { filter: ['test'] });
+
+            target.emit('test', 'hello');
+            target.emit('test1', 'world');
+
+            expect(fake1.callCount).to.eq(1);
+            expect(fake2.callCount).to.eq(0);
+
+            // test1 should remain on source
+            source.emit('test1', 'still here');
+            expect(fake2.callCount).to.eq(1);
+
+            // test should be gone from source
+            source.emit('test', 'gone');
+            expect(fake1.callCount).to.eq(1);
+        });
+
+        it('should filter with opt-in filter (regex)', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake = sandbox.stub();
+
+            source.on(/test/, fake);
+            source.on(/pops/, fake);
+
+            ObserverEngine.transfer(source, target, { filter: [/test/] });
+
+            expect(target.$facts().rgxListeners).to.include('/test/');
+            expect(target.$facts().rgxListeners).to.not.include('/pops/');
+
+            expect(source.$facts().rgxListeners).to.include('/pops/');
+            expect(source.$facts().rgxListeners).to.not.include('/test/');
+        });
+
+        it('should exclude events with opt-out exclude', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
+
+            source.on('test', fake1);
+            source.on('test1', fake2);
+
+            ObserverEngine.transfer(source, target, { exclude: ['test'] });
+
+            // test should remain on source
+            source.emit('test', 'still here');
+            expect(fake1.callCount).to.eq(1);
+
+            // test1 should have moved to target
+            target.emit('test1', 'moved');
+            expect(fake2.callCount).to.eq(1);
+
+            source.emit('test1', 'gone');
+            expect(fake2.callCount).to.eq(1);
+        });
+
+        it('should compose filter + exclude', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fakeTest = sandbox.stub();
+            const fakeTest1 = sandbox.stub();
+            const fakeTest2 = sandbox.stub();
+
+            source.on('test', fakeTest);
+            source.on('test1', fakeTest1);
+            source.on('test2', fakeTest2);
+
+            // filter to test + test1, but exclude test1
+            ObserverEngine.transfer(source, target, {
+                filter: ['test', 'test1'],
+                exclude: ['test1']
+            });
+
+            // Only test should move
+            target.emit('test', 'moved');
+            expect(fakeTest.callCount).to.eq(1);
+
+            // test1 stays on source (excluded from filter)
+            source.emit('test1', 'stayed');
+            expect(fakeTest1.callCount).to.eq(1);
+
+            // test2 stays on source (not in filter)
+            source.emit('test2', 'stayed');
+            expect(fakeTest2.callCount).to.eq(1);
+        });
+    });
+
+    describe('ObserverEngine.copy(source, target)', () => {
+
+        afterEach(() => {
+
+            sandbox.resetHistory();
+        });
+
+        it('should copy all listeners — source keeps them', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
+
+            source.on('test', fake1);
+            source.on('test1', fake2);
+
+            ObserverEngine.copy(source, target);
+
+            target.emit('test', 'hello');
+            target.emit('test1', 'world');
+            source.emit('test', 'still');
+            source.emit('test1', 'here');
+
+            expect(fake1.callCount).to.eq(2);
+            expect(fake2.callCount).to.eq(2);
+
+            expect(source.$facts().listeners).to.include.members(['test', 'test1']);
+            expect(target.$facts().listeners).to.include.members(['test', 'test1']);
+        });
+
+        it('should copy regex listeners — source keeps them', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake = sandbox.stub();
+
+            source.on(/test/, fake);
+
+            ObserverEngine.copy(source, target);
+
+            target.emit('test', 'hello');
+            source.emit('test', 'still');
+
+            expect(fake.callCount).to.eq(2);
+
+            expect(source.$facts().rgxListeners).to.include('/test/');
+            expect(target.$facts().rgxListeners).to.include('/test/');
+        });
+
+        it('should stack with existing target listeners', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const sourceFake = sandbox.stub();
+            const targetFake = sandbox.stub();
+
+            target.on('test', targetFake);
+            source.on('test', sourceFake);
+
+            ObserverEngine.copy(source, target);
+
+            target.emit('test', 'hello');
+
+            expect(sourceFake.callCount).to.eq(1);
+            expect(targetFake.callCount).to.eq(1);
+
+            expect(target.$facts().listenerCounts['test']).to.eq(2);
+        });
+
+        it('should respect filter option', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
+
+            source.on('test', fake1);
+            source.on('test1', fake2);
+
+            ObserverEngine.copy(source, target, { filter: ['test'] });
+
+            target.emit('test', 'copied');
+            target.emit('test1', 'not copied');
+
+            expect(fake1.callCount).to.eq(1);
+            expect(fake2.callCount).to.eq(0);
+
+            // Source keeps both
+            source.emit('test', 'still');
+            source.emit('test1', 'still');
+
+            expect(fake1.callCount).to.eq(2);
+            expect(fake2.callCount).to.eq(1);
+        });
+
+        it('should respect exclude option', () => {
+
+            const source = new ObserverEngine<AppEvents>();
+            const target = new ObserverEngine<AppEvents>();
+
+            const fake1 = sandbox.stub();
+            const fake2 = sandbox.stub();
+
+            source.on('test', fake1);
+            source.on('test1', fake2);
+
+            ObserverEngine.copy(source, target, { exclude: ['test'] });
+
+            target.emit('test', 'excluded');
+            target.emit('test1', 'copied');
+
+            expect(fake1.callCount).to.eq(0);
+            expect(fake2.callCount).to.eq(1);
+
+            // Source keeps both
+            source.emit('test', 'still');
+            source.emit('test1', 'still');
+
+            expect(fake1.callCount).to.eq(1);
+            expect(fake2.callCount).to.eq(2);
+        });
+    });
 });
 

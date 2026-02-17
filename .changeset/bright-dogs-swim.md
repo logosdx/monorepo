@@ -136,8 +136,66 @@ engine.changeBaseUrl(); // → engine.options.set('baseUrl', ...)
 engine.on('fetch-before', handler);  // still works
 ```
 
+#### Hook-Based Request Pipeline
+
+The request lifecycle is now powered by `@logosdx/hooks` HookEngine. Internal policies (cache, dedupe, rate-limit) register as hooks at negative priorities, and user hooks run at priority 0.
+
+```typescript
+// Before: no hook system, hardcoded pipeline
+// After: extensible hook-based pipeline
+engine.hooks.add('beforeRequest', (url, opts, ctx) => {
+
+    // Modify request
+    ctx.args(url, { ...opts, headers: { ...opts.headers, 'X-Custom': 'value' } });
+});
+
+engine.hooks.add('afterRequest', (response, url, opts, ctx) => {
+
+    // Transform response
+    ctx.returns({ ...response, data: transform(response.data) });
+});
+```
+
+#### Plugin System
+
+Plugins can now be installed via constructor or at runtime:
+
+```typescript
+const authPlugin: FetchPlugin = {
+    name: 'auth',
+    install(engine) {
+        return engine.hooks.add('beforeRequest', async (url, opts, ctx) => {
+            const token = await getToken();
+            ctx.args(url, { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${token}` } });
+        });
+    }
+};
+
+// Via constructor
+const api = new FetchEngine({ baseUrl: '/api', plugins: [authPlugin] });
+
+// Or at runtime
+const unsub = api.use(authPlugin);
+```
+
+#### Per-Request Hooks
+
+Hooks can be passed per-request via `CallConfig.hooks`:
+
+```typescript
+await api.get('/data', {
+    hooks: {
+        beforeRequest: (url, opts, ctx) => { /* runs after instance hooks */ },
+        afterRequest: (response, url, opts, ctx) => { /* runs after instance hooks */ }
+    }
+});
+```
+
 ### New Capabilities
 
+- **Hook-based pipeline**: `engine.hooks.add('beforeRequest' | 'afterRequest', callback, { priority })` for intercepting and modifying requests/responses
+- **Plugin system**: `engine.use(plugin)` and `plugins` config option for composable extensions
+- **Per-request hooks**: `CallConfig.hooks` for one-off request interception
 - **FetchError helpers**: `err.isTimeout()`, `err.isCancelled()`, `err.isConnectionLost()`
 - **Attempt timeouts**: Separate `attemptTimeout` and `totalTimeout` for retry control
 - **Deep config access**: `engine.options.get('retry.maxAttempts')`

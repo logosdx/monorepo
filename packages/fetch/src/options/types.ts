@@ -6,6 +6,7 @@
  * types.ts is defined to match this interface.
  */
 
+import type { HookCallback } from '@logosdx/hooks';
 import type {
     _InternalHttpMethods,
     HttpMethodOpts,
@@ -18,6 +19,7 @@ import type {
 } from '../types.ts';
 
 import type { FetchError } from '../helpers/fetch-error.ts';
+import type { FetchLifecycle, FetchPlugin } from '../engine/types.ts';
 
 
 /**
@@ -112,11 +114,21 @@ export interface RequestConfig<H = InstanceHeaders, P = InstanceParams>
  * @template H - Headers type
  * @template P - Params type
  */
-export interface CallConfig<H = InstanceHeaders, P = InstanceParams>
+export interface CallConfig<H = InstanceHeaders, P = InstanceParams, S = InstanceState>
     extends RequestConfig<H, P>, EngineLifecycle<H, P> {
 
     /** AbortController for manual request cancellation */
     abortController?: AbortController | undefined;
+
+    /**
+     * Per-request hooks appended after all engine-level hooks.
+     *
+     * These run at the end of the hook chain for this single request only.
+     */
+    hooks?: {
+        beforeRequest?: HookCallback<FetchLifecycle<H, P, S>['beforeRequest']>;
+        afterRequest?: HookCallback<FetchLifecycle<H, P, S>['afterRequest']>;
+    } | undefined;
 
     /**
      * Return raw Response without body parsing.
@@ -293,6 +305,14 @@ export interface EngineConfig<
      * Rate limit policy configuration.
      */
     rateLimitPolicy?: boolean | RateLimitConfig<S, H, P> | undefined;
+
+    /**
+     * Plugins to install at construction time.
+     *
+     * Each plugin's `install()` is called with the engine instance.
+     * Cleanup functions are collected and called on `destroy()`.
+     */
+    plugins?: FetchPlugin<H, P, S>[] | undefined;
 
     /**
      * Custom function to generate request IDs for tracing.

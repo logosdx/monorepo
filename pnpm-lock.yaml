@@ -66,6 +66,9 @@ importers:
 
   packages/fetch:
     dependencies:
+      '@logosdx/hooks':
+        specifier: workspace:^
+        version: link:../hooks
       '@logosdx/observer':
         specifier: workspace:^
         version: link:../observer
@@ -118,6 +121,9 @@ importers:
 
   packages/state-machine:
     dependencies:
+      '@logosdx/observer':
+        specifier: workspace:^
+        version: link:../observer
       '@logosdx/utils':
         specifier: workspace:^
         version: link:../utils

@@ -9,56 +9,11 @@ import type {
     RequestKeyOptions
 } from '../types.ts';
 
+import type { FetchPlugin, FetchEnginePublic, InternalReqOptions } from '../engine/types.ts';
+
 import { ResiliencePolicy } from './base.ts';
 import { endpointSerializer } from '../serializers/index.ts';
 import { validateMatchRules } from './helpers.ts';
-
-/**
- * Execution context for rate limit guard.
- * Provides dependencies needed to execute rate limiting logic.
- */
-export interface RateLimitExecutionContext<S, H, P> {
-
-    /** HTTP method */
-    method: string;
-
-    /** Request path */
-    path: string;
-
-    /** Full normalized request options (used for serializer and events) */
-    normalizedOpts: RequestKeyOptions<S, H, P>;
-
-    /** AbortController for cancellation */
-    controller: AbortController;
-
-    /** Emit an event */
-    emit: (event: string, data: unknown) => void;
-
-    /** Clear any pending timeout */
-    clearTimeout: () => void;
-
-    /** Factory for creating abort errors */
-    createAbortError: (message: string) => Error;
-}
-
-
-/**
- * Default HTTP methods for rate limiting.
- * All methods are rate limited by default.
- */
-const DEFAULT_RATELIMIT_METHODS: _InternalHttpMethods[] = [
-    'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'
-];
-
-/**
- * Default max calls per window.
- */
-const DEFAULT_MAX_CALLS = 100;
-
-/**
- * Default window duration in milliseconds (1 minute).
- */
-const DEFAULT_WINDOW_MS = 60000;
 
 
 /**
@@ -94,6 +49,25 @@ export interface RateLimitPolicyState<S, H, P> {
 
 
 /**
+ * Default HTTP methods for rate limiting.
+ * All methods are rate limited by default.
+ */
+const DEFAULT_RATELIMIT_METHODS: _InternalHttpMethods[] = [
+    'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'
+];
+
+/**
+ * Default max calls per window.
+ */
+const DEFAULT_MAX_CALLS = 100;
+
+/**
+ * Default window duration in milliseconds (1 minute).
+ */
+const DEFAULT_WINDOW_MS = 60000;
+
+
+/**
  * Rate limit policy for controlling request rate.
  *
  * Uses token bucket algorithm to enforce rate limits. Each unique key
@@ -107,21 +81,6 @@ export interface RateLimitPolicyState<S, H, P> {
  * @template S - Instance state type
  * @template H - Headers type
  * @template P - Params type
- *
- * @example
- * ```typescript
- * const rateLimitPolicy = new RateLimitPolicy<State, Headers, Params>();
- *
- * rateLimitPolicy.init({
- *     enabled: true,
- *     maxCalls: 60,
- *     windowMs: 60000,  // 60 req/min
- *     rules: [
- *         { startsWith: '/api/search', maxCalls: 10, windowMs: 1000 },  // 10/sec
- *         { startsWith: '/admin', enabled: false }  // No limit for admin
- *     ]
- * });
- * ```
  */
 export class RateLimitPolicy<
     S = unknown,
@@ -131,7 +90,6 @@ export class RateLimitPolicy<
 
     /**
      * Extended state with rate limit-specific fields.
-     * Note: We override the base state type to include rate limit-specific fields.
      */
     protected state: RateLimitPolicyState<S, H, P> | null = null;
 
@@ -150,7 +108,6 @@ export class RateLimitPolicy<
 
     /**
      * Get the default serializer for rate limiting.
-     * Uses endpoint-scoped serialization (method + path).
      */
     protected getDefaultSerializer(): RequestSerializer<S, H, P> {
 
@@ -159,7 +116,6 @@ export class RateLimitPolicy<
 
     /**
      * Get the default HTTP methods for rate limiting.
-     * All methods are rate limited by default.
      */
     protected getDefaultMethods(): _InternalHttpMethods[] {
 
@@ -168,8 +124,6 @@ export class RateLimitPolicy<
 
     /**
      * Initialize the rate limit policy with configuration.
-     *
-     * Extends base init to handle rate limit-specific fields.
      */
     init(config?: boolean | RateLimitConfig<S, H, P>): void {
 
@@ -199,7 +153,7 @@ export class RateLimitPolicy<
         }
 
         this.config = config;
-        this.#adapter = (config as any).adapter;  // adapter support from design doc
+        this.#adapter = (config as any).adapter;
 
         this.state = {
             enabled: config.enabled !== false,
@@ -220,7 +174,6 @@ export class RateLimitPolicy<
 
     /**
      * Merge a matched rule with policy defaults.
-     * Includes rate limit-specific fields (maxCalls, windowMs, waitForToken).
      */
     protected mergeRuleWithDefaults(rule: RateLimitRule<S, H, P> | null): RateLimitRule<S, H, P> {
 
@@ -246,9 +199,6 @@ export class RateLimitPolicy<
 
     /**
      * Resolve rate limit configuration for a request.
-     *
-     * Convenience method that wraps the base `resolve()` with the
-     * policy-specific skip callback.
      */
     resolveForRequest(
         method: string,
@@ -265,14 +215,6 @@ export class RateLimitPolicy<
 
     /**
      * Get or create a rate limiter for the given key.
-     *
-     * Rate limiters are cached by key to ensure all requests to the same
-     * endpoint share the same token bucket.
-     *
-     * @param key - The bucket key (from serializer)
-     * @param maxCalls - Max calls per window
-     * @param windowMs - Window duration in milliseconds
-     * @returns The token bucket for this key
      */
     getRateLimiter(key: string, maxCalls: number, windowMs: number): RateLimitTokenBucket {
 
@@ -285,9 +227,6 @@ export class RateLimitPolicy<
 
         if (!bucket) {
 
-            // Token bucket: capacity and time per token
-            // If maxCalls=100 and windowMs=60000, we want 100 requests per minute
-            // So refillIntervalMs = windowMs / maxCalls = 600ms per token
             const refillIntervalMs = windowMs / maxCalls;
             bucket = new RateLimitTokenBucket({ capacity: maxCalls, refillIntervalMs });
 
@@ -304,110 +243,128 @@ export class RateLimitPolicy<
 
         return this.config?.onRateLimit;
     }
+}
 
-    /**
-     * Execute rate limit guard for a request.
-     *
-     * Resolves config, checks token availability, and either:
-     * - Returns immediately if token is available
-     * - Waits for token if waitForToken is true
-     * - Throws RateLimitError if waitForToken is false
-     *
-     * @param ctx - Execution context with dependencies
-     * @throws RateLimitError if rate limit exceeded and waitForToken is false
-     * @throws Error if request is aborted while waiting
-     */
-    async executeGuard(ctx: RateLimitExecutionContext<S, H, P>): Promise<void> {
 
-        const { method, path, normalizedOpts, controller, emit, clearTimeout, createAbortError } = ctx;
+/**
+ * Factory function that creates a rate limit plugin for FetchEngine.
+ *
+ * The plugin installs a `beforeRequest` hook at priority `-30` that
+ * enforces token bucket rate limiting before requests proceed.
+ *
+ * @param config - Rate limit configuration
+ * @returns FetchPlugin that can be installed via `engine.use()` or `plugins` config
+ *
+ * @example
+ *     const api = new FetchEngine({
+ *         baseUrl: 'https://api.example.com',
+ *         plugins: [
+ *             rateLimitPlugin({ maxCalls: 60, windowMs: 60000 })
+ *         ]
+ *     });
+ */
+export function rateLimitPlugin<H = unknown, P = unknown, S = unknown>(
+    config: boolean | RateLimitConfig<S, H, P>
+): FetchPlugin<H, P, S> {
 
-        const config = this.resolveForRequest(method, path, normalizedOpts);
+    const policy = new RateLimitPolicy<S, H, P>();
+    policy.init(config);
 
-        if (config === null) {
+    return {
+        name: 'rate-limit',
 
-            return;
-        }
+        install(engine: FetchEnginePublic<H, P, S>): () => void {
 
-        const key = config.serializer!(normalizedOpts);
-        const bucket = this.getRateLimiter(key, config.maxCalls!, config.windowMs!);
+            const cleanup = engine.hooks.add('beforeRequest', async (_url, opts, _ctx) => {
 
-        const snapshot = bucket.snapshot;
-        const waitTimeMs = bucket.getWaitTimeMs(1);
+                const normalizedOpts = opts as InternalReqOptions<H, P, S>;
+                const { method, path, controller } = normalizedOpts;
 
-        // Build event data once for reuse
-        const eventData = {
-            ...normalizedOpts,
-            key,
-            currentTokens: snapshot.currentTokens,
-            capacity: snapshot.capacity,
-            waitTimeMs,
-            nextAvailable: bucket.getNextAvailable(1),
-        };
-
-        if (waitTimeMs > 0) {
-
-            // Rate limit exceeded - need to wait or reject
-            if (!config.waitForToken) {
-
-                // Reject immediately
-                emit('ratelimit-reject', eventData);
-                clearTimeout();
-
-                throw new RateLimitError(
-                    `Rate limit exceeded for ${key}. Try again in ${waitTimeMs}ms`,
-                    config.maxCalls!
+                const ruleConfig = policy.resolveForRequest(
+                    method,
+                    path,
+                    normalizedOpts as unknown as RequestKeyOptions<S, H, P>
                 );
-            }
 
-            // Wait for token
-            emit('ratelimit-wait', eventData);
+                if (ruleConfig === null) return;
 
-            // Call the onRateLimit callback if configured
-            if (this.onRateLimit) {
+                const key = ruleConfig.serializer!(normalizedOpts as unknown as RequestKeyOptions<S, H, P>);
+                const bucket = policy.getRateLimiter(key, ruleConfig.maxCalls!, ruleConfig.windowMs!);
 
-                await this.onRateLimit(normalizedOpts, waitTimeMs);
-            }
+                const snapshot = bucket.snapshot;
+                const waitTimeMs = bucket.getWaitTimeMs(1);
 
-            // Wait and consume atomically, respecting abort signal
-            const acquired = await bucket.waitAndConsume(1, {
-                abortController: controller,
-            });
+                const eventData = {
+                    ...normalizedOpts,
+                    key,
+                    currentTokens: snapshot.currentTokens,
+                    capacity: snapshot.capacity,
+                    waitTimeMs,
+                    nextAvailable: bucket.getNextAvailable(1),
+                };
 
-            if (!acquired) {
+                if (waitTimeMs > 0) {
 
-                // Aborted while waiting
-                clearTimeout();
-                throw createAbortError('Request aborted while waiting for rate limit');
-            }
+                    if (!ruleConfig.waitForToken) {
 
-            // Token acquired after waiting
-            const postWaitSnapshot = bucket.snapshot;
+                        engine.emit('ratelimit-reject' as any, eventData as any);
 
-            emit('ratelimit-acquire', {
-                ...normalizedOpts,
-                key,
-                currentTokens: postWaitSnapshot.currentTokens,
-                capacity: postWaitSnapshot.capacity,
-                waitTimeMs: 0,
-                nextAvailable: bucket.getNextAvailable(1),
-            });
+                        throw new RateLimitError(
+                            `Rate limit exceeded for ${key}. Try again in ${waitTimeMs}ms`,
+                            ruleConfig.maxCalls!
+                        );
+                    }
+
+                    engine.emit('ratelimit-wait' as any, eventData as any);
+
+                    if (policy.onRateLimit) {
+
+                        await policy.onRateLimit(
+                            normalizedOpts as unknown as RequestKeyOptions<S, H, P>,
+                            waitTimeMs
+                        );
+                    }
+
+                    const acquired = await bucket.waitAndConsume(1, {
+                        abortController: controller,
+                    });
+
+                    if (!acquired) {
+
+                        const err = new Error('Request aborted while waiting for rate limit');
+                        (err as any).aborted = true;
+                        throw err;
+                    }
+
+                    const postWaitSnapshot = bucket.snapshot;
+
+                    engine.emit('ratelimit-acquire' as any, {
+                        ...normalizedOpts,
+                        key,
+                        currentTokens: postWaitSnapshot.currentTokens,
+                        capacity: postWaitSnapshot.capacity,
+                        waitTimeMs: 0,
+                        nextAvailable: bucket.getNextAvailable(1),
+                    } as any);
+                }
+                else {
+
+                    bucket.consume(1);
+
+                    const postConsumeSnapshot = bucket.snapshot;
+
+                    engine.emit('ratelimit-acquire' as any, {
+                        ...normalizedOpts,
+                        key,
+                        currentTokens: postConsumeSnapshot.currentTokens,
+                        capacity: postConsumeSnapshot.capacity,
+                        waitTimeMs: 0,
+                        nextAvailable: bucket.getNextAvailable(1),
+                    } as any);
+                }
+            }, { priority: -20 });
+
+            return cleanup;
         }
-        else {
-
-            // Token available immediately - consume it
-            bucket.consume(1);
-
-            // Get post-consumption snapshot for event data
-            const postConsumeSnapshot = bucket.snapshot;
-
-            emit('ratelimit-acquire', {
-                ...normalizedOpts,
-                key,
-                currentTokens: postConsumeSnapshot.currentTokens,
-                capacity: postConsumeSnapshot.capacity,
-                waitTimeMs: 0,
-                nextAvailable: bucket.getNextAvailable(1),
-            });
-        }
-    }
+    };
 }
