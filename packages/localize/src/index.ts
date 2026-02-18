@@ -8,3 +8,4 @@ export {
 } from './helpers.ts'
 
 export { LocaleManager } from './manager.ts'
+export { parsePlural } from './plural.ts'

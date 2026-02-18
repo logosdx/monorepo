@@ -5,6 +5,7 @@ import {
 } from '@logosdx/utils';
 
 import type { LocaleManager } from './manager.ts';
+import { parsePlural } from './plural.ts';
 
 const regexCache = new Map<string, RegExp>();
 
@@ -146,7 +147,8 @@ export const format = (str: string, values: LocaleManager.LocaleFormatArgs) => {
 export const getMessage = <L extends LocaleManager.LocaleType>(
     locale: L,
     reach: LocaleManager.LocaleReacher<L>,
-    values?: LocaleManager.LocaleFormatArgs
+    values?: LocaleManager.LocaleFormatArgs,
+    localeCode = 'en'
 ) => {
 
     const missingKey = `[${reach as string}]`;
@@ -157,7 +159,9 @@ export const getMessage = <L extends LocaleManager.LocaleType>(
         console.warn(`Missing translation key: "${reach as string}"`);
     }
 
-    return format(str, values || []);
+    const resolved = parsePlural(str, values || [], localeCode);
+
+    return format(resolved, values || []);
 };
 
 

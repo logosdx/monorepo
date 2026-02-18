@@ -169,7 +169,7 @@ export class LocaleManager<
 
     text <K extends PathLeaves<Locale>>(key: K, values?: LocaleManager.LocaleFormatArgs) {
 
-        return getMessage(this.#_loc, key, values);
+        return getMessage(this.#_loc, key, values, this.current);
     }
 
     changeTo(code: Code) {

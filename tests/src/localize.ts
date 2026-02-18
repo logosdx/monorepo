@@ -409,3 +409,68 @@ describe('@logosdx/localize', function () {
         expect(instance.text('some.more')).to.eq('chocolate');
     });
 });
+
+describe('localize: pluralization', () => {
+
+    const lang = {
+        items: '{count, plural, one {# item} other {# items}}',
+        inbox: '{count, plural, zero {No messages} one {# message} other {# messages}}',
+        mixed: 'You have {count, plural, one {# notification} other {# notifications}} from {name}',
+    };
+
+    type PluralLang = typeof lang;
+
+    let instance: LocaleManager<PluralLang, 'en'>;
+
+    it('instantiates with plural strings', () => {
+
+        instance = new LocaleManager<PluralLang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+    });
+
+    it('resolves singular plural form', () => {
+
+        expect(instance.t('items', { count: 1 })).to.eq('1 item');
+    });
+
+    it('resolves other plural form', () => {
+
+        expect(instance.t('items', { count: 5 })).to.eq('5 items');
+    });
+
+    it('resolves zero plural form', () => {
+
+        expect(instance.t('inbox', { count: 0 })).to.eq('No messages');
+    });
+
+    it('resolves one from inbox', () => {
+
+        expect(instance.t('inbox', { count: 1 })).to.eq('1 message');
+    });
+
+    it('resolves plural mixed with regular variables', () => {
+
+        expect(instance.t('mixed', { count: 3, name: 'Alice' } as any)).to.eq('You have 3 notifications from Alice');
+    });
+
+    it('resolves plural mixed with singular and regular variables', () => {
+
+        expect(instance.t('mixed', { count: 1, name: 'Bob' } as any)).to.eq('You have 1 notification from Bob');
+    });
+
+    it('handles string without plural syntax unchanged', () => {
+
+        const simpleLang = { hello: 'Hello {name}' };
+
+        const simple = new LocaleManager<typeof simpleLang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: simpleLang } }
+        });
+
+        expect(simple.t('hello', { name: 'World' })).to.eq('Hello World');
+    });
+});
