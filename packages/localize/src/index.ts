@@ -2,7 +2,6 @@ export type * from './types.ts';
 
 export {
     LocaleEvent,
-    LOC_CHANGE,
     format,
     getMessage,
     reachIn

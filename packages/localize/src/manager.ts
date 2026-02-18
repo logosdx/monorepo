@@ -8,7 +8,6 @@ import {
 
 import {
     getMessage,
-    LOC_CHANGE,
     LocaleEvent
 } from './helpers.ts';
 
@@ -114,6 +113,8 @@ export class LocaleManager<
     ) {
 
         this.addEventListener(ev, listener as any, { once });
+
+        return () => this.removeEventListener(ev, listener as any);
     }
 
     off(ev: LocaleManager.LocaleEventName, listener: LocaleManager.LocaleListener<Code>) {
@@ -147,7 +148,7 @@ export class LocaleManager<
 
             this.#merge();
 
-            const event = new LocaleEvent<Code>(LOC_CHANGE);
+            const event = new LocaleEvent<Code>('change');
             event.code = code;
 
             this.dispatchEvent(event);
@@ -190,7 +191,7 @@ export class LocaleManager<
 
         this.#merge();
 
-        const event = new LocaleEvent<Code>(LOC_CHANGE);
+        const event = new LocaleEvent<Code>('change');
         event.code = code;
 
         this.dispatchEvent(event);

@@ -154,16 +154,31 @@ describe('@logosdx/localize', function () {
 
         const stub = sandbox.stub();
 
-        l10bMngr.on('locale-change', stub);
+        l10bMngr.on('change', stub);
         l10bMngr.changeTo('en');
 
         const [arg] = stub.args;
         const [event] = arg!;
 
-        expect(event.type).to.eq('locale-change');
+        expect(event.type).to.eq('change');
         expect(event.code).to.eq('en');
 
-        l10bMngr.off('locale-change', stub);
+        l10bMngr.off('change', stub);
+        l10bMngr.changeTo('en');
+
+        expect(stub.calledOnce).to.be.true;
+    });
+
+    it('on() returns an unsubscribe function', () => {
+
+        const stub = sandbox.stub();
+
+        const unsub = l10bMngr.on('change', stub);
+        l10bMngr.changeTo('es');
+
+        expect(stub.calledOnce).to.be.true;
+
+        unsub();
         l10bMngr.changeTo('en');
 
         expect(stub.calledOnce).to.be.true;

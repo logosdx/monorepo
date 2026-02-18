@@ -135,8 +135,6 @@ export const getMessage = <L extends LocaleManager.LocaleType>(
 };
 
 
-export const LOC_CHANGE = 'locale-change';
-
 export class LocaleEvent<Code extends string = string> extends Event {
     code!: Code;
 }

@@ -88,9 +88,9 @@ export function createLocalizeContext<
 
             const listener: LocaleManager.LocaleListener<Code> = (e) => setLanguage(e.code);
 
-            manager.on('locale-change', listener);
+            manager.on('change', listener);
 
-            return () => manager.off('locale-change', listener);
+            return () => manager.off('change', listener);
         }, [manager]);
 
         return {

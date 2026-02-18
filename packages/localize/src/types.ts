@@ -38,7 +38,7 @@ declare module './manager.ts' {
 
 
         export type LocaleEventName = (
-            'locale-change'
+            'change' | 'loading' | 'error'
         );
 
         export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code>) => void;
