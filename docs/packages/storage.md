@@ -5,7 +5,8 @@ description: One API for your many key-value stores.
 
 # Storage
 
-Key-value stores are everywhere - `localStorage`, `sessionStorage`, Redis, `AsyncStorage` - but they only store strings. `@logosdx/storage` wraps any key-value store that implements getItem/setItem, automatically handling JSON serialization so you work with real objects, not strings. Full TypeScript support prevents key typos, reactive events notify on changes, and namespacing prevents key collisions. Whether you're storing user preferences in localStorage or session data in Redis, it's the same type-safe API. Key-value storage without the string manipulation.
+
+Key-value stores are everywhere -- `localStorage`, `sessionStorage`, IndexedDB, the file system -- but each has a different API and different serialization rules. `@logosdx/storage` wraps any backend behind a single async interface with automatic JSON serialization, type-safe keys, prefix-based namespacing, and reactive events via `@logosdx/observer`. Swap drivers without changing application code.
 
 [[toc]]
 
@@ -34,560 +35,623 @@ pnpm add @logosdx/storage
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@logosdx/storage@latest/dist/browser.min.js"></script>
 <script>
-  const { StorageAdapter } = LogosDx.Storage;
+    const { StorageAdapter, LocalStorageDriver } = LogosDx.Storage;
 </script>
 ```
 
 ## Quick Start
 
+
 ```typescript
-import { StorageAdapter } from '@logosdx/storage'
+import { StorageAdapter, LocalStorageDriver } from '@logosdx/storage'
 
 interface AppStorage {
-  user: { id: string; name: string; email: string }
-  settings: { theme: 'light' | 'dark'; notifications: boolean }
-  cart: { id: string; quantity: number }[]
+    user: { id: string; name: string; email: string }
+    settings: { theme: 'light' | 'dark'; notifications: boolean }
+    cart: { id: string; quantity: number }[]
 }
 
-// Use any Storage-compatible backend (e.g., localStorage)
-const storage = new StorageAdapter<AppStorage>(localStorage, 'myapp')
+const storage = new StorageAdapter<AppStorage>({
+    driver: new LocalStorageDriver(),
+    prefix: 'myapp'
+})
 
-// Set and get values
-storage.set('user', { id: '123', name: 'Jane', email: 'jane@example.com' })
-const user = storage.get('user')
+// All operations are async
+await storage.set('user', { id: '123', name: 'Jane', email: 'jane@example.com' })
+const user = await storage.get('user')
 
-// Subscribe to updates
-storage.on('storage-after-set', (event) => {
-  if (event.key === 'user') {
-    updateUserInterface(event.value)
-  }
+// Subscribe to updates (returns cleanup function)
+const cleanup = storage.on('after-set', (event) => {
+    console.log('Set:', event.key, event.value)
 })
 
 // Merge object properties
-storage.assign('settings', { notifications: false })
+await storage.assign('settings', { notifications: false })
 
 // Remove and clear
-storage.rm(['user', 'settings'])
-storage.clear()
+await storage.rm(['user', 'settings'])
+await storage.clear()
+
+// Cleanup listener when done
+cleanup()
 ```
 
 ## Core Concepts
 
-StorageAdapter provides a type-safe wrapper around any Storage API compatible backend (localStorage, sessionStorage, AsyncStorage, etc.) with an event system for reactive updates. It uses JSON serialization for data persistence and supports namespacing through prefixes.
 
-## StorageAdapter
+StorageAdapter separates **what** you store from **where** you store it. The adapter handles serialization, prefixing, and events while the driver handles persistence. All methods are async, so the same API works with synchronous backends (localStorage) and asynchronous ones (IndexedDB, file system).
 
-### Constructor
+### Driver Pattern
 
-```typescript
-new StorageAdapter<Values>(storage: StorageImplementation, prefixOrOptions?: string)
-```
-
-- `storage`: Any implementation that supports the `Storage` API (`getItem`, `setItem`, `removeItem`, `clear`).
-- `prefixOrOptions`: Optional string prefix for namespacing keys. Keys are stored as `prefix:key`.
-
-### StorageImplementation
+A driver is any object implementing the `StorageDriver` interface -- five async methods that handle raw key-value persistence:
 
 ```typescript
-type StorageImplementation = {
-  clear(): void
-  getItem(key: string, callback?: Function): string | null
-  removeItem(key: string): void
-  setItem(key: string, value: string): void
+interface StorageDriver {
+    get(key: string): Promise<unknown>
+    set(key: string, value: unknown): Promise<void>
+    remove(key: string): Promise<void>
+    keys(): Promise<string[]>
+    clear(): Promise<void>
 }
 ```
 
+The adapter sits on top and adds type safety, serialization, events, and prefix scoping.
+
+### Serialization
+
+By default, values are serialized with `JSON.stringify` before being passed to the driver and deserialized with `JSON.parse` on retrieval. This means the same caveats apply -- `Date` becomes a string, `Map`/`Set` become plain objects, `undefined` becomes `null`, and functions are not serializable.
+
+When using a driver that natively supports structured data (like IndexedDB), set `structured: true` to skip JSON serialization entirely:
+
+```typescript
+const storage = new StorageAdapter<AppStorage>({
+    driver: new IndexedDBDriver('my-app'),
+    structured: true
+})
+```
+
+### Prefix
+
+Keys are stored as `prefix:key` when a prefix is provided. This prevents collisions between different parts of your application sharing the same backend:
+
+```typescript
+const userStorage = new StorageAdapter<UserData>({
+    driver: new LocalStorageDriver(),
+    prefix: 'app:user'
+})
+
+const cacheStorage = new StorageAdapter<CacheData>({
+    driver: new LocalStorageDriver(),
+    prefix: 'app:cache'
+})
+```
+
+Operations like `keys()`, `entries()`, `values()`, and `clear()` are scoped to the prefix -- they only see and affect keys that belong to this adapter instance.
+
+
+## StorageAdapter
+
+
+### Constructor
+
+
+```typescript
+new StorageAdapter<Values>(config: StorageAdapter.Config)
+```
+
+**Config:**
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `driver` | `StorageDriver` | *required* | Backend driver for persistence |
+| `prefix` | `string` | `undefined` | Key namespace prefix |
+| `structured` | `boolean` | `false` | Skip JSON serialization when `true` |
+
+**Example:**
+
+```typescript
+const storage = new StorageAdapter<AppStorage>({
+    driver: new LocalStorageDriver(),
+    prefix: 'myapp',
+    structured: false
+})
+```
+
+### Public Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `driver` | `StorageDriver` | The underlying driver instance |
+| `prefix` | `string \| undefined` | Configured prefix |
+| `structured` | `boolean` | Whether JSON serialization is skipped |
+
+
 ### Core Methods
+
 
 #### `get()`
 
-Overloaded data retrieval.
+
+Overloaded async data retrieval.
 
 ```typescript
 // Get all values
-get(): Values
+get(): Promise<Values>
 
 // Get a specific key
-get<K extends keyof Values>(key: K): Values[K]
+get<K extends keyof Values>(key: K): Promise<Values[K] | null>
 
 // Get multiple keys
-get<K extends keyof Values>(keys: K[]): Partial<NullableObject<Values>>
+get<K extends keyof Values>(keys: K[]): Promise<Partial<Values>>
 ```
 
 Examples:
 
 ```typescript
-const all = storage.get()
-const user = storage.get('user')
-const { user, token } = storage.get(['user', 'token'])
+const all = await storage.get()
+const user = await storage.get('user')
+const { user, settings } = await storage.get(['user', 'settings'])
 ```
 
 Notes:
 
-- Missing keys resolve to `null` in the returned structure (not `undefined`).
-- All values are deserialized via `JSON.parse`.
+- Missing keys resolve to `null`.
+- All values are deserialized via `JSON.parse` unless `structured: true`.
+
 
 #### `set()`
+
 
 Write one or multiple values.
 
 ```typescript
 // Set multiple pairs
-set(values: Partial<Values> & Record<string, any>): void
+set(values: Partial<Values> & Record<string, any>): Promise<void>
 
 // Set one pair
-set<K extends keyof Values>(key: K, value: Values[K]): void
+set<K extends keyof Values>(key: K, value: Values[K]): Promise<void>
 ```
 
 Examples:
 
 ```typescript
-storage.set('user', { id: '123', name: 'Alice' })
+await storage.set('user', { id: '123', name: 'Alice' })
 
-storage.set({
-  user: { id: '123', name: 'Alice' },
-  token: 'jwt-token',
-  preferences: { theme: 'dark' }
+await storage.set({
+    user: { id: '123', name: 'Alice' },
+    settings: { theme: 'dark', notifications: true }
 })
 ```
 
 Notes:
 
-- Values are serialized via `JSON.stringify`.
-- Using the object form triggers one event per key.
+- Values are serialized via `JSON.stringify` unless `structured: true`.
+- The object form triggers one `before-set`/`after-set` event per key.
+
 
 #### `rm()` / `remove()`
+
 
 Delete keys.
 
 ```typescript
-rm<K extends keyof Values>(key: K): void
-rm<K extends keyof Values>(keys: K[]): void
+rm<K extends keyof Values>(keyOrKeys: K | K[]): Promise<void>
 ```
 
 Aliases: `remove()`.
 
+```typescript
+await storage.rm('user')
+await storage.rm(['user', 'settings'])
+await storage.remove('cart')
+```
+
+
 #### `has()`
+
 
 Check key existence without retrieving the value.
 
 ```typescript
-has(key: keyof Values): boolean
-has(keys: (keyof Values)[]): boolean[]
+has(key: keyof Values): Promise<boolean>
+has(keys: (keyof Values)[]): Promise<boolean[]>
 ```
 
-Notes:
+```typescript
+const exists = await storage.has('user')
+const [hasUser, hasSettings] = await storage.has(['user', 'settings'])
+```
 
-- Returns `false` for keys set to `null`.
-- Prefer checking via `getItem(...) !== null` in custom implementations.
 
 #### `clear()` / `reset()`
+
 
 Remove all keys under the configured prefix.
 
 ```typescript
-clear(): void
+clear(): Promise<void>
 ```
 
 Alias: `reset()`.
 
 Notes:
 
-- Clears only keys matching the instance prefix.
+- Emits a `clear` event.
+- Only clears keys matching the instance prefix.
+
 
 #### `assign()`
+
 
 Shallow-merge object values.
 
 ```typescript
-assign<K extends keyof Values>(key: K, val: Partial<Values[K]>): void
+assign<K extends keyof Values>(key: K, val: Partial<Values[K]>): Promise<void>
 ```
 
 Example:
 
 ```typescript
-storage.set('user', { id: '123', name: 'Bob' })
-storage.assign('user', { email: 'bob@example.com' })
+await storage.set('user', { id: '123', name: 'Bob' })
+await storage.assign('user', { email: 'bob@example.com' })
 // Result: { id: '123', name: 'Bob', email: 'bob@example.com' }
 ```
 
 Notes:
 
-- Throws if the current value or provided value is not an object.
+- If the key does not exist, `assign()` behaves like `set()`.
+- Throws if the current value is not an object.
 - Uses `Object.assign` semantics (shallow merge).
+
 
 ### Utility Methods
 
+
 #### `keys()`
 
+
 ```typescript
-keys(): (keyof Values)[]
+keys(): Promise<(keyof Values)[]>
 ```
 
 Return all keys in the current prefix scope.
 
+
 #### `entries()`
 
+
 ```typescript
-entries(): [string, unknown][]
+entries(): Promise<[keyof Values, Values[keyof Values]][]>
 ```
 
 Return `[key, value]` pairs for all keys in the current prefix scope.
 
+
 #### `values()`
 
+
 ```typescript
-values(): unknown[]
+values(): Promise<Values[keyof Values][]>
 ```
 
 Return all values in the current prefix scope.
 
-#### `wrap()`
 
-Create a single-key scoped interface.
+## Built-in Drivers
+
+
+### LocalStorageDriver
+
+
+Wraps `window.localStorage`. Browser only.
 
 ```typescript
-wrap<K extends keyof Values>(key: K): {
-  set: (val: Values[K]) => void
-  get: () => Values[K]
-  remove: () => void
-  assign: (val: object) => void
-  rm: () => void
-  clear: () => void
+import { LocalStorageDriver } from '@logosdx/storage'
+
+const storage = new StorageAdapter<AppStorage>({
+    driver: new LocalStorageDriver(),
+    prefix: 'myapp'
+})
+```
+
+
+### SessionStorageDriver
+
+
+Wraps `window.sessionStorage`. Browser only. Data is cleared when the tab or window is closed.
+
+```typescript
+import { SessionStorageDriver } from '@logosdx/storage'
+
+const storage = new StorageAdapter<AppStorage>({
+    driver: new SessionStorageDriver(),
+    prefix: 'session'
+})
+```
+
+
+### WebStorageDriver
+
+
+Base class for `LocalStorageDriver` and `SessionStorageDriver`. Use it to wrap any `Storage`-compatible backend:
+
+```typescript
+import { WebStorageDriver } from '@logosdx/storage'
+
+const driver = new WebStorageDriver(customStorageBackend)
+```
+
+
+### FileSystemDriver
+
+
+Persists key-value data as a JSON file on disk. Node.js only. Lazy-loads `node:fs/promises` on first use.
+
+```typescript
+import { FileSystemDriver } from '@logosdx/storage'
+
+const storage = new StorageAdapter<AppSettings>({
+    driver: new FileSystemDriver('./data/settings.json'),
+    prefix: 'app'
+})
+
+await storage.set('theme', 'dark')
+const theme = await storage.get('theme') // 'dark'
+```
+
+Notes:
+
+- The file is read on first access and written on every `set()`, `remove()`, and `clear()`.
+- If the file does not exist, it starts with an empty store.
+
+
+### IndexedDBDriver
+
+
+Stores structured cloneable data in IndexedDB. Browser only. Ideal for large datasets and complex objects since IndexedDB natively supports structured cloning.
+
+```typescript
+import { IndexedDBDriver } from '@logosdx/storage'
+
+const storage = new StorageAdapter<AppData>({
+    driver: new IndexedDBDriver('my-app', 'settings'),
+    structured: true  // skip JSON serialization -- IndexedDB handles it
+})
+
+await storage.set('preferences', { theme: 'dark', fontSize: 14 })
+```
+
+Constructor:
+
+```typescript
+new IndexedDBDriver(dbName: string, storeName?: string)
+```
+
+- `dbName`: IndexedDB database name.
+- `storeName`: Object store name. Defaults to `'store'`.
+
+
+## Custom Drivers
+
+
+Implement the `StorageDriver` interface to use any backend. Here is an example using Redis:
+
+```typescript
+import type { StorageDriver } from '@logosdx/storage'
+import Redis from 'ioredis'
+
+export class RedisDriver implements StorageDriver {
+
+    #client: Redis
+
+    constructor(redisUrl: string) {
+
+        this.#client = new Redis(redisUrl)
+    }
+
+    async get(key: string) {
+
+        const raw = await this.#client.get(key)
+        return raw ?? null
+    }
+
+    async set(key: string, value: unknown) {
+
+        await this.#client.set(key, String(value))
+    }
+
+    async remove(key: string) {
+
+        await this.#client.del(key)
+    }
+
+    async keys() {
+
+        return this.#client.keys('*')
+    }
+
+    async clear() {
+
+        const allKeys = await this.keys()
+
+        if (allKeys.length > 0) {
+
+            await this.#client.del(...allKeys)
+        }
+    }
+}
+
+// Usage
+const storage = new StorageAdapter<SessionData>({
+    driver: new RedisDriver('redis://localhost:6379'),
+    prefix: 'sessions'
+})
+```
+
+
+## Events
+
+
+StorageAdapter uses `@logosdx/observer` for reactive events.
+
+### Event Names
+
+| Event | Fired |
+|-------|-------|
+| `before-set` | Before a value is written |
+| `after-set` | After a value is written |
+| `before-remove` | Before a key is removed |
+| `after-remove` | After a key is removed |
+| `clear` | When `clear()` is called |
+
+### Event Payload
+
+```typescript
+interface StorageEventPayload<V, K extends keyof V> {
+    key: K
+    value?: V[K] | null
+}
+```
+
+### Subscribing
+
+`on()` returns a cleanup function. Use `off()` for manual removal.
+
+```typescript
+// Subscribe -- returns cleanup function
+const cleanup = storage.on('after-set', (event) => {
+    console.log('Set:', event.key, event.value)
+})
+
+// Remove later
+cleanup()
+
+// Or use off() directly
+function handleRemove(event) {
+    console.log('Removed:', event.key)
+}
+
+storage.on('before-remove', handleRemove)
+storage.off('before-remove', handleRemove)
+```
+
+### Event Ordering
+
+- `before-*` fires before the driver operation.
+- `after-*` fires after the driver operation.
+- Bulk `set({ ... })` emits one event pair per key.
+
+
+## scope()
+
+
+Create a single-key scoped interface. All methods on the scoped object are async and delegate to the parent adapter.
+
+```typescript
+scope<K extends keyof Values>(key: K): ScopedKey<Values, K>
+```
+
+```typescript
+interface ScopedKey<V, K extends keyof V> {
+    get(): Promise<V[K]>
+    set(value: V[K]): Promise<void>
+    assign(val: Partial<V[K]>): Promise<void>
+    rm(): Promise<void>
+    remove(): Promise<void>
+    clear(): Promise<void>
 }
 ```
 
 Example:
 
 ```typescript
-const userStorage = storage.wrap('user')
-userStorage.set({ id: '123', name: 'Charlie' })
-userStorage.assign({ email: 'charlie@example.com' })
-userStorage.remove()
+const userStorage = storage.scope('user')
+
+await userStorage.set({ id: '123', name: 'Charlie' })
+await userStorage.assign({ email: 'charlie@example.com' })
+const user = await userStorage.get()
+await userStorage.remove()
 ```
 
-### Events
 
-`StorageAdapter` extends `EventTarget` and emits structured storage events.
+## Type Definitions
 
-#### Event Names
 
 ```typescript
-enum StorageEventNames {
-  'storage-before-set' = 'storage-before-set',
-  'storage-after-set' = 'storage-after-set',
-  'storage-before-unset' = 'storage-before-unset',
-  'storage-after-unset' = 'storage-after-unset',
-  'storage-reset' = 'storage-reset'
-}
-```
-
-#### `on()` / `off()`
-
-```typescript
-on(
-  ev: keyof typeof StorageEventNames,
-  listener: StorageEventListener<Values>,
-  once?: boolean
-): void
-
-off(
-  ev: keyof typeof StorageEventNames,
-  listener: EventListenerOrEventListenerObject
-): void
-```
-
-Example:
-
-```typescript
-function handleSet(event) {
-  console.log('Set:', event.key, event.value)
+interface StorageDriver {
+    get(key: string): Promise<unknown>;
+    set(key: string, value: unknown): Promise<void>;
+    remove(key: string): Promise<void>;
+    keys(): Promise<string[]>;
+    clear(): Promise<void>;
 }
 
-storage.on('storage-after-set', handleSet)
-// ...
-storage.off('storage-after-set', handleSet)
-```
+type StorageEventName =
+    | 'before-set'
+    | 'after-set'
+    | 'before-remove'
+    | 'after-remove'
+    | 'clear';
 
-#### StorageEvent
-
-```typescript
-class StorageEvent<V, K extends keyof V = keyof V> extends Event {
-  key?: K | K[] | undefined
-  value!: V[K]
-}
-```
-
-Event ordering:
-
-- `storage-before-*` fires before the operation.
-- `storage-after-*` fires after the operation.
-- Bulk `set({ ... })` emits one event per key.
-
-### Best Practices
-
-#### 1) Type safety and validation
-
-Define storage interfaces upfront and validate at boundaries when reading untrusted data.
-
-```typescript
-interface UserPreferences {
-  theme: 'light' | 'dark' | 'auto'
-  language: string
-  notifications: {
-    email: boolean
-    push: boolean
-    marketing: boolean
-  }
+interface StorageEventPayload<V, K extends keyof V = keyof V> {
+    key: K;
+    value?: V[K] | null;
 }
 
-interface AppStorage {
-  user: UserPreferences
-  session: { token: string; expires: number }
-  cache: Record<string, unknown>
+type StorageEventListener<V> = (
+    payload: StorageEventPayload<V>
+) => void;
+
+interface ScopedKey<V, K extends keyof V> {
+    get(): Promise<V[K]>;
+    set(value: V[K]): Promise<void>;
+    assign(val: Partial<V[K]>): Promise<void>;
+    rm(): Promise<void>;
+    remove(): Promise<void>;
+    clear(): Promise<void>;
 }
 
-const storage = new StorageAdapter<AppStorage>(localStorage, 'myapp')
-const theme = storage.get('user')?.theme
-```
+declare class StorageAdapter<Values> {
+    constructor(config: StorageAdapter.Config);
 
-Runtime validation example:
+    readonly driver: StorageDriver;
+    readonly prefix?: string;
+    readonly structured: boolean;
 
-```typescript
-const getUserPrefs = (): UserPreferences | null => {
-  const raw = storage.get('user')
-  if (!raw || typeof raw !== 'object') return null
-  if (!['light', 'dark', 'auto'].includes(raw.theme)) return null
-  if (typeof raw.language !== 'string') return null
-  return raw as UserPreferences
-}
-```
+    remove: StorageAdapter<Values>['rm'];
+    reset: StorageAdapter<Values>['clear'];
 
-#### 2) Prefixing
+    get(): Promise<Values>;
+    get<K extends keyof Values>(key: K): Promise<Values[K] | null>;
+    get<K extends keyof Values>(keys: K[]): Promise<Partial<Values>>;
 
-Use hierarchical prefixes to isolate features and environments.
+    set(values: Partial<Values> & Record<string, any>): Promise<void>;
+    set<K extends keyof Values>(key: K, value: Values[K]): Promise<void>;
 
-```typescript
-const APP = 'myapp'
-const USERS = `${APP}:user`
-const CACHE = `${APP}:cache`
+    assign<K extends keyof Values>(key: K, val: Partial<Values[K]>): Promise<void>;
 
-const userStorage = new StorageAdapter(localStorage, USERS)
-const cacheStorage = new StorageAdapter(localStorage, CACHE)
-```
+    rm<K extends keyof Values>(keyOrKeys: K | K[]): Promise<void>;
 
-Note: Avoid special regex characters in prefixes to simplify filtering.
+    has(key: keyof Values): Promise<boolean>;
+    has(keys: (keyof Values)[]): Promise<boolean[]>;
 
-#### 3) Event-driven updates
+    clear(): Promise<void>;
 
-React to updates from a single source of truth.
+    keys(): Promise<(keyof Values)[]>;
+    entries(): Promise<[keyof Values, Values[keyof Values]][]>;
+    values(): Promise<Values[keyof Values][]>;
 
-```typescript
-const storage = new StorageAdapter<AppStorage>(localStorage, 'myapp')
+    scope<K extends keyof Values>(key: K): ScopedKey<Values, K>;
 
-storage.on('storage-after-set', (event) => {
-  if (event.key === 'user') {
-    updateUserInterface(event.value)
-  }
-})
-```
-
-Cross-tab synchronization example:
-
-```typescript
-window.addEventListener('storage', (event) => {
-  if (event.key?.startsWith('myapp:user:')) {
-    refreshUserInterface()
-  }
-})
-```
-
-#### 4) Wrappers
-
-Create domain-specific accessors to simplify call sites.
-
-```typescript
-class UserPreferencesManager {
-  private userKey = storage.wrap('user')
-
-  getTheme(): string {
-    return this.userKey.get()?.theme ?? 'auto'
-  }
-
-  setTheme(theme: 'light' | 'dark' | 'auto'): void {
-    this.userKey.assign({ theme })
-  }
-
-  reset(): void {
-    this.userKey.remove()
-  }
-}
-```
-
-#### 5) Bulk operations
-
-Batch updates for related keys.
-
-```typescript
-const updateUserSession = (sessionData: { token: string; expires: number; userId: string }) => {
-  storage.set({
-    token: sessionData.token,
-    expires: sessionData.expires,
-    userId: sessionData.userId
-  })
-}
-```
-
-#### 6) Assignment pattern
-
-Prefer `assign()` for shallow merges; avoid destructive overwrites.
-
-```typescript
-const updateUser = (updates: Partial<UserPreferences>) => {
-  const current = storage.get('user') ?? {}
-  storage.set('user', { ...current, ...updates })
+    on(event: StorageEventName, listener: StorageEventListener<Values>): () => void;
+    off(event: StorageEventName, listener: StorageEventListener<Values>): void;
 }
 
-const updateNotificationSettings = (settings: Partial<UserPreferences['notifications']>) => {
-  const current = storage.get('user')?.notifications ?? {}
-  storage.assign('user', { notifications: { ...current, ...settings } })
-}
-```
-
-### Notes and Constraints
-
-- JSON serialization round-trips change certain JS types:
-  - `Date` values become strings (use ISO strings and convert at boundaries).
-  - `Map` and `Set` become plain objects.
-  - `undefined` becomes `null`.
-  - Functions are not serializable.
-- Existence checks should be based on `getItem(key) !== null` at the storage layer. If you maintain a custom `has()` implementation, ensure it does not rely on `hasOwnProperty` on the `Storage` object.
-
-Example conversion helpers:
-
-```typescript
-// Persist dates as ISO strings
-const saveDate = (date: Date) => storage.set('updatedAt', date.toISOString())
-const loadDate = () => new Date(storage.get('updatedAt'))
-```
-
-### Troubleshooting
-
-#### Verify data exists
-
-```typescript
-console.log('Specific key:', localStorage.getItem('myprefix:mykey'))
-console.log('Adapter:', storage.get('mykey'))
-```
-
-#### Inspect prefixing
-
-```typescript
-const storage = new StorageAdapter(localStorage, 'myapp')
-console.log('Scoped keys:', storage.keys())
-console.log('Local keys:', Object.keys(localStorage).filter(k => k.startsWith('myapp:')))
-```
-
-#### Trace events
-
-```typescript
-const storage = new StorageAdapter(localStorage, 'debug')
-;['storage-before-set', 'storage-after-set', 'storage-before-unset', 'storage-after-unset', 'storage-reset']
-  .forEach(eventName => {
-    storage.on(eventName, (e) => {
-      console.log(`[${eventName}]`, e.key, e.value)
-    })
-  })
-
-storage.set('test', 'value')
-```
-
-### Error Types
-
-#### StorageError
-
-```typescript
-class StorageError extends Error {}
-```
-
-Thrown when `assign()` receives an invalid value or when the current value is not an object.
-
-### Complete Type Definitions
-
-```typescript
-type StorageImplementation = {
-  clear(): void;
-  getItem(key: string, callback?: Function): string | null;
-  removeItem(key: string): void;
-  setItem(key: string, value: string): void;
-};
-
-declare class StorageEvent<Values> extends Event {
-  key?: keyof Values | (keyof Values)[];
-  value: Values[keyof Values] | {
-    [K in keyof Values]: Values[K];
-  };
-}
-
-declare enum StorageEventNames {
-  'storage-before-set' = "storage-before-set",
-  'storage-after-set' = "storage-after-set",
-  'storage-before-unset' = "storage-before-unset",
-  'storage-after-unset' = "storage-after-unset",
-  'storage-reset' = "storage-reset"
-}
-
-type StorageEventListener<Values> = (e: StorageEvent<Values>) => void;
-
-declare class StorageAdapter<Values> extends EventTarget {
-  constructor(
-    storage: StorageImplementation,
-    prefixOrOptions?: string
-  );
-
-  readonly storage: StorageImplementation;
-  readonly prefix?: string;
-
-  on(
-    ev: keyof typeof StorageEventNames,
-    listener: StorageEventListener<Values>,
-    once?: boolean
-  ): void;
-
-  off(
-    ev: keyof typeof StorageEventNames,
-    listener: EventListenerOrEventListenerObject
-  ): void;
-
-  get(): Values;
-  get<K extends keyof Values>(key: K): Values[K];
-  get<K extends keyof Values>(keys: K[]): Partial<NullableObject<Values>>;
-
-  set(values: Partial<Values> & Record<string, any>): void;
-  set<K extends keyof Values>(key: K, value: Values[K]): void;
-
-  assign<K extends keyof Values>(key: K, val: Partial<Values[K]>): void;
-
-  rm<K extends keyof Values>(keyOrKeys: K | K[]): void;
-  remove: StorageAdapter<Values>['rm'];
-
-  has(key: keyof Values): boolean;
-  has(keys: (keyof Values)[]): boolean[];
-
-  clear(): void;
-  reset: StorageAdapter<Values>['clear'];
-
-  keys(): (keyof Values)[];
-  entries(): [string, unknown][];
-  values(): unknown[];
-
-  wrap<K extends keyof Values>(key: K): {
-    set: (val: Values[K]) => void;
-    get: () => Values[K];
-    remove: () => void;
-    assign: (val: object) => void;
-    rm: () => void;
-    clear: () => void;
-  };
+declare namespace StorageAdapter {
+    interface Config {
+        driver: StorageDriver;
+        prefix?: string;
+        structured?: boolean;
+    }
 }
 ```
