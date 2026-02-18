@@ -710,3 +710,127 @@ describe('localize: namespace scoping', () => {
         expect(authT.intl.number(42)).to.eq(instance.intl.number(42));
     });
 });
+
+describe('localize: additional coverage', () => {
+
+    it('concurrent changeTo() for the same unloaded locale only loads once', async () => {
+
+        const english = { greeting: 'Hello' };
+        const french = { greeting: 'Bonjour' };
+        let loaderCallCount = 0;
+
+        const instance = new LocaleManager<typeof english, 'en' | 'fr'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: english } } as any
+        });
+
+        instance.register('fr', {
+            text: 'Français',
+            loader: async () => {
+
+                loaderCallCount++;
+                await new Promise(r => setTimeout(r, 10));
+                return french;
+            }
+        });
+
+        await Promise.all([
+            instance.changeTo('fr'),
+            instance.changeTo('fr')
+        ]);
+
+        expect(instance.current).to.eq('fr');
+        expect(instance.text('greeting')).to.eq('Bonjour');
+        expect(loaderCallCount).to.eq(1);
+    });
+
+    it('updateLang() on non-current locale is reflected when switched to', async () => {
+
+        const lang = { greeting: 'Hello', farewell: 'Goodbye' };
+        const spanish = { greeting: 'Hola', farewell: 'Adiós' };
+
+        const instance = new LocaleManager<typeof lang, 'en' | 'es'>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: lang },
+                es: { code: 'es', text: 'Español', labels: spanish }
+            }
+        });
+
+        instance.updateLang('es', { greeting: 'Buenas' });
+        await instance.changeTo('es');
+
+        expect(instance.text('greeting')).to.eq('Buenas');
+        expect(instance.text('farewell')).to.eq('Adiós');
+    });
+
+    it('scoped translator reflects locale changes after switch', async () => {
+
+        const lang = {
+            auth: { login: { title: 'Sign In' } },
+        };
+
+        const langEs = {
+            auth: { login: { title: 'Iniciar sesión' } },
+        };
+
+        const instance = new LocaleManager<typeof lang, 'en' | 'es'>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: lang },
+                es: { code: 'es', text: 'Español', labels: langEs }
+            }
+        });
+
+        const authT = instance.ns('auth');
+        expect(authT.t('login.title')).to.eq('Sign In');
+
+        await instance.changeTo('es');
+        expect(authT.t('login.title')).to.eq('Iniciar sesión');
+    });
+
+    it('changeTo() unknown locale fires event with fallback code', async () => {
+
+        const lang = { greeting: 'Hello' };
+
+        const instance = new LocaleManager<typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+
+        // Force a different current so changeTo fallback actually triggers
+        instance.current = 'xx' as any;
+
+        const changeStub = sandbox.stub();
+        instance.on('change', changeStub);
+
+        await instance.changeTo('zz' as any);
+
+        expect(instance.current).to.eq('en');
+        expect(changeStub.calledOnce).to.be.true;
+
+        const [event] = changeStub.args[0]!;
+        expect(event.code).to.eq('en');
+    });
+
+    it('plural zero category with # replacement resolves correctly', () => {
+
+        const lang = {
+            cart: '{count, plural, zero {# items in cart} one {# item in cart} other {# items in cart}}',
+        };
+
+        const instance = new LocaleManager<typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+
+        expect(instance.t('cart', { count: 0 })).to.eq('0 items in cart');
+        expect(instance.t('cart', { count: 1 })).to.eq('1 item in cart');
+        expect(instance.t('cart', { count: 5 })).to.eq('5 items in cart');
+    });
+});

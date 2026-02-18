@@ -3,7 +3,8 @@ import {
     DeepOptional,
     PathLeaves,
     assert,
-    clone
+    clone,
+    attempt
 } from '@logosdx/utils';
 
 import {
@@ -53,6 +54,8 @@ export class LocaleManager<
 
     #_locales: LocaleManager.ManyLocales<Locale, Code>;
     #_loaders = new Map<Code, LocaleManager.LazyLocale<Locale>>();
+    #_pending = new Map<Code, Promise<void>>();
+    #_intl: LocaleManager.IntlFormatters | null = null;
     fallback: Code;
     current: Code;
 
@@ -136,6 +139,7 @@ export class LocaleManager<
 
         if (this.current === code) {
 
+            this.#_intl = null;
             this.#merge();
 
             const event = new LocaleEvent<Code>('change');
@@ -149,7 +153,12 @@ export class LocaleManager<
 
     get intl(): LocaleManager.IntlFormatters {
 
-        return createIntlFormatters(this.current);
+        if (!this.#_intl) {
+
+            this.#_intl = createIntlFormatters(this.current);
+        }
+
+        return this.#_intl;
     }
 
     register<C extends Code>(
@@ -201,6 +210,7 @@ export class LocaleManager<
         if (this.#_locales[code]) {
 
             this.current = code;
+            this.#_intl = null;
             this.#merge();
 
             const event = new LocaleEvent<Code>('change');
@@ -214,35 +224,67 @@ export class LocaleManager<
 
         if (lazyLocale) {
 
-            const loadingEvent = new LocaleEvent<Code>('loading');
-            loadingEvent.code = code;
-            this.dispatchEvent(loadingEvent);
+            const pending = this.#_pending.get(code);
 
-            try {
+            if (pending) {
 
-                const labels = await lazyLocale.loader();
+                await pending;
+
+                if (this.current !== code) {
+
+                    this.current = code;
+                    this.#_intl = null;
+                    this.#merge();
+
+                    const event = new LocaleEvent<Code>('change');
+                    event.code = code;
+                    this.dispatchEvent(event);
+                }
+
+                return;
+            }
+
+            const loadPromise = (async () => {
+
+                const loadingEvent = new LocaleEvent<Code>('loading');
+                loadingEvent.code = code;
+                this.dispatchEvent(loadingEvent);
+
+                const [labels, err] = await attempt(() => lazyLocale.loader());
+
+                if (err) {
+
+                    const errorEvent = new LocaleEvent<Code>('error');
+                    errorEvent.code = code;
+                    this.dispatchEvent(errorEvent);
+
+                    throw err;
+                }
 
                 this.#_locales[code] = {
                     code,
                     text: lazyLocale.text,
                     labels,
                 } as LocaleManager.ManyLocales<Locale, Code>[Code];
+            })();
 
-                this.current = code;
-                this.#merge();
+            this.#_pending.set(code, loadPromise);
 
-                const changeEvent = new LocaleEvent<Code>('change');
-                changeEvent.code = code;
-                this.dispatchEvent(changeEvent);
+            const [, loadErr] = await attempt(() => loadPromise);
+
+            this.#_pending.delete(code);
+
+            if (loadErr) {
+                throw loadErr;
             }
-            catch (err) {
 
-                const errorEvent = new LocaleEvent<Code>('error');
-                errorEvent.code = code;
-                this.dispatchEvent(errorEvent);
+            this.current = code;
+            this.#_intl = null;
+            this.#merge();
 
-                throw err;
-            }
+            const changeEvent = new LocaleEvent<Code>('change');
+            changeEvent.code = code;
+            this.dispatchEvent(changeEvent);
 
             return;
         }
@@ -251,6 +293,7 @@ export class LocaleManager<
         code = this.fallback;
 
         this.current = code;
+        this.#_intl = null;
         this.#merge();
 
         const event = new LocaleEvent<Code>('change');
