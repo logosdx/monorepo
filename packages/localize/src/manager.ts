@@ -124,11 +124,10 @@ export class LocaleManager<
 
     #merge() {
 
-        const fallback = clone(this.#_locales[this.fallback]);
-        const current = clone(this.#_locales[this.current]);
-
-        this.#_loc = merge({} as Locale, fallback.labels) as Locale;
-        this.#_loc = merge(this.#_loc, current.labels) as Locale;
+        const fallbackLabels = clone(this.#_locales[this.fallback].labels);
+        this.#_loc = (this.current === this.fallback)
+            ? fallbackLabels as Locale
+            : merge(fallbackLabels, this.#_locales[this.current].labels) as Locale;
     }
 
     updateLang <C extends Code>(

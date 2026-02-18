@@ -6,6 +6,21 @@ import {
 
 import type { LocaleManager } from './manager.ts';
 
+const regexCache = new Map<string, RegExp>();
+
+const getPlaceholderRegex = (key: string) => {
+
+    let regex = regexCache.get(key);
+
+    if (!regex) {
+
+        regex = new RegExp(`\\{${key}\\}`, 'gi');
+        regexCache.set(key, regex);
+    }
+
+    return regex;
+};
+
 export const reachIn = <
     O extends LocaleManager.LocaleType = LocaleManager.LocaleType,
     P extends PathLeaves<O> = PathLeaves<O>,
@@ -120,7 +135,9 @@ export const format = (str: string, values: LocaleManager.LocaleFormatArgs) => {
 
     for (const [key, value] of args) {
 
-        str = str?.replace(new RegExp(`\\{${key}\\}`, 'gi'), value.toString());
+        const regex = getPlaceholderRegex(key);
+        regex.lastIndex = 0;
+        str = str?.replace(regex, value.toString());
     }
 
     return str;
