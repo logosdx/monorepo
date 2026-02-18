@@ -6,7 +6,7 @@ import {
 } from '@logosdx/localize';
 
 import { DeepOptional } from '@logosdx/utils';
-import { sandbox } from './_helpers';
+import { sandbox, stubWarn } from './_helpers';
 
 const english = {
 
@@ -337,6 +337,36 @@ describe('@logosdx/localize', function () {
         })
 
         expect(instance.text('some.more')).to.eq('chocolate');
+    });
+
+    it('returns [key] for missing translation keys', () => {
+
+        const lang = { greeting: 'Hello' };
+
+        const instance = new LocaleManager<typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+
+        const result = instance.text('nonexistent.key' as any);
+        expect(result).to.eq('[nonexistent.key]');
+    });
+
+    it('warns in dev mode when key is missing', () => {
+
+        const lang = { greeting: 'Hello' };
+
+        const instance = new LocaleManager<typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+
+        instance.text('missing.key' as any);
+
+        expect(stubWarn.called).to.be.true;
+        expect(stubWarn.lastCall.args[0]).to.match(/missing.key/);
     });
 
     it('clones itself', () => {

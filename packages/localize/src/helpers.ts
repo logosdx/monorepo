@@ -26,7 +26,8 @@ export const reachIn = <
     // Regex explained: https://regexr.com/58j0k
     const pathArray = Array.isArray(path) ? path as string[] : path.match(/([^[.\]])+/g)!
 
-    // Find value
+    let found = true;
+
     const result = pathArray.reduce(
         (prevObj, key) => {
 
@@ -37,15 +38,17 @@ export const reachIn = <
                 return prevObj[key] as O;
             }
 
-            return prevObj;
+            found = false;
+            return undefined as unknown as O;
         },
         obj
     );
 
-    // If found value is undefined return default value; otherwise return the value
-    return (
-        result === undefined ? defValue : result
-    ) as PathValue<O, P>;
+    if (!found || result === undefined) {
+        return defValue as PathValue<O, P>;
+    }
+
+    return result as PathValue<O, P>;
 }
 
 /**
@@ -129,7 +132,13 @@ export const getMessage = <L extends LocaleManager.LocaleType>(
     values?: LocaleManager.LocaleFormatArgs
 ) => {
 
-    const str = reachIn(locale, reach, '?' as never) as string;
+    const missingKey = `[${reach as string}]`;
+    const str = reachIn(locale, reach, missingKey as never) as string;
+
+    if (str === missingKey && process.env.NODE_ENV !== 'production') {
+
+        console.warn(`Missing translation key: "${reach as string}"`);
+    }
 
     return format(str, values || []);
 };
