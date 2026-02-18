@@ -15,49 +15,36 @@ import { createIntlFormatters } from './intl.ts';
 import { ScopedLocale } from './scoped.ts';
 
 /**
- * Module for handling text and labels throughout your app and within components.
+ * Type-safe locale manager with async loading, namespace scoping,
+ * ICU-lite pluralization, and Intl formatting.
+ *
+ * WHY: Centralizes all i18n concerns — translation lookup, locale switching,
+ * lazy-loaded locales, and number/date formatting — behind a single event-driven API.
  *
  * @example
  *
- * const english = {
- *      my: { nested: {
- *          key: '{0}, I like bacon. {1}, I like eggs.'
- *          key2: '{first}, I like steak. {second}, I like rice.'
- *      }}
- * }
- *
- * const spanish = {
- *      my: { nested: {
- *          key: '{0}, me gusta el bacon. {1}, me gustan los huevos.'
- *          key2: '{first}, me gusta la carne de res. {second}, me gusta el arroz.'
- *      }}
- * }
- *
- * const langMngr = new L10n({
- *      current: 'en',
- *      fallback: 'en'
- *      langs: {
- *          en: english,
- *          es: spanish
- *      }
+ * const i18n = new LocaleManager<AppLocale, 'en' | 'es'>({
+ *     current: 'en',
+ *     fallback: 'en',
+ *     locales: { en: { code: 'en', text: 'English', labels: english } }
  * });
  *
- * langMngr.t('my.nested.key', ['Yes', 'No']);
- * // > 'Yes, I like bacon. No, I like eggs.'
+ * // Register a lazy-loaded locale
+ * i18n.register('es', { text: 'Español', loader: () => import('./es.json') });
  *
- * langMngr.t('my.nested.key2', { first: 'Ofcourse', second: 'Obviously' });
- * // > 'Ofcourse, I like steak. Obviously, I like rice.'
+ * // Namespace scoping for feature modules
+ * const authT = i18n.ns('auth');
+ * authT.t('login.title');  // resolves 'auth.login.title'
  *
- * const onChange = (e) => sendToAnalytics(e.code);
+ * // Intl formatting follows the current locale automatically
+ * i18n.intl.number(1499.99);               // "1,499.99"
+ * i18n.intl.date(new Date());              // "2/18/2026"
+ * i18n.intl.relative(-3, 'day');           // "3 days ago"
  *
- * langMng.on('language-change', onChange);
- *
- * langMngr.changeTo('es');
- *
- * langMngr.t('my.nested.key2', { first: 'Claro', second: 'Obviamente' });
- * // > 'Claro, me gusta la carne de res. Obviamente, me gusta el arroz.'
- *
- * langMng.off('language-change', onChange);
+ * // Async locale switch — emits 'loading' then 'change' events
+ * const unsub = i18n.on('change', (e) => console.log(e.code));
+ * await i18n.changeTo('es');
+ * unsub();  // cleanup
  */
 export class LocaleManager<
     Locale extends LocaleManager.LocaleType,
