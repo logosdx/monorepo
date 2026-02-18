@@ -64,6 +64,7 @@ export class LocaleManager<
 > extends EventTarget {
 
     #_locales: LocaleManager.ManyLocales<Locale, Code>;
+    #_loaders = new Map<Code, LocaleManager.LazyLocale<Locale>>();
     fallback: Code;
     current: Code;
 
@@ -163,15 +164,38 @@ export class LocaleManager<
         return createIntlFormatters(this.current);
     }
 
+    register<C extends Code>(
+        code: C,
+        opts: LocaleManager.LazyLocale<Locale>
+    ) {
+
+        this.#_loaders.set(code, opts);
+    }
+
+    isLoaded(code: Code): boolean {
+
+        return !!this.#_locales[code];
+    }
+
     get locales() {
 
         type LangConf = LocaleManager.ManyLocales<Locale, Code>;
 
-        const values = Object.values(this.#_locales) as LangConf[Code][];
+        const loaded = Object.values(this.#_locales) as LangConf[Code][];
 
-        return values.map(
+        const result = loaded.map(
             ({ code, text }) => ({ code, text })
-        )
+        );
+
+        for (const [code, opts] of this.#_loaders) {
+
+            if (!this.#_locales[code]) {
+
+                result.push({ code, text: opts.text });
+            }
+        }
+
+        return result;
     }
 
     text <K extends PathLeaves<Locale>>(key: K, values?: LocaleManager.LocaleFormatArgs) {
@@ -179,27 +203,70 @@ export class LocaleManager<
         return getMessage(this.#_loc, key, values, this.current);
     }
 
-    changeTo(code: Code) {
-
+    async changeTo(code: Code) {
 
         if (code === this.current) {
 
             return;
         }
 
-        if (!this.#_locales[code]) {
+        if (this.#_locales[code]) {
 
-            console.warn(`WARNING: Locale '${code}' not found. Using fallback '${this.fallback}' instead.`);
-            code = this.fallback;
+            this.current = code;
+            this.#merge();
+
+            const event = new LocaleEvent<Code>('change');
+            event.code = code;
+            this.dispatchEvent(event);
+
+            return;
         }
 
-        this.current = code;
+        const lazyLocale = this.#_loaders.get(code);
 
+        if (lazyLocale) {
+
+            const loadingEvent = new LocaleEvent<Code>('loading');
+            loadingEvent.code = code;
+            this.dispatchEvent(loadingEvent);
+
+            try {
+
+                const labels = await lazyLocale.loader();
+
+                this.#_locales[code] = {
+                    code,
+                    text: lazyLocale.text,
+                    labels,
+                } as LocaleManager.ManyLocales<Locale, Code>[Code];
+
+                this.current = code;
+                this.#merge();
+
+                const changeEvent = new LocaleEvent<Code>('change');
+                changeEvent.code = code;
+                this.dispatchEvent(changeEvent);
+            }
+            catch (err) {
+
+                const errorEvent = new LocaleEvent<Code>('error');
+                errorEvent.code = code;
+                this.dispatchEvent(errorEvent);
+
+                throw err;
+            }
+
+            return;
+        }
+
+        console.warn(`WARNING: Locale '${code}' not found. Using fallback '${this.fallback}' instead.`);
+        code = this.fallback;
+
+        this.current = code;
         this.#merge();
 
         const event = new LocaleEvent<Code>('change');
         event.code = code;
-
         this.dispatchEvent(event);
     }
 

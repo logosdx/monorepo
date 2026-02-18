@@ -37,6 +37,11 @@ declare module './manager.ts' {
         }
 
 
+        export interface LazyLocale<Locale extends LocaleType> {
+            text: string;
+            loader: () => Promise<Locale>;
+        }
+
         export type LocaleEventName = (
             'change' | 'loading' | 'error'
         );

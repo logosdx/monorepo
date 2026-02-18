@@ -536,3 +536,109 @@ describe('localize: intl formatters', () => {
         instance.changeTo('en');
     });
 });
+
+describe('localize: async loading', () => {
+
+    const english = { greeting: 'Hello', farewell: 'Goodbye' };
+    const spanish: typeof english = { greeting: 'Hola', farewell: 'Adiós' };
+
+    type AsyncLang = typeof english;
+    type AsyncCodes = 'en' | 'es' | 'fr';
+
+    let instance: LocaleManager<AsyncLang, AsyncCodes>;
+
+    it('instantiates with register()', () => {
+
+        instance = new LocaleManager<AsyncLang, AsyncCodes>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: english }
+            } as any
+        });
+
+        instance.register('es', {
+            text: 'Español',
+            loader: () => Promise.resolve(spanish)
+        });
+    });
+
+    it('includes registered locales in locales list', () => {
+
+        const list = instance.locales;
+        expect(list).to.have.lengthOf(2);
+        expect(list.find(l => l.code === 'es')).to.deep.include({ code: 'es', text: 'Español' });
+    });
+
+    it('isLoaded returns false for unloaded locale', () => {
+
+        expect(instance.isLoaded('es')).to.be.false;
+    });
+
+    it('changeTo loads and switches to registered locale', async () => {
+
+        await instance.changeTo('es');
+        expect(instance.current).to.eq('es');
+        expect(instance.text('greeting')).to.eq('Hola');
+    });
+
+    it('isLoaded returns true after loading', () => {
+
+        expect(instance.isLoaded('es')).to.be.true;
+    });
+
+    it('emits loading event before load starts', async () => {
+
+        const loadingStub = sandbox.stub();
+
+        await instance.changeTo('en');
+        instance.register('fr', {
+            text: 'Français',
+            loader: () => Promise.resolve({ greeting: 'Bonjour', farewell: 'Au revoir' })
+        });
+
+        instance.on('loading', loadingStub);
+        await instance.changeTo('fr');
+
+        expect(loadingStub.calledOnce).to.be.true;
+    });
+
+    it('emits error event and stays on current locale when loader fails', async () => {
+
+        const errInstance = new LocaleManager<AsyncLang, 'en' | 'bad'>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: english }
+            } as any
+        });
+
+        errInstance.register('bad', {
+            text: 'Bad',
+            loader: () => Promise.reject(new Error('Network error'))
+        });
+
+        const errorStub = sandbox.stub();
+        errInstance.on('error', errorStub);
+
+        try {
+            await errInstance.changeTo('bad');
+        }
+        catch (e) {
+            // expected
+        }
+
+        expect(errInstance.current).to.eq('en');
+        expect(errorStub.calledOnce).to.be.true;
+    });
+
+    it('changeTo resolves immediately for already-loaded locale', async () => {
+
+        const start = performance.now();
+        await instance.changeTo('en');
+        const elapsed = performance.now() - start;
+
+        expect(elapsed).to.be.lessThan(50);
+        expect(instance.current).to.eq('en');
+    });
+});
