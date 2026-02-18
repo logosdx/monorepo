@@ -11,6 +11,8 @@ import {
     LocaleEvent
 } from './helpers.ts';
 
+import { createIntlFormatters } from './intl.ts';
+
 /**
  * Module for handling text and labels throughout your app and within components.
  *
@@ -155,6 +157,11 @@ export class LocaleManager<
 
     }
 
+
+    get intl(): LocaleManager.IntlFormatters {
+
+        return createIntlFormatters(this.current);
+    }
 
     get locales() {
 

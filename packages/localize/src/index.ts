@@ -9,3 +9,4 @@ export {
 
 export { LocaleManager } from './manager.ts'
 export { parsePlural } from './plural.ts'
+export { createIntlFormatters } from './intl.ts'

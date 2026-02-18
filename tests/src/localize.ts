@@ -474,3 +474,65 @@ describe('localize: pluralization', () => {
         expect(simple.t('hello', { name: 'World' })).to.eq('Hello World');
     });
 });
+
+describe('localize: intl formatters', () => {
+
+    const lang = { greeting: 'Hello' };
+
+    let instance: LocaleManager<typeof lang, 'en' | 'de'>;
+
+    it('instantiates with intl support', () => {
+
+        instance = new LocaleManager<typeof lang, 'en' | 'de'>({
+            current: 'en',
+            fallback: 'en',
+            locales: {
+                en: { code: 'en', text: 'English', labels: lang },
+                de: { code: 'de', text: 'Deutsch', labels: lang },
+            }
+        });
+    });
+
+    it('formats numbers', () => {
+
+        const result = instance.intl.number(1499.99);
+        expect(result).to.eq('1,499.99');
+    });
+
+    it('formats currency', () => {
+
+        const result = instance.intl.number(1499.99, { style: 'currency', currency: 'USD' });
+        expect(result).to.eq('$1,499.99');
+    });
+
+    it('formats percentages', () => {
+
+        const result = instance.intl.number(0.75, { style: 'percent' });
+        expect(result).to.eq('75%');
+    });
+
+    it('formats dates', () => {
+
+        const date = new Date(2026, 1, 18);
+        const result = instance.intl.date(date);
+        expect(result).to.be.a('string');
+        expect(result).to.include('2026');
+    });
+
+    it('formats relative time', () => {
+
+        const result = instance.intl.relative(-3, 'day');
+        expect(result).to.eq('3 days ago');
+    });
+
+    it('updates formatters when locale changes', () => {
+
+        const before = instance.intl.number(1499.99);
+        instance.changeTo('de');
+        const after = instance.intl.number(1499.99);
+
+        expect(before).to.not.eq(after);
+
+        instance.changeTo('en');
+    });
+});

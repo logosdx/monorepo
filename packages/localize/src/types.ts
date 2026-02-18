@@ -42,5 +42,11 @@ declare module './manager.ts' {
         );
 
         export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code>) => void;
+
+        export interface IntlFormatters {
+            number(value: number, opts?: Intl.NumberFormatOptions): string;
+            date(value: Date | number, opts?: Intl.DateTimeFormatOptions): string;
+            relative(value: number, unit: Intl.RelativeTimeFormatUnit, opts?: Intl.RelativeTimeFormatOptions): string;
+        }
     }
 }
