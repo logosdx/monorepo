@@ -615,6 +615,48 @@ queue.resume()             // Resume processing
 await queue.shutdown()     // Graceful shutdown
 ```
 
+## Listener Transfer & Copy
+
+Move or duplicate listeners between observer instances. Useful when cloning engines (e.g. a FetchEngine) and carrying over observability listeners to the new instance.
+
+```typescript
+    const source = new ObserverEngine<AppEvents>();
+    const target = new ObserverEngine<AppEvents>();
+
+    source.on('analytics', trackEvent);
+    source.on('user:login', logLogin);
+
+    // Transfer: source loses listeners, target gains them
+    ObserverEngine.transfer(source, target);
+
+    // Copy: source keeps listeners, target also gets them
+    ObserverEngine.copy(source, target);
+```
+
+Both methods stack with existing target listeners — they won't overwrite what's already there.
+
+### Filtering
+
+Use `filter` (opt-in) and `exclude` (opt-out) to selectively transfer:
+
+```typescript
+    // Only transfer specific events
+    ObserverEngine.transfer(source, target, {
+        filter: ['analytics', /^user:/]
+    });
+
+    // Transfer everything except internal events
+    ObserverEngine.transfer(source, target, {
+        exclude: [/^internal:/]
+    });
+
+    // Compose: filter narrows first, exclude removes from that set
+    ObserverEngine.transfer(source, target, {
+        filter: [/^fetch:/],
+        exclude: ['fetch:debug']
+    });
+```
+
 ## Error Types
 
 ### EventError

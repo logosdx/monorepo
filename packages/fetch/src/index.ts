@@ -82,8 +82,7 @@ export type {
     EngineRequestConfig as EngineRequestOpts,
     EngineLifecycle,
     ValidateConfig,
-    ModifyConfigFn,
-    DetermineTypeFn,
+DetermineTypeFn,
     InstanceHeaders,
     InstanceParams,
     InstanceState

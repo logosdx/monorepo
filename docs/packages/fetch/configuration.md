@@ -26,8 +26,6 @@ The `FetchEngine.Config` interface defines all options for creating a FetchEngin
 | `methodHeaders` | `{ GET?: ..., POST?: ... }` | Method-specific default headers |
 | `params` | `DictAndT<P>` | Default URL parameters for all requests |
 | `methodParams` | `{ GET?: ..., POST?: ... }` | Method-specific default parameters |
-| `modifyConfig` | `(opts, state) => opts` | Function to modify request config |
-| `modifyMethodConfig` | `{ GET?: fn, POST?: fn }` | Method-specific config modifiers |
 | `validate` | `ValidateConfig` | Validators for headers, params, and state |
 | `retry` | `RetryConfig \| boolean` | Retry configuration. `true` uses defaults, `false` disables |
 | `dedupePolicy` | `boolean \| DeduplicationConfig` | Request deduplication configuration |
@@ -66,16 +64,6 @@ const api = new FetchEngine({
         maxAttempts: 3,
         baseDelay: 1000,
         useExponentialBackoff: true
-    },
-
-    modifyConfig: (opts, state) => {
-        if (state.authToken) {
-            opts.headers = {
-                ...opts.headers,
-                Authorization: `Bearer ${state.authToken}`
-            };
-        }
-        return opts;
     }
 });
 ```
@@ -144,7 +132,6 @@ const config = api.config.get();
 // Get specific values by path
 const baseUrl = api.config.get('baseUrl');
 const maxAttempts = api.config.get('retry.maxAttempts');
-const modifyFn = api.config.get('modifyConfig');
 ```
 
 
@@ -163,37 +150,10 @@ api.config.set({
     totalTimeout: 60000,
     retry: { maxAttempts: 5 }
 });
-
-// Change the modifyConfig function at runtime
-api.config.set('modifyConfig', (opts, state) => {
-    if (state.authToken) {
-        opts.headers = {
-            ...opts.headers,
-            Authorization: `Bearer ${state.authToken}`
-        };
-    }
-    return opts;
-});
-
-// Change method-specific modifier
-api.config.set('modifyMethodConfig', {
-    POST: (opts, state) => {
-        if (state.csrfToken) {
-            opts.headers = {
-                ...opts.headers,
-                'X-CSRF-Token': state.csrfToken
-            };
-        }
-        return opts;
-    }
-});
-
-// Clear a modifier by setting to undefined
-api.config.set('modifyConfig', undefined);
 ```
 
 ::: info
-Setting config emits a `config-change` event, `modify-config-change` event, or `modify-method-config-change` event depending on what was changed.
+Setting config emits a `config-change` event.
 :::
 
 
@@ -323,7 +283,7 @@ if (api.params.has('version')) {
 ## State Management
 
 
-Manage instance state at runtime via `api.state`. State is available in `modifyConfig` callbacks.
+Manage instance state at runtime via `api.state`.
 
 
 ### `state.get()`
@@ -368,46 +328,13 @@ console.log(api.state.get()); // {}
 ## Using State in Requests
 
 
-State is passed to `modifyConfig` callbacks, allowing dynamic request modification:
-
-```typescript
-const api = new FetchEngine({
-    baseUrl: 'https://api.example.com',
-
-    modifyConfig: (opts, state) => {
-        // Add auth header from state
-        if (state.authToken) {
-            opts.headers = {
-                ...opts.headers,
-                Authorization: `Bearer ${state.authToken}`
-            };
-        }
-
-        // Add user ID header
-        if (state.userId) {
-            opts.headers = {
-                ...opts.headers,
-                'X-User-ID': state.userId
-            };
-        }
-
-        return opts;
-    }
-});
-
-// Set state
-api.state.set('authToken', 'my-token');
-api.state.set('userId', 'user-123');
-
-// Requests now include auth header and user ID
-const { data } = await api.get('/protected-resource');
-```
+State can be accessed through hooks or plugins to modify requests dynamically. See the hooks documentation for how to integrate state-based request modification.
 
 
 ## Method-Specific Configuration
 
 
-Configure headers, params, or modifyConfig per HTTP method:
+Configure headers and params per HTTP method:
 
 ```typescript
 const api = new FetchEngine({
@@ -427,19 +354,6 @@ const api = new FetchEngine({
     // GET-specific params
     methodParams: {
         GET: { include: 'metadata' }
-    },
-
-    // Method-specific config modification
-    modifyMethodConfig: {
-        POST: (opts, state) => {
-            if (state.csrfToken) {
-                opts.headers = {
-                    ...opts.headers,
-                    'X-CSRF-Token': state.csrfToken
-                };
-            }
-            return opts;
-        }
     }
 });
 ```

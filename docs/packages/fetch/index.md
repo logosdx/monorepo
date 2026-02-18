@@ -88,10 +88,6 @@ import { get, post, headers, state, config, on } from '@logosdx/fetch';
 // Configure the global instance
 headers.set('Authorization', 'Bearer token123');
 state.set('userId', '456');
-config.set('modifyConfig', (opts, state) => {
-    opts.headers = { ...opts.headers, 'X-Client-Version': '2.1.0' };
-    return opts;
-});
 
 // Make requests
 const [userResponse, err] = await attempt(() => get<User>('/api/users/456'));
@@ -239,6 +235,8 @@ Explore each aspect of FetchEngine in detail:
 
 - **[Configuration](./configuration)** - Engine config, headers, parameters, and state management
 - **[Making Requests](./requests)** - HTTP methods, request options, and AbortablePromise
+- **[Hooks](./hooks)** - Request lifecycle hooks for intercepting and modifying requests
+- **[Plugins](./plugins)** - Extend FetchEngine with reusable plugins
 - **[Resilience](./resilience)** - Retry configuration, timeouts, and error handling
 - **[Policies](./policies)** - Request deduplication, response caching, and rate limiting
 - **[Events](./events)** - Event system and lifecycle management

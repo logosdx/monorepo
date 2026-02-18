@@ -119,18 +119,6 @@ const api = new FetchEngine<ApiHeaders, ApiQueryParams, ApiState>({
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
-    },
-    modifyConfig: (opts, state) => {
-
-        if (state.authToken) {
-            opts.headers.Authorization = `Bearer ${state.authToken}`
-        }
-
-        if (state.userId) {
-            opts.headers['X-User-ID'] = state.userId
-        }
-
-        return opts
     }
 });
 

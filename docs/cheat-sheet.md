@@ -291,8 +291,6 @@ api.off('error', callback);
 
 **Configuration Changes:**
 - `config-change` - Config modified
-- `modify-config-change` - modifyConfig function changed
-- `modify-method-config-change` - Method-specific modifier changed
 - `url-change` - Base URL changed
 
 **Deduplication:**
@@ -377,22 +375,6 @@ const api = new FetchEngine({
     methodParams: {
         GET: { include: 'all' },
         DELETE: { soft: true }
-    },
-
-    // Modify config before request
-    modifyConfig: (opts, state) => {
-        if (state.authToken) {
-            opts.headers.Authorization = `Bearer ${state.authToken}`;
-        }
-        return opts;
-    },
-
-    // Method-specific config modification
-    modifyMethodConfig: {
-        POST: (opts, state) => {
-            opts.headers['X-User-ID'] = state.userId;
-            return opts;
-        }
     },
 
     // Validation

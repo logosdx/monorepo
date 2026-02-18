@@ -246,11 +246,7 @@ const observer = new ObserverEngine<AppEvents>()
 
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    retry: { maxAttempts: 3 },
-    modifyConfig: (opts, state) => {
-        if (state.token) opts.headers.Authorization = `Bearer ${state.token}`
-        return opts
-    }
+    retry: { maxAttempts: 3 }
 })
 
 const storage = new StorageAdapter<AppStore>(localStorage, 'myapp')

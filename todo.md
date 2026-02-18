@@ -8,8 +8,6 @@
         - onBeforeRequest
         - onAfterResponse
         - onError
-        - modifyConfig
-        - modifyMethodConfig
     - Will now support:
         - onRateLimit
         - onRetry

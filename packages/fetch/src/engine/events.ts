@@ -163,29 +163,6 @@ export interface OptionsEventData {
 
 
 /**
- * Event data for modifyOptions change events.
- */
-export interface ModifyOptionsEventData {
-
-    /** The new modifyOptions function (or undefined if cleared) */
-    fn?: ((opts: unknown, state: unknown) => unknown) | undefined;
-}
-
-
-/**
- * Event data for modifyMethodOptions change events.
- */
-export interface ModifyMethodOptionsEventData {
-
-    /** HTTP method this change applies to */
-    method: string;
-
-    /** The new modifyOptions function for the method (or undefined if cleared) */
-    fn?: ((opts: unknown, state: unknown) => unknown) | undefined;
-}
-
-
-/**
  * Event map for FetchEngine - maps event names to their data types.
  *
  * Event names have been simplified by removing the `fetch-` prefix.
@@ -225,9 +202,7 @@ export interface EventMap<S = unknown, H = unknown, P = unknown> {
 
     // Configuration change events
     'config-change': OptionsEventData;
-    'modify-config-change': ModifyOptionsEventData;
-    'modify-method-config-change': ModifyMethodOptionsEventData;
-    'url-change': { url: string; state: S };
+'url-change': { url: string; state: S };
 
     // Deduplication events
     'dedupe-start': DedupeEventData<S, H, P>;

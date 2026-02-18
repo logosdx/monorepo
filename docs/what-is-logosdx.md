@@ -158,35 +158,7 @@ const api = new FetchEngine<
     {},
     AppState,
 >({
-    baseUrl: window.location.origin,
-    modifyConfig: async (opts, state) => {
-
-        if (opts.url.includes('/api/')) {
-            opts.headers['X-Client-Version'] = '1.0.0';
-        }
-
-        if (state.userId) {
-            const message = {
-                time: Date.now(),
-                url: opts.url,
-                body: opts.body,
-            }
-            const hmac = await generateHmac(state.userId, message);
-            opts.headers['X-HMAC-Token'] = hmac;
-            opts.headers['X-Timestamp'] = message.time.toString();
-        }
-
-        return opts;
-    },
-    modifyMethodConfig: {
-        POST: (opts) => {
-
-            const tag = $('meta[name="csrf-token"]').pop();
-            opts.headers['X-CSRF-Token'] = attrs.get(tag, 'content') || '';
-
-            return opts;
-        }
-    }
+    baseUrl: window.location.origin
 });
 
 api.on('state-set', (state) => storage.set('apiState', state));

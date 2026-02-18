@@ -174,8 +174,7 @@ export type {
     EngineRequestConfig,
     EngineLifecycle,
     ValidateConfig,
-    ModifyConfigFn,
-    DetermineTypeFn,
+DetermineTypeFn,
     InstanceHeaders,
     InstanceParams,
     InstanceState

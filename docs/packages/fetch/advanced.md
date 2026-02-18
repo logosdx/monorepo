@@ -305,20 +305,6 @@ const api = new FetchEngine({
         ]
     },
 
-    // Authentication and context injection
-    modifyConfig: (opts, state) => {
-        if (state.authToken) {
-            opts.headers.Authorization = `Bearer ${state.authToken}`;
-        }
-        if (state.userId) {
-            opts.headers['X-User-ID'] = state.userId;
-        }
-        if (state.sessionId) {
-            opts.headers['X-Session-ID'] = state.sessionId;
-        }
-        return opts;
-    },
-
     // Intelligent retry logic
     retry: {
         maxAttempts: 3,

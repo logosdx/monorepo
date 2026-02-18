@@ -113,10 +113,6 @@ api.request<Response, RequestData, RH>(method, path, options & { payload?: Reque
 // Request cancellation
 const request = api.get('/users');
 setTimeout(() => request.abort('User cancelled'), 2000);
-
-// Dynamic request modification
-api.config.set('modifyConfig', fn?: (opts: RequestOpts, state: S) => RequestOpts)
-api.config.set('modifyMethodConfig', { [method]: fn?: (opts: RequestOpts, state: S) => RequestOpts })
 ```
 
 ## Configuration
@@ -154,14 +150,6 @@ interface FetchEngine.Config<H, P, S> {
         retryableStatusCodes?: number[]; // default: [408, 429, 500, 502, 503, 504]
         shouldRetry?: (error: FetchError, attempt: number) => boolean | number;
     } | false;
-
-    // Request modification (initial setup)
-    modifyConfig?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
-    modifyMethodConfig?: {
-        GET?: (opts: RequestOpts<H, P>, state: S) => RequestOpts<H>;
-        // ... other methods
-    };
-    // Note: Use config.set('modifyConfig', fn) and config.set('modifyMethodConfig', {...}) for runtime changes
 
     // Validation
     validate?: {
@@ -262,19 +250,6 @@ api.params.resolve('GET');      // Resolved params for a specific method
 import { headers, params, config } from '@logosdx/fetch';
 headers.set('X-API-Key', 'key123');
 params.set('version', 'v1');
-
-// Dynamic request modification
-config.set('modifyConfig', (opts, state) => {
-    opts.headers['X-Request-ID'] = crypto.randomUUID();
-    return opts;
-});
-
-config.set('modifyMethodConfig', {
-    POST: (opts, state) => {
-        opts.headers['Content-Type'] = 'application/json';
-        return opts;
-    }
-});
 ```
 
 ## State Management
@@ -290,17 +265,6 @@ api.state.set({
 
 const currentState = api.state.get(); // deep clone
 api.state.reset(); // clear all state
-
-// Use state in request modification
-const api = new FetchEngine<MyHeaders, MyParams, MyState>({
-    baseUrl: 'https://api.example.com',
-    modifyConfig: (opts, state) => {
-        if (state.authToken) {
-            opts.headers.Authorization = `Bearer ${state.authToken}`;
-        }
-        return opts;
-    }
-});
 
 // Access response metadata with typed config
 const response = await api.get('/users');
@@ -336,8 +300,6 @@ enum FetchEventNames {
     'state-reset' = 'state-reset',
     'url-change' = 'url-change',
     'config-change' = 'config-change',
-    'modify-config-change' = 'modify-config-change',
-    'modify-method-config-change' = 'modify-method-config-change',
 
     // Deduplication events
     'dedupe-start' = 'dedupe-start',   // New request tracked
@@ -830,26 +792,6 @@ const api = new FetchEngine({
 // Environment switching
 api.config.set('baseUrl', 'https://api.staging.com');
 
-// Dynamic request modification
-api.config.set('modifyConfig', (opts, state) => {
-    if (state.authToken) {
-        opts.headers.Authorization = `Bearer ${state.authToken}`;
-    }
-    opts.headers['X-Request-ID'] = crypto.randomUUID();
-    return opts;
-});
-
-api.config.set('modifyMethodConfig', {
-    POST: (opts, state) => {
-        opts.headers['Content-Type'] = 'application/json';
-        return opts;
-    }
-});
-
-// Clear modifiers
-api.config.set('modifyConfig', undefined);
-api.config.set('modifyMethodConfig', { POST: undefined });
-
 // Per-request options
 const [response, err] = await attempt(() =>
     api.get('/users', {
@@ -1097,14 +1039,6 @@ api.on('retry', (event) => {
 
 // Dynamic state management
 api.state.set('authToken', await getAuthToken());
-
-// Use config.set for dynamic auth token injection
-api.config.set('modifyConfig', (opts, state) => {
-    if (state.authToken) {
-        opts.headers.Authorization = `Bearer ${state.authToken}`;
-    }
-    return opts;
-});
 
 // Environment switching
 if (process.env.NODE_ENV === 'development') {

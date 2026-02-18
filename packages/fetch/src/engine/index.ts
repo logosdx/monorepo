@@ -35,8 +35,7 @@ import type {
     EngineLifecycle,
     ValidateConfig,
     CallConfig,
-    ModifyConfigFn as OptionsModifyConfigFn,
-    DetermineTypeFn as OptionsDetermineTypeFn,
+DetermineTypeFn as OptionsDetermineTypeFn,
     InstanceHeaders as OptionsInstanceHeaders,
     InstanceParams as OptionsInstanceParams,
     InstanceState as OptionsInstanceState
@@ -581,11 +580,8 @@ export namespace FetchEngine {
     /** Full configuration options for FetchEngine */
     export type Config<H = InstanceHeaders, P = InstanceParams, S = InstanceState> = EngineConfig<H, P, S>;
 
-    /** Request options passed to modifyOptions callbacks */
+    /** Request options passed to callbacks */
     export type RequestOpts<H = InstanceHeaders, P = InstanceParams> = EngineRequestConfig<H, P>;
-
-    /** Function type for modifying request options */
-    export type ModifyConfigFn<H = InstanceHeaders, P = InstanceParams, S = InstanceState> = OptionsModifyConfigFn<H, P, S>;
 
     /** Function type for determining response body type */
     export type DetermineTypeFn = OptionsDetermineTypeFn;

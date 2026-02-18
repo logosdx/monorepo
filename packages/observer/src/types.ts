@@ -80,5 +80,10 @@ declare module './engine.ts' {
         export type ObserveOptions = {
             signal?: AbortSignal | undefined
         };
+
+        export type TransferOptions<Ev extends Record<string, any>> = {
+            filter?: (Events<Ev> | RegExp)[]
+            exclude?: (Events<Ev> | RegExp)[]
+        }
     }
 }

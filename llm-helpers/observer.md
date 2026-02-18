@@ -254,6 +254,38 @@ type Child<C, Events> = C & Component<Events> & {
 }
 ```
 
+## Listener Transfer & Copy
+
+```ts
+// Transfer: move listeners from source to target (source loses them)
+ObserverEngine.transfer(source, target)
+
+// Copy: duplicate listeners to target (source keeps them)
+ObserverEngine.copy(source, target)
+
+// Opt-in filter: only transfer specific events
+ObserverEngine.transfer(source, target, { filter: ['analytics', /^user:/] })
+
+// Opt-out exclude: transfer everything except these
+ObserverEngine.copy(source, target, { exclude: [/^internal:/] })
+
+// Compose: filter first, then exclude from that set
+ObserverEngine.transfer(source, target, {
+    filter: [/^fetch:/],
+    exclude: ['fetch:debug']
+})
+
+// Stacking: target's existing listeners are untouched
+target.on('analytics', existingHandler)
+ObserverEngine.transfer(source, target) // existingHandler still works
+
+// TransferOptions type
+type TransferOptions<Ev> = {
+    filter?: (Events<Ev> | RegExp)[]    // opt-in whitelist (applied first)
+    exclude?: (Events<Ev> | RegExp)[]   // opt-out blacklist (applied second)
+}
+```
+
 ## Advanced Features
 
 ```ts
@@ -335,4 +367,8 @@ obs.on(/pattern/, ({ event, data }) => {})
 // Resource cleanup
 const cleanup = obs.on('event', callback)
 cleanup()
+
+// Transfer listeners between observers
+ObserverEngine.transfer(source, target)
+ObserverEngine.copy(source, target, { filter: [/^user:/] })
 ```

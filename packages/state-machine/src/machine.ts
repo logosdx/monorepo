@@ -335,7 +335,7 @@ export class StateMachine<
         const payload: TransitionPayload<Context> = {
             from,
             to: this.#state,
-            event: from === target ? '$invoke' : `$invoke`,
+            event: '$invoke',
             context: clone(this.#context),
             data,
         };

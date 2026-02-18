@@ -351,27 +351,4 @@ describe('FetchEngine: RequestInit options', async () => {
         });
     });
 
-    describe('RequestInit options with modifyConfig', () => {
-
-        it('should allow modifyConfig to set RequestInit options', async () => {
-
-            const api = new FetchEngine({
-                baseUrl: testUrl,
-                modifyConfig: (opts) => ({
-                    ...opts,
-                    credentials: 'include' as RequestCredentials,
-                }),
-            });
-
-            await api.get('/json');
-
-            expect(fetchSpy).toHaveBeenCalledTimes(1);
-
-            const [, init] = fetchSpy.mock.calls[0];
-
-            expect(init?.credentials).to.equal('include');
-
-            api.destroy();
-        });
-    });
 });

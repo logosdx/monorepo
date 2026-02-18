@@ -164,7 +164,7 @@ export interface CallConfig<H = InstanceHeaders, P = InstanceParams, S = Instanc
 
 
 /**
- * Request config passed to modifyConfig and callbacks.
+ * Request config passed to callbacks.
  *
  * This is what callbacks receive - includes the controller that was created
  * for the request.
@@ -175,13 +175,6 @@ export interface EngineRequestConfig<H = InstanceHeaders, P = InstanceParams>
     /** The AbortController created for this request */
     controller: AbortController;
 }
-
-
-/**
- * Function type for modifying request config before they are sent.
- */
-export type ModifyConfigFn<H = InstanceHeaders, P = InstanceParams, S = InstanceState> =
-    (opts: EngineRequestConfig<H, P>, state: S) => EngineRequestConfig<H>;
 
 
 /**
@@ -259,16 +252,6 @@ export interface EngineConfig<
      * URL parameters to be set on requests of a specific method.
      */
     methodParams?: HttpMethodOpts<Partial<DictAndT<P>>> | undefined;
-
-    /**
-     * Function that can be used to change the config before a request.
-     */
-    modifyConfig?: ModifyConfigFn<H, P, S> | undefined;
-
-    /**
-     * Object for modifying config for requests of a specific method.
-     */
-    modifyMethodConfig?: HttpMethodOpts<ModifyConfigFn<H, P, S>> | undefined;
 
     /**
      * Validators for headers, params, and state.

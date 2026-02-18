@@ -1,113 +1,12 @@
 ---
-title: State Machine
-description: States that enforce themselves. Transitions that carry meaning.
+title: State Machine — API Reference
+description: Complete API reference for StateMachine, StateHub, persistence, and types.
 ---
 
-# State Machine
+# API Reference
 
-
-Most state management libraries let you put anything anywhere. `@logosdx/state-machine` takes the opposite approach — you define which states exist, which events are valid in each state, and how context changes on transition. The machine enforces the rules so your code doesn't have to. Guards prevent invalid transitions, invoke handles async operations with automatic cancellation, and StateHub wires machines together declaratively. It's a finite state machine that knows what it is and what it isn't.
 
 [[toc]]
-
-## Installation
-
-
-::: code-group
-
-```bash [npm]
-npm install @logosdx/state-machine
-```
-
-```bash [yarn]
-yarn add @logosdx/state-machine
-```
-
-```bash [pnpm]
-pnpm add @logosdx/state-machine
-```
-
-:::
-
-
-**CDN:**
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/@logosdx/state-machine@latest/dist/browser.min.js"></script>
-<script>
-    const { StateMachine, StateHub } = LogosDx.StateMachine;
-</script>
-```
-
-## Quick Start
-
-```typescript
-import { StateMachine } from '@logosdx/state-machine'
-
-interface OrderContext {
-    items: string[]
-    error: string | null
-}
-
-interface OrderEvents {
-    ADD_ITEM: { name: string }
-    SUBMIT: void
-    SUCCESS: { orderId: string }
-    FAILURE: { message: string }
-    RETRY: void
-}
-
-const order = new StateMachine<OrderContext, OrderEvents>({
-    initial: 'draft',
-    context: { items: [], error: null },
-    transitions: {
-        draft: {
-            on: {
-                ADD_ITEM: {
-                    target: 'draft',
-                    action: (ctx, data) => ({
-                        ...ctx,
-                        items: [...ctx.items, data.name],
-                    }),
-                },
-                SUBMIT: 'submitting',
-            },
-        },
-        submitting: {
-            on: {
-                SUCCESS: {
-                    target: 'confirmed',
-                    action: (ctx) => ({ ...ctx, error: null }),
-                },
-                FAILURE: {
-                    target: 'error',
-                    action: (ctx, data) => ({ ...ctx, error: data.message }),
-                },
-            },
-        },
-        error: {
-            on: { RETRY: 'submitting' },
-        },
-        confirmed: { final: true },
-    },
-})
-
-order.send('ADD_ITEM', { name: 'Widget' })
-order.send('SUBMIT')
-order.send('SUCCESS', { orderId: 'ORD-123' })
-
-console.log(order.state)   // 'confirmed'
-console.log(order.context) // { items: ['Widget'], error: null }
-```
-
-## Core Concepts
-
-A `StateMachine` has three things: a **current state** (a string), a **context** (typed data), and a **transition map** that defines which events are valid in each state and what happens when they fire.
-
-- **States** are strings like `'idle'`, `'loading'`, `'error'`
-- **Events** are typed messages like `'FETCH'` or `'ADD_ITEM: { id: string }'`
-- **Transitions** connect states through events, optionally modifying context via actions and preventing invalid moves via guards
-- **Observer** powers the notification layer internally — you get `on()`, `off()`, regex matching, and cleanup functions for free
 
 ## StateMachine
 
@@ -199,9 +98,7 @@ Current context, cloned on access. Safe to read without affecting internal state
 auth.context // { user: null, token: null }
 ```
 
-### Sending Events
-
-#### `send()`
+### `send()`
 
 Attempt a state transition.
 
@@ -283,9 +180,7 @@ account.send('WITHDRAW', { amount: 500 })  // ✅ goes through
 account.send('WITHDRAW', { amount: 9000 }) // ❌ guard blocks, emits $rejected
 ```
 
-### Listening for Transitions
-
-#### `on()`
+### `on()`
 
 Listen for state entries, wildcards, or patterns.
 
@@ -321,12 +216,20 @@ auth.on('$rejected', ({ state, event, reason }) => {
 })
 ```
 
-#### `off()`
+### `off()`
 
 Remove a listener.
 
 ```typescript
 auth.off('loggedIn', specificListener)
+```
+
+### `ready()`
+
+Returns a promise that resolves when the machine is hydrated from persistence. If no persistence is configured, resolves immediately.
+
+```typescript
+await machine.ready()
 ```
 
 ### Rejected Transitions
@@ -343,7 +246,7 @@ machine.on('$rejected', ({ state, event, data, reason }) => {
 })
 ```
 
-## Invoke — Async Transitions
+## Invoke
 
 Some states exist only to wait for an async operation. `invoke` lets the machine own that lifecycle.
 
@@ -459,7 +362,7 @@ await machine.ready()
 4. If no snapshot, uses `initial` and default `context`
 5. After every transition, calls `adapter.save(key, { state, context })`
 
-## StateHub — Machine Coordination
+## StateHub
 
 When multiple machines need to talk to each other, `StateHub` provides type-safe access and declarative wiring.
 
@@ -529,10 +432,19 @@ Invalid configurations throw immediately with a descriptive error message.
 Enable debug logging to see every transition and observer operation:
 
 ```typescript
-const machine = new StateMachine(config)
-// or
 const machine = new StateMachine({ ...config, debug: true })
 ```
+
+## Internal Events Reference
+
+| Event | When | Payload |
+|-------|------|---------|
+| `*` | Any successful transition | `{ from, to, event, context, data }` |
+| `{stateName}` | Entering a specific state | `{ from, to, event, context, data }` |
+| `$rejected` | Invalid transition attempted | `{ state, event, data, reason }` |
+| `$invoke.done` | Invoke promise resolved | `{ state, result }` |
+| `$invoke.error` | Invoke promise rejected | `{ state, error }` |
+| `$invoke.cancelled` | Invoke discarded (state changed) | `{ state }` |
 
 ## Type Definitions
 
@@ -553,6 +465,12 @@ type StateConfig<Context, Events> = {
     on?: { [E in keyof Events]?: TransitionTarget<Context, Events[E]> }
     invoke?: InvokeConfig<Context>
     final?: boolean
+}
+
+type InvokeConfig<Context> = {
+    src: (context: Context) => Promise<any>
+    onDone: TransitionTarget<Context>
+    onError: TransitionTarget<Context>
 }
 
 type MachineConfig<Context, Events> = {
@@ -609,8 +527,3 @@ type ConnectConfig<Machines> = {
     data?: (context: any) => any
 }
 ```
-
-## Summary
-
-
-`@logosdx/state-machine` gives you a finite state machine that enforces its own rules. Define states, events, and transitions — the machine handles the rest. Guards prevent invalid moves, invoke manages async lifecycles with cancellation, persistence survives page reloads, and StateHub coordinates multiple machines declaratively. It's state management where the machine is the source of truth.

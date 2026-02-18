@@ -36,8 +36,6 @@ Events are organized into categories:
 
 **Configuration Changes:**
 - `config-change` - When config is modified
-- `modify-config-change` - When modifyConfig function changes
-- `modify-method-config-change` - When method-specific modifier changes
 - `url-change` - When base URL changes
 
 **Deduplication:**

@@ -313,24 +313,6 @@ export class RequestExecutor<
             retry,
         };
 
-        const modifyConfig = this.engine.config.get('modifyConfig');
-
-        if (modifyConfig) {
-
-            opts = modifyConfig(opts, state) as EngineRequestConfig<H, P>;
-        }
-
-        const modifyMethodConfig = this.engine.config.get('modifyMethodConfig');
-        const methodSpecificModify = modifyMethodConfig?.[method];
-
-        if (methodSpecificModify) {
-
-            opts = methodSpecificModify(opts, state) as EngineRequestConfig<H, P>;
-        }
-
-        headers = (opts.headers || {}) as DictAndT<H>;
-        body = opts.body ?? undefined;
-
         const validate = this.engine.config.get('validate');
 
         if (validate?.perRequest?.headers && validate.headers) {

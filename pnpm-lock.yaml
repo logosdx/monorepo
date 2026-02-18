@@ -130,6 +130,9 @@ importers:
 
   packages/storage:
     dependencies:
+      '@logosdx/observer':
+        specifier: workspace:^
+        version: link:../observer
       '@logosdx/utils':
         specifier: workspace:^
         version: link:../utils
@@ -228,6 +231,10 @@ importers:
       vitest:
         specifier: ^4
         version: 4.0.14(@types/node@24.10.10)(@vitest/browser-playwright@4.0.14)(jsdom@28.0.0)(tsx@4.19.4)(yaml@2.8.0)
+    devDependencies:
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
 
 packages:
 
@@ -1842,6 +1849,10 @@ packages:
   external-editor@3.1.0:
     resolution: {integrity: sha512-hMQ4CX1p1izmuLYyZqLMO/qGNw10wSv9QDCPfzXfyFrOaCSSoRfqE1Kf1s5an66J5JZC62NewG+mK49jOCtQew==}
     engines: {node: '>=4'}
+
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
 
   fast-check@4.1.1:
     resolution: {integrity: sha512-8+yQYeNYqBfWem0Nmm7BUnh27wm+qwGvI0xln60c8RPM5rVekxZf/Ildng2GNBfjaG6utIebFmVBPlNtZlBLxg==}
@@ -4610,6 +4621,8 @@ snapshots:
       chardet: 0.7.0
       iconv-lite: 0.4.24
       tmp: 0.0.33
+
+  fake-indexeddb@6.2.5: {}
 
   fast-check@4.1.1:
     dependencies:

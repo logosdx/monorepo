@@ -104,18 +104,6 @@ describe('@logosdx/fetch: base', async () => {
         test(/methodParams items must be objects/i);
 
         opts.methodParams.POST = {};
-        opts.modifyConfig = 'not a function';
-        test(/modifyConfig must be a function/i);
-
-        opts.modifyConfig = () => {};
-        opts.modifyMethodConfig = 'not an object';
-        test(/modifyMethodConfig must be an object/i);
-
-        opts.modifyMethodConfig = {};
-        opts.modifyMethodConfig.POST = 'not a function';
-        test(/modifyMethodConfig items must be functions/i);
-
-        opts.modifyMethodConfig.POST = () => {};
         opts.validate = 'not an object';
         test(/validate must be an object/i);
 
@@ -167,11 +155,6 @@ describe('@logosdx/fetch: base', async () => {
                 PUT: {
                     page: '3',
                 },
-            },
-            modifyConfig: (opts) => opts,
-            modifyMethodConfig: {
-                POST: (opts) => opts,
-                PUT: (opts) => opts,
             },
             totalTimeout: 1000,
             validate: {
@@ -1187,118 +1170,6 @@ describe('@logosdx/fetch: base', async () => {
         expect(configWait.isConnectionLost()).to.be.false;
     });
 
-    it('can make options', async () => {
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            modifyConfig(opts) {
-
-                opts.headers = {
-
-                    ...opts.headers,
-                    'was-set': 'true'
-                };
-
-                return opts;
-            }
-        });
-
-        await api.get('/json');
-
-        const [[req]] = callStub.args as [[Hapi.Request]];
-
-        expect(req.headers).to.contain({ 'was-set': 'true' });
-    });
-
-    it('can make options per method', async () => {
-
-        const modifyOptions = sandbox.stub().returns({ headers: { 'was-set': 'true' } });
-
-        const api = new FetchEngine({
-            baseUrl: testUrl,
-            modifyMethodConfig: {
-                POST: modifyOptions,
-                PUT: modifyOptions,
-            }
-        });
-
-        const onReq = sandbox.stub();
-
-        api.on('before-request', onReq);
-
-        const anyReq = (method: 'get' | 'post' | 'put' | 'delete' | 'options' | 'patch') => {
-
-            const fn = api[method];
-
-            return fn.call(api, '/json').catch(noop);
-        };
-
-        await anyReq('get');
-        await anyReq('delete');
-
-        expect(modifyOptions.called).to.be.false;
-
-        await anyReq('post');
-        await anyReq('put');
-
-        expect(modifyOptions.calledTwice).to.be.true;
-
-        await anyReq('patch');
-
-        expect(modifyOptions.calledTwice).to.be.true;
-
-        // Non-regex listener: first arg is EventData directly
-        const calls = onReq.getCalls().map(
-            c => (c.args[0] as EventData).headers
-        );
-
-        expect(calls.shift()).to.not.contain({ 'was-set': 'true' });
-        expect(calls.shift()).to.not.contain({ 'was-set': 'true' });
-        expect(calls.shift()).to.contain({ 'was-set': 'true' });
-        expect(calls.shift()).to.contain({ 'was-set': 'true' });
-        expect(calls.shift()).to.not.contain({ 'was-set': 'true' });
-
-        expect(calls).to.be.empty;
-
-    });
-
-    it('can set a state for use in make options', async () => {
-
-        type TestState = {
-            theValue: string;
-        }
-
-        const api = new FetchEngine <{}, {}, TestState>({
-            baseUrl: testUrl,
-            modifyConfig(opts, state) {
-
-                opts.headers = {
-
-                    ...opts.headers,
-                    'was-set': state.theValue || 'not-set'
-                };
-
-                return opts;
-            }
-        });
-
-        const val = 'someValue';
-
-        api.state.set({ theValue: val });
-
-        await api.get('/json');
-
-        api.state.reset();
-
-        await api.get('/json');
-
-
-        const [[setReq], [resetReq]] = callStub.args as [[Hapi.Request], [Hapi.Request]];
-
-        expect(setReq.headers).to.contain({ 'was-set': val });
-        expect(resetReq.headers).to.contain({ 'was-set': 'not-set' });
-    });
-
     it('listens for events', async () => {
 
         const listener = sandbox.stub();
@@ -1595,20 +1466,6 @@ describe('@logosdx/fetch: base', async () => {
                     params: true,
                 }
             },
-            modifyConfig(opts: any, state: any) {
-
-                opts.headers!['x-test'] = state.theValue;
-
-                return opts;
-            },
-            modifyMethodConfig: {
-                POST(opts, state) {
-
-                    opts.headers!['x-test'] = state.theValue;
-
-                    return opts;
-                }
-            }
         });
 
         api.headers.set({ hmac: 'ghi789', poop: 'asd',  });
@@ -1945,114 +1802,6 @@ describe('@logosdx/fetch: base', async () => {
         expect(req1.isFinished).to.be.false;
         expect(req2.isFinished).to.be.false;
 
-    });
-
-    it('can change modifyOptions function', async () => {
-
-        const api = new FetchEngine({ baseUrl: testUrl });
-
-        let modifyCallCount = 0;
-
-        const modifyOptions = (opts: any) => {
-
-            modifyCallCount++;
-            opts.headers = { ...opts.headers, 'x-modified': 'true' };
-            return opts;
-        };
-
-        const onConfigChange = sandbox.stub();
-
-        api.on('config-change', onConfigChange);
-
-        // Set modifyOptions function
-        api.config.set('modifyConfig', modifyOptions);
-
-        expect(onConfigChange.calledOnce).to.be.true;
-        // Non-regex listener: first arg is EventData directly
-        expect((onConfigChange.firstCall.args[0] as any).path).to.equal('modifyConfig');
-        expect((onConfigChange.firstCall.args[0] as any).value).to.equal(modifyOptions);
-
-        // Make a request to verify the modifier is applied
-        await api.get('/json');
-
-        expect(modifyCallCount).to.equal(1);
-
-        // Clear modifyOptions function
-        api.config.set('modifyConfig', undefined);
-
-        expect(onConfigChange.calledTwice).to.be.true;
-        expect((onConfigChange.secondCall.args[0] as any).value).to.be.undefined;
-
-        // Make another request to verify the modifier is no longer applied
-        await api.get('/json');
-
-        expect(modifyCallCount).to.equal(1); // Should still be 1
-    });
-
-    it('can change modifyMethodOptions function', async () => {
-
-        const api = new FetchEngine({ baseUrl: testUrl });
-
-        let postModifyCallCount = 0;
-        let getModifyCallCount = 0;
-
-        const postModifyOptions = (opts: any) => {
-
-            postModifyCallCount++;
-            opts.headers = { ...opts.headers, 'x-post-modified': 'true' };
-            return opts;
-        };
-
-        const getModifyOptions = (opts: any) => {
-
-            getModifyCallCount++;
-            opts.headers = { ...opts.headers, 'x-get-modified': 'true' };
-            return opts;
-        };
-
-        const onConfigChange = sandbox.stub();
-
-        api.on('config-change', onConfigChange);
-
-        // Set POST modifyOptions function
-        api.config.set('modifyMethodConfig.POST' as any, postModifyOptions);
-
-        expect(onConfigChange.calledOnce).to.be.true;
-        // Non-regex listener: first arg is EventData directly, path and value properties
-        expect((onConfigChange.firstCall.args[0] as any).path).to.equal('modifyMethodConfig.POST');
-        expect((onConfigChange.firstCall.args[0] as any).value).to.equal(postModifyOptions);
-
-        // Set GET modifyOptions function
-        api.config.set('modifyMethodConfig.GET' as any, getModifyOptions);
-
-        expect(onConfigChange.calledTwice).to.be.true;
-        expect((onConfigChange.secondCall.args[0] as any).path).to.equal('modifyMethodConfig.GET');
-        expect((onConfigChange.secondCall.args[0] as any).value).to.equal(getModifyOptions);
-
-        // Make a GET request to verify only GET modifier is applied
-        await api.get('/json');
-
-        expect(getModifyCallCount).to.equal(1);
-        expect(postModifyCallCount).to.equal(0);
-
-        // Make a POST request to verify only POST modifier is applied
-        await api.post('/json', {});
-
-        expect(getModifyCallCount).to.equal(1);
-        expect(postModifyCallCount).to.equal(1);
-
-        // Clear POST modifyOptions function
-        api.config.set('modifyMethodConfig.POST', undefined);
-
-        expect(onConfigChange.callCount).to.equal(3);
-        expect((onConfigChange.thirdCall.args[0] as any).path).to.equal('modifyMethodConfig.POST');
-        expect((onConfigChange.thirdCall.args[0] as any).value).to.be.undefined;
-
-        // Make another POST request to verify the modifier is no longer applied
-        await api.post('/json', {});
-
-        expect(postModifyCallCount).to.equal(1); // Should still be 1
-        expect(getModifyCallCount).to.equal(1); // Should still be 1
     });
 
     it('supports custom typed response headers', async () => {

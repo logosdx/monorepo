@@ -244,6 +244,36 @@ describe('@logosdx/localize', function () {
         expect(l10bMngr.text('some.more')).to.eq(english.some.more);
     });
 
+    it('filters out undefined and null from array values', () => {
+
+        const lang = { msg: 'Hello {0} and {1}' };
+
+        const instance = new LocaleManager<typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+
+        // The bug: || instead of && means nothing gets filtered
+        const result = instance.text('msg', ['World', undefined as any]);
+        expect(result).to.eq('Hello World and {1}');
+    });
+
+    it('handles empty object values without error', () => {
+
+        const lang = { msg: 'Hello {name}' };
+
+        const instance = new LocaleManager<typeof lang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+
+        // The bug: values.length on object is undefined, not 0
+        const result = instance.text('msg', {} as any);
+        expect(result).to.eq('Hello {name}');
+    });
+
     it('accesses non-nested values with dot notation', () => {
 
         const lang = {

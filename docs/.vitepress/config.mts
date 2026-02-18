@@ -23,10 +23,21 @@ const packages: DefaultTheme.SidebarItem[] = [
     items: [
       { text: 'Configuration', link: '/packages/fetch/configuration' },
       { text: 'Making Requests', link: '/packages/fetch/requests' },
+      { text: 'Hooks', link: '/packages/fetch/hooks' },
+      { text: 'Plugins', link: '/packages/fetch/plugins' },
       { text: 'Resilience', link: '/packages/fetch/resilience' },
       { text: 'Policies', link: '/packages/fetch/policies' },
       { text: 'Events', link: '/packages/fetch/events' },
       { text: 'Advanced', link: '/packages/fetch/advanced' },
+    ]
+  },
+  {
+    text: 'State Machine',
+    link: '/packages/state-machine/',
+    collapsed: true,
+    items: [
+      { text: 'API Reference', link: '/packages/state-machine/api' },
+      { text: 'Practical Guide', link: '/packages/state-machine/guide' },
     ]
   },
   ...simplePackages.slice(3), // Dom, Storage, Localize

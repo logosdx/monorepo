@@ -984,4 +984,155 @@ export class ObserverEngine<
             observer: this,
         });
     }
+
+    /**
+     * Checks if an event key passes through the filter/exclude pipeline.
+     * Filter narrows first, then exclude removes from that set.
+     */
+    static #passesFilter<Shape extends Record<string, any>>(
+        event: string,
+        options?: ObserverEngine.TransferOptions<Shape>
+    ): boolean {
+
+        if (!options) return true;
+
+        const { filter, exclude } = options;
+
+        if (filter) {
+
+            const passes = filter.some(f =>
+                f instanceof RegExp ? f.test(event) : f === event
+            );
+
+            if (!passes) return false;
+        }
+
+        if (exclude) {
+
+            const blocked = exclude.some(e =>
+                e instanceof RegExp ? e.test(event) : e === event
+            );
+
+            if (blocked) return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Moves or copies listeners between two ObserverEngine instances.
+     * Static methods on the same class can access # private fields directly.
+     */
+    static #moveListeners<Shape extends Record<string, any>>(
+        source: ObserverEngine<Shape>,
+        target: ObserverEngine<Shape>,
+        remove: boolean,
+        options?: ObserverEngine.TransferOptions<Shape>
+    ): void {
+
+        for (const [event, callbacks] of source.#listenerMap) {
+
+            if (!ObserverEngine.#passesFilter(event as string, options)) continue;
+
+            const targetSet = target.#listenerMap.get(event) || new Set<Func>();
+
+            for (const cb of callbacks) {
+
+                targetSet.add(cb);
+            }
+
+            target.#listenerMap.set(event, targetSet);
+
+            if (remove) {
+
+                source.#listenerMap.delete(event);
+            }
+        }
+
+        for (const [event, callbacks] of source.#rgxListenerMap) {
+
+            if (!ObserverEngine.#passesFilter(event, options)) continue;
+
+            const targetSet = target.#rgxListenerMap.get(event) || new Set<Func>();
+
+            for (const cb of callbacks) {
+
+                targetSet.add(cb);
+            }
+
+            target.#rgxListenerMap.set(event, targetSet);
+
+            if (remove) {
+
+                source.#rgxListenerMap.delete(event);
+            }
+        }
+    }
+
+    /**
+     * Transfers all matching listeners from source to target, removing
+     * them from the source. Target's existing listeners are preserved.
+     *
+     * Useful when cloning an engine (e.g. FetchEngine) and carrying
+     * over observability listeners to the new instance.
+     *
+     * @example
+     *
+     *     const old = new ObserverEngine();
+     *     const next = new ObserverEngine();
+     *
+     *     old.on('ready', handler);
+     *
+     *     ObserverEngine.transfer(old, next);
+     *     // `next` now owns the 'ready' listener; `old` has none
+     *
+     * @example
+     *
+     *     // Transfer only specific events
+     *     ObserverEngine.transfer(old, next, {
+     *         filter: ['ready', /^user\./]
+     *     });
+     */
+    static transfer<Shape extends Record<string, any>>(
+        source: ObserverEngine<Shape>,
+        target: ObserverEngine<Shape>,
+        options?: ObserverEngine.TransferOptions<Shape>
+    ): void {
+
+        ObserverEngine.#moveListeners(source, target, true, options);
+    }
+
+    /**
+     * Copies all matching listeners from source to target without
+     * removing them from the source. Target's existing listeners
+     * are preserved.
+     *
+     * Useful when forking an engine so both instances react to the
+     * same events independently.
+     *
+     * @example
+     *
+     *     const primary = new ObserverEngine();
+     *     const mirror = new ObserverEngine();
+     *
+     *     primary.on('update', handler);
+     *
+     *     ObserverEngine.copy(primary, mirror);
+     *     // Both engines now have the 'update' listener
+     *
+     * @example
+     *
+     *     // Copy everything except internal events
+     *     ObserverEngine.copy(primary, mirror, {
+     *         exclude: [/^__/]
+     *     });
+     */
+    static copy<Shape extends Record<string, any>>(
+        source: ObserverEngine<Shape>,
+        target: ObserverEngine<Shape>,
+        options?: ObserverEngine.TransferOptions<Shape>
+    ): void {
+
+        ObserverEngine.#moveListeners(source, target, false, options);
+    }
 }

@@ -92,10 +92,14 @@ export const format = (str: string, values: LocaleManager.LocaleFormatArgs) => {
 
     if (Array.isArray(values)) {
 
-        values = values.filter(v => v !== undefined || v !== null);
+        values = values.filter(v => v !== undefined && v !== null);
     }
 
-    if (values.length === 0) {
+    const isEmpty = Array.isArray(values)
+        ? values.length === 0
+        : Object.keys(values).length === 0;
+
+    if (isEmpty) {
         return str;
     }
 

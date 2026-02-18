@@ -29,8 +29,6 @@ export const validateOptions = <H, P, S>(
         methodHeaders,
         params,
         methodParams,
-        modifyConfig,
-        modifyMethodConfig,
         totalTimeout,
         attemptTimeout,
         validate,
@@ -105,24 +103,6 @@ export const validateOptions = <H, P, S>(
         methodParams,
         () => allKeysValid(methodParams!, isObject),
         'methodParams items must be objects'
-    );
-
-    assertOptional(
-        modifyConfig,
-        isFunction(modifyConfig),
-        'modifyConfig must be a function'
-    );
-
-    assertOptional(
-        modifyMethodConfig,
-        isObject(modifyMethodConfig),
-        'modifyMethodConfig must be an object'
-    );
-
-    assertOptional(
-        modifyMethodConfig,
-        () => allKeysValid(modifyMethodConfig!, isFunction),
-        'modifyMethodConfig items must be functions'
     );
 
     assertOptional(
