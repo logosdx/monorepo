@@ -12,6 +12,7 @@ import {
 } from './helpers.ts';
 
 import { createIntlFormatters } from './intl.ts';
+import { ScopedLocale } from './scoped.ts';
 
 /**
  * Module for handling text and labels throughout your app and within components.
@@ -268,6 +269,11 @@ export class LocaleManager<
         const event = new LocaleEvent<Code>('change');
         event.code = code;
         this.dispatchEvent(event);
+    }
+
+    ns(prefix: string): ScopedLocale<Locale, Code> {
+
+        return new ScopedLocale<Locale, Code>(this, prefix);
     }
 
     clone() {

@@ -642,3 +642,71 @@ describe('localize: async loading', () => {
         expect(instance.current).to.eq('en');
     });
 });
+
+describe('localize: namespace scoping', () => {
+
+    const lang = {
+        auth: {
+            login: { title: 'Sign In', submit: 'Log In' },
+            errors: { invalid: 'Invalid credentials' },
+        },
+        dashboard: {
+            greeting: 'Welcome back, {name}!',
+            stats: '{count, plural, one {# item} other {# items}}',
+        },
+    };
+
+    type NsLang = typeof lang;
+
+    let instance: LocaleManager<NsLang, 'en'>;
+
+    it('instantiates for namespace tests', () => {
+
+        instance = new LocaleManager<NsLang, 'en'>({
+            current: 'en',
+            fallback: 'en',
+            locales: { en: { code: 'en', text: 'English', labels: lang } }
+        });
+    });
+
+    it('creates a scoped translator with ns()', () => {
+
+        const authT = instance.ns('auth');
+        expect(authT).to.be.an('object');
+        expect(authT.t).to.be.a('function');
+    });
+
+    it('scoped t() prepends prefix', () => {
+
+        const authT = instance.ns('auth');
+        expect(authT.t('login.title')).to.eq('Sign In');
+        expect(authT.t('login.submit')).to.eq('Log In');
+        expect(authT.t('errors.invalid')).to.eq('Invalid credentials');
+    });
+
+    it('supports nested scoping', () => {
+
+        const loginT = instance.ns('auth').ns('login');
+        expect(loginT.t('title')).to.eq('Sign In');
+        expect(loginT.t('submit')).to.eq('Log In');
+    });
+
+    it('scoped t() supports variable substitution', () => {
+
+        const dashT = instance.ns('dashboard');
+        expect(dashT.t('greeting', { name: 'Alice' })).to.eq('Welcome back, Alice!');
+    });
+
+    it('scoped t() supports pluralization', () => {
+
+        const dashT = instance.ns('dashboard');
+        expect(dashT.t('stats', { count: 1 })).to.eq('1 item');
+        expect(dashT.t('stats', { count: 5 })).to.eq('5 items');
+    });
+
+    it('scoped intl delegates to parent', () => {
+
+        const authT = instance.ns('auth');
+        expect(authT.intl.number(42)).to.eq(instance.intl.number(42));
+    });
+});
