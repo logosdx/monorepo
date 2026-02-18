@@ -15,6 +15,7 @@ export default defineConfig({
                         'src/_helpers.ts',
                         'src/fetch/_helpers.ts',
                         'src/react/_helpers.ts',
+                        'src/storage/_helpers.ts',
                         'src/_playground.ts',
                         'src/_memory-tests/**',
                         'src/experiments/**',

@@ -1,7 +1,7 @@
 {
   "name": "@logosdx/storage",
   "version": "1.0.22-beta.0",
-  "description": "A feature-rich-but-simple, strongly-typed local storage wrapper",
+  "description": "Async key-value storage adapter with pluggable drivers",
   "repository": {
     "type": "git",
     "url": "https://github.com/logosdx/monorepo",
@@ -23,9 +23,12 @@
   },
   "files": [],
   "keywords": [
+    "storage",
+    "key-value",
     "localStorage",
-    "app storage",
-    "sessionStorage"
+    "sessionStorage",
+    "indexeddb",
+    "async"
   ],
   "homepage": "https://logosdx.dev/",
   "bugs": {
