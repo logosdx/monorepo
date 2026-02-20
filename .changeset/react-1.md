@@ -1,5 +1,5 @@
 ---
-"@logosdx/react": minor
+"@logosdx/react": major
 ---
 
 ## Added

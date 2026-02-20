@@ -46,6 +46,7 @@ Missing translation keys now return `'[key.path]'` instead of `'?'`. A `console.
 * `fix(localize):` `reachIn` returned parent object instead of `defValue` when path segment was missing
 * `fix(localize):` Concurrent `changeTo()` calls for the same unloaded locale now deduplicate (race guard)
 
+
 ## Changed
 
 * `perf(localize):` Cache compiled `RegExp` instances in `format()` across calls

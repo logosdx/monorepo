@@ -14,15 +14,5 @@
     "@logosdx/react": "0.0.1"
   },
   "changesets": [
-    "bold-rivers-flow",
-    "bright-dogs-swim",
-    "calm-trees-grow",
-    "export-react-types",
-    "quiet-birds-sing",
-    "rich-pears-jam",
-    "sharp-waves-crash",
-    "swift-foxes-trace",
-    "thin-crews-vanish",
-    "warm-lights-shine"
   ]
 }
