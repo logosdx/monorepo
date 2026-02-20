@@ -1,7 +1,9 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { attemptSync } from '@logosdx/utils';
 
 const INDENT = '    ';
+const VALID_IDENT = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 
 export const jsonToInterface = (
     obj: Record<string, unknown>,
@@ -17,18 +19,21 @@ export const jsonToInterface = (
 
         if (Array.isArray(value)) {
 
+            console.warn(`Skipping array value at key "${key}"`);
             continue;
         }
 
+        const safeKey = VALID_IDENT.test(key) ? key : `'${key}'`;
+
         if (typeof value === 'object' && value !== null) {
 
-            output += `${prefix}${key}: {\n`;
+            output += `${prefix}${safeKey}: {\n`;
             output += jsonToInterface(value as Record<string, unknown>, depth + 1);
             output += `${prefix}};\n`;
         }
         else {
 
-            output += `${prefix}${key}: string;\n`;
+            output += `${prefix}${safeKey}: string;\n`;
         }
     }
 
@@ -49,6 +54,11 @@ export const scanDirectory = (dir: string, locale: string): ScanResult => {
 
     const entries = readdirSync(dir);
 
+    if (entries.length === 0) {
+
+        console.warn(`Warning: directory "${dir}" is empty`);
+    }
+
     for (const entry of entries) {
 
         const fullPath = join(dir, entry);
@@ -62,7 +72,14 @@ export const scanDirectory = (dir: string, locale: string): ScanResult => {
             if (code === locale) {
 
                 const raw = readFileSync(fullPath, 'utf-8');
-                rootShape = JSON.parse(raw);
+                const [parsed, err] = attemptSync(() => JSON.parse(raw));
+
+                if (err) {
+
+                    throw new Error(`Malformed JSON in ${fullPath}: ${err.message}`);
+                }
+
+                rootShape = parsed;
             }
         }
         else if (stat.isDirectory()) {
@@ -79,8 +96,20 @@ export const scanDirectory = (dir: string, locale: string): ScanResult => {
                 if (code === locale) {
 
                     const raw = readFileSync(join(fullPath, nsEntry), 'utf-8');
-                    namespaces[entry] = JSON.parse(raw);
+                    const [parsed, err] = attemptSync(() => JSON.parse(raw));
+
+                    if (err) {
+
+                        throw new Error(`Malformed JSON in ${join(fullPath, nsEntry)}: ${err.message}`);
+                    }
+
+                    namespaces[entry] = parsed;
                 }
+            }
+
+            if (!namespaces[entry] && !nsEntries.some(e => e === `${locale}.json`)) {
+
+                console.warn(`Warning: no "${locale}.json" found in "${entry}/", skipping namespace`);
             }
         }
     }
