@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import { jsonToInterface, scanDirectory, generateOutput, ScanResult } from '../../packages/localize/src/extractor.ts';
 
 describe('localize: jsonToInterface', () => {
@@ -212,5 +213,69 @@ describe('localize: generateOutput', () => {
         const result = generateOutput(scan, 'T');
 
         expect(result).to.include("export type LocaleCodes = 'ar' | 'en' | 'fr' | 'zh';");
+    });
+});
+
+describe('localize: CLI integration', () => {
+
+    const cliPath = join(import.meta.dirname, '../../packages/localize/src/cli.ts');
+    const tmpDir = join(import.meta.dirname, '../../tmp/test-i18n-cli');
+    const outFile = join(import.meta.dirname, '../../tmp/test-output.ts');
+
+    const setup = () => {
+
+        rmSync(tmpDir, { recursive: true, force: true });
+        mkdirSync(tmpDir, { recursive: true });
+    };
+
+    afterEach(() => {
+
+        rmSync(tmpDir, { recursive: true, force: true });
+        rmSync(outFile, { force: true });
+    });
+
+    it('should generate types from namespaced directory', () => {
+
+        setup();
+        mkdirSync(join(tmpDir, 'common'), { recursive: true });
+        writeFileSync(join(tmpDir, 'common', 'en.json'), JSON.stringify({ ok: 'OK', cancel: 'Cancel' }));
+        writeFileSync(join(tmpDir, 'common', 'es.json'), JSON.stringify({ ok: 'Aceptar', cancel: 'Cancelar' }));
+
+        execSync(`npx tsx ${cliPath} extract --dir ${tmpDir} --out ${outFile}`, { stdio: 'pipe' });
+
+        const output = readFileSync(outFile, 'utf-8');
+        expect(output).to.include('export interface AppLocale {');
+        expect(output).to.include('common: {');
+        expect(output).to.include('ok: string;');
+        expect(output).to.include("export type LocaleCodes = 'en' | 'es';");
+    });
+
+    it('should use custom interface name via --name', () => {
+
+        setup();
+        writeFileSync(join(tmpDir, 'en.json'), JSON.stringify({ title: 'Hello' }));
+
+        execSync(`npx tsx ${cliPath} extract --dir ${tmpDir} --out ${outFile} --name MyLocale`, { stdio: 'pipe' });
+
+        const output = readFileSync(outFile, 'utf-8');
+        expect(output).to.include('export interface MyLocale {');
+    });
+
+    it('should exit with error on missing --dir', () => {
+
+        expect(() => {
+
+            execSync(`npx tsx ${cliPath} extract --out ${outFile}`, { stdio: 'pipe' });
+        }).to.throw();
+    });
+
+    it('should exit with error on missing --out', () => {
+
+        setup();
+
+        expect(() => {
+
+            execSync(`npx tsx ${cliPath} extract --dir ${tmpDir}`, { stdio: 'pipe' });
+        }).to.throw();
     });
 });
