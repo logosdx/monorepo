@@ -1,194 +1,116 @@
-import {
-    type Func,
-    type OneOrMany,
-    itemsToArray
-} from '@logosdx/utils';
+import { toArray } from './helpers.ts';
+import type { OneOrMany, EvType, EvListener, EventOptions } from './types.ts';
 
-export type GlobalEvents = keyof DocumentEventMap;
+/**
+ * Attach an event listener to one or more elements for one or more events.
+ * Supports delegation, capture, signal-based removal, and one-shot listeners.
+ *
+ * @example
+ *     on(button, 'click', handler);
+ *     on([el1, el2], ['mouseenter', 'focus'], handler);
+ *     on(parent, 'click', handler, { delegate: '.item' });
+ */
+export function on(
+    els: OneOrMany<EventTarget>,
+    events: EvType | EvType[],
+    cb: EvListener,
+    opts?: EventOptions
+): void {
 
-type EvOpts = AddEventListenerOptions
+    const targets = toArray(els);
+    const eventNames = toArray(events);
+    const { delegate, ...nativeOpts } = opts ?? {} as EventOptions;
 
-type TargetsOrWin = OneOrMany<EventTarget> | Window
-type EvType = GlobalEvents | string;
-type Events<E extends EvType = EvType> = OneOrMany<E>;
+    const listener = delegate
+        ? wrapDelegate(cb, delegate)
+        : cb as EventListener;
 
-export interface EvListener<E extends EvType> extends EventListener {
-    (ev: E extends GlobalEvents ? DocumentEventMap[E] : Event): void;
-}
+    for (const target of targets) {
 
-interface EachElementCb {
-    <E extends EventTarget>(ev: EvType | Event, el: E): void
+        for (const event of eventNames) {
+
+            target.addEventListener(event, listener, nativeOpts);
+        }
+    }
 }
 
 /**
- * Helper function to iterate over elements and events
- * @param els target elements or window
- * @param evs events to handle
- * @param callback function to execute for each element/event combination
+ * Attach a one-time event listener. The handler fires at most once per element/event.
+ *
+ * @example
+ *     once(button, 'click', handler);
  */
-function eachElEachEv (
-    els: TargetsOrWin,
-    evs: Events | Event,
-    callback: EachElementCb
-) {
-    const elements = itemsToArray<Element>(els as Element);
-    for (const element of elements) {
+export function once(
+    els: OneOrMany<EventTarget>,
+    events: EvType | EvType[],
+    cb: EvListener,
+    opts?: EventOptions
+): void {
 
-        if (Array.isArray(evs)) {
-            for (const ev of evs) {
-                callback(ev, element);
-            }
-        } else {
-            callback(evs, element);
+    on(els, events, cb, { ...opts, once: true });
+}
+
+/**
+ * Remove an event listener from one or more elements.
+ *
+ * @example
+ *     off(button, 'click', handler);
+ *     off([el1, el2], 'click', handler);
+ */
+export function off(
+    els: OneOrMany<EventTarget>,
+    events: EvType | EvType[],
+    cb: EventListener
+): void {
+
+    const targets = toArray(els);
+    const eventNames = toArray(events);
+
+    for (const target of targets) {
+
+        for (const event of eventNames) {
+
+            target.removeEventListener(event, cb);
         }
     }
 }
 
-type EventCleanupCb = () => void
+/**
+ * Dispatch a CustomEvent on one or more elements.
+ * The event bubbles by default so parent listeners can catch it.
+ *
+ * @example
+ *     emit(el, 'widget:open', { chatId: 123 });
+ *     emit([el1, el2], 'ping');
+ */
+export function emit(
+    els: OneOrMany<EventTarget>,
+    event: string,
+    detail?: unknown
+): void {
 
-export class HtmlEvents {
+    const targets = toArray(els);
+    const customEvent = new CustomEvent(event, { detail, bubbles: true });
 
-    /**
-     * Adds event listeners to DOM elements or window.
-     * Supports single or multiple elements and events.
-     * @param targets HTML elements, array of elements, or window
-     * @param events event name, array of event names, or Event object
-     * @param cb event listener callback function
-     * @param opts options to pass to addEventListener (capture, once, passive, etc.)
-     * @returns cleanup function to remove all added event listeners
-     *
-     * @example
-     *
-     * html.events.on(div, 'click', () => {});
-     * html.events.on(div, ['focus', 'blur'], () => {});
-     * html.events.on([div, input], ['focus', 'blur'], () => {});
-     *
-     * // returns a cleanup function
-     *
-     * const cleanup = html.events.on(div, 'click', () => {});
-     * setTimeout(cleanup, 1000);
-     */
-    static on <E extends EvType>(
-        targets: TargetsOrWin,
-        events: Events<E>,
-        cb: EvListener<E>,
-        opts?: EvOpts
-    ): EventCleanupCb {
+    for (const target of targets) {
 
-        eachElEachEv(
-            targets,
-            events,
-            (ev, el) => (
+        target.dispatchEvent(customEvent);
+    }
+}
 
-                el.addEventListener(
-                    ev as string,
-                    cb,
-                    opts || false
-                )
-            )
-        );
+/**
+ * Wrap a callback for event delegation.
+ * Only fires when event.target matches the delegate selector.
+ */
+function wrapDelegate(cb: EvListener, selector: string): EventListener {
 
-        function cleanup () {
+    return function delegateHandler(event: Event) {
 
-            eachElEachEv(
-                targets,
-                events,
-                (ev, el) => (el.removeEventListener(ev as any, cb))
-            );
+        const target = (event.target as Element)?.closest?.(selector);
+
+        if (target) {
+
+            (cb as EventListener)(event);
         }
-
-        return cleanup;
     };
-
-    /**
-     * Adds event listeners that only execute once then automatically remove themselves.
-     * @param targets HTML elements, array of elements, or window
-     * @param event event name, array of event names, or Event object
-     * @param cb event listener callback function
-     * @param opts options to pass to addEventListener (capture, passive, etc.)
-     * @returns cleanup function to remove all added event listeners
-     *
-     * @example
-     *
-     * html.events.once(div, 'click', () => {});
-     * html.events.once(div, ['focus', 'blur'], () => {});
-     * html.events.once([div, input], ['focus', 'blur'], () => {});
-     *
-     * // returns a cleanup function
-     *
-     * const cleanup = html.events.once(div, 'click', () => {});
-     * setTimeout(cleanup, 1000);
-     */
-    static once <E extends EvType>(
-        targets: TargetsOrWin,
-        event: Events<E>,
-        cb: EvListener<E>,
-        opts?: EvOpts
-    ): EventCleanupCb {
-
-        return this.on(targets, event, cb, {
-            ...(opts || {}),
-            once: true
-        });
-    }
-
-    /**
-     * Removes event listeners from DOM elements or window.
-     * @param targets HTML elements, array of elements, or window
-     * @param events event name, array of event names, or Event object
-     * @param cb event listener callback function to remove
-     * @param opts options that were used when adding the listener
-     *
-     * @example
-     *
-     * html.events.off(div, 'click', callback);
-     * html.events.off(div, ['focus', 'blur'], callback);
-     * html.events.off([div, input], ['focus', 'blur'], callback);
-     */
-    static off (
-        targets: TargetsOrWin,
-        events: Events,
-        cb: Func,
-        opts?: EventListenerOptions
-    ) {
-
-        eachElEachEv(
-            targets,
-            events,
-            (ev, el) => (el.removeEventListener(ev as any, cb, opts || false)),
-        );
-    }
-
-    /**
-     * Dispatches custom events on DOM elements or window.
-     * Creates CustomEvent with optional data if string event name is provided.
-     * @param els HTML elements, array of elements, or window
-     * @param event event name or Event object to dispatch
-     * @param data optional data to pass via event.detail
-     *
-     * @example
-     *
-     * html.events.emit(div, 'click', { key: 'Esc' })
-     * html.events.emit([div, span], 'click', { key: 'Esc' })
-     */
-    static emit(
-
-        els: TargetsOrWin,
-        event: EvType | Event,
-        data?: unknown
-    ) {
-
-        eachElEachEv(
-            els,
-            event,
-            (ev, el) => {
-
-                if (typeof ev === "string") {
-                    ev = new (window?.CustomEvent || Event)(ev, { detail: data });
-                }
-
-                el.dispatchEvent(ev);
-            },
-        );
-    }
 }
