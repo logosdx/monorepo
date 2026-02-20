@@ -12,7 +12,15 @@
       "types": "./dist/types/index.d.ts",
       "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.mjs"
+    },
+    "./extractor": {
+      "types": "./dist/types/extractor.d.ts",
+      "require": "./dist/cjs/extractor.js",
+      "import": "./dist/esm/extractor.mjs"
     }
+  },
+  "bin": {
+    "logosdx-locale": "./dist/esm/cli.mjs"
   },
   "sideEffects": false,
   "watch": true,

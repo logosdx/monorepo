@@ -105,7 +105,7 @@ export const generateOutput = (
     for (const ns of Object.keys(scan.namespaces).sort()) {
 
         output += `${INDENT}${ns}: {\n`;
-        output += jsonToInterface(scan.namespaces[ns], 2);
+        output += jsonToInterface(scan.namespaces[ns]!, 2);
         output += `${INDENT}};\n`;
     }
 
