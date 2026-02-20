@@ -1,88 +1,72 @@
-export * from './utils.ts';
-export * from './viewport.ts';
+import { DomCollection } from './collection.ts';
+import { create } from './dom.ts';
+import type { SelectOptions, CreateOptions } from './types.ts';
 
 /**
- * Credit to
- * https://github.com/biancojs/bianco
+ * Query the DOM and return a {@link DomCollection} wrapping matched elements.
  *
- * Where most of these ideas stemmed from
- */
-
-import { HtmlCss } from './css.ts';
-import { HtmlAttr } from './attrs.ts';
-import { HtmlEvents } from './events.ts';
-import { HtmlBehaviors } from './behaviors.ts';
-export { MutationObserverUnavailableError } from './behaviors.ts';
-
-export type {
-    CssPropNames,
-    CssProps
-} from './css';
-
-export type {
-    GlobalEvents,
-    EvListener
-} from './events';
-
-import { isBrowserLike } from '@logosdx/utils';
-
-if (!isBrowserLike()) {
-
-    throw new Error('Dom is not supported in this environment');
-}
-
-const document = window?.document;
-
-export const css = HtmlCss;
-export const attrs = HtmlAttr;
-export const events = HtmlEvents;
-export const behaviors = HtmlBehaviors
-
-
-/**
- * Wraps `querySelectorAll` and converts a NodeList into an array.
- * It will always return an array, even if no elements are found.
- * @param selector CSS selector string to query for
- * @param ctx optional context element to search within (defaults to document)
- * @returns array of elements matching the selector
+ * Supports two overloads:
+ * - `$(selector, element)` — scopes the query to a parent element
+ * - `$(selector, { signal })` — passes options through to the collection
  *
  * @example
- * const buttons = $('button');
- * const inputs = $('input[type="text"]', form);
- * const items = $('.item', container);
+ *     const buttons = $<HTMLButtonElement>('.btn');
+ *     buttons.css({ color: 'red' }).on('click', handler);
+ *
+ * @example
+ *     const items = $('.item', container);
  */
-export const $ = <R extends Element = HTMLElement>(selector: string, ctx?: Element): R[] => {
+export function $<T extends Element = HTMLElement>(
+    selector: string,
+    ctxOrOpts?: Element | SelectOptions
+): DomCollection<T> {
 
-    const elements = (ctx || document).querySelectorAll(selector);
+    let context: Element = document.documentElement;
+    let opts: SelectOptions | undefined;
 
-    if (elements.length === 0) {
+    if (ctxOrOpts instanceof Element) {
 
-        return [];
+        context = ctxOrOpts;
+    }
+    else if (ctxOrOpts) {
+
+        opts = ctxOrOpts;
     }
 
-    return Array.from(elements) as R[];
-};
+    const elements = Array.from(context.querySelectorAll<T>(selector));
+    return new DomCollection<T>(elements, opts);
+}
 
 /**
- * Main HTML utilities object providing access to CSS, attributes, events, and behaviors.
- * Contains all the DOM manipulation utilities organized by category.
+ * Create a DOM element and return it wrapped in a {@link DomCollection}.
  *
  * @example
- * // CSS manipulation
- * html.css.set(element, { color: 'red', fontSize: '16px' });
- *
- * // Attribute manipulation
- * html.attrs.set(element, { 'data-id': '123', class: 'active' });
- *
- * // Event handling
- * const cleanup = html.events.on(element, 'click', handleClick);
- *
- * // Behavior management
- * html.behaviors.bind(element, 'MyFeature', handler);
+ *     const card = $.create('div', { text: 'Hello', class: ['card'] });
  */
-export const html = {
-    css,
-    attrs,
-    events,
-    behaviors
-};
+$.create = function createEl<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    opts?: CreateOptions<HTMLElementTagNameMap[K]>
+): DomCollection<HTMLElementTagNameMap[K]> {
+
+    const el = create(tag, opts);
+    return new DomCollection([el], opts);
+} as <K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    opts?: CreateOptions<HTMLElementTagNameMap[K]>
+) => DomCollection<HTMLElementTagNameMap[K]>;
+
+// --- Re-exports ---
+export { DomCollection } from './collection.ts';
+export { css } from './css.ts';
+export { attr } from './attr.ts';
+export { classify } from './class.ts';
+export { data } from './data.ts';
+export { aria } from './aria.ts';
+export { on, once, off, emit } from './events.ts';
+export { animate } from './animate.ts';
+export { observe } from './observe.ts';
+export { watchVisibility, watchResize } from './watch.ts';
+export { viewport } from './viewport.ts';
+export { create, append, prepend, remove, replace } from './dom.ts';
+
+export type * from './types.ts';
