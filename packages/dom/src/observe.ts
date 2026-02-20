@@ -39,7 +39,7 @@ export function observe(
         if (cleanup) cleanups.push(cleanup);
     }
 
-    for (const el of root.querySelectorAll(selector)) {
+    for (const el of Array.from(root.querySelectorAll(selector))) {
 
         processElement(el);
     }
@@ -48,7 +48,7 @@ export function observe(
 
         for (const mutation of mutations) {
 
-            for (const node of mutation.addedNodes) {
+            for (const node of Array.from(mutation.addedNodes)) {
 
                 if (!(node instanceof Element)) continue;
 
@@ -57,7 +57,7 @@ export function observe(
                     processElement(node);
                 }
 
-                for (const el of node.querySelectorAll(selector)) {
+                for (const el of Array.from(node.querySelectorAll(selector))) {
 
                     processElement(el);
                 }

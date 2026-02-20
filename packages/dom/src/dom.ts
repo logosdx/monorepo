@@ -2,7 +2,7 @@ import { css } from './css.ts';
 import { attr } from './attr.ts';
 import { classify } from './class.ts';
 import { on } from './events.ts';
-import type { CreateOptions, EvType, EvListener } from './types.ts';
+import type { CreateOptions, EvListener } from './types.ts';
 
 /**
  * Create an HTML element with full declarative configuration.
@@ -23,7 +23,7 @@ import type { CreateOptions, EvType, EvListener } from './types.ts';
  */
 export function create<K extends keyof HTMLElementTagNameMap>(
     tag: K,
-    opts?: CreateOptions<HTMLElementTagNameMap[K]>
+    opts?: CreateOptions
 ): HTMLElementTagNameMap[K] {
 
     const el = document.createElement(tag);

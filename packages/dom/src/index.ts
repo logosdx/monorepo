@@ -16,7 +16,7 @@ import type { SelectOptions, CreateOptions } from './types.ts';
  * @example
  *     const items = $('.item', container);
  */
-export function $<T extends Element = HTMLElement>(
+export function $<T extends HTMLElement = HTMLElement>(
     selector: string,
     ctxOrOpts?: Element | SelectOptions
 ): DomCollection<T> {
@@ -45,14 +45,14 @@ export function $<T extends Element = HTMLElement>(
  */
 $.create = function createEl<K extends keyof HTMLElementTagNameMap>(
     tag: K,
-    opts?: CreateOptions<HTMLElementTagNameMap[K]>
+    opts?: CreateOptions
 ): DomCollection<HTMLElementTagNameMap[K]> {
 
     const el = create(tag, opts);
     return new DomCollection([el], opts);
 } as <K extends keyof HTMLElementTagNameMap>(
     tag: K,
-    opts?: CreateOptions<HTMLElementTagNameMap[K]>
+    opts?: CreateOptions
 ) => DomCollection<HTMLElementTagNameMap[K]>;
 
 // --- Re-exports ---

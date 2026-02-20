@@ -5,323 +5,267 @@ globs: *.ts
 
 # @logosdx/dom Package Summary
 
-Cross-browser DOM manipulation utilities providing type-safe, consistent APIs for CSS, attributes, events, behaviors, and viewport operations.
+Lightweight (~5KB) element-centric DOM utility for embeddable widgets. Chainable `$()` collections backed by standalone tree-shakeable functions. AbortController-based lifecycle, modern observer wrappers, and accessibility-first aria namespace.
 
-## Main API Surface
 
-```ts
-// Primary exports
-export const $: <R extends Element = HTMLElement>(selector: string, ctx?: Element) => R[]
-export const html: {
-  css: typeof HtmlCss
-  attrs: typeof HtmlAttr
-  events: typeof HtmlEvents
-  behaviors: typeof HtmlBehaviors
-}
-
-// Individual module exports
-export const css: typeof HtmlCss
-export const attrs: typeof HtmlAttr
-export const events: typeof HtmlEvents
-export const behaviors: typeof HtmlBehaviors
-
-// Core types
-export type { CssPropNames, CssProps } from './css'
-export type { GlobalEvents, EvListener } from './events'
-```
-
-## Core Modules
-
-### HtmlCss - Style Manipulation
+## Core: `$()` Selector
 
 ```ts
-class HtmlCss {
-  // Get computed styles (supports single/multiple elements and properties)
-  static get<T extends HTMLElement, P extends CssPropNames>(el: T, prop: P): CssProps[P]
-  static get<T extends HTMLElement, P extends CssPropNames>(el: T[], prop: P): CssProps[P][]
-  static get<T extends HTMLElement, P extends CssPropNames>(el: T, props: P[]): { [K in P]: CssProps[K] }
-  static get<T extends HTMLElement, P extends CssPropNames>(el: T[], props: P[]): { [K in P]: CssProps[K] }[]
+import { $, DomCollection } from '@logosdx/dom';
 
-  // Set inline styles
-  static set<T extends OneOrMany<HTMLElement>, P extends CssPropNames>(
-    els: T,
-    props: { [K in P]?: CssProps[K] | null }
-  ): void
+// Selection — returns DomCollection
+const btns = $<HTMLButtonElement>('.btn');
+const btns = $<HTMLButtonElement>('.btn', container);  // scoped
+const chat = $('.chat', { signal: controller.signal }); // auto-cleanup
 
-  // Remove styles (sets to empty string)
-  static remove<T extends HTMLElement>(els: OneOrMany<T>, propNames: OneOrMany<CssPropNames>): void
-}
+// Properties
+btns.elements    // HTMLButtonElement[]
+btns.length      // number
+btns.first       // HTMLButtonElement | undefined
+btns.at(2)       // HTMLButtonElement | undefined
 
-// Types
-type CssPropNames = Extract<NonFunctionProps<CSSStyleDeclaration>, string>
-type CssProps = { [K in CssPropNames]?: CSSStyleDeclaration[K] }
-```
-
-### HtmlAttr - Attribute Management
-
-```ts
-class HtmlAttr {
-  // Get attributes (supports single/multiple elements and attributes)
-  static get<T extends string>(el: HTMLElement, attr: T): string
-  static get<T extends string>(el: HTMLElement[], attr: T): string[]
-  static get<T extends string>(el: HTMLElement, attr: T[]): Record<T, string | null>
-  static get<T extends string>(el: HTMLElement[], attr: T[]): Record<T, string | null>[]
-
-  // Check attribute existence
-  static has(el: HTMLElement, attr: string): boolean
-  static has(el: HTMLElement[], attr: string): boolean[]
-  static has<T extends string>(el: HTMLElement, attr: string[]): Record<T, boolean>
-  static has<T extends string>(el: HTMLElement[], attr: string[]): Record<T, boolean>[]
-
-  // Set attributes
-  static set(els: OneOrMany<HTMLElement>, props: StringProps): void
-
-  // Remove attributes
-  static remove(els: OneOrMany<HTMLElement>, attrs: OneOrMany<string>): void
-}
-```
-
-### HtmlEvents - Event Handling
-
-```ts
-class HtmlEvents {
-  // Add event listeners (returns cleanup function)
-  static on<E extends EvType>(
-    targets: TargetsOrWin,
-    events: Events<E>,
-    cb: EvListener<E>,
-    opts?: AddEventListenerOptions
-  ): () => void
-
-  // Add one-time event listeners
-  static once<E extends EvType>(
-    targets: TargetsOrWin,
-    event: Events<E>,
-    cb: EvListener<E>,
-    opts?: AddEventListenerOptions
-  ): () => void
-
-  // Remove event listeners
-  static off(
-    targets: TargetsOrWin,
-    events: Events,
-    cb: Func,
-    opts?: EventListenerOptions
-  ): void
-
-  // Dispatch custom events
-  static emit(els: TargetsOrWin, event: EvType | Event, data?: unknown): void
-}
-
-// Types
-type GlobalEvents = keyof DocumentEventMap
-type EvType = GlobalEvents | string
-type Events<E extends EvType = EvType> = OneOrMany<E>
-type TargetsOrWin = OneOrMany<EventTarget> | Window
-interface EvListener<E extends EvType> extends EventListener {
-  (ev: E extends GlobalEvents ? DocumentEventMap[E] : Event): void
-}
-```
-
-### HtmlBehaviors - Declarative Behavior System
-
-```ts
-class HtmlBehaviors {
-  // Behavior state management
-  static isBound<T extends Element>(el: T, feature: string): boolean
-  static allBound(el: Element): string[]
-
-  // Event-driven behavior initialization
-  static on(feature: string, init: BehaviorCb): () => void
-  static dispatch(...features: string[]): void
-
-  // Core behavior binding (returns cleanup function)
-  static bind<T extends Element>(
-    el: T | T[] | string,
-    featureName: string,
-    handler: BehaviorHandler
-  ): (() => void) | undefined
-
-  // Behavior cleanup
-  static unbind(el: Element, featureName: string): void
-  static unbindAll(el: Element): void
-
-  // Batch behavior management
-  static create(
-    registry: Record<string, BehaviorInit>,
-    opts?: {
-      shouldObserve?: boolean
-      shouldDispatch?: boolean
-      debounceMs?: number
-    }
-  ): { cleanup: () => void; dispatch: () => void }
-
-  // Automatic DOM observation
-  static observe<T extends Element>(
-    feature: string,
-    selector: string,
-    options?: { root?: T; debounceMs?: number }
-  ): void
-
-  static stop<T extends Element>(feature: string, selector: string, root?: T): void
-  static stopAll(): void
-
-  // Debug utilities
-  static debug(on: boolean): void
-}
-
-// Types
-type BehaviorHandler = (el: Element) => Unbind | void
-type Unbind = () => void
-type BehaviorCb = () => Unbind | void
-type BehaviorInit = BehaviorCb | {
-  els: string | Element | Element[]
-  handler: BehaviorHandler
-  shouldObserve?: boolean
-  shouldDispatch?: boolean
-  debounceMs?: number
-}
-
-// Custom error
-class MutationObserverUnavailableError extends Error
-```
-
-## Viewport & Scroll Utilities
-
-```ts
-// Document measurements
-function scrollbarWidth(): number
-function documentHeight(): number
-function documentWidth(): number
-function viewportWidth(): number
-function viewportHeight(): number
-function devicePixelRatio(): number
-
-// Scroll position
-function scrollTop(): number
-function scrollLeft(): number
-function scrollProgress(element?: Element): number
-function horizontalScrollProgress(element?: Element): number
-
-// Scroll state detection
-function isAtBottom(threshold?: number): boolean
-function isAtTop(threshold?: number): boolean
-
-// Element positioning
-function elementOffsetTop<T extends Element>(el: T): number
-function elementOffsetLeft<T extends Element>(el: T): number
-function elementVisibility<T extends Element>(el: T): number
-function isPartiallyVisible<T extends Element>(el: T, threshold?: number): boolean
-function elementViewportDistances<T extends Element>(el: T): {
-  top: number; bottom: number; left: number; right: number
-}
-
-// Smooth scrolling
-function scrollToElement<T extends Element, S extends Element>(
-  el: T,
-  opts?: { offset?: number; behavior?: ScrollBehavior; scrollElement?: S }
-): void
-
-function scrollToPosition(
-  x: number,
-  y: number,
-  opts?: { behavior?: ScrollBehavior; scrollElement?: HTMLElement }
-): void
-```
-
-## DOM Utilities
-
-```ts
-// Element manipulation
-const appendIn: (parent: Element, ...children: (Element | Node)[]) => void
-const appendAfter: (target: Element, ...elements: Element[]) => void
-const appendBefore: (target: Element, ...elements: Element[]) => void
+// Iteration
+btns.each(el => { ... })              // chainable
+btns.map(el => el.textContent)        // string[]
+btns.filter(el => !el.disabled)       // new DomCollection
+for (const btn of btns) { ... }       // iterable
 
 // Element creation
-const createEl: Document['createElement']
-const createElWith: <CustomHtmlEvents extends Record<string, (e: Event) => any>, N extends Parameters<Document["createElement"]>[0]>(
-  name: N,
-  opts?: CreateElWithOpts<CustomHtmlEvents>
-) => (HTMLElement & { cleanup: () => any })
+$.create('div', {
+    text: 'Hello',
+    css: { padding: '1rem', '--theme': 'dark' },
+    attrs: { 'data-id': '123' },
+    class: ['card', 'active'],
+    children: [$.create('span', { text: 'child' })],
+    on: { click: handler },
+    signal: controller.signal
+})
+```
 
-// Form handling
-const cloneAndSubmitForm: <T extends HTMLFormElement>(
-  form: T,
-  changeCb: (form: T) => MaybePromise<void>
-) => void
 
-// Lifecycle
-const onceReady: (fn: Func) => void
+## CSS — Callable Namespace
 
-// Utilities
-const copyToClipboard: (text: string) => void
-const isInViewport: (element: HTMLElement, refHeight?: number, refWidth?: number) => boolean
-const isScrolledIntoView: (el: HTMLElement, inRelationTo?: HTMLElement | Window) => boolean
-const swapClasses: (el: HTMLElement, one: string, two: string) => void
+```ts
+import { css } from '@logosdx/dom';
 
-// Types for createElWith
-type CreateElWithOpts<CustomHtmlEvents> = {
-  text?: string
-  children?: (string | HTMLElement)[]
-  class?: string[]
-  attrs?: Record<string, string>
-  domEvents?: { [E in keyof GlobalEventHandlersEventMap]?: EvListener<E> }
-  customEvents?: CustomHtmlEvents
-  css?: Partial<CSSStyleDeclaration>
+// Standalone
+css(el, { color: 'red', '--theme': 'dark' });      // set
+css(el, 'color');                                    // get → string
+css(el, ['color', 'fontSize']);                       // get → Record
+css.remove(el, 'color', '--theme');                  // remove
+
+// Chained
+$('.btn').css({ color: 'red' }).css.remove('fontSize');
+$('.btn').css('color');  // get from first element
+```
+
+
+## Attributes — Callable Namespace
+
+```ts
+import { attr } from '@logosdx/dom';
+
+attr(el, { role: 'button', 'data-id': '1' });       // set
+attr(el, 'role');                                     // get → string | null
+attr(el, ['role', 'data-id']);                        // get → Record
+attr.remove(el, 'role');                              // remove
+attr.has(el, 'disabled');                             // → boolean
+
+// Chained
+$('.btn').attr({ role: 'button' }).attr.remove('tabindex');
+```
+
+
+## Classes — Namespace
+
+```ts
+import { classify } from '@logosdx/dom';
+
+classify.add(el, 'active', 'highlighted');
+classify.remove(el, 'active');
+classify.toggle(el, 'active');
+classify.has(el, 'active');                          // → boolean
+classify.swap(el, 'active', 'inactive');
+
+// Chained
+$('.btn').class.add('active').class.toggle('highlight');
+$('.btn').class.has('active');  // boolean from first
+```
+
+
+## Data — Callable Namespace
+
+```ts
+import { data } from '@logosdx/dom';
+
+data(el, { userId: '123', role: 'admin' });          // set via dataset
+data(el, 'userId');                                   // get → string | undefined
+data(el, ['userId', 'role']);                          // get → Record
+data.remove(el, 'userId');                            // remove
+
+// Chained
+$('.card').data({ id: '1' }).data.remove('stale');
+```
+
+
+## Aria — Accessibility
+
+```ts
+import { aria } from '@logosdx/dom';
+
+// Auto-prefixes with aria-
+aria(el, { pressed: 'true', expanded: 'false' });    // set
+aria(el, 'pressed');                                  // get → string | null
+aria.remove(el, 'pressed');                           // remove
+
+// Shorthand methods
+aria.role(el, 'button');    aria.role(el);            // set/get role
+aria.label(el, 'Submit');   aria.label(el);           // set/get aria-label
+aria.hide(el);                                        // aria-hidden="true"
+aria.show(el);                                        // remove aria-hidden
+aria.live(el, 'polite');                              // aria-live
+
+// Chained
+$('.modal').aria({ modal: 'true' }).aria.role('dialog').aria.label('Settings');
+```
+
+
+## Events — AbortController Integration
+
+```ts
+import { on, once, off, emit } from '@logosdx/dom';
+
+on(el, 'click', handler);
+on(el, ['pointerenter', 'focus'], handler);           // multiple events
+on(el, 'click', handler, { capture: true });
+on(el, 'click', handler, { signal: controller.signal }); // auto-cleanup
+on(parent, 'click', handler, { delegate: '.child' }); // delegation
+
+once(el, 'click', handler);                           // fires once
+off(el, 'click', handler);                            // remove
+emit(el, 'widget:open', { chatId: 123 });             // CustomEvent
+
+// Chained — collection signal auto-inherited
+const chat = $('.chat', { signal: controller.signal });
+chat.on('click', openMenu);    // signal auto-attached
+chat.on('keydown', sendMsg);   // signal auto-attached
+controller.abort();            // removes all listeners
+```
+
+
+## Animate — Web Animations API
+
+```ts
+import { animate } from '@logosdx/dom';
+
+animate(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
+animate.fadeIn(el, 300);
+animate.fadeOut(el, 300);
+animate.slideTo(el, { x: 10, y: -20 }, 300);
+
+// Chained
+await $('.modal').animate.fadeIn(200);
+
+// Automatically respects prefers-reduced-motion
+```
+
+
+## Observers
+
+```ts
+import { observe, watchVisibility, watchResize } from '@logosdx/dom';
+
+// MutationObserver — auto-bind behaviors
+const stop = observe('[data-tooltip]', (el) => {
+
+    const tip = new Tooltip(el);
+    return () => tip.destroy();  // per-element cleanup
+});
+stop();  // disconnects + runs all cleanups
+
+// IntersectionObserver
+const stop = watchVisibility(el, (entry) => {
+
+    if (entry.isIntersecting) loadImage(el);
+}, { threshold: 0.5, once: true });
+
+// ResizeObserver
+const stop = watchResize(el, (entry) => {
+
+    if (entry.contentRect.width < 400) compact(el);
+});
+
+// All support signal
+observe(sel, init, { signal: controller.signal });
+```
+
+
+## Viewport
+
+```ts
+import { viewport } from '@logosdx/dom';
+
+viewport.width();          viewport.height();
+viewport.scrollX();        viewport.scrollY();
+viewport.scrollProgress(); // 0–1
+viewport.pixelRatio();
+viewport.isAtTop(10);      viewport.isAtBottom(10);
+viewport.scrollTo(el, { behavior: 'smooth' });
+viewport.scrollTo(0, 500, { behavior: 'smooth' });
+```
+
+
+## DOM Manipulation
+
+```ts
+import { create, append, prepend, remove, replace } from '@logosdx/dom';
+
+const el = create('div', { text: 'Hello', class: ['card'] });
+append(parent, el, otherEl);
+prepend(parent, el);
+remove(el);
+replace(oldEl, newEl);
+```
+
+
+## Widget Lifecycle Example
+
+```ts
+function initChatWidget(container: HTMLElement) {
+
+    const controller = new AbortController();
+    const ui = $(container, { signal: controller.signal });
+
+    ui.class.add('chat-active');
+    ui.aria({ role: 'dialog', label: 'Customer support' });
+    ui.css({ '--chat-bg': '#fff' });
+    ui.on('click', handler);
+
+    observe('[data-emoji]', initEmoji, { signal: controller.signal });
+    watchResize(container, relayout, { signal: controller.signal });
+
+    return () => controller.abort();  // single cleanup for everything
 }
 ```
 
-## Usage Patterns
 
-### Basic Operations
-```ts
-// Element selection and manipulation
-const buttons = $<HTMLButtonElement>('button', container)
-html.css.set(buttons, { color: 'red', fontSize: '16px' })
-html.attrs.set(buttons, { 'data-active': 'true' })
+## Module Structure
 
-// Event handling with cleanup
-const cleanup = html.events.on(buttons, 'click', (e) => console.log('clicked'))
-cleanup() // Remove listeners
-
-// Element creation with full configuration
-const form = createElWith('form', {
-  attrs: { method: 'post', action: '/submit' },
-  css: { padding: '1rem' },
-  domEvents: { submit: (e) => e.preventDefault() },
-  customEvents: { validate: (e) => console.log('validating') }
-})
 ```
-
-### Behavior System
-```ts
-// Register behaviors
-const { cleanup, dispatch } = html.behaviors.create({
-  tooltip: {
-    els: '[data-tooltip]',
-    handler: (el) => {
-      const tooltip = new Tooltip(el)
-      return () => tooltip.destroy()
-    }
-  },
-  modal: () => html.events.on(window, 'keydown', handleEscape)
-})
-
-// Auto-observe DOM changes
-html.behaviors.observe('tooltip', '[data-tooltip]')
-dispatch() // Initialize all behaviors
+@logosdx/dom
+├── index.ts          # $, $.create, all exports
+├── collection.ts     # DomCollection class
+├── css.ts            # css() + css.remove()
+├── attr.ts           # attr() + attr.remove() + attr.has()
+├── class.ts          # classify.add/remove/toggle/has/swap
+├── data.ts           # data() + data.remove()
+├── aria.ts           # aria() + shorthand methods
+├── events.ts         # on, once, off, emit
+├── animate.ts        # animate() + presets
+├── observe.ts        # observe (MutationObserver)
+├── watch.ts          # watchVisibility, watchResize
+├── viewport.ts       # viewport namespace
+├── dom.ts            # create, append, prepend, remove, replace
+├── helpers.ts        # internal utilities
+└── types.ts          # shared types
 ```
-
-### Viewport Operations
-```ts
-// Scroll-based interactions
-const progress = scrollProgress()
-const isVisible = isPartiallyVisible(element, 0.5)
-const distances = elementViewportDistances(modal)
-
-// Smooth navigation
-scrollToElement(target, { offset: 20, behavior: 'smooth' })
-if (isAtBottom(10)) loadMoreContent()
-```
-
-The package provides a comprehensive, type-safe DOM manipulation library with consistent APIs across all modules, automatic cleanup patterns, and cross-browser compatibility.

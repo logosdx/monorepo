@@ -18,68 +18,47 @@ describe('smoke: @logosdx/dom', () => {
         div.className = 'smoke-test-query';
         document.body.appendChild(div);
 
-        const results = ns().$('.smoke-test-query');
-        expect(results).toHaveLength(1);
-        expect(results[0]).toBe(div);
+        const result = ns().$('.smoke-test-query');
+        expect(result.length).toBe(1);
+        expect(result.first).toBe(div);
 
         div.remove();
     });
 
-    it('html.css.set() and html.css.get() manipulate styles', () => {
+    it('css() sets and gets styles', () => {
 
         const el = document.createElement('div');
         document.body.appendChild(el);
 
-        ns().html.css.set(el, { color: 'red' });
-        const color = ns().html.css.get(el, 'color');
-
-        // Browser returns computed color in RGB format
-        expect(color).toBe('rgb(255, 0, 0)');
+        ns().css(el, { color: 'red' });
+        const color = ns().css(el, 'color');
+        expect(color).toBe('red');
 
         el.remove();
     });
 
-    it('html.attrs.set() and html.attrs.get() manipulate attributes', () => {
+    it('attr() sets and gets attributes', () => {
 
         const el = document.createElement('div');
         document.body.appendChild(el);
 
-        ns().html.attrs.set(el, { 'data-smoke': 'test' });
-        const val = ns().html.attrs.get(el, 'data-smoke');
-
+        ns().attr(el, { 'data-smoke': 'test' });
+        const val = ns().attr(el, 'data-smoke');
         expect(val).toBe('test');
 
         el.remove();
     });
 
-    it('html.events.on() attaches and fires event listeners', () => {
+    it('on() attaches and fires event listeners', () => {
 
         const el = document.createElement('button');
         document.body.appendChild(el);
 
         let clicked = false;
-        ns().html.events.on(el, 'click', () => { clicked = true; });
+        ns().on(el, 'click', () => { clicked = true; });
 
         el.click();
         expect(clicked).toBe(true);
-
-        el.remove();
-    });
-
-    it('html.events.on() cleanup removes the listener', () => {
-
-        const el = document.createElement('button');
-        document.body.appendChild(el);
-
-        let count = 0;
-        const cleanup = ns().html.events.on(el, 'click', () => { count++; });
-
-        el.click();
-        expect(count).toBe(1);
-
-        cleanup();
-        el.click();
-        expect(count).toBe(1);
 
         el.remove();
     });

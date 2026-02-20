@@ -36,9 +36,7 @@ export interface EvListener<E extends EvType = EvType> {
 }
 
 /** Options for $.create() — declarative element construction */
-export interface CreateOptions<
-    E extends HTMLElement = HTMLElement
-> extends SignalOptions {
+export interface CreateOptions extends SignalOptions {
     text?: string;
     class?: string[];
     css?: Record<string, string>;

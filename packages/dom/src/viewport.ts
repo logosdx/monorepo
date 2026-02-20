@@ -15,12 +15,12 @@ function scrollToImpl(
         const y = optsOrY as number;
         const scrollOpts = opts ?? {};
         const target = scrollOpts.scrollElement ?? window;
-        target.scrollTo({ left: elOrX, top: y, behavior: scrollOpts.behavior });
+        target.scrollTo({ left: elOrX, top: y, ...(scrollOpts.behavior ? { behavior: scrollOpts.behavior } : {}) });
     }
     else {
 
         const scrollOpts = (optsOrY as ScrollToOpts) ?? {};
-        elOrX.scrollIntoView({ behavior: scrollOpts.behavior, block: 'start' });
+        elOrX.scrollIntoView({ ...(scrollOpts.behavior ? { behavior: scrollOpts.behavior } : {}), block: 'start' });
     }
 }
 

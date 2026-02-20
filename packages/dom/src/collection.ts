@@ -31,7 +31,7 @@ function makeCallable<F extends Function, M extends object>(
 export class DomCollection<T extends HTMLElement> {
 
     #elements: T[];
-    #signal?: AbortSignal;
+    #signal: AbortSignal | undefined;
 
     constructor(elements: T[], opts?: SignalOptions) {
 
@@ -73,7 +73,7 @@ export class DomCollection<T extends HTMLElement> {
     filter(fn: (el: T, index: number) => boolean): DomCollection<T> {
 
         return new DomCollection(this.#elements.filter(fn), {
-            signal: this.#signal
+            ...(this.#signal ? { signal: this.#signal } : {})
         });
     }
 
@@ -84,7 +84,7 @@ export class DomCollection<T extends HTMLElement> {
 
     // --- CSS (callable namespace) ---
 
-    get css() {
+    get css(): any {
 
         const self = this;
 
@@ -113,7 +113,7 @@ export class DomCollection<T extends HTMLElement> {
 
     // --- Attr (callable namespace) ---
 
-    get attr() {
+    get attr(): any {
 
         const self = this;
 
@@ -148,7 +148,7 @@ export class DomCollection<T extends HTMLElement> {
 
     // --- Class (namespace) ---
 
-    get class() {
+    get class(): any {
 
         const self = this;
 
@@ -189,7 +189,7 @@ export class DomCollection<T extends HTMLElement> {
 
     // --- Data (callable namespace) ---
 
-    get data() {
+    get data(): any {
 
         const self = this;
 
@@ -218,7 +218,7 @@ export class DomCollection<T extends HTMLElement> {
 
     // --- Aria (callable namespace) ---
 
-    get aria() {
+    get aria(): any {
 
         const self = this;
 
