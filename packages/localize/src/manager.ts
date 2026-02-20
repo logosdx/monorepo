@@ -7,10 +7,9 @@ import {
     attempt
 } from '@logosdx/utils';
 
-import {
-    getMessage,
-    LocaleEvent
-} from './helpers.ts';
+import { ObserverEngine } from '@logosdx/observer';
+
+import { getMessage } from './helpers.ts';
 
 import { createIntlFormatters } from './intl.ts';
 import { ScopedLocale } from './scoped.ts';
@@ -50,12 +49,13 @@ import { ScopedLocale } from './scoped.ts';
 export class LocaleManager<
     Locale extends LocaleManager.LocaleType,
     Code extends string = string
-> extends EventTarget {
+> {
 
     #_locales: LocaleManager.ManyLocales<Locale, Code>;
     #_loaders = new Map<Code, LocaleManager.LazyLocale<Locale>>();
     #_pending = new Map<Code, Promise<void>>();
     #_intl: LocaleManager.IntlFormatters | null = null;
+    #_observer: ObserverEngine<LocaleManager.LocaleEventShape<Code>>;
     fallback: Code;
     current: Code;
 
@@ -83,20 +83,20 @@ export class LocaleManager<
 
     #emit(name: LocaleManager.LocaleEventName, code: Code) {
 
-        const event = new LocaleEvent<Code>(name);
-        event.code = code;
-        this.dispatchEvent(event);
+        this.#_observer.emit(name, { code });
     }
 
     constructor(opts: LocaleManager.LocaleOpts<Locale, Code>) {
-
-        super();
 
         assert(!!opts.current, 'Current language not set', TypeError);
         assert(!!opts.fallback, 'Fallback language not set', TypeError);
         assert(!!opts.locales, 'Languages config is not set', TypeError);
         assert(typeof opts.locales === 'object', 'Languages config is not an object', TypeError);
         assert(!Array.isArray(opts.locales), 'Languages config can not be an array', TypeError);
+
+        this.#_observer = new ObserverEngine<LocaleManager.LocaleEventShape<Code>>({
+            name: 'locale-manager'
+        });
 
         this.#_locales = opts.locales;
         this.current = opts.current;
@@ -109,18 +109,23 @@ export class LocaleManager<
 
     on(
         ev: LocaleManager.LocaleEventName,
-        listener: LocaleManager.LocaleListener<Code>,
-        once = false
+        listener: LocaleManager.LocaleListener<Code>
     ) {
 
-        this.addEventListener(ev, listener as any, { once });
-
-        return () => this.removeEventListener(ev, listener as any);
+        return this.#_observer.on(ev, listener);
     }
 
-    off(ev: LocaleManager.LocaleEventName, listener: LocaleManager.LocaleListener<Code>) {
+    once(
+        ev: LocaleManager.LocaleEventName,
+        listener: LocaleManager.LocaleListener<Code>
+    ) {
 
-        this.removeEventListener(ev, listener as any);
+        return this.#_observer.once(ev, listener);
+    }
+
+    off(ev: LocaleManager.LocaleEventName, listener?: LocaleManager.LocaleListener<Code>) {
+
+        this.#_observer.off(ev, listener);
     }
 
     #merge() {

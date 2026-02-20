@@ -158,10 +158,9 @@ describe('@logosdx/localize', function () {
         l10bMngr.changeTo('en');
 
         const [arg] = stub.args;
-        const [event] = arg!;
+        const [data] = arg!;
 
-        expect(event.type).to.eq('change');
-        expect(event.code).to.eq('en');
+        expect(data.code).to.eq('en');
 
         l10bMngr.off('change', stub);
         l10bMngr.changeTo('en');
@@ -813,8 +812,8 @@ describe('localize: additional coverage', () => {
         expect(instance.current).to.eq('en');
         expect(changeStub.calledOnce).to.be.true;
 
-        const [event] = changeStub.args[0]!;
-        expect(event.code).to.eq('en');
+        const [data] = changeStub.args[0]!;
+        expect(data.code).to.eq('en');
     });
 
     it('plural zero category with # replacement resolves correctly', () => {

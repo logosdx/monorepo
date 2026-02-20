@@ -163,8 +163,3 @@ export const getMessage = <L extends LocaleManager.LocaleType>(
 
     return format(resolved, values || []);
 };
-
-
-export class LocaleEvent<Code extends string = string> extends Event {
-    code!: Code;
-}

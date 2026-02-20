@@ -4,8 +4,6 @@ import {
     DeepOptional
 } from '@logosdx/utils';
 
-import type { LocaleEvent } from './helpers.ts';
-
 declare module './manager.ts' {
 
     export namespace LocaleManager {
@@ -42,11 +40,15 @@ declare module './manager.ts' {
             loader: () => Promise<Locale>;
         }
 
-        export type LocaleEventName = (
-            'change' | 'loading' | 'error'
-        );
+        export interface LocaleEventShape<Code extends string = string> {
+            change: { code: Code };
+            loading: { code: Code };
+            error: { code: Code };
+        }
 
-        export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code>) => void;
+        export type LocaleEventName = keyof LocaleEventShape;
+
+        export type LocaleListener<Code extends string = string> = (data: { code: Code }) => void;
 
         export interface IntlFormatters {
             number(value: number, opts?: Intl.NumberFormatOptions): string;
