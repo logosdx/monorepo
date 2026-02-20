@@ -86,11 +86,7 @@ export function createLocalizeContext<
 
         useEffect(() => {
 
-            const listener: LocaleManager.LocaleListener<Code> = (e) => setLanguage(e.code);
-
-            manager.on('change', listener);
-
-            return () => manager.off('change', listener);
+            return manager.on('change', (e) => setLanguage(e.code));
         }, [manager]);
 
         return {

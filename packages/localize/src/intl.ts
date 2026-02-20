@@ -15,6 +15,8 @@
 
 import type { LocaleManager } from './manager.ts';
 
+// Intentionally retained across locale changes — formatters for previous locales
+// remain cached so switching back is instant. Typical apps use few locales.
 const cache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.RelativeTimeFormat>();
 
 const cacheKey = (locale: string, type: string, opts?: object) => {

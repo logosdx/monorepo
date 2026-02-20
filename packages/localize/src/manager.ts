@@ -81,6 +81,13 @@ export class LocaleManager<
 
     #_loc!: Locale;
 
+    #emit(name: LocaleManager.LocaleEventName, code: Code) {
+
+        const event = new LocaleEvent<Code>(name);
+        event.code = code;
+        this.dispatchEvent(event);
+    }
+
     constructor(opts: LocaleManager.LocaleOpts<Locale, Code>) {
 
         super();
@@ -141,11 +148,7 @@ export class LocaleManager<
 
             this.#_intl = null;
             this.#merge();
-
-            const event = new LocaleEvent<Code>('change');
-            event.code = code;
-
-            this.dispatchEvent(event);
+            this.#emit('change', code);
         }
 
     }
@@ -212,10 +215,7 @@ export class LocaleManager<
             this.current = code;
             this.#_intl = null;
             this.#merge();
-
-            const event = new LocaleEvent<Code>('change');
-            event.code = code;
-            this.dispatchEvent(event);
+            this.#emit('change', code);
 
             return;
         }
@@ -235,10 +235,7 @@ export class LocaleManager<
                     this.current = code;
                     this.#_intl = null;
                     this.#merge();
-
-                    const event = new LocaleEvent<Code>('change');
-                    event.code = code;
-                    this.dispatchEvent(event);
+                    this.#emit('change', code);
                 }
 
                 return;
@@ -246,17 +243,13 @@ export class LocaleManager<
 
             const loadPromise = (async () => {
 
-                const loadingEvent = new LocaleEvent<Code>('loading');
-                loadingEvent.code = code;
-                this.dispatchEvent(loadingEvent);
+                this.#emit('loading', code);
 
                 const [labels, err] = await attempt(() => lazyLocale.loader());
 
                 if (err) {
 
-                    const errorEvent = new LocaleEvent<Code>('error');
-                    errorEvent.code = code;
-                    this.dispatchEvent(errorEvent);
+                    this.#emit('error', code);
 
                     throw err;
                 }
@@ -281,10 +274,7 @@ export class LocaleManager<
             this.current = code;
             this.#_intl = null;
             this.#merge();
-
-            const changeEvent = new LocaleEvent<Code>('change');
-            changeEvent.code = code;
-            this.dispatchEvent(changeEvent);
+            this.#emit('change', code);
 
             return;
         }
@@ -295,10 +285,7 @@ export class LocaleManager<
         this.current = code;
         this.#_intl = null;
         this.#merge();
-
-        const event = new LocaleEvent<Code>('change');
-        event.code = code;
-        this.dispatchEvent(event);
+        this.#emit('change', code);
     }
 
     ns(prefix: string): ScopedLocale<Locale, Code> {
