@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { jsonToInterface } from '../../packages/localize/src/extractor.ts';
+import { describe, it, expect, afterEach } from 'vitest';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { jsonToInterface, scanDirectory } from '../../packages/localize/src/extractor.ts';
 
 describe('localize: jsonToInterface', () => {
 
@@ -54,5 +56,84 @@ describe('localize: jsonToInterface', () => {
         const input = { key: 'value' };
         const result = jsonToInterface(input, 2);
         expect(result).toBe('        key: string;\n');
+    });
+});
+
+describe('localize: scanDirectory', () => {
+
+    const tmpDir = join(import.meta.dirname, '../../tmp/test-i18n');
+
+    const setup = () => {
+
+        rmSync(tmpDir, { recursive: true, force: true });
+        mkdirSync(tmpDir, { recursive: true });
+    };
+
+    afterEach(() => {
+
+        rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('should read root shape and collect codes from flat layout', () => {
+
+        setup();
+        writeFileSync(join(tmpDir, 'en.json'), JSON.stringify({ greeting: 'hello' }));
+        writeFileSync(join(tmpDir, 'es.json'), JSON.stringify({ greeting: 'hola' }));
+
+        const result = scanDirectory(tmpDir, 'en');
+
+        expect(result.rootShape).to.deep.equal({ greeting: 'hello' });
+        expect(result.codes).to.include('en');
+        expect(result.codes).to.include('es');
+        expect(result.namespaces).to.deep.equal({});
+    });
+
+    it('should read namespace shapes from subdirectories', () => {
+
+        setup();
+        mkdirSync(join(tmpDir, 'common'), { recursive: true });
+        writeFileSync(join(tmpDir, 'common', 'en.json'), JSON.stringify({ ok: 'OK' }));
+        writeFileSync(join(tmpDir, 'common', 'es.json'), JSON.stringify({ ok: 'Aceptar' }));
+
+        const result = scanDirectory(tmpDir, 'en');
+
+        expect(result.rootShape).to.be.null;
+        expect(result.namespaces).to.deep.equal({ common: { ok: 'OK' } });
+        expect(result.codes).to.include('en');
+        expect(result.codes).to.include('es');
+    });
+
+    it('should handle mixed layout with flat and namespaced files', () => {
+
+        setup();
+        writeFileSync(join(tmpDir, 'en.json'), JSON.stringify({ title: 'App' }));
+        mkdirSync(join(tmpDir, 'errors'), { recursive: true });
+        writeFileSync(join(tmpDir, 'errors', 'en.json'), JSON.stringify({ notFound: '404' }));
+
+        const result = scanDirectory(tmpDir, 'en');
+
+        expect(result.rootShape).to.deep.equal({ title: 'App' });
+        expect(result.namespaces).to.deep.equal({ errors: { notFound: '404' } });
+    });
+
+    it('should return empty namespaces when locale file is missing in subdirectory', () => {
+
+        setup();
+        mkdirSync(join(tmpDir, 'common'), { recursive: true });
+        writeFileSync(join(tmpDir, 'common', 'fr.json'), JSON.stringify({ ok: 'OK' }));
+
+        const result = scanDirectory(tmpDir, 'en');
+
+        expect(result.rootShape).to.be.null;
+        expect(result.namespaces).to.deep.equal({});
+        expect(result.codes).to.include('fr');
+    });
+
+    it('should throw on malformed JSON', () => {
+
+        setup();
+        writeFileSync(join(tmpDir, 'en.json'), '{ broken json }');
+
+        expect(() => scanDirectory(tmpDir, 'en')).to.throw();
     });
 });

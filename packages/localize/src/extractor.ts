@@ -1,3 +1,6 @@
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
 const INDENT = '    ';
 
 export const jsonToInterface = (
@@ -30,4 +33,57 @@ export const jsonToInterface = (
     }
 
     return output;
+};
+
+export interface ScanResult {
+    rootShape: Record<string, unknown> | null;
+    namespaces: Record<string, Record<string, unknown>>;
+    codes: string[];
+}
+
+export const scanDirectory = (dir: string, locale: string): ScanResult => {
+
+    const codes = new Set<string>();
+    const namespaces: Record<string, Record<string, unknown>> = {};
+    let rootShape: Record<string, unknown> | null = null;
+
+    const entries = readdirSync(dir);
+
+    for (const entry of entries) {
+
+        const fullPath = join(dir, entry);
+        const stat = statSync(fullPath);
+
+        if (stat.isFile() && entry.endsWith('.json')) {
+
+            const code = entry.replace('.json', '');
+            codes.add(code);
+
+            if (code === locale) {
+
+                const raw = readFileSync(fullPath, 'utf-8');
+                rootShape = JSON.parse(raw);
+            }
+        }
+        else if (stat.isDirectory()) {
+
+            const nsEntries = readdirSync(fullPath);
+
+            for (const nsEntry of nsEntries) {
+
+                if (!nsEntry.endsWith('.json')) continue;
+
+                const code = nsEntry.replace('.json', '');
+                codes.add(code);
+
+                if (code === locale) {
+
+                    const raw = readFileSync(join(fullPath, nsEntry), 'utf-8');
+                    namespaces[entry] = JSON.parse(raw);
+                }
+            }
+        }
+    }
+
+    return { rootShape, namespaces, codes: Array.from(codes) };
 };
