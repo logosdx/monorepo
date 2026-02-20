@@ -38,6 +38,9 @@ Missing translation keys now return `'[key.path]'` instead of `'?'`. A `console.
 * `feat(localize):` `createIntlFormatters(locale)` and `parsePlural(str, values, locale)` exported for standalone use
 * `feat(localize):` `on()` returns an unsubscribe cleanup function
 * `feat(localize):` `'loading'` and `'error'` events for async locale loading lifecycle
+* `feat(localize):` Type extractor CLI — `npx logosdx-locale extract --dir ./i18n --out ./src/locale-keys.ts` generates TypeScript interfaces and `LocaleCodes` union from JSON locale files
+* `feat(localize):` `--watch` mode for CLI — auto-regenerates types on file changes
+* `feat(localize):` Programmatic API via `@logosdx/localize/extractor` — `scanDirectory()`, `generateOutput()`, `jsonToInterface()`
 
 ## Fixed
 
