@@ -52,6 +52,7 @@ export function once(
 
 /**
  * Remove an event listener from one or more elements.
+ * Does not work with delegated listeners — use AbortController signal instead.
  *
  * @example
  *     off(button, 'click', handler);
@@ -90,11 +91,9 @@ export function emit(
 ): void {
 
     const targets = toArray(els);
-    const customEvent = new CustomEvent(event, { detail, bubbles: true });
-
     for (const target of targets) {
 
-        target.dispatchEvent(customEvent);
+        target.dispatchEvent(new CustomEvent(event, { detail, bubbles: true }));
     }
 }
 

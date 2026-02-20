@@ -32,6 +32,12 @@ export class DomCollection<T extends HTMLElement> {
 
     #elements: T[];
     #signal: AbortSignal | undefined;
+    #cssNs: any;
+    #attrNs: any;
+    #classNs: any;
+    #dataNs: any;
+    #ariaNs: any;
+    #animateNs: any;
 
     constructor(elements: T[], opts?: SignalOptions) {
 
@@ -86,9 +92,10 @@ export class DomCollection<T extends HTMLElement> {
 
     get css(): any {
 
+        if (this.#cssNs) return this.#cssNs;
         const self = this;
 
-        return makeCallable(
+        return this.#cssNs = makeCallable(
             function cssCallable(propsOrProp: any) {
 
                 if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
@@ -115,9 +122,10 @@ export class DomCollection<T extends HTMLElement> {
 
     get attr(): any {
 
+        if (this.#attrNs) return this.#attrNs;
         const self = this;
 
-        return makeCallable(
+        return this.#attrNs = makeCallable(
             function attrCallable(propsOrProp: any) {
 
                 if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
@@ -150,9 +158,10 @@ export class DomCollection<T extends HTMLElement> {
 
     get class(): any {
 
+        if (this.#classNs) return this.#classNs;
         const self = this;
 
-        return {
+        return this.#classNs = {
 
             add: (...names: string[]) => {
 
@@ -191,9 +200,10 @@ export class DomCollection<T extends HTMLElement> {
 
     get data(): any {
 
+        if (this.#dataNs) return this.#dataNs;
         const self = this;
 
-        return makeCallable(
+        return this.#dataNs = makeCallable(
             function dataCallable(propsOrProp: any) {
 
                 if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
@@ -220,9 +230,10 @@ export class DomCollection<T extends HTMLElement> {
 
     get aria(): any {
 
+        if (this.#ariaNs) return this.#ariaNs;
         const self = this;
 
-        return makeCallable(
+        return this.#ariaNs = makeCallable(
             function ariaCallable(propsOrProp: any) {
 
                 if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
@@ -335,9 +346,10 @@ export class DomCollection<T extends HTMLElement> {
 
     get animate() {
 
+        if (this.#animateNs) return this.#animateNs;
         const self = this;
 
-        return makeCallable(
+        return this.#animateNs = makeCallable(
             function animateCallable(
                 keyframes: Keyframe[] | PropertyIndexedKeyframes,
                 options?: number | KeyframeAnimationOptions

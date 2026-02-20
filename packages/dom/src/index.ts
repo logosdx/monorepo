@@ -17,9 +17,19 @@ import type { SelectOptions, CreateOptions } from './types.ts';
  *     const items = $('.item', container);
  */
 export function $<T extends HTMLElement = HTMLElement>(
-    selector: string,
+    selector: string | T | T[],
     ctxOrOpts?: Element | SelectOptions
 ): DomCollection<T> {
+
+    if (Array.isArray(selector)) {
+
+        return new DomCollection<T>(selector, ctxOrOpts instanceof Element ? undefined : ctxOrOpts);
+    }
+
+    if (typeof selector !== 'string') {
+
+        return new DomCollection<T>([selector], ctxOrOpts instanceof Element ? undefined : ctxOrOpts);
+    }
 
     let context: Element = document.documentElement;
     let opts: SelectOptions | undefined;
