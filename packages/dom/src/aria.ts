@@ -1,0 +1,180 @@
+import { toArray } from './helpers.ts';
+import type { OneOrMany } from './types.ts';
+
+/**
+ * Set, get, or manage ARIA attributes on DOM elements.
+ * Auto-prefixes keys with `aria-` so callers use short names.
+ *
+ * @example
+ *     aria(el, { pressed: 'true' });   // sets aria-pressed="true"
+ *     aria(el, 'pressed');              // → 'true'
+ *     aria(el, ['pressed', 'expanded']); // → { pressed: 'true', expanded: null }
+ *     aria.remove(el, 'pressed');
+ *     aria.role(el, 'button');
+ *     aria.hide(el);
+ */
+function aria(
+    els: OneOrMany<HTMLElement>,
+    attrs: Record<string, string>
+): void;
+function aria(
+    el: HTMLElement,
+    attr: string
+): string | null;
+function aria(
+    el: HTMLElement,
+    attrs: string[]
+): Record<string, string | null>;
+function aria(
+    els: OneOrMany<HTMLElement>,
+    attrs: string | string[] | Record<string, string>
+): void | string | null | Record<string, string | null> {
+
+    if (typeof attrs === 'string') {
+
+        return (els as HTMLElement).getAttribute(`aria-${attrs}`);
+    }
+
+    if (Array.isArray(attrs)) {
+
+        const el = els as HTMLElement;
+        const result: Record<string, string | null> = {};
+
+        for (const attr of attrs) {
+
+            result[attr] = el.getAttribute(`aria-${attr}`);
+        }
+
+        return result;
+    }
+
+    const elements = toArray(els);
+
+    for (const el of elements) {
+
+        for (const [key, value] of Object.entries(attrs)) {
+
+            el.setAttribute(`aria-${key}`, value);
+        }
+    }
+}
+
+/**
+ * Remove an ARIA attribute from one or more elements.
+ * Auto-prefixes with `aria-`.
+ *
+ * @example
+ *     aria.remove(el, 'pressed'); // removes aria-pressed
+ */
+aria.remove = function remove(
+    els: OneOrMany<HTMLElement>,
+    attr: string
+): void {
+
+    const elements = toArray(els);
+
+    for (const el of elements) {
+
+        el.removeAttribute(`aria-${attr}`);
+    }
+};
+
+/**
+ * Get or set the `role` attribute.
+ * Unlike other ARIA attributes, `role` has no `aria-` prefix.
+ *
+ * @example
+ *     aria.role(el, 'button'); // sets role="button"
+ *     aria.role(el);           // → 'button'
+ */
+aria.role = function role(
+    el: HTMLElement,
+    value?: string
+): string | null | void {
+
+    if (value === undefined) {
+
+        return el.getAttribute('role');
+    }
+
+    el.setAttribute('role', value);
+};
+
+/**
+ * Get or set `aria-label`.
+ *
+ * @example
+ *     aria.label(el, 'Submit form');
+ *     aria.label(el); // → 'Submit form'
+ */
+aria.label = function label(
+    el: HTMLElement,
+    value?: string
+): string | null | void {
+
+    if (value === undefined) {
+
+        return el.getAttribute('aria-label');
+    }
+
+    el.setAttribute('aria-label', value);
+};
+
+/**
+ * Set `aria-hidden="true"` on one or more elements.
+ * Hides elements from assistive technology without
+ * affecting visual display.
+ *
+ * @example
+ *     aria.hide(el);
+ *     aria.hide([el1, el2]);
+ */
+aria.hide = function hide(els: OneOrMany<HTMLElement>): void {
+
+    const elements = toArray(els);
+
+    for (const el of elements) {
+
+        el.setAttribute('aria-hidden', 'true');
+    }
+};
+
+/**
+ * Remove `aria-hidden` from one or more elements.
+ * Re-exposes elements to assistive technology.
+ *
+ * @example
+ *     aria.show(el);
+ */
+aria.show = function show(els: OneOrMany<HTMLElement>): void {
+
+    const elements = toArray(els);
+
+    for (const el of elements) {
+
+        el.removeAttribute('aria-hidden');
+    }
+};
+
+/**
+ * Set `aria-live` on one or more elements.
+ * Controls how assistive technology announces dynamic content changes.
+ *
+ * @example
+ *     aria.live(el, 'polite');
+ *     aria.live([el1, el2], 'assertive');
+ */
+aria.live = function live(
+    els: OneOrMany<HTMLElement>,
+    value: string
+): void {
+
+    const elements = toArray(els);
+
+    for (const el of elements) {
+
+        el.setAttribute('aria-live', value);
+    }
+};
+
+export { aria };
