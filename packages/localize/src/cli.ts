@@ -4,7 +4,7 @@ import { writeFileSync, watch, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { attemptSync } from '@logosdx/utils';
 
-import { scanDirectory, generateOutput } from './extractor.ts';
+import { scanDirectory, generateOutput, VALID_IDENT } from './extractor.ts';
 
 const args = process.argv.slice(2);
 
@@ -45,7 +45,7 @@ if (!out) {
     process.exit(1);
 }
 
-if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
+if (!VALID_IDENT.test(name)) {
 
     console.error(`Error: --name "${name}" is not a valid TypeScript identifier`);
     process.exit(1);
@@ -64,17 +64,20 @@ if (!dirStat?.isDirectory()) {
 
 const extract = () => {
 
-    const scan = scanDirectory(resolvedDir, locale);
-    const output = generateOutput(scan, name);
-    const [, err] = attemptSync(() => writeFileSync(resolvedOut, output));
+    const [, scanErr] = attemptSync(() => {
 
-    if (err) {
+        const scan = scanDirectory(resolvedDir, locale);
+        const output = generateOutput(scan, name);
+        writeFileSync(resolvedOut, output);
+        console.log(`Generated ${resolvedOut}`);
+    });
 
-        console.error(`Error writing ${resolvedOut}: ${err.message}`);
-        process.exit(1);
+    if (scanErr) {
+
+        console.error(`Error: ${scanErr.message}`);
+
+        if (!watchMode) process.exit(1);
     }
-
-    console.log(`Generated ${resolvedOut}`);
 };
 
 extract();

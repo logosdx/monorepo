@@ -58,6 +58,22 @@ describe('localize: jsonToInterface', () => {
         const result = jsonToInterface(input, 2);
         expect(result).toBe('        key: string;\n');
     });
+
+    it('should quote keys with special characters', () => {
+
+        const input = { 'my-key': 'val', 'has space': 'val', normal: 'val' };
+        const result = jsonToInterface(input, 0);
+        expect(result).to.contain("'my-key': string;");
+        expect(result).to.contain("'has space': string;");
+        expect(result).to.contain('normal: string;');
+    });
+
+    it('should handle empty objects', () => {
+
+        const input = { section: {} };
+        const result = jsonToInterface(input, 0);
+        expect(result).toBe('section: {\n};\n');
+    });
 });
 
 describe('localize: scanDirectory', () => {
@@ -214,6 +230,19 @@ describe('localize: generateOutput', () => {
 
         expect(result).to.include("export type LocaleCodes = 'ar' | 'en' | 'fr' | 'zh';");
     });
+
+    it('should produce valid TypeScript with empty codes', () => {
+
+        const scan: ScanResult = {
+            rootShape: null,
+            namespaces: {},
+            codes: [],
+        };
+
+        const result = generateOutput(scan, 'T');
+
+        expect(result).to.include('export type LocaleCodes = never;');
+    });
 });
 
 describe('localize: CLI integration', () => {
@@ -276,6 +305,17 @@ describe('localize: CLI integration', () => {
         expect(() => {
 
             execSync(`npx tsx ${cliPath} extract --dir ${tmpDir}`, { stdio: 'pipe' });
+        }).to.throw();
+    });
+
+    it('should exit with error on invalid --name', () => {
+
+        setup();
+        writeFileSync(join(tmpDir, 'en.json'), JSON.stringify({ title: 'Hi' }));
+
+        expect(() => {
+
+            execSync(`npx tsx ${cliPath} extract --dir ${tmpDir} --out ${outFile} --name "Bad Name"`, { stdio: 'pipe' });
         }).to.throw();
     });
 });

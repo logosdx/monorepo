@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { attemptSync } from '@logosdx/utils';
 
 const INDENT = '    ';
-const VALID_IDENT = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+
+export const VALID_IDENT = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 
 export const jsonToInterface = (
     obj: Record<string, unknown>,
@@ -141,7 +142,9 @@ export const generateOutput = (
     output += '}\n\n';
 
     const sortedCodes = [...scan.codes].sort();
-    const codeUnion = sortedCodes.map(c => `'${c}'`).join(' | ');
+    const codeUnion = sortedCodes.length > 0
+        ? sortedCodes.map(c => `'${c}'`).join(' | ')
+        : 'never';
     output += `export type LocaleCodes = ${codeUnion};\n`;
 
     return output;
