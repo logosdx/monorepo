@@ -56,3 +56,21 @@ features:
     icon: { src: /images/svg/atom.svg, alt: React }
     link: /packages/react
 ---
+
+<div class="vp-doc" style="max-width: 688px; margin: 0 auto; padding: 2rem 1.5rem;">
+
+## Why LogosDX?
+
+Born out of the frustration of rebuilding the same retry logic across projects, debugging invisible error paths in production, wrestling with runtime differences between Node, browsers, and edge workers — and watching dependency trees balloon with packages that do one thing each.
+
+LogosDX is the toolkit we kept wishing existed: resilient by default, runtime-agnostic by design, and zero external dependencies. Every package works independently or together, following the same patterns — so you learn them once and use them everywhere.
+
+### AI-Assisted Development
+
+Install the LogosDX skill for your AI coding agent to get context-aware assistance when building with these packages:
+
+```bash
+npx skills add logosdx/monorepo --skill logosdx
+```
+
+</div>

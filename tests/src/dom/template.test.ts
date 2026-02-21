@@ -193,4 +193,146 @@ describe('@logosdx/dom: TemplateStamper', () => {
             expect(result.length).toBe(2);
         });
     });
+
+    describe('stamp: base config merge', () => {
+
+        it('should apply base config when stamp provides no override', () => {
+
+            createTemplate('m1', '<div><span class="name"></span></div>');
+            const stamper = new TemplateStamper('#m1', {
+                map: { '.name': { css: { color: 'red' } } }
+            });
+
+            const result = stamper.stamp({ '.name': 'Alice' });
+            const span = result.first!.querySelector('.name') as HTMLElement;
+
+            expect(span.textContent).toBe('Alice');
+            expect(span.style.color).toBe('red');
+        });
+
+        it('should let stamp values override base values', () => {
+
+            createTemplate('m2', '<div><span class="name"></span></div>');
+            const stamper = new TemplateStamper('#m2', {
+                map: { '.name': { text: 'Default' } }
+            });
+
+            const result = stamper.stamp({ '.name': 'Override' });
+            const span = result.first!.querySelector('.name') as HTMLElement;
+
+            expect(span.textContent).toBe('Override');
+        });
+
+        it('should merge non-overlapping properties from both', () => {
+
+            createTemplate('m3', '<div><span class="name"></span></div>');
+            const stamper = new TemplateStamper('#m3', {
+                map: { '.name': { css: { fontWeight: 'bold' }, class: ['base'] } }
+            });
+
+            const result = stamper.stamp({ '.name': { text: 'Alice', attrs: { 'data-id': '1' } } });
+            const span = result.first!.querySelector('.name') as HTMLElement;
+
+            expect(span.textContent).toBe('Alice');
+            expect(span.style.fontWeight).toBe('bold');
+            expect(span.classList.contains('base')).toBe(true);
+            expect(span.getAttribute('data-id')).toBe('1');
+        });
+
+        it('should apply base config selectors not present in stamp', () => {
+
+            createTemplate('m4', '<div><span class="name"></span><span class="email"></span></div>');
+            const stamper = new TemplateStamper('#m4', {
+                map: {
+                    '.name': { css: { fontWeight: 'bold' } },
+                    '.email': { css: { color: 'gray' } }
+                }
+            });
+
+            const result = stamper.stamp({ '.name': 'Alice' });
+            const email = result.first!.querySelector('.email') as HTMLElement;
+
+            expect(email.style.color).toBe('gray');
+        });
+    });
+
+    describe('stamp: signal propagation', () => {
+
+        it('should propagate signal to event listeners', () => {
+
+            createTemplate('s1', '<div><button class="btn">Click</button></div>');
+            const controller = new AbortController();
+            const stamper = new TemplateStamper('#s1', { signal: controller.signal });
+            const handler = vi.fn();
+
+            const result = stamper.stamp({ '.btn': { on: { click: handler } } });
+            document.body.appendChild(result.first!);
+            const btn = result.first!.querySelector('.btn') as HTMLElement;
+
+            btn.click();
+            expect(handler).toHaveBeenCalledOnce();
+
+            controller.abort();
+            btn.click();
+            expect(handler).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe('stamp: array (stamp many)', () => {
+
+        it('should stamp multiple items from data array', () => {
+
+            createTemplate('a1', '<div class="card"><span class="name"></span></div>');
+            const stamper = new TemplateStamper('#a1');
+
+            const users = [{ name: 'Alice' }, { name: 'Bob' }];
+            const result = stamper.stamp(users, u => ({ '.name': u.name }));
+
+            expect(result.length).toBe(2);
+            expect(result.at(0)!.querySelector('.name')!.textContent).toBe('Alice');
+            expect(result.at(1)!.querySelector('.name')!.textContent).toBe('Bob');
+        });
+
+        it('should apply base config to all stamped items', () => {
+
+            createTemplate('a2', '<div class="card"><span class="name"></span></div>');
+            const stamper = new TemplateStamper('#a2', {
+                map: { '.name': { css: { fontWeight: 'bold' } } }
+            });
+
+            const users = [{ name: 'Alice' }, { name: 'Bob' }];
+            const result = stamper.stamp(users, u => ({ '.name': u.name }));
+            const span0 = result.at(0)!.querySelector('.name') as HTMLElement;
+            const span1 = result.at(1)!.querySelector('.name') as HTMLElement;
+
+            expect(span0.textContent).toBe('Alice');
+            expect(span0.style.fontWeight).toBe('bold');
+            expect(span1.textContent).toBe('Bob');
+            expect(span1.style.fontWeight).toBe('bold');
+        });
+
+        it('should return empty collection for empty data array', () => {
+
+            createTemplate('a3', '<div class="card"></div>');
+            const stamper = new TemplateStamper('#a3');
+
+            const result = stamper.stamp([], () => ({}));
+
+            expect(result.length).toBe(0);
+        });
+
+        it('should chain .into() after array stamp', () => {
+
+            createTemplate('a4', '<div class="card"><span class="name"></span></div>');
+            const container = create('div');
+            document.body.appendChild(container);
+
+            const stamper = new TemplateStamper('#a4');
+            const users = [{ name: 'Alice' }, { name: 'Bob' }];
+
+            stamper.stamp(users, u => ({ '.name': u.name })).into(container);
+
+            expect(container.children.length).toBe(2);
+        });
+    });
 });
