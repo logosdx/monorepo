@@ -1,5 +1,3 @@
-import type { NullableObject } from '@logosdx/utils';
-
 export interface StorageDriver {
 
     get(key: string): Promise<unknown>;
