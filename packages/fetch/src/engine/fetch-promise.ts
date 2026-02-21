@@ -50,17 +50,25 @@ export class FetchPromise<
     #overrideSet = false;
     #directive: ResponseDirective | undefined;
     #controller: AbortController | undefined;
+    #isFinished = false;
+    #isAborted = false;
 
     /**
      * Whether the executor has resolved or rejected (without abort).
      */
-    isFinished = false;
+    get isFinished(): boolean {
+
+        return this.#isFinished;
+    }
 
     /**
      * Whether the request was aborted, either via `abort()` or
      * an external signal on the controller.
      */
-    isAborted = false;
+    get isAborted(): boolean {
+
+        return this.#isAborted;
+    }
 
     /**
      * Abort the in-flight request.
@@ -70,7 +78,7 @@ export class FetchPromise<
      */
     abort(reason?: string): void {
 
-        this.isAborted = true;
+        this.#isAborted = true;
         this.#controller?.abort(reason);
     }
 
@@ -107,20 +115,20 @@ export class FetchPromise<
 
         controller.signal.addEventListener('abort', () => {
 
-            fp.isAborted = true;
-        });
+            fp.#isAborted = true;
+        }, { once: true });
 
-        executor().then(
+        void executor().then(
             (value) => {
 
-                fp.isFinished = true;
+                fp.#isFinished = true;
                 resolve(value);
             },
             (err) => {
 
-                if (!fp.isAborted) {
+                if (!fp.#isAborted) {
 
-                    fp.isFinished = true;
+                    fp.#isFinished = true;
                 }
 
                 reject(err);
