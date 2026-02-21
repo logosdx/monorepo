@@ -20,17 +20,10 @@ import { FetchError, DEFAULT_RETRY_CONFIG } from '../helpers/index.ts';
 
 import type { FetchEngineCore, InternalReqOptions } from './types.ts';
 
+import { FetchPromise } from './fetch-promise.ts';
+import type { ResponseDirective } from './fetch-promise.ts';
+
 import { HookScope } from '@logosdx/hooks';
-
-
-/**
- * Promise that can be aborted.
- */
-interface AbortablePromise<T> extends Promise<T> {
-    isFinished: boolean;
-    isAborted: boolean;
-    abort(reason?: string): void;
-}
 
 /**
  * Handles request execution with the hook-based pipeline.
@@ -109,7 +102,7 @@ export class RequestExecutor<
         path: string,
         payloadOrOptions?: Data | CallConfig<H, P>,
         options?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr> {
 
         let payload: Data | undefined;
         let opts: CallConfig<H, P>;
@@ -172,21 +165,22 @@ export class RequestExecutor<
             controller.abort();
         });
 
-        const promise = this.#executeWithOptions<Res, ResHdr>(
-            method,
-            path,
-            payload,
-            opts,
-            controller,
-            totalTimeout,
-            attemptTimeoutMs,
-            () => totalTimeoutFired
-        );
-
-        return this.#wrapAsAbortable<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>(
-            promise,
+        const fetchPromise: FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr> = FetchPromise.create<Res, DictAndT<H>, DictAndT<P>, ResHdr>(
+            (): Promise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> => this.#executeWithOptions<Res, ResHdr>(
+                method,
+                path,
+                payload,
+                opts,
+                controller,
+                totalTimeout,
+                attemptTimeoutMs,
+                () => totalTimeoutFired,
+                () => fetchPromise.directive
+            ),
             controller
         );
+
+        return fetchPromise;
     }
 
     /**
@@ -200,7 +194,8 @@ export class RequestExecutor<
         controller: AbortController,
         totalTimeout: ReturnType<typeof wait> | undefined,
         attemptTimeoutMs: number | undefined,
-        getTotalTimeoutFired: () => boolean
+        getTotalTimeoutFired: () => boolean,
+        getDirective?: () => ResponseDirective | undefined
     ): Promise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
 
         const onAfterReq = (...args: any[]) => {
@@ -228,6 +223,8 @@ export class RequestExecutor<
                 getTotalTimeoutFired
             }
         );
+
+        normalizedOpts.getDirective = getDirective;
 
         return this.executeRequest<Res, ResHdr>(normalizedOpts, totalTimeout);
     }
@@ -407,41 +404,6 @@ export class RequestExecutor<
         }
 
         return url;
-    }
-
-    /**
-     * Wrap a promise as an AbortablePromise.
-     */
-    #wrapAsAbortable<T>(promise: Promise<T>, controller: AbortController): AbortablePromise<T> {
-
-        const abortable = promise as AbortablePromise<T>;
-
-        abortable.isFinished = false;
-        abortable.isAborted = false;
-
-        controller.signal.addEventListener('abort', () => {
-
-            abortable.isAborted = true;
-        }, { once: true });
-
-        abortable.abort = (reason?: string) => {
-
-            abortable.isAborted = true;
-            controller.abort(reason);
-        };
-
-        promise.then(() => {
-
-            abortable.isFinished = true;
-        }).catch(() => {
-
-            if (!abortable.isAborted) {
-
-                abortable.isFinished = true;
-            }
-        });
-
-        return abortable;
     }
 
     // =====================================================================
@@ -653,6 +615,114 @@ export class RequestExecutor<
         });
 
         onAfterRequest && await onAfterRequest(response.clone(), callbackOpts);
+
+        const directive = options.getDirective?.();
+
+        if (directive === 'stream' || directive === 'raw') {
+
+
+            const responseHeaders = {} as Partial<ResHdr>;
+
+            response.headers.forEach((value, key) => {
+
+                responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
+            });
+
+            this.engine.emit('response', {
+                ...options,
+                response,
+                data: response,
+                status: response.status,
+                requestEnd: Date.now()
+            });
+
+            const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
+                baseUrl: this.baseUrl.toString(),
+                attemptTimeout: options.attemptTimeout,
+                method,
+                headers: reqHeaders,
+                params,
+                retry: this.retryConfig,
+                determineType,
+            };
+
+            return {
+                data: response as unknown as Res,
+                headers: responseHeaders,
+                status: response.status,
+                request: new Request(url, fetchOpts),
+                config
+            };
+        }
+
+        if (directive && directive !== 'json') {
+
+            const [data, parseErr] = await attempt(async () => {
+
+                if (response.status === 204) {
+
+                    return null;
+                }
+
+                return await response[directive]() as Res;
+            });
+
+            if (parseErr) {
+
+                this.#handleError(options, {
+                    error: parseErr,
+                    step: 'parse',
+                    status: response.status,
+                    data
+                });
+
+                throw parseErr;
+            }
+
+            if (response.ok === false) {
+
+                this.#handleError(options, {
+                    error: new FetchError(response.statusText),
+                    step: 'response',
+                    status: response.status,
+                    data
+                });
+
+                throw new FetchError(response.statusText);
+            }
+
+            this.engine.emit('response', {
+                ...options,
+                response,
+                data,
+                requestEnd: Date.now()
+            });
+
+            const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
+                baseUrl: this.baseUrl.toString(),
+                attemptTimeout: options.attemptTimeout,
+                method,
+                headers: reqHeaders,
+                params,
+                retry: this.retryConfig,
+                determineType,
+            };
+
+            const responseHeaders = {} as Partial<ResHdr>;
+
+            response.headers.forEach((value, key) => {
+
+                responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
+            });
+
+            return {
+                data: data!,
+                headers: responseHeaders,
+                status: response.status,
+                request: new Request(url, fetchOpts),
+                config
+            };
+        }
 
         if (options.stream) {
 

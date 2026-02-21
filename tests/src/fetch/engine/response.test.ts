@@ -8,6 +8,8 @@ import {
     FetchEngine,
 } from '@logosdx/fetch';
 
+import { FetchPromise } from '../../../../packages/fetch/src/engine/fetch-promise.ts';
+
 import { makeTestStubs } from '../_helpers.ts';
 
 
@@ -75,5 +77,80 @@ describe('FetchEngine: response structure validation', async () => {
 
         apiWithRetry.destroy();
         apiWithoutRetry.destroy();
+    });
+});
+
+
+describe('FetchEngine: directive-based response parsing', async () => {
+
+    const { testUrl } = await makeTestStubs(4135);
+
+    it('should parse as JSON when .json() directive is used', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        const promise = api.get('/json') as unknown as FetchPromise;
+        const result = await promise.json();
+
+        expect(result.data).to.deep.equal({ ok: true });
+        expect(result.status).to.equal(200);
+
+        api.destroy();
+    });
+
+    it('should parse as text when .text() directive is used', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        const promise = api.get('/json') as unknown as FetchPromise;
+        const result = await promise.text();
+
+        expect(result.data).to.be.a('string');
+        expect(JSON.parse(result.data as string)).to.deep.equal({ ok: true });
+        expect(result.status).to.equal(200);
+
+        api.destroy();
+    });
+
+    it('should return raw Response when .raw() directive is used', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        const promise = api.get('/json') as unknown as FetchPromise;
+        const result = await promise.raw();
+
+        expect(result.data).to.be.instanceOf(Response);
+        expect(result.status).to.equal(200);
+
+        api.destroy();
+    });
+
+    it('should still auto-parse without a directive (backwards compatible)', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        const result = await api.get('/json');
+
+        expect(result.data).to.deep.equal({ ok: true });
+        expect(result.status).to.equal(200);
+
+        api.destroy();
+    });
+
+    it('should support abort on FetchPromise returned by executor', async () => {
+
+        const api = new FetchEngine({ baseUrl: testUrl });
+
+        const promise = api.get('/json') as unknown as FetchPromise;
+
+        expect(promise.abort).to.be.a('function');
+        expect(promise.isAborted).to.equal(false);
+        expect(promise.isFinished).to.equal(false);
+
+        const result = await promise;
+        expect(promise.isFinished).to.equal(true);
+        expect(result.data).to.deep.equal({ ok: true });
+
+        api.destroy();
     });
 });

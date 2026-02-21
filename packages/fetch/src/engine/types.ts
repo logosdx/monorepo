@@ -238,6 +238,9 @@ export interface InternalReqOptions<H = unknown, P = unknown, S = unknown>
     /** When true, returns raw Response without body parsing */
     stream?: boolean | undefined;
 
+    /** Returns the active response directive from FetchPromise */
+    getDirective?: (() => import('./fetch-promise.ts').ResponseDirective | undefined) | undefined;
+
     /** Unique ID for this request, flows through all events */
     requestId?: string | undefined;
 
