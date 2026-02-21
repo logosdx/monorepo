@@ -93,9 +93,22 @@ describe('@logosdx/dom: attr', () => {
 
             el.setAttribute('role', 'button');
             el.setAttribute('data-id', '123');
-            attr.remove(el, 'role', 'data-id');
+            attr.remove(el, ['role', 'data-id']);
             expect(el.hasAttribute('role')).toBe(false);
             expect(el.hasAttribute('data-id')).toBe(false);
+        });
+
+        it('should remove multiple attributes from multiple elements', () => {
+
+            el.setAttribute('role', 'button');
+            el.setAttribute('data-id', '1');
+            el2.setAttribute('role', 'link');
+            el2.setAttribute('data-id', '2');
+            attr.remove([el, el2], ['role', 'data-id']);
+            expect(el.hasAttribute('role')).toBe(false);
+            expect(el.hasAttribute('data-id')).toBe(false);
+            expect(el2.hasAttribute('role')).toBe(false);
+            expect(el2.hasAttribute('data-id')).toBe(false);
         });
 
         it('should remove attributes from multiple elements', () => {

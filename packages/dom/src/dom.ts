@@ -31,7 +31,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
     if (!opts) return el;
 
     if (opts.text) el.textContent = opts.text;
-    if (opts.class) classify.add(el, ...opts.class);
+    if (opts.class) classify.add(el, opts.class);
     if (opts.css) css(el, opts.css);
     if (opts.attrs) attr(el, opts.attrs);
 

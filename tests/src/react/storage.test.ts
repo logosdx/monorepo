@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 
-import { StorageAdapter } from '@logosdx/storage';
-import { createStorageContext } from '@logosdx/react';
+import { StorageAdapter, WebStorageDriver } from '../../../packages/storage/src/index.ts';
+import { createStorageContext } from '../../../packages/react/src/index.ts';
 import { renderHook } from './_helpers.ts';
 
 
@@ -12,6 +12,14 @@ interface TestStore {
     prefs: { lang: string; notifications: boolean };
 }
 
+function createTestStorage() {
+
+    return new StorageAdapter<TestStore>({
+        driver: new WebStorageDriver(window.localStorage),
+        prefix: 'test',
+    });
+}
+
 describe('@logosdx/react: storage', () => {
 
     beforeEach(() => { window.localStorage.clear(); });
@@ -19,7 +27,7 @@ describe('@logosdx/react: storage', () => {
 
     it('createStorageContext returns [Provider, useHook] tuple', () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
+        const storage = createTestStorage();
         const result = createStorageContext(storage);
 
         expect(result).to.be.an('array').with.lengthOf(2);
@@ -29,7 +37,7 @@ describe('@logosdx/react: storage', () => {
 
     it('useHook returns the expected API shape', () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
+        const storage = createTestStorage();
         const [, useStorage] = createStorageContext(storage);
 
         const { result } = renderHook(() => useStorage());
@@ -40,25 +48,26 @@ describe('@logosdx/react: storage', () => {
         expect(result.current.assign).to.be.a('function');
         expect(result.current.has).to.be.a('function');
         expect(result.current.clear).to.be.a('function');
-        expect(result.current.wrap).to.be.a('function');
+        expect(result.current.scope).to.be.a('function');
         expect(result.current.keys).to.be.a('function');
         expect(result.current.instance).to.equal(storage);
     });
 
-    it('get() reads values from storage', () => {
+    it('get() reads values from storage', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
-        storage.set('theme', 'dark');
+        const storage = createTestStorage();
+        await storage.set('theme', 'dark');
 
         const [, useStorage] = createStorageContext(storage);
         const { result } = renderHook(() => useStorage());
 
-        expect(result.current.get('theme')).to.equal('dark');
+        const value = await result.current.get('theme');
+        expect(value).to.equal('dark');
     });
 
-    it('set() writes values and triggers re-render', () => {
+    it('set() writes values and triggers re-render', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
+        const storage = createTestStorage();
         const [, useStorage] = createStorageContext(storage);
 
         let renderCount = 0;
@@ -70,29 +79,32 @@ describe('@logosdx/react: storage', () => {
 
         const before = renderCount;
 
-        act(() => { result.current.set('theme', 'dark'); });
+        await act(async () => { await result.current.set('theme', 'dark'); });
 
-        expect(result.current.get('theme')).to.equal('dark');
+        const value = await result.current.get('theme');
+        expect(value).to.equal('dark');
         expect(renderCount).to.be.greaterThan(before);
     });
 
-    it('set() supports bulk writes', () => {
+    it('set() supports bulk writes', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
+        const storage = createTestStorage();
         const [, useStorage] = createStorageContext(storage);
 
         const { result } = renderHook(() => useStorage());
 
-        act(() => { result.current.set({ theme: 'dark', userId: '42' } as any); });
+        await act(async () => {
+            await result.current.set({ theme: 'dark', userId: '42' } as any);
+        });
 
-        expect(result.current.get('theme')).to.equal('dark');
-        expect(result.current.get('userId')).to.equal('42');
+        expect(await result.current.get('theme')).to.equal('dark');
+        expect(await result.current.get('userId')).to.equal('42');
     });
 
-    it('remove() deletes values and triggers re-render', () => {
+    it('remove() deletes values and triggers re-render', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
-        storage.set('theme', 'dark');
+        const storage = createTestStorage();
+        await storage.set('theme', 'dark');
 
         const [, useStorage] = createStorageContext(storage);
 
@@ -105,58 +117,61 @@ describe('@logosdx/react: storage', () => {
 
         const before = renderCount;
 
-        act(() => { result.current.remove('theme'); });
+        await act(async () => { await result.current.remove('theme'); });
 
-        expect(result.current.has('theme')).to.be.false;
+        expect(await result.current.has('theme')).to.be.false;
         expect(renderCount).to.be.greaterThan(before);
     });
 
-    it('assign() merges into existing value and triggers re-render', () => {
+    it('assign() merges into existing value and triggers re-render', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
-        storage.set('prefs', { lang: 'en', notifications: true });
+        const storage = createTestStorage();
+        await storage.set('prefs', { lang: 'en', notifications: true });
 
         const [, useStorage] = createStorageContext(storage);
         const { result } = renderHook(() => useStorage());
 
-        act(() => { result.current.assign('prefs', { lang: 'es' }); });
+        await act(async () => {
+            await result.current.assign('prefs', { lang: 'es' });
+        });
 
-        expect(result.current.get('prefs')).to.deep.equal({
+        expect(await result.current.get('prefs')).to.deep.equal({
             lang: 'es',
             notifications: true,
         });
     });
 
-    it('has() checks key existence', () => {
+    it('has() checks key existence', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
-        storage.set('theme', 'light');
-
-        const [, useStorage] = createStorageContext(storage);
-        const { result } = renderHook(() => useStorage());
-
-        expect(result.current.has('theme')).to.be.true;
-        expect(result.current.has('userId')).to.be.false;
-    });
-
-    it('keys() returns stored keys', () => {
-
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
-        storage.set('theme', 'light');
-        storage.set('userId', '42');
+        const storage = createTestStorage();
+        await storage.set('theme', 'light');
 
         const [, useStorage] = createStorageContext(storage);
         const { result } = renderHook(() => useStorage());
 
-        expect(result.current.keys()).to.include('theme');
-        expect(result.current.keys()).to.include('userId');
+        expect(await result.current.has('theme')).to.be.true;
+        expect(await result.current.has('userId')).to.be.false;
     });
 
-    it('clear() removes all prefixed keys and triggers re-render', () => {
+    it('keys() returns stored keys', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
-        storage.set('theme', 'dark');
-        storage.set('userId', 'abc');
+        const storage = createTestStorage();
+        await storage.set('theme', 'light');
+        await storage.set('userId', '42');
+
+        const [, useStorage] = createStorageContext(storage);
+        const { result } = renderHook(() => useStorage());
+
+        const keys = await result.current.keys();
+        expect(keys).to.include('theme');
+        expect(keys).to.include('userId');
+    });
+
+    it('clear() removes all prefixed keys and triggers re-render', async () => {
+
+        const storage = createTestStorage();
+        await storage.set('theme', 'dark');
+        await storage.set('userId', 'abc');
 
         const [, useStorage] = createStorageContext(storage);
 
@@ -169,15 +184,16 @@ describe('@logosdx/react: storage', () => {
 
         const before = renderCount;
 
-        act(() => { result.current.clear(); });
+        await act(async () => { await result.current.clear(); });
 
-        expect(result.current.keys()).to.have.lengthOf(0);
+        const keys = await result.current.keys();
+        expect(keys).to.have.lengthOf(0);
         expect(renderCount).to.be.greaterThan(before);
     });
 
-    it('cleans up event listeners on unmount', () => {
+    it('cleans up event listeners on unmount', async () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
+        const storage = createTestStorage();
         const [, useStorage] = createStorageContext(storage);
 
         let renderCount = 0;
@@ -190,14 +206,14 @@ describe('@logosdx/react: storage', () => {
         const before = renderCount;
         unmount();
 
-        storage.set('theme', 'dark');
+        await storage.set('theme', 'dark');
 
         expect(renderCount).to.equal(before);
     });
 
     it('Provider wraps children with context', () => {
 
-        const storage = new StorageAdapter<TestStore>(window.localStorage, 'test');
+        const storage = createTestStorage();
         const [Provider, useStorage] = createStorageContext(storage);
 
         const { result } = renderHook(

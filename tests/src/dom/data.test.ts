@@ -98,6 +98,28 @@ describe('@logosdx/dom: data', () => {
             expect(el2.dataset.userId).toBeUndefined();
         });
 
+        it('should remove multiple data attributes', () => {
+
+            el.dataset.userId = '123';
+            el.dataset.role = 'admin';
+            data.remove(el, ['userId', 'role']);
+            expect(el.dataset.userId).toBeUndefined();
+            expect(el.dataset.role).toBeUndefined();
+        });
+
+        it('should remove multiple data attributes from multiple elements', () => {
+
+            el.dataset.userId = '1';
+            el.dataset.role = 'admin';
+            el2.dataset.userId = '2';
+            el2.dataset.role = 'user';
+            data.remove([el, el2], ['userId', 'role']);
+            expect(el.dataset.userId).toBeUndefined();
+            expect(el.dataset.role).toBeUndefined();
+            expect(el2.dataset.userId).toBeUndefined();
+            expect(el2.dataset.role).toBeUndefined();
+        });
+
         it('should handle removing non-existent data attribute', () => {
 
             data.remove(el, 'nonExistent');

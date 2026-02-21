@@ -91,29 +91,27 @@ export function createStorageContext<Values>(
 
             const listener = () => setTick(n => n + 1);
 
-            storage.on('storage-after-set', listener);
-            storage.on('storage-after-unset', listener);
-            storage.on('storage-reset', listener);
+            storage.on('after-set', listener);
+            storage.on('after-remove', listener);
+            storage.on('clear', listener);
 
             return () => {
 
-                storage.off('storage-after-set', listener);
-                storage.off('storage-after-unset', listener);
-                storage.off('storage-reset', listener);
+                storage.off('after-set', listener);
+                storage.off('after-remove', listener);
+                storage.off('clear', listener);
             };
         }, [storage]);
 
         return {
             get: storage.get.bind(storage),
-            getMany: storage.get.bind(storage),
             set: storage.set.bind(storage),
-            setMany: storage.set.bind(storage),
             remove: storage.rm.bind(storage),
             assign: storage.assign.bind(storage),
             has: storage.has.bind(storage) as UseStorageReturn<Values>['has'],
             clear: storage.clear.bind(storage),
-            wrap: storage.wrap.bind(storage),
             keys: storage.keys.bind(storage),
+            scope: storage.scope.bind(storage),
             instance: storage,
         };
     }

@@ -1,4 +1,4 @@
-import { toArray } from './helpers.ts';
+import { toArray, eachEl, getMany } from './helpers.ts';
 import type { OneOrMany } from './types.ts';
 
 /**
@@ -36,14 +36,7 @@ function data(
     if (Array.isArray(props)) {
 
         const el = els as HTMLElement;
-        const result: Record<string, string | undefined> = {};
-
-        for (const key of props) {
-
-            result[key] = el.dataset[key];
-        }
-
-        return result;
+        return getMany(props, key => el.dataset[key]);
     }
 
     const elements = toArray(els);
@@ -61,23 +54,15 @@ function data(
  * Remove `data-*` attributes from one or more elements.
  *
  * @example
- *     data.remove(el, 'userId');
+ *     data.remove(el, ['userId', 'role']);
  *     data.remove([el1, el2], 'role');
  */
 data.remove = function remove(
     els: OneOrMany<HTMLElement>,
-    ...keys: string[]
+    keys: string | string[]
 ): void {
 
-    const elements = toArray(els);
-
-    for (const el of elements) {
-
-        for (const key of keys) {
-
-            delete el.dataset[key];
-        }
-    }
+    eachEl(els, keys, (el, key) => { delete el.dataset[key]; });
 };
 
 export { data };

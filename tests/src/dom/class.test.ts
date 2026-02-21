@@ -30,9 +30,18 @@ describe('@logosdx/dom: class', () => {
 
         it('should add multiple classes', () => {
 
-            classify.add(el, 'active', 'highlighted');
+            classify.add(el, ['active', 'highlighted']);
             expect(el.classList.contains('active')).toBe(true);
             expect(el.classList.contains('highlighted')).toBe(true);
+        });
+
+        it('should add multiple classes to multiple elements', () => {
+
+            classify.add([el, el2], ['active', 'highlighted']);
+            expect(el.classList.contains('active')).toBe(true);
+            expect(el.classList.contains('highlighted')).toBe(true);
+            expect(el2.classList.contains('active')).toBe(true);
+            expect(el2.classList.contains('highlighted')).toBe(true);
         });
 
         it('should add classes to multiple elements', () => {
@@ -55,9 +64,29 @@ describe('@logosdx/dom: class', () => {
         it('should remove multiple classes', () => {
 
             el.classList.add('active', 'highlighted');
-            classify.remove(el, 'active', 'highlighted');
+            classify.remove(el, ['active', 'highlighted']);
             expect(el.classList.contains('active')).toBe(false);
             expect(el.classList.contains('highlighted')).toBe(false);
+        });
+
+        it('should remove classes from multiple elements', () => {
+
+            el.classList.add('active');
+            el2.classList.add('active');
+            classify.remove([el, el2], 'active');
+            expect(el.classList.contains('active')).toBe(false);
+            expect(el2.classList.contains('active')).toBe(false);
+        });
+
+        it('should remove multiple classes from multiple elements', () => {
+
+            el.classList.add('active', 'highlighted');
+            el2.classList.add('active', 'highlighted');
+            classify.remove([el, el2], ['active', 'highlighted']);
+            expect(el.classList.contains('active')).toBe(false);
+            expect(el.classList.contains('highlighted')).toBe(false);
+            expect(el2.classList.contains('active')).toBe(false);
+            expect(el2.classList.contains('highlighted')).toBe(false);
         });
     });
 

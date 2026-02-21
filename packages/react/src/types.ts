@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { ObserverEngine } from '@logosdx/observer';
 import type { StorageAdapter } from '@logosdx/storage';
 import type { LocaleManager } from '@logosdx/localize';
-import type { NullableObject, PathLeaves } from '@logosdx/utils';
+import type { PathLeaves } from '@logosdx/utils';
 
 export type ProviderProps = {
     children?: ReactNode;
@@ -31,27 +31,14 @@ export type UseObserverReturn<Shape extends Record<string, any>> = {
 };
 
 export type UseStorageReturn<Values> = {
-    get: {
-        (): Values;
-        <K extends keyof Values>(key: K): Values[K];
-    };
-    getMany: {
-        <K extends keyof Values>(keys: K[]): Partial<NullableObject<Values>>;
-    }
-    set: {
-        <K extends keyof Values>(key: K, value: Values[K]): void;
-        (values: Partial<Values>): void;
-    };
-    setMany: (values: Partial<Values>) => void;
-    remove: <K extends keyof Values>(keyOrKeys: K | K[]) => void;
-    assign: <K extends keyof Values>(key: K, val: Partial<Values[K]>) => void;
-    has: {
-        (key: keyof Values): boolean;
-        (keys: (keyof Values)[]): boolean[];
-    };
-    clear: () => void;
-    wrap: StorageAdapter<Values>['wrap'];
-    keys: () => (keyof Values)[];
+    get: StorageAdapter<Values>['get'];
+    set: StorageAdapter<Values>['set'];
+    remove: StorageAdapter<Values>['rm'];
+    assign: StorageAdapter<Values>['assign'];
+    has: StorageAdapter<Values>['has'];
+    clear: StorageAdapter<Values>['clear'];
+    keys: StorageAdapter<Values>['keys'];
+    scope: StorageAdapter<Values>['scope'];
     instance: StorageAdapter<Values>;
 };
 

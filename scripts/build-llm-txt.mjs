@@ -18,7 +18,6 @@ const LLM_HELPERS_DIR = path.join(ROOT, 'llm-helpers');
 const DOCS_DIR = path.join(ROOT, 'docs');
 const OUTPUT_DIR = path.join(DOCS_DIR, 'public', 'llm');
 const OUTPUT_PATH = path.join(DOCS_DIR, 'public', 'llms.txt');
-const DIST_DIR = path.join(DOCS_DIR, '.vitepress/dist');
 
 $.verbose = false;
 
@@ -43,17 +42,16 @@ if (mdFiles.length === 0) {
 
 // Copy markdown files to public/llm/ for direct access
 await fs.ensureDir(OUTPUT_DIR);
-await fs.ensureDir(DIST_DIR, 'llm');
 
 for (const file of mdFiles) {
 
     const source = path.join(LLM_HELPERS_DIR, file);
-    const destination = path.join(DIST_DIR, 'llm', file);
+    const destination = path.join(OUTPUT_DIR, file);
 
     await fs.copy(source, destination);
 }
 
-log.info(`Copied ${mdFiles.length} files to docs/.vitepress/dist/llm/`);
+log.info(`Copied ${mdFiles.length} files to docs/public/llm/`);
 
 // Build package links with descriptions
 const packageDescriptions = {

@@ -4,7 +4,6 @@ const simplePackages: DefaultTheme.SidebarItem[] = [
   ['Observer', 'observer'],
   ['Hooks', 'hooks'],
   ['Utils', 'utils'],
-  ['Dom', 'dom'],
   ['Storage', 'storage'],
   ['React', 'react'],
   // ['State Machine', 'state-machine'],
@@ -39,7 +38,20 @@ const packages: DefaultTheme.SidebarItem[] = [
       { text: 'Practical Guide', link: '/packages/state-machine/guide' },
     ]
   },
-  ...simplePackages.slice(3), // Dom, Storage, React
+  {
+    text: 'Dom',
+    link: '/packages/dom/',
+    collapsed: true,
+    items: [
+      { text: 'Selection', link: '/packages/dom/selection' },
+      { text: 'Styling', link: '/packages/dom/styling' },
+      { text: 'Aria', link: '/packages/dom/aria' },
+      { text: 'Events', link: '/packages/dom/events' },
+      { text: 'Animate', link: '/packages/dom/animate' },
+      { text: 'Observers', link: '/packages/dom/observers' },
+    ]
+  },
+  ...simplePackages.slice(3), // Storage, React
   {
     text: 'Localize',
     link: '/packages/localize/',

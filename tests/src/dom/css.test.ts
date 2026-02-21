@@ -99,9 +99,22 @@ describe('@logosdx/dom: css', () => {
 
             el.style.color = 'red';
             el.style.fontSize = '16px';
-            css.remove(el, 'color', 'fontSize');
+            css.remove(el, ['color', 'fontSize']);
             expect(el.style.color).toBe('');
             expect(el.style.fontSize).toBe('');
+        });
+
+        it('should remove multiple properties from multiple elements', () => {
+
+            el.style.color = 'red';
+            el.style.fontSize = '16px';
+            el2.style.color = 'blue';
+            el2.style.fontSize = '18px';
+            css.remove([el, el2], ['color', 'fontSize']);
+            expect(el.style.color).toBe('');
+            expect(el.style.fontSize).toBe('');
+            expect(el2.style.color).toBe('');
+            expect(el2.style.fontSize).toBe('');
         });
 
         it('should remove a custom property', () => {

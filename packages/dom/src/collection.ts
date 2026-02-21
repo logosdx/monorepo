@@ -18,6 +18,34 @@ function makeCallable<F extends Function, M extends object>(
 }
 
 /**
+ * Create a callable namespace getter that delegates to a standalone function.
+ * Handles the read-or-write dispatch: string/array → get from first, object → set on all.
+ */
+function makeReadWriteNs<S extends Function>(
+    standalone: S,
+    elements: () => HTMLElement[],
+    first: () => HTMLElement | undefined,
+    self: () => any,
+    methods: Record<string, Function>
+) {
+
+    return makeCallable(
+        function callable(propsOrProp: any) {
+
+            if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
+
+                const f = first();
+                return f ? (standalone as any)(f, propsOrProp as any) : undefined;
+            }
+
+            (standalone as any)(elements(), propsOrProp);
+            return self();
+        },
+        methods
+    );
+}
+
+/**
  * Wraps an array of DOM elements and provides chainable methods
  * for CSS, attributes, classes, data, aria, events, and animation.
  *
@@ -88,6 +116,13 @@ export class DomCollection<T extends HTMLElement> {
         return this.#elements[Symbol.iterator]();
     }
 
+    #mergeSignal(opts?: EventOptions): EventOptions | undefined {
+
+        return this.#signal
+            ? { ...opts, signal: opts?.signal ?? this.#signal }
+            : opts;
+    }
+
     // --- CSS (callable namespace) ---
 
     get css(): any {
@@ -95,23 +130,15 @@ export class DomCollection<T extends HTMLElement> {
         if (this.#cssNs) return this.#cssNs;
         const self = this;
 
-        return this.#cssNs = makeCallable(
-            function cssCallable(propsOrProp: any) {
-
-                if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
-
-                    return self.first
-                        ? cssStandalone(self.first, propsOrProp as any)
-                        : undefined;
-                }
-
-                cssStandalone(self.#elements, propsOrProp);
-                return self;
-            },
+        return this.#cssNs = makeReadWriteNs(
+            cssStandalone,
+            () => self.#elements,
+            () => self.first,
+            () => self,
             {
-                remove: (...props: string[]) => {
+                remove: (props: string | string[]) => {
 
-                    cssStandalone.remove(self.#elements, ...props as any);
+                    cssStandalone.remove(self.#elements, props as any);
                     return self;
                 }
             }
@@ -125,23 +152,15 @@ export class DomCollection<T extends HTMLElement> {
         if (this.#attrNs) return this.#attrNs;
         const self = this;
 
-        return this.#attrNs = makeCallable(
-            function attrCallable(propsOrProp: any) {
-
-                if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
-
-                    return self.first
-                        ? attrStandalone(self.first, propsOrProp as any)
-                        : undefined;
-                }
-
-                attrStandalone(self.#elements, propsOrProp);
-                return self;
-            },
+        return this.#attrNs = makeReadWriteNs(
+            attrStandalone,
+            () => self.#elements,
+            () => self.first,
+            () => self,
             {
-                remove: (...names: string[]) => {
+                remove: (names: string | string[]) => {
 
-                    attrStandalone.remove(self.#elements, ...names);
+                    attrStandalone.remove(self.#elements, names);
                     return self;
                 },
                 has: (name: string): boolean => {
@@ -163,15 +182,15 @@ export class DomCollection<T extends HTMLElement> {
 
         return this.#classNs = {
 
-            add: (...names: string[]) => {
+            add: (names: string | string[]) => {
 
-                classify.add(self.#elements, ...names);
+                classify.add(self.#elements, names);
                 return self;
             },
 
-            remove: (...names: string[]) => {
+            remove: (names: string | string[]) => {
 
-                classify.remove(self.#elements, ...names);
+                classify.remove(self.#elements, names);
                 return self;
             },
 
@@ -203,23 +222,15 @@ export class DomCollection<T extends HTMLElement> {
         if (this.#dataNs) return this.#dataNs;
         const self = this;
 
-        return this.#dataNs = makeCallable(
-            function dataCallable(propsOrProp: any) {
-
-                if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
-
-                    return self.first
-                        ? dataStandalone(self.first, propsOrProp as any)
-                        : undefined;
-                }
-
-                dataStandalone(self.#elements, propsOrProp);
-                return self;
-            },
+        return this.#dataNs = makeReadWriteNs(
+            dataStandalone,
+            () => self.#elements,
+            () => self.first,
+            () => self,
             {
-                remove: (...keys: string[]) => {
+                remove: (keys: string | string[]) => {
 
-                    dataStandalone.remove(self.#elements, ...keys);
+                    dataStandalone.remove(self.#elements, keys);
                     return self;
                 }
             }
@@ -233,23 +244,15 @@ export class DomCollection<T extends HTMLElement> {
         if (this.#ariaNs) return this.#ariaNs;
         const self = this;
 
-        return this.#ariaNs = makeCallable(
-            function ariaCallable(propsOrProp: any) {
-
-                if (typeof propsOrProp === 'string' || Array.isArray(propsOrProp)) {
-
-                    return self.first
-                        ? ariaStandalone(self.first, propsOrProp as any)
-                        : undefined;
-                }
-
-                ariaStandalone(self.#elements, propsOrProp);
-                return self;
-            },
+        return this.#ariaNs = makeReadWriteNs(
+            ariaStandalone,
+            () => self.#elements,
+            () => self.first,
+            () => self,
             {
-                remove: (...attrs: string[]) => {
+                remove: (attrs: string | string[]) => {
 
-                    ariaStandalone.remove(self.#elements, ...attrs);
+                    ariaStandalone.remove(self.#elements, attrs);
                     return self;
                 },
 
@@ -312,21 +315,13 @@ export class DomCollection<T extends HTMLElement> {
 
     on(event: EvType, handler: EvListener, opts?: EventOptions): this {
 
-        const mergedOpts = this.#signal
-            ? { ...opts, signal: opts?.signal ?? this.#signal }
-            : opts;
-
-        onStandalone(this.#elements, event, handler, mergedOpts);
+        onStandalone(this.#elements, event, handler, this.#mergeSignal(opts));
         return this;
     }
 
     once(event: EvType, handler: EvListener, opts?: EventOptions): this {
 
-        const mergedOpts = this.#signal
-            ? { ...opts, signal: opts?.signal ?? this.#signal }
-            : opts;
-
-        onceStandalone(this.#elements, event, handler, mergedOpts);
+        onceStandalone(this.#elements, event, handler, this.#mergeSignal(opts));
         return this;
     }
 

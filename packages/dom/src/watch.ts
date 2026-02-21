@@ -1,3 +1,4 @@
+import { bindSignal } from './helpers.ts';
 import type { Cleanup, SignalOptions } from './types.ts';
 
 interface VisibilityOptions extends SignalOptions {
@@ -52,10 +53,7 @@ export function watchVisibility(
         observer.disconnect();
     }
 
-    if (signal) {
-
-        signal.addEventListener('abort', stop, { once: true });
-    }
+    bindSignal(signal, stop);
 
     return stop;
 }
@@ -94,10 +92,7 @@ export function watchResize(
         observer.disconnect();
     }
 
-    if (opts?.signal) {
-
-        opts.signal.addEventListener('abort', stop, { once: true });
-    }
+    bindSignal(opts?.signal, stop);
 
     return stop;
 }

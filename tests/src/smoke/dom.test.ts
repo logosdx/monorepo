@@ -176,7 +176,7 @@ describe('smoke: @logosdx/dom', () => {
 
         const el = document.createElement('div');
         ns().aria(el, { pressed: 'true', expanded: 'false', hidden: 'true' });
-        ns().aria.remove(el, 'pressed', 'expanded');
+        ns().aria.remove(el, ['pressed', 'expanded']);
         expect(el.getAttribute('aria-pressed')).toBeNull();
         expect(el.getAttribute('aria-expanded')).toBeNull();
         expect(el.getAttribute('aria-hidden')).toBe('true');

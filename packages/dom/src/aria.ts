@@ -1,4 +1,4 @@
-import { toArray } from './helpers.ts';
+import { eachEl, applyEach, getMany } from './helpers.ts';
 import type { OneOrMany } from './types.ts';
 
 /**
@@ -38,25 +38,13 @@ function aria(
     if (Array.isArray(attrs)) {
 
         const el = els as HTMLElement;
-        const result: Record<string, string | null> = {};
-
-        for (const attr of attrs) {
-
-            result[attr] = el.getAttribute(`aria-${attr}`);
-        }
-
-        return result;
+        return getMany(attrs, attr => el.getAttribute(`aria-${attr}`));
     }
 
-    const elements = toArray(els);
+    eachEl(els, Object.entries(attrs), (el, [key, value]) => {
 
-    for (const el of elements) {
-
-        for (const [key, value] of Object.entries(attrs)) {
-
-            el.setAttribute(`aria-${key}`, value);
-        }
-    }
+        el.setAttribute(`aria-${key}`, value);
+    });
 }
 
 /**
@@ -64,25 +52,36 @@ function aria(
  * Auto-prefixes with `aria-`.
  *
  * @example
- *     aria.remove(el, 'pressed');
- *     aria.remove(el, 'pressed', 'expanded');
+ *     aria.remove(el, ['pressed', 'expanded']);
  *     aria.remove([el1, el2], 'hidden');
  */
 aria.remove = function remove(
     els: OneOrMany<HTMLElement>,
-    ...attrs: string[]
+    attrs: string | string[]
 ): void {
 
-    const elements = toArray(els);
-
-    for (const el of elements) {
-
-        for (const attr of attrs) {
-
-            el.removeAttribute(`aria-${attr}`);
-        }
-    }
+    eachEl(els, attrs, (el, attr) => el.removeAttribute(`aria-${attr}`));
 };
+
+/**
+ * Create a get/set accessor for a single attribute.
+ * Eliminates repeated get/set boilerplate for role, label, etc.
+ */
+function makeAccessor(attrName: string) {
+
+    return function accessor(
+        el: HTMLElement,
+        value?: string
+    ): string | null | void {
+
+        if (value === undefined) {
+
+            return el.getAttribute(attrName);
+        }
+
+        el.setAttribute(attrName, value);
+    };
+}
 
 /**
  * Get or set the `role` attribute.
@@ -92,18 +91,7 @@ aria.remove = function remove(
  *     aria.role(el, 'button'); // sets role="button"
  *     aria.role(el);           // → 'button'
  */
-aria.role = function role(
-    el: HTMLElement,
-    value?: string
-): string | null | void {
-
-    if (value === undefined) {
-
-        return el.getAttribute('role');
-    }
-
-    el.setAttribute('role', value);
-};
+aria.role = makeAccessor('role');
 
 /**
  * Get or set `aria-label`.
@@ -112,18 +100,7 @@ aria.role = function role(
  *     aria.label(el, 'Submit form');
  *     aria.label(el); // → 'Submit form'
  */
-aria.label = function label(
-    el: HTMLElement,
-    value?: string
-): string | null | void {
-
-    if (value === undefined) {
-
-        return el.getAttribute('aria-label');
-    }
-
-    el.setAttribute('aria-label', value);
-};
+aria.label = makeAccessor('aria-label');
 
 /**
  * Set `aria-hidden="true"` on one or more elements.
@@ -136,12 +113,7 @@ aria.label = function label(
  */
 aria.hide = function hide(els: OneOrMany<HTMLElement>): void {
 
-    const elements = toArray(els);
-
-    for (const el of elements) {
-
-        el.setAttribute('aria-hidden', 'true');
-    }
+    applyEach(els, el => el.setAttribute('aria-hidden', 'true'));
 };
 
 /**
@@ -153,12 +125,7 @@ aria.hide = function hide(els: OneOrMany<HTMLElement>): void {
  */
 aria.show = function show(els: OneOrMany<HTMLElement>): void {
 
-    const elements = toArray(els);
-
-    for (const el of elements) {
-
-        el.removeAttribute('aria-hidden');
-    }
+    applyEach(els, el => el.removeAttribute('aria-hidden'));
 };
 
 /**
@@ -174,12 +141,7 @@ aria.live = function live(
     value: string
 ): void {
 
-    const elements = toArray(els);
-
-    for (const el of elements) {
-
-        el.setAttribute('aria-live', value);
-    }
+    applyEach(els, el => el.setAttribute('aria-live', value));
 };
 
 export { aria };

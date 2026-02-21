@@ -5,7 +5,7 @@ globs: *.ts
 
 # @logosdx/dom Package Summary
 
-Lightweight (~5KB) element-centric DOM utility for embeddable widgets. Chainable `$()` collections backed by standalone tree-shakeable functions. AbortController-based lifecycle, modern observer wrappers, and accessibility-first aria namespace.
+Lightweight (~10KB) element-centric DOM utility for embeddable widgets. Chainable `$()` collections backed by standalone tree-shakeable functions. AbortController-based lifecycle, modern observer wrappers, and accessibility-first aria namespace.
 
 
 ## Core: `$()` Selector
@@ -55,7 +55,7 @@ import { css } from '@logosdx/dom';
 css(el, { color: 'red', '--theme': 'dark' });      // set
 css(el, 'color');                                    // get → string
 css(el, ['color', 'fontSize']);                       // get → Record
-css.remove(el, 'color', '--theme');                  // remove
+css.remove(el, ['color', '--theme']);                  // remove
 
 // Chained
 $('.btn').css({ color: 'red' }).css.remove('fontSize');
@@ -84,7 +84,7 @@ $('.btn').attr({ role: 'button' }).attr.remove('tabindex');
 ```ts
 import { classify } from '@logosdx/dom';
 
-classify.add(el, 'active', 'highlighted');
+classify.add(el, ['active', 'highlighted']);
 classify.remove(el, 'active');
 classify.toggle(el, 'active');
 classify.has(el, 'active');                          // → boolean
@@ -120,7 +120,7 @@ import { aria } from '@logosdx/dom';
 aria(el, { pressed: 'true', expanded: 'false' });    // set
 aria(el, 'pressed');                                  // get → string | null
 aria.remove(el, 'pressed');                           // remove single
-aria.remove(el, 'pressed', 'expanded');               // remove multiple
+aria.remove(el, ['pressed', 'expanded']);              // remove multiple
 
 // Shorthand methods
 aria.role(el, 'button');    aria.role(el);            // set/get role

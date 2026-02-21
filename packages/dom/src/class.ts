@@ -1,4 +1,4 @@
-import { toArray } from './helpers.ts';
+import { toArray, applyEach } from './helpers.ts';
 import type { OneOrMany } from './types.ts';
 
 /**
@@ -6,7 +6,7 @@ import type { OneOrMany } from './types.ts';
  * Wraps classList API with support for operating on multiple elements at once.
  *
  * @example
- *     classify.add(el, 'active', 'highlighted');
+ *     classify.add(el, ['active', 'highlighted']);
  *     classify.toggle([el1, el2], 'visible');
  *     classify.swap(el, 'open', 'closed');
  */
@@ -16,29 +16,27 @@ export const classify = {
      * Add one or more classes to one or many elements.
      *
      * @example
-     *     classify.add(el, 'active', 'highlighted');
+     *     classify.add(el, ['active', 'highlighted']);
      *     classify.add([el1, el2], 'visible');
      */
-    add(els: OneOrMany<Element>, ...names: string[]): void {
+    add(els: OneOrMany<Element>, names: string | string[]): void {
 
-        for (const el of toArray(els)) {
+        const classes = toArray(names);
 
-            el.classList.add(...names);
-        }
+        applyEach(els, el => el.classList.add(...classes));
     },
 
     /**
      * Remove one or more classes from one or many elements.
      *
      * @example
-     *     classify.remove(el, 'active', 'highlighted');
+     *     classify.remove(el, ['active', 'highlighted']);
      */
-    remove(els: OneOrMany<Element>, ...names: string[]): void {
+    remove(els: OneOrMany<Element>, names: string | string[]): void {
 
-        for (const el of toArray(els)) {
+        const classes = toArray(names);
 
-            el.classList.remove(...names);
-        }
+        applyEach(els, el => el.classList.remove(...classes));
     },
 
     /**
@@ -51,10 +49,7 @@ export const classify = {
      */
     toggle(els: OneOrMany<Element>, name: string): void {
 
-        for (const el of toArray(els)) {
-
-            el.classList.toggle(name);
-        }
+        applyEach(els, el => el.classList.toggle(name));
     },
 
     /**
@@ -78,7 +73,7 @@ export const classify = {
      */
     swap(els: OneOrMany<Element>, a: string, b: string): void {
 
-        for (const el of toArray(els)) {
+        applyEach(els, el => {
 
             if (el.classList.contains(a)) {
 
@@ -90,6 +85,6 @@ export const classify = {
                 el.classList.remove(b);
                 el.classList.add(a);
             }
-        }
+        });
     },
 };

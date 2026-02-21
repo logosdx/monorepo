@@ -1,4 +1,4 @@
-import { toArray, isCustomProp } from './helpers.ts';
+import { toArray, isCustomProp, eachEl, getMany } from './helpers.ts';
 import type { OneOrMany, AnyCssProp } from './types.ts';
 
 /**
@@ -42,16 +42,10 @@ function css(
     if (Array.isArray(props)) {
 
         const el = els as HTMLElement;
-        const result: Record<string, string> = {};
-
-        for (const prop of props) {
-
-            result[prop] = isCustomProp(prop)
-                ? getComputedStyle(el).getPropertyValue(prop)
-                : (el.style as any)[prop] as string;
-        }
-
-        return result;
+        return getMany(props, prop => isCustomProp(prop)
+            ? getComputedStyle(el).getPropertyValue(prop)
+            : (el.style as any)[prop] as string
+        );
     }
 
     const elements = toArray(els);
@@ -78,30 +72,25 @@ function css(
  * `removeProperty` for custom properties.
  *
  * @example
- *     css.remove(el, 'color', 'fontSize');
- *     css.remove([el1, el2], '--theme');
+ *     css.remove(el, ['color', 'fontSize']);
+ *     css.remove([el1, el2], ['--theme']);
  */
 css.remove = function remove(
     els: OneOrMany<HTMLElement>,
-    ...props: AnyCssProp[]
+    props: AnyCssProp | AnyCssProp[]
 ): void {
 
-    const elements = toArray(els);
+    eachEl(els, props, (el, prop) => {
 
-    for (const el of elements) {
+        if (isCustomProp(prop)) {
 
-        for (const prop of props) {
-
-            if (isCustomProp(prop)) {
-
-                el.style.removeProperty(prop);
-            }
-            else {
-
-                (el.style as any)[prop] = '';
-            }
+            el.style.removeProperty(prop);
         }
-    }
+        else {
+
+            (el.style as any)[prop] = '';
+        }
+    });
 };
 
 export { css };

@@ -1,4 +1,4 @@
-import { toArray } from './helpers.ts';
+import { toArray, eachEl, getMany } from './helpers.ts';
 import type { OneOrMany } from './types.ts';
 
 /**
@@ -39,14 +39,7 @@ function attr(
     if (Array.isArray(attrs)) {
 
         const el = els as Element;
-        const result: Record<string, string | null> = {};
-
-        for (const name of attrs) {
-
-            result[name] = el.getAttribute(name);
-        }
-
-        return result;
+        return getMany(attrs, name => el.getAttribute(name));
     }
 
     const elements = toArray(els);
@@ -64,23 +57,15 @@ function attr(
  * Remove one or more attributes from one or more elements.
  *
  * @example
- *     attr.remove(el, 'role', 'data-id');
+ *     attr.remove(el, ['role', 'data-id']);
  *     attr.remove([el1, el2], 'role');
  */
 attr.remove = function remove(
     els: OneOrMany<Element>,
-    ...names: string[]
+    names: string | string[]
 ): void {
 
-    const elements = toArray(els);
-
-    for (const el of elements) {
-
-        for (const name of names) {
-
-            el.removeAttribute(name);
-        }
-    }
+    eachEl(els, names, (el, name) => el.removeAttribute(name));
 };
 
 /**
