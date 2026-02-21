@@ -282,11 +282,6 @@ export class FetchEngine<
     /**
      * Makes a GET request to retrieve data.
      */
-    get(
-        path: string,
-        options: CallConfig<H, P> & { stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     get<Res = unknown, ResHdr = RH>(
         path: string,
         options?: CallConfig<H, P>
@@ -300,12 +295,6 @@ export class FetchEngine<
     /**
      * Makes a POST request to create a new resource.
      */
-    post<Data = unknown>(
-        path: string,
-        payload: Data | undefined,
-        options: CallConfig<H, P> & { stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     post<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
@@ -320,12 +309,6 @@ export class FetchEngine<
     /**
      * Makes a PUT request to replace a resource.
      */
-    put<Data = unknown>(
-        path: string,
-        payload: Data | undefined,
-        options: CallConfig<H, P> & { stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     put<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
@@ -340,12 +323,6 @@ export class FetchEngine<
     /**
      * Makes a PATCH request to partially update a resource.
      */
-    patch<Data = unknown>(
-        path: string,
-        payload: Data | undefined,
-        options: CallConfig<H, P> & { stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     patch<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
@@ -360,12 +337,6 @@ export class FetchEngine<
     /**
      * Makes a DELETE request to remove a resource.
      */
-    delete<Data = unknown>(
-        path: string,
-        payload: Data | undefined,
-        options: CallConfig<H, P> & { stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     delete<Res = unknown, Data = unknown, ResHdr = RH>(
         path: string,
         payload?: Data,
@@ -380,11 +351,6 @@ export class FetchEngine<
     /**
      * Makes an HTTP OPTIONS request to check server capabilities.
      */
-    options(
-        path: string,
-        opts: CallConfig<H, P> & { stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     options<Res = unknown, ResHdr = RH>(
         path: string,
         opts?: CallConfig<H, P>
@@ -398,11 +364,6 @@ export class FetchEngine<
     /**
      * Makes an HTTP HEAD request to retrieve headers only.
      */
-    head(
-        path: string,
-        opts: CallConfig<H, P> & { stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     head<ResHdr = RH>(
         path: string,
         opts?: CallConfig<H, P>
@@ -416,12 +377,6 @@ export class FetchEngine<
     /**
      * Makes an HTTP request with the specified method.
      */
-    request<Data = unknown>(
-        method: HttpMethods,
-        path: string,
-        options: CallConfig<H, P> & { payload?: Data; stream: true }
-    ): AbortablePromise<FetchResponse<Response, DictAndT<H>, DictAndT<P>, RH>>;
-
     request<Res = unknown, Data = unknown, ResHdr = RH>(
         method: HttpMethods,
         path: string,

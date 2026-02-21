@@ -131,18 +131,6 @@ export interface CallConfig<H = InstanceHeaders, P = InstanceParams, S = Instanc
     } | undefined;
 
     /**
-     * Return raw Response without body parsing.
-     *
-     * When true, the response `data` will be the raw `Response` object
-     * with an unconsumed body stream. Cache and deduplication are skipped
-     * because each caller needs their own readable stream.
-     *
-     * Rate limiting and lifecycle events (before-request, after-request,
-     * response) still fire normally.
-     */
-    stream?: boolean | undefined;
-
-    /**
      * Override the auto-generated request ID for this request.
      *
      * When provided, this value is used instead of `generateRequestId()`

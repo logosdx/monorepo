@@ -21,7 +21,7 @@ describe('@logosdx/fetch: streaming', async () => {
 
         const api = new FetchEngine({ baseUrl: testUrl });
 
-        const result = await api.get('/json', { stream: true });
+        const result = await api.get('/json').raw();
 
         expect(result.data).to.be.instanceOf(Response);
         expect(result.status).to.equal(200);
@@ -34,7 +34,7 @@ describe('@logosdx/fetch: streaming', async () => {
 
         const api = new FetchEngine({ baseUrl: testUrl });
 
-        const result = await api.get('/sse', { stream: true });
+        const result = await api.get('/sse').raw();
         const response = result.data;
 
         expect(response.body).to.not.be.null;
@@ -71,8 +71,8 @@ describe('@logosdx/fetch: streaming', async () => {
         api.on('cache-miss', () => cacheEvents.push('miss'));
         api.on('cache-set', () => cacheEvents.push('set'));
 
-        await api.get('/json', { stream: true });
-        await api.get('/json', { stream: true });
+        await api.get('/json').raw();
+        await api.get('/json').raw();
 
         expect(cacheEvents).to.have.length(0);
 
@@ -93,8 +93,8 @@ describe('@logosdx/fetch: streaming', async () => {
         api.on('dedupe-join', () => dedupeEvents.push('join'));
 
         const [r1, r2] = await Promise.all([
-            api.get('/json', { stream: true }),
-            api.get('/json', { stream: true })
+            api.get('/json').raw(),
+            api.get('/json').raw()
         ]);
 
         // Each caller should get their own Response object
@@ -114,7 +114,7 @@ describe('@logosdx/fetch: streaming', async () => {
         api.on('after-request', () => events.push('after-request'));
         api.on('response', () => events.push('response'));
 
-        await api.get('/json', { stream: true });
+        await api.get('/json').raw();
 
         expect(events).to.deep.equal(['before-request', 'after-request', 'response']);
 
@@ -132,9 +132,8 @@ describe('@logosdx/fetch: streaming', async () => {
 
         const [, err] = await attempt(() => (
             api.get('/json', {
-                stream: true,
                 abortController: controller
-            })
+            }).raw()
         ));
 
         expect(err).to.be.instanceOf(FetchError);
@@ -153,7 +152,7 @@ describe('@logosdx/fetch: streaming', async () => {
 
         // Stream returns raw Response even for error status codes.
         // The consumer checks status themselves.
-        const result = await api.get('/fail', { stream: true });
+        const result = await api.get('/fail').raw();
 
         expect(result.data).to.be.instanceOf(Response);
         expect(result.status).to.equal(400);
@@ -168,9 +167,8 @@ describe('@logosdx/fetch: streaming', async () => {
 
         const result = await api.post(
             '/json',
-            { hello: 'world' },
-            { stream: true }
-        );
+            { hello: 'world' }
+        ).raw();
 
         expect(result.data).to.be.instanceOf(Response);
         expect(result.status).to.equal(200);
@@ -194,7 +192,7 @@ describe('@logosdx/fetch: streaming', async () => {
         api.on('ratelimit-acquire', () => rateLimitEvents.push('acquire'));
         api.on('ratelimit-wait', () => rateLimitEvents.push('wait'));
 
-        await api.get('/json', { stream: true });
+        await api.get('/json').raw();
 
         expect(rateLimitEvents).to.include('acquire');
 
@@ -206,7 +204,7 @@ describe('@logosdx/fetch: streaming', async () => {
 
         const api = new FetchEngine({ baseUrl: testUrl });
 
-        const result = await api.get('/sse/events?count=3', { stream: true });
+        const result = await api.get('/sse/events?count=3').raw();
         const response = result.data;
 
         const reader = response.body!.getReader();
@@ -239,7 +237,7 @@ describe('@logosdx/fetch: streaming', async () => {
 
         const api = new FetchEngine({ baseUrl: testUrl });
 
-        const result = await api.get('/json', { stream: true });
+        const result = await api.get('/json').raw();
 
         expect(result.headers).to.be.an('object');
         expect(result.status).to.equal(200);

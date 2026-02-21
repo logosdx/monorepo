@@ -396,7 +396,8 @@ export function cachePlugin<H = unknown, P = unknown, S = unknown>(
                 const normalizedOpts = opts as InternalReqOptions<H, P, S>;
                 const { method, path } = normalizedOpts;
 
-                if (normalizedOpts.stream === true) return;
+                const directive = normalizedOpts.getDirective?.();
+                if (directive === 'stream' || directive === 'raw') return;
                 if ((normalizedOpts as any).skipCache === true) return;
 
                 const ruleConfig = policy.resolveForRequest(

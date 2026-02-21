@@ -119,7 +119,6 @@ export class RequestExecutor<
                 'timeout' in payloadOrOptions ||
                 'retry' in payloadOrOptions ||
                 'abortController' in payloadOrOptions ||
-                'stream' in payloadOrOptions ||
                 'onError' in payloadOrOptions ||
                 'onBeforeReq' in payloadOrOptions ||
                 'onAfterReq' in payloadOrOptions;
@@ -256,7 +255,6 @@ export class RequestExecutor<
             signal,
             determineType,
             retry,
-            stream,
             requestId: perRequestId,
             headers: requestHeaders,
             ...perRequestInit
@@ -333,7 +331,6 @@ export class RequestExecutor<
 
         return {
             ...opts,
-            stream,
             requestId,
             method,
             path,
@@ -717,42 +714,6 @@ export class RequestExecutor<
 
             return {
                 data: data!,
-                headers: responseHeaders,
-                status: response.status,
-                request: new Request(url, fetchOpts),
-                config
-            };
-        }
-
-        if (options.stream) {
-
-            const responseHeaders = {} as Partial<ResHdr>;
-
-            response.headers.forEach((value, key) => {
-
-                responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
-            });
-
-            this.engine.emit('response', {
-                ...options,
-                response,
-                data: response,
-                status: response.status,
-                requestEnd: Date.now()
-            });
-
-            const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
-                baseUrl: this.baseUrl.toString(),
-                attemptTimeout: options.attemptTimeout,
-                method,
-                headers: reqHeaders,
-                params,
-                retry: this.retryConfig,
-                determineType,
-            };
-
-            return {
-                data: response as unknown as Res,
                 headers: responseHeaders,
                 status: response.status,
                 request: new Request(url, fetchOpts),

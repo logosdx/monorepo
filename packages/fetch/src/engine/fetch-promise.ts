@@ -118,7 +118,7 @@ export class FetchPromise<
             fp.#isAborted = true;
         }, { once: true });
 
-        void executor().then(
+        void Promise.resolve().then(executor).then(
             (value) => {
 
                 fp.#isFinished = true;

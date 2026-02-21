@@ -124,7 +124,8 @@ export function dedupePlugin<H = unknown, P = unknown, S = unknown>(
                 const normalizedOpts = opts as InternalReqOptions<H, P, S>;
                 const { method, path } = normalizedOpts;
 
-                if (normalizedOpts.stream === true) return next();
+                const directive = normalizedOpts.getDirective?.();
+                if (directive === 'stream' || directive === 'raw') return next();
 
                 const ruleConfig = policy.resolveForRequest(
                     method,
