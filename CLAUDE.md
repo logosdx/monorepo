@@ -346,6 +346,6 @@ When updating API surfaces or behavior, **both** locations must be updated:
 | Location | Purpose |
 |----------|---------|
 | `docs/` | VitePress user-facing documentation (published to logosdx.dev) |
-| `skill/` | **Canonical local skill references** — NOT `~/.claude/skills/` |
+| `skills/logosdx/` | **Canonical local skill references** — NOT `~/.claude/skills/` |
 
-**`skill/` is the monorepo's own skill folder.** It contains reference files that Claude Code skills load for pattern guidance. This is distinct from the user's personal `~/.claude/skills/` directory. When updating documentation, `skill/references/` is the authoritative source — the user's `~/.claude/skills/` may contain a copy but it is not the canonical location.
+**`skills/logosdx/` is the monorepo's own skill folder.** It contains reference files that Claude Code skills load for pattern guidance. This is distinct from the user's personal `~/.claude/skills/` directory. When updating documentation, `skills/logosdx/references/` is the authoritative source — the user's `~/.claude/skills/` may contain a copy but it is not the canonical location.
