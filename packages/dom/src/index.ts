@@ -5,44 +5,30 @@ import type { SelectOptions, CreateOptions } from './types.ts';
 /**
  * Query the DOM and return a {@link DomCollection} wrapping matched elements.
  *
- * Supports two overloads:
- * - `$(selector, element)` — scopes the query to a parent element
- * - `$(selector, { signal })` — passes options through to the collection
- *
  * @example
  *     const buttons = $<HTMLButtonElement>('.btn');
- *     buttons.css({ color: 'red' }).on('click', handler);
- *
- * @example
- *     const items = $('.item', container);
+ *     const scoped = $('.item', { container: sidebar });
+ *     const managed = $('.chat', { signal: controller.signal });
+ *     const both = $('.btn', { container: sidebar, signal: ctrl.signal });
+ *     const wrapped = $(element);
+ *     const wrapped = $([el1, el2], { signal: ctrl.signal });
  */
 export function $<T extends HTMLElement = HTMLElement>(
     selector: string | T | T[],
-    ctxOrOpts?: Element | SelectOptions
+    opts?: SelectOptions
 ): DomCollection<T> {
 
     if (Array.isArray(selector)) {
 
-        return new DomCollection<T>(selector, ctxOrOpts instanceof Element ? undefined : ctxOrOpts);
+        return new DomCollection<T>(selector, opts);
     }
 
     if (typeof selector !== 'string') {
 
-        return new DomCollection<T>([selector], ctxOrOpts instanceof Element ? undefined : ctxOrOpts);
+        return new DomCollection<T>([selector], opts);
     }
 
-    let context: Element = document.documentElement;
-    let opts: SelectOptions | undefined;
-
-    if (ctxOrOpts instanceof Element) {
-
-        context = ctxOrOpts;
-    }
-    else if (ctxOrOpts) {
-
-        opts = ctxOrOpts;
-    }
-
+    const context = opts?.container ?? document.documentElement;
     const elements = Array.from(context.querySelectorAll<T>(selector));
     return new DomCollection<T>(elements, opts);
 }
@@ -80,3 +66,4 @@ export { viewport } from './viewport.ts';
 export { create, append, prepend, remove, replace } from './dom.ts';
 
 export type * from './types.ts';
+export type { AnimateOptions } from './animate.ts';

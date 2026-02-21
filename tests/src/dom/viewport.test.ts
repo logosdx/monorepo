@@ -48,6 +48,16 @@ describe('@logosdx/dom: viewport', () => {
         expect(viewport.scrollProgress()).to.equal(0);
     });
 
+    it('isAtBottom() returns a boolean', () => {
+
+        expect(typeof viewport.isAtBottom()).to.equal('boolean');
+    });
+
+    it('isAtBottom(threshold) with threshold returns a boolean', () => {
+
+        expect(typeof viewport.isAtBottom(10)).to.equal('boolean');
+    });
+
     it('scrollTo is a function', () => {
 
         expect(typeof viewport.scrollTo).to.equal('function');

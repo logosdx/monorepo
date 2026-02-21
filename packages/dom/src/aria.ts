@@ -60,22 +60,27 @@ function aria(
 }
 
 /**
- * Remove an ARIA attribute from one or more elements.
+ * Remove one or more ARIA attributes from one or more elements.
  * Auto-prefixes with `aria-`.
  *
  * @example
- *     aria.remove(el, 'pressed'); // removes aria-pressed
+ *     aria.remove(el, 'pressed');
+ *     aria.remove(el, 'pressed', 'expanded');
+ *     aria.remove([el1, el2], 'hidden');
  */
 aria.remove = function remove(
     els: OneOrMany<HTMLElement>,
-    attr: string
+    ...attrs: string[]
 ): void {
 
     const elements = toArray(els);
 
     for (const el of elements) {
 
-        el.removeAttribute(`aria-${attr}`);
+        for (const attr of attrs) {
+
+            el.removeAttribute(`aria-${attr}`);
+        }
     }
 };
 

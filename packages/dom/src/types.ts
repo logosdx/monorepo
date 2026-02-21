@@ -51,4 +51,6 @@ export interface EventOptions extends AddEventListenerOptions, SignalOptions {
 }
 
 /** Options for $() element selection */
-export interface SelectOptions extends SignalOptions {}
+export interface SelectOptions extends SignalOptions {
+    container?: Element;
+}

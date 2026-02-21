@@ -15,8 +15,11 @@ import { $, DomCollection } from '@logosdx/dom';
 
 // Selection — returns DomCollection
 const btns = $<HTMLButtonElement>('.btn');
-const btns = $<HTMLButtonElement>('.btn', container);  // scoped
-const chat = $('.chat', { signal: controller.signal }); // auto-cleanup
+const scoped = $('.item', { container: sidebar });       // scoped to parent
+const chat = $('.chat', { signal: controller.signal });  // auto-cleanup
+const both = $('.btn', { container, signal });           // scoped + signal
+const wrap = $(element);                                 // wrap single element
+const wrap = $([el1, el2], { signal });                  // wrap array + options
 
 // Properties
 btns.elements    // HTMLButtonElement[]
@@ -36,7 +39,7 @@ $.create('div', {
     css: { padding: '1rem', '--theme': 'dark' },
     attrs: { 'data-id': '123' },
     class: ['card', 'active'],
-    children: [$.create('span', { text: 'child' })],
+    children: [$.create('span', { text: 'child' }).first],
     on: { click: handler },
     signal: controller.signal
 })
@@ -116,7 +119,8 @@ import { aria } from '@logosdx/dom';
 // Auto-prefixes with aria-
 aria(el, { pressed: 'true', expanded: 'false' });    // set
 aria(el, 'pressed');                                  // get → string | null
-aria.remove(el, 'pressed');                           // remove
+aria.remove(el, 'pressed');                           // remove single
+aria.remove(el, 'pressed', 'expanded');               // remove multiple
 
 // Shorthand methods
 aria.role(el, 'button');    aria.role(el);            // set/get role
@@ -143,12 +147,15 @@ on(parent, 'click', handler, { delegate: '.child' }); // delegation
 
 once(el, 'click', handler);                           // fires once
 off(el, 'click', handler);                            // remove
+off(el, ['pointerenter', 'focus'], handler);          // multiple events
 emit(el, 'widget:open', { chatId: 123 });             // CustomEvent
 
 // Chained — collection signal auto-inherited
 const chat = $('.chat', { signal: controller.signal });
 chat.on('click', openMenu);    // signal auto-attached
-chat.on('keydown', sendMsg);   // signal auto-attached
+chat.once('keydown', sendMsg); // fires once, signal auto-attached
+chat.off('click', openMenu);   // remove specific listener
+chat.emit('widget:open', { chatId: 1 }); // dispatch custom event
 controller.abort();            // removes all listeners
 ```
 
@@ -159,7 +166,9 @@ controller.abort();            // removes all listeners
 import { animate } from '@logosdx/dom';
 
 animate(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
+animate([el1, el2], [{ opacity: 0 }, { opacity: 1 }], 300); // multiple
 animate.fadeIn(el, 300);
+animate.fadeIn([el1, el2], 300);                              // multiple
 animate.fadeOut(el, 300);
 animate.slideTo(el, { x: 10, y: -20 }, 300);
 
@@ -207,7 +216,8 @@ import { viewport } from '@logosdx/dom';
 
 viewport.width();          viewport.height();
 viewport.scrollX();        viewport.scrollY();
-viewport.scrollProgress(); // 0–1
+viewport.scrollProgress();     // 0–1 (page)
+viewport.scrollProgress(el);   // 0–1 (element)
 viewport.pixelRatio();
 viewport.isAtTop(10);      viewport.isAtBottom(10);
 viewport.scrollTo(el, { behavior: 'smooth' });

@@ -458,45 +458,57 @@ describe('@logosdx/dom: DomCollection', () => {
 
     describe('animate', () => {
 
-        it('should delegate animate to first element', () => {
+        it('should delegate animate to all elements', () => {
 
             (el1 as any).animate = vi.fn().mockReturnValue({} as Animation);
-            const spy = (el1 as any).animate;
+            (el2 as any).animate = vi.fn().mockReturnValue({} as Animation);
+            (el3 as any).animate = vi.fn().mockReturnValue({} as Animation);
 
             const keyframes = [{ opacity: '0' }, { opacity: '1' }];
             col.animate(keyframes, { duration: 300 });
 
-            expect(spy).toHaveBeenCalledOnce();
+            expect((el1 as any).animate).toHaveBeenCalledOnce();
+            expect((el2 as any).animate).toHaveBeenCalledOnce();
+            expect((el3 as any).animate).toHaveBeenCalledOnce();
         });
 
-        it('should delegate fadeIn to first element', () => {
+        it('should delegate fadeIn to all elements', () => {
 
             (el1 as any).animate = vi.fn().mockReturnValue({} as Animation);
-            const spy = (el1 as any).animate;
+            (el2 as any).animate = vi.fn().mockReturnValue({} as Animation);
+            (el3 as any).animate = vi.fn().mockReturnValue({} as Animation);
 
             col.animate.fadeIn(300);
 
-            expect(spy).toHaveBeenCalledOnce();
+            expect((el1 as any).animate).toHaveBeenCalledOnce();
+            expect((el2 as any).animate).toHaveBeenCalledOnce();
+            expect((el3 as any).animate).toHaveBeenCalledOnce();
         });
 
-        it('should delegate fadeOut to first element', () => {
+        it('should delegate fadeOut to all elements', () => {
 
             (el1 as any).animate = vi.fn().mockReturnValue({} as Animation);
-            const spy = (el1 as any).animate;
+            (el2 as any).animate = vi.fn().mockReturnValue({} as Animation);
+            (el3 as any).animate = vi.fn().mockReturnValue({} as Animation);
 
             col.animate.fadeOut(300);
 
-            expect(spy).toHaveBeenCalledOnce();
+            expect((el1 as any).animate).toHaveBeenCalledOnce();
+            expect((el2 as any).animate).toHaveBeenCalledOnce();
+            expect((el3 as any).animate).toHaveBeenCalledOnce();
         });
 
-        it('should delegate slideTo to first element', () => {
+        it('should delegate slideTo to all elements', () => {
 
             (el1 as any).animate = vi.fn().mockReturnValue({} as Animation);
-            const spy = (el1 as any).animate;
+            (el2 as any).animate = vi.fn().mockReturnValue({} as Animation);
+            (el3 as any).animate = vi.fn().mockReturnValue({} as Animation);
 
             col.animate.slideTo({ x: 10, y: 20 }, 300);
 
-            expect(spy).toHaveBeenCalledOnce();
+            expect((el1 as any).animate).toHaveBeenCalledOnce();
+            expect((el2 as any).animate).toHaveBeenCalledOnce();
+            expect((el3 as any).animate).toHaveBeenCalledOnce();
         });
     });
 });

@@ -34,7 +34,7 @@ describe('@logosdx/dom: index', () => {
         outer.className = 'inner';
         document.body.appendChild(outer);
 
-        const result = $<HTMLSpanElement>('.inner', container);
+        const result = $<HTMLSpanElement>('.inner', { container });
         expect(result.length).to.equal(1);
 
         container.remove();

@@ -14,7 +14,6 @@ Type-safe internationalization system with path-based message retrieval, templat
 ```typescript
 import {
     LocaleManager,
-    LocaleEvent,
     ScopedLocale,
     getMessage,
     format,
@@ -85,7 +84,7 @@ const stats = i18n.t('dashboard.stats', { count: 5 })  // "You have 5 items."
 class LocaleManager<
     Locale extends LocaleManager.LocaleType,
     Code extends string = string
-> extends EventTarget {
+> {
 
     fallback: Code
     current: Code
@@ -93,9 +92,10 @@ class LocaleManager<
 
     constructor(opts: LocaleManager.LocaleOpts<Locale, Code>)
 
-    // Event system — on() returns an unsubscribe function
-    on(ev: LocaleManager.LocaleEventName, listener: LocaleManager.LocaleListener<Code>, once?: boolean): () => void
-    off(ev: LocaleManager.LocaleEventName, listener: LocaleManager.LocaleListener<Code>): void
+    // Event system — uses ObserverEngine internally, on() returns an unsubscribe function
+    on(ev: LocaleManager.LocaleEventName, listener: LocaleManager.LocaleListener<Code>): () => void
+    once(ev: LocaleManager.LocaleEventName, listener: LocaleManager.LocaleListener<Code>): () => void
+    off(ev: LocaleManager.LocaleEventName, listener?: LocaleManager.LocaleListener<Code>): void
 
     // Core methods
     text<K extends PathLeaves<Locale>>(key: K, values?: LocaleManager.LocaleFormatArgs): string
@@ -143,8 +143,15 @@ declare module './manager.ts' {
             loader: () => Promise<Locale>
         }
 
-        export type LocaleEventName = 'change' | 'loading' | 'error'
-        export type LocaleListener<Code extends string = string> = (e: LocaleEvent<Code>) => void
+        export interface LocaleEventShape<Code extends string = string> {
+            change: { code: Code }
+            loading: { code: Code }
+            error: { code: Code }
+        }
+
+        export type LocaleEventName = keyof LocaleEventShape
+
+        export type LocaleListener<Code extends string = string> = (data: { code: Code }) => void
 
         export interface IntlFormatters {
             number(value: number, opts?: Intl.NumberFormatOptions): string
@@ -336,26 +343,26 @@ scoped.t('greeting', { name: 'Alice' })
 // Events: 'change', 'loading', 'error'
 // on() returns an unsubscribe function for cleanup
 
-// Listen to locale changes
-const unsub = i18n.on('change', (event: LocaleEvent<LocaleCode>) => {
-    console.log('Locale changed to:', event.code)
-    updateUILanguage(event.code)
+// Listen to locale changes — listeners receive { code } directly
+const unsub = i18n.on('change', ({ code }) => {
+    console.log('Locale changed to:', code)
+    updateUILanguage(code)
 })
 
 // Loading events fire before async locale fetch
-i18n.on('loading', (event) => {
-    showLoadingSpinner(event.code)
+i18n.on('loading', ({ code }) => {
+    showLoadingSpinner(code)
 })
 
 // Error events fire when a lazy loader fails
-i18n.on('error', (event) => {
-    console.error('Failed to load:', event.code)
+i18n.on('error', ({ code }) => {
+    console.error('Failed to load:', code)
 })
 
-// One-time listener
-i18n.on('change', (event) => {
-    console.log('First change:', event.code)
-}, true) // once = true
+// One-time listener via once()
+i18n.once('change', ({ code }) => {
+    console.log('First change:', code)
+})
 
 // Cleanup via returned function (preferred)
 const unsub2 = i18n.on('change', handler)
@@ -363,11 +370,6 @@ unsub2()
 
 // Or cleanup via off()
 i18n.off('change', handler)
-
-// Event object structure
-class LocaleEvent<Code extends string = string> extends Event {
-    code!: Code  // The locale code associated with the event
-}
 ```
 
 ## Locale Management
@@ -468,8 +470,8 @@ const createI18nManager = (initialLocale: LocaleCode) => {
     })
 
     // Error monitoring
-    manager.on('error', (e) => {
-        reportError(`Failed to load locale: ${e.code}`)
+    manager.on('error', ({ code }) => {
+        reportError(`Failed to load locale: ${code}`)
     })
 
     return manager

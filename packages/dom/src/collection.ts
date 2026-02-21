@@ -247,9 +247,9 @@ export class DomCollection<T extends HTMLElement> {
                 return self;
             },
             {
-                remove: (attr: string) => {
+                remove: (...attrs: string[]) => {
 
-                    ariaStandalone.remove(self.#elements, attr);
+                    ariaStandalone.remove(self.#elements, ...attrs);
                     return self;
                 },
 
@@ -353,24 +353,24 @@ export class DomCollection<T extends HTMLElement> {
             function animateCallable(
                 keyframes: Keyframe[] | PropertyIndexedKeyframes,
                 options?: number | KeyframeAnimationOptions
-            ): Animation {
+            ): Animation[] {
 
-                return animateStandalone(self.first!, keyframes, options);
+                return animateStandalone(self.#elements, keyframes, options);
             },
             {
-                fadeIn: (duration?: number): Animation => {
+                fadeIn: (duration?: number): Animation[] => {
 
-                    return animateStandalone.fadeIn(self.first!, duration);
+                    return animateStandalone.fadeIn(self.#elements, duration);
                 },
 
-                fadeOut: (duration?: number): Animation => {
+                fadeOut: (duration?: number): Animation[] => {
 
-                    return animateStandalone.fadeOut(self.first!, duration);
+                    return animateStandalone.fadeOut(self.#elements, duration);
                 },
 
-                slideTo: (to: { x?: number; y?: number }, duration?: number): Animation => {
+                slideTo: (to: { x?: number; y?: number }, duration?: number): Animation[] => {
 
-                    return animateStandalone.slideTo(self.first!, to, duration);
+                    return animateStandalone.slideTo(self.#elements, to, duration);
                 }
             }
         );

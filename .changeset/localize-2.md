@@ -4,6 +4,36 @@
 
 ## Breaking Changes
 
+### EventTarget replaced with ObserverEngine
+
+`LocaleManager` no longer extends `EventTarget`. It now uses `@logosdx/observer`'s `ObserverEngine` internally. The public API (`on`, `off`, `once`) remains the same, but listeners now receive a plain `{ code }` object instead of a `LocaleEvent` instance.
+
+**Before:**
+
+    import { LocaleEvent } from '@logosdx/localize';
+
+    manager.on('change', (event: LocaleEvent) => {
+        console.log(event.type, event.code);
+    });
+
+**After:**
+
+    manager.on('change', ({ code }) => {
+        console.log(code);
+    });
+
+### `LocaleEvent` class removed
+
+The `LocaleEvent` class (which extended `Event`) has been removed. Listeners receive `{ code: Code }` directly. The `once` parameter on `on()` has been replaced with a dedicated `once()` method.
+
+**Before:**
+
+    manager.on('change', handler, true);  // once flag
+
+**After:**
+
+    manager.once('change', handler);
+
 ### Event names renamed
 
 `LocaleEventName` changed from `'locale-change'` to `'change' | 'loading' | 'error'`. Update all `on()` / `off()` calls.
@@ -37,6 +67,7 @@ Missing translation keys now return `'[key.path]'` instead of `'?'`. A `console.
 * `feat(localize):` `ScopedLocale` class via `manager.ns(prefix)` — namespace-scoped translator, chainable
 * `feat(localize):` `createIntlFormatters(locale)` and `parsePlural(str, values, locale)` exported for standalone use
 * `feat(localize):` `on()` returns an unsubscribe cleanup function
+* `feat(localize):` `once()` method for one-time event listeners
 * `feat(localize):` `'loading'` and `'error'` events for async locale loading lifecycle
 * `feat(localize):` Type extractor CLI — `npx logosdx-locale extract --dir ./i18n --out ./src/locale-keys.ts` generates TypeScript interfaces and `LocaleCodes` union from JSON locale files
 * `feat(localize):` `--watch` mode for CLI — auto-regenerates types on file changes

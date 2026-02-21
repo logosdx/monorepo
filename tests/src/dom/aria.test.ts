@@ -76,6 +76,30 @@ describe('@logosdx/dom: aria', () => {
             expect(el.getAttribute('aria-pressed')).toBeNull();
             expect(el2.getAttribute('aria-pressed')).toBeNull();
         });
+
+        it('should remove multiple aria attributes at once (variadic)', () => {
+
+            el.setAttribute('aria-pressed', 'true');
+            el.setAttribute('aria-expanded', 'false');
+            el.setAttribute('aria-hidden', 'true');
+            aria.remove(el, 'pressed', 'expanded');
+            expect(el.getAttribute('aria-pressed')).toBeNull();
+            expect(el.getAttribute('aria-expanded')).toBeNull();
+            expect(el.getAttribute('aria-hidden')).toBe('true');
+        });
+
+        it('should remove multiple aria attributes from multiple elements', () => {
+
+            el.setAttribute('aria-pressed', 'true');
+            el.setAttribute('aria-expanded', 'false');
+            el2.setAttribute('aria-pressed', 'true');
+            el2.setAttribute('aria-expanded', 'false');
+            aria.remove([el, el2], 'pressed', 'expanded');
+            expect(el.getAttribute('aria-pressed')).toBeNull();
+            expect(el.getAttribute('aria-expanded')).toBeNull();
+            expect(el2.getAttribute('aria-pressed')).toBeNull();
+            expect(el2.getAttribute('aria-expanded')).toBeNull();
+        });
     });
 
     describe('role', () => {

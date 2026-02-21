@@ -165,7 +165,7 @@ describe('@logosdx/dom: events', () => {
             expect(handler).toHaveBeenCalledTimes(1);
         });
 
-        it('should pass the matched delegated element to the handler', () => {
+        it('should pass the original event to the handler', () => {
 
             const handler = vi.fn();
             on(parent, 'click', handler, { delegate: '.child' });
@@ -173,6 +173,33 @@ describe('@logosdx/dom: events', () => {
             child.click();
             const event = handler.mock.calls[0][0] as Event;
             expect(event.target).toBe(child);
+        });
+
+        it('should fire when a grandchild triggers a click that bubbles through delegate', () => {
+
+            const grandchild = document.createElement('em');
+            child.appendChild(grandchild);
+
+            const handler = vi.fn();
+            on(parent, 'click', handler, { delegate: '.child' });
+
+            grandchild.click();
+            expect(handler).toHaveBeenCalledTimes(1);
+
+            const event = handler.mock.calls[0][0] as Event;
+            expect(event.target).toBe(grandchild);
+        });
+
+        it('should not fire when a non-matching element triggers a click', () => {
+
+            const unrelated = document.createElement('div');
+            parent.appendChild(unrelated);
+
+            const handler = vi.fn();
+            on(parent, 'click', handler, { delegate: '.child' });
+
+            unrelated.click();
+            expect(handler).toHaveBeenCalledTimes(0);
         });
     });
 });

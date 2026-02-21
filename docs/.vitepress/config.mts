@@ -6,7 +6,6 @@ const simplePackages: DefaultTheme.SidebarItem[] = [
   ['Utils', 'utils'],
   ['Dom', 'dom'],
   ['Storage', 'storage'],
-  ['Localize', 'localize'],
   ['React', 'react'],
   // ['State Machine', 'state-machine'],
 ].map(([text, link]) => ({
@@ -40,7 +39,22 @@ const packages: DefaultTheme.SidebarItem[] = [
       { text: 'Practical Guide', link: '/packages/state-machine/guide' },
     ]
   },
-  ...simplePackages.slice(3), // Dom, Storage, Localize
+  ...simplePackages.slice(3), // Dom, Storage, React
+  {
+    text: 'Localize',
+    link: '/packages/localize/',
+    collapsed: true,
+    items: [
+      { text: 'Translations', link: '/packages/localize/translations' },
+      { text: 'Pluralization', link: '/packages/localize/pluralization' },
+      { text: 'Intl Formatting', link: '/packages/localize/intl' },
+      { text: 'Async Loading', link: '/packages/localize/async-loading' },
+      { text: 'Namespaces', link: '/packages/localize/namespaces' },
+      { text: 'Events', link: '/packages/localize/events' },
+      { text: 'Type Extractor', link: '/packages/localize/type-extractor' },
+      { text: 'API Reference', link: '/packages/localize/api' },
+    ]
+  },
 ];
 
 const metadata = {
