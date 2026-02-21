@@ -94,12 +94,12 @@ export class TemplateStamper {
         this.#signal = config?.signal;
     }
 
-    stamp(map: StampMap): DomCollection;
-    stamp<T>(data: T[], mapper: (item: T) => StampMap): DomCollection;
+    stamp(map: StampMap): DomCollection<HTMLElement>;
+    stamp<T>(data: T[], mapper: (item: T) => StampMap): DomCollection<HTMLElement>;
     stamp<T>(
         mapOrData: StampMap | T[],
         mapper?: (item: T) => StampMap
-    ): DomCollection {
+    ): DomCollection<HTMLElement> {
 
         if (Array.isArray(mapOrData) && mapper) {
 
@@ -122,7 +122,7 @@ export class TemplateStamper {
         return this.#stampOne(mapOrData as StampMap);
     }
 
-    #stampOne(instanceMap: StampMap): DomCollection {
+    #stampOne(instanceMap: StampMap): DomCollection<HTMLElement> {
 
         const clone = this.#template.content.cloneNode(true) as DocumentFragment;
 
