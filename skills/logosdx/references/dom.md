@@ -1,6 +1,6 @@
 ---
 description: Usage patterns for the @logosdx/dom package.
-globs: *.ts
+globs: '*.ts'
 ---
 
 # @logosdx/dom Package Summary

@@ -51,18 +51,18 @@
 
 We have LLM helpers available for you to use in Cursor, VSCode, and Claude Code.
 
-For more information, see the [LLM Helpers](./llm-helpers/README.md) directory.
+For more information, see the [skill/references/](./skill/references/) directory.
 
 **Add them to your `.cursor/rules` or `.claude` directory.**
 
 ```bash
 # For Claude
 curl -L "https://codeload.github.com/logosdx/monorepo/tar.gz/refs/heads/master" \
-| tar -xz -C .claude --strip-components=2 "monorepo-master/llm-helpers/*.md"
+| tar -xz -C .claude --strip-components=2 "monorepo-master/skill/references/*.md"
 
 # For Cursor
 curl -L "https://codeload.github.com/logosdx/monorepo/tar.gz/refs/heads/master" \
-| tar -xz -C .cursor/rules --strip-components=2 "monorepo-master/llm-helpers/*.md"
+| tar -xz -C .cursor/rules --strip-components=2 "monorepo-master/skill/references/*.md"
 ```
 
 ## Philosophy

@@ -82,14 +82,14 @@ const api = new FetchEngine({
 
 api.state.set({ userId: '123' });
 
-const [response, err] = await attempt(() => api.get('/orders'))
+const [orders, ordersErr] = await attempt(() => api.get('/orders'))
 
-if (isFetchError(err)) {
+if (isFetchError(ordersErr)) {
     // Handle error appropriately
 }
 
 // Or use the global instance
-const [response, err] = await attempt(() => Fetch.get('https://logosdx.dev/cheat-sheet.html'));
+const [page, pageErr] = await attempt(() => Fetch.get('https://logosdx.dev/cheat-sheet.html'));
 ```
 
 The `ObserverEngine` is a mature event system with typed topics, regex subscriptions, async iteration, and priority queues. It's a great way to coordinate work across your application. Use it to build event-driven systems, background work, and more.
@@ -114,7 +114,7 @@ import { attempt, assert, isDefined } from '@logosdx/utils';
 import { $, attrs } from '@logosdx/dom';
 import { ObserverEngine } from '@logosdx/observer';
 import { FetchEngine } from '@logosdx/fetch';
-import { StorageEngine } from '@logosdx/storage';
+import { StorageAdapter, LocalStorageDriver } from '@logosdx/storage';
 
 type Events = {
     'app:ready': void;
@@ -126,7 +126,10 @@ type AppStorage = {
     apiState: AppState;
 }
 
-const storage = new StorageEngine<AppStorage>(localStorage, 'logosdx');
+const storage = new StorageAdapter<AppStorage>({
+    driver: new LocalStorageDriver(localStorage),
+    prefix: 'logosdx',
+});
 
 
 const generateHmac = async (secret: string, _message: unknown) => {

@@ -1,6 +1,6 @@
 ---
 description: Usage patterns for the @logosdx/state-machine package.
-globs: *.ts
+globs: '*.ts'
 ---
 
 # @logosdx/state-machine Usage Patterns

@@ -1,6 +1,6 @@
 ---
 description: Usage patterns for the @logosdx/storage package.
-globs: *.ts
+globs: '*.ts'
 ---
 
 # @logosdx/storage Usage Patterns

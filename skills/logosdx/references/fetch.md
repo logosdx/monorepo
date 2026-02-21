@@ -1,6 +1,6 @@
 ---
 description: Usage patterns for the @logosdx/fetch package.
-globs: *.ts
+globs: '*.ts'
 ---
 
 # @logosdx/fetch
@@ -580,43 +580,6 @@ const rules = [
 ];
 ```
 
-### Regex Performance Warning (ReDoS)
-
-Route matching runs on **every request**. Poorly written regex can cause catastrophic backtracking:
-
-```typescript
-// ❌ DANGEROUS: Nested quantifiers, exponential backtracking
-{ match: /(a+)+b/ }
-{ match: /^\/api\/v\d+\/.*$/ }     // .* with anchors can backtrack
-{ match: /(\w+)*@/ }
-
-// ✅ SAFE: Simple patterns, no nesting
-{ match: /^\/v\d+\/users/ }
-{ match: /\/users\/\d+$/ }
-
-// ✅ BETTER: Use string matchers (faster, no ReDoS risk)
-{ startsWith: '/api/v2' }          // Instead of /^\/api\/v2/
-{ endsWith: '.json' }              // Instead of /\.json$/
-{ includes: '/users/' }            // Instead of /\/users\//
-```
-
-**Best practice:** Prefer string-based matchers over regex. Only use `match` when strings can't express what you need.
-
-### Independent Timeout Per Caller
-
-When deduplicating, each caller can have independent timeout/abort constraints:
-
-```typescript
-// Caller A: 10s timeout
-const promiseA = api.get('/slow', { totalTimeout: 10000 });
-
-// Caller B: 2s timeout (joins A's request)
-const promiseB = api.get('/slow', { totalTimeout: 2000 });
-
-// After 2s, B times out → A continues waiting
-// Request completes at 5s → A gets the result, B already rejected
-```
-
 ## Timeout Options
 
 FetchEngine provides two timeout types that can be used independently or together:
@@ -738,24 +701,9 @@ for await (const chunk of api.get('/events').stream()) {
     console.log(new TextDecoder().decode(chunk));
 }
 
-// With error handling
-const [response, err] = await attempt(() => api.get('/events').stream());
-if (!err) {
-    const reader = response.data.body.getReader();
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        console.log(new TextDecoder().decode(value));
-    }
-}
-
-// Works with all HTTP methods
-const [response, err] = await attempt(() =>
-    api.post('/upload-stream', largePayload).stream()
-);
-
-// Type signature: .stream() returns FetchStreamPromise (async iterable)
-// api.get('/path').stream(): FetchStreamPromise<H, P, RH>
+// Cache and deduplication are skipped (each caller needs its own stream)
+// Rate limiting and lifecycle events still fire normally
+// Type: .stream() returns FetchStreamPromise (AsyncIterable<Uint8Array>)
 ```
 
 ## Advanced Features
@@ -765,12 +713,6 @@ const [response, err] = await attempt(() =>
 const noRetryApi = new FetchEngine({
     baseUrl: 'https://api.example.com',
     retry: false  // No retries at all
-});
-
-// Accept default retry configs
-const noRetryApi = new FetchEngine({
-    baseUrl: 'https://api.example.com',
-    retry: true || {}  // Accept default retry configs
 });
 
 // Custom retry logic with shouldRetry controlling delays
@@ -814,25 +756,6 @@ const api = new FetchEngine({
 
 // Environment switching
 api.config.set('baseUrl', 'https://api.staging.com');
-
-// Per-request options
-const [response, err] = await attempt(() =>
-    api.get('/users', {
-        totalTimeout: 30000,
-        attemptTimeout: 10000,
-        headers: { 'X-Request-ID': '123' },
-        params: { include: 'profile' },
-        requestId: 'upstream-trace-id',  // Override auto-generated request ID
-        // Use .stream() chaining for raw Response with unconsumed body
-        retry: { maxAttempts: 5 }
-    })
-);
-
-if (!err) {
-    console.log('Users:', response.data);
-    console.log('Rate limit remaining:', response.headers['x-rate-limit-remaining']);
-    console.log('Request ID:', response.headers['x-request-id']);
-}
 ```
 
 ## TypeScript Patterns
@@ -915,167 +838,17 @@ customResponse.headers['x-custom-header']; // ✅ Typed
 ## Lifecycle Management
 
 ```typescript
-// Memory leak prevention - destroy instances when done
-const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
-
-// Use the instance...
-await api.get('/users');
-
-// Clean up when no longer needed (component unmount, app teardown)
+// Destroy instances when done (component unmount, app teardown)
 api.destroy();
-
-// Attempting requests after destroy throws error
 api.isDestroyed(); // true
 await api.get('/users'); // throws: "Cannot make requests on destroyed FetchEngine instance"
 
-// Listener cleanup - Option 1: Use on() with cleanup function (recommended)
-// Listeners added via on() are automatically removed when destroy() is called
-const cleanup1 = api.on('error', (e) => console.error(e));
-const cleanup2 = api.on('response', (e) => console.log(e));
+// on() returns cleanup function; all listeners auto-removed on destroy()
+const cleanup = api.on('error', (e) => console.error(e));
+cleanup();  // manual removal
 
-// Manual cleanup (if you stored the cleanup functions)
-cleanup1();
-cleanup2();
-
-// Or just call destroy() - automatically removes all listeners added via on()
-api.destroy();
-
-// Listener cleanup - Option 2: Use off() for manual removal
-const errorHandler = (e) => console.error(e);
-const responseHandler = (e) => console.log(e);
-
-api.on('error', errorHandler);
-api.on('response', responseHandler);
-
-// Remove specific listeners manually
+// off() for named handler removal
 api.off('error', errorHandler);
-api.off('response', responseHandler);
-api.destroy();
-
-// Listener cleanup - Option 3: Use addEventListener with your own AbortController
-// For advanced use cases where you need fine-grained control
-const controller = new AbortController();
-
-api.addEventListener('error', errorHandler, { signal: controller.signal });
-api.addEventListener('response', responseHandler, { signal: controller.signal });
-
-// Remove all listeners at once
-controller.abort();
-api.destroy();
-
-// Component lifecycle integration (simplest approach)
-class MyComponent {
-    constructor() {
-        this.api = new FetchEngine({ baseUrl: 'https://api.example.com' });
-
-        // on() returns cleanup function and automatically cleaned on destroy()
-        this.cleanups = [
-            this.api.on('error', this.handleError),
-            this.api.on('response', this.handleResponse)
-        ];
-    }
-
-    async fetchData() {
-        if (this.api.isDestroyed()) {
-            throw new Error('API instance destroyed');
-        }
-        return this.api.get('/data');
-    }
-
-    destroy() {
-        // Option 1: Just destroy - automatically removes listeners added via on()
-        this.api.destroy();
-
-        // Option 2: Manually cleanup first (if you stored cleanup functions)
-        // this.cleanups.forEach(cleanup => cleanup());
-        // this.api.destroy();
-
-        this.api = null;
-    }
-}
-```
-
-## Production Patterns
-
-```typescript
-// Resilient API client with caching and deduplication
-const api = new FetchEngine({
-    baseUrl: process.env.API_BASE_URL,
-    defaultType: 'json',
-    totalTimeout: 5000,
-
-    // Distributed tracing - sends requestId as header to server
-    requestIdHeader: 'X-Request-Id',
-
-    // Deduplication - prevent duplicate concurrent requests
-    dedupePolicy: {
-        enabled: true,
-        methods: ['GET'],
-        rules: [
-            { startsWith: '/realtime', enabled: false }  // Disable for realtime endpoints
-        ]
-    },
-
-    // Caching with stale-while-revalidate
-    cachePolicy: {
-        enabled: true,
-        methods: ['GET'],
-        ttl: 60000,           // 1 minute
-        staleIn: 30000,       // Stale after 30 seconds
-        rules: [
-            { startsWith: '/static', ttl: 3600000 },  // 1 hour for static
-            { startsWith: '/user/me', ttl: 300000 },  // 5 minutes for user profile
-            { includes: '/realtime', enabled: false }  // No caching for realtime
-        ]
-    },
-
-    retry: {
-        maxAttempts: 3,
-        baseDelay: 1000,
-        useExponentialBackoff: true,
-        shouldRetry: (error) => error.status >= 500 && !error.aborted
-    },
-
-    validate: {
-        headers: (headers) => {
-            if (!headers.Authorization && process.env.NODE_ENV === 'production') {
-                throw new Error('Auth required in production');
-            }
-        }
-    }
-});
-
-// Global error handling
-api.on('error', (event) => {
-    // Log to monitoring service
-    console.error('API Error:', {
-        url: event.url,
-        status: event.error?.status,
-        attempt: event.attempt,
-        method: event.method
-    });
-});
-
-api.on('retry', (event) => {
-    console.log(`Retry ${event.nextAttempt}/${api.config.get('retry.maxAttempts')} after ${event.delay}ms`);
-});
-
-// Dynamic state management
-api.state.set('authToken', await getAuthToken());
-
-// Environment switching
-if (process.env.NODE_ENV === 'development') {
-    api.config.set('baseUrl', 'https://api.dev.com');
-}
-
-// FetchPromise with timeout
-const request = api.get('/long-running-task');
-const timeoutId = setTimeout(() => {
-    if (!request.isFinished) request.abort('Timeout');
-}, 30000);
-
-const [response, err] = await attempt(() => request);
-clearTimeout(timeoutId);
 ```
 
 ## Request Serializers
@@ -1100,7 +873,7 @@ import { endpointSerializer, requestSerializer } from '@logosdx/fetch';
 ### Custom Serializers
 
 ```typescript
-// User-scoped rate limiting
+// Custom serializer example: user-scoped rate limiting
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
     rateLimitPolicy: {
@@ -1108,54 +881,18 @@ const api = new FetchEngine({
         maxCalls: 100
     }
 });
-
-// Tenant-scoped caching
-const api = new FetchEngine({
-    baseUrl: 'https://api.example.com',
-    cachePolicy: {
-        serializer: (ctx) => `${ctx.headers?.['X-Tenant-ID'] ?? 'default'}|${ctx.method}|${ctx.url.pathname}`,
-        ttl: 60000
-    }
-});
-
-// Per-rule serializer override
-{
-    cachePolicy: {
-        rules: [
-            { is: '/graphql', serializer: (ctx) => `graphql:${ctx.payload?.operationName}` }
-        ]
-    }
-}
 ```
 
 ### Serializer Signature
 
 ```typescript
 type RequestSerializer<S, H, P> = (ctx: RequestKeyOptions<S, H, P>) => string;
-
-interface RequestKeyOptions<S, H, P> {
-    method: string;      // HTTP method (uppercase)
-    path: string;        // Original path
-    url: URL;            // Full URL object
-    payload?: unknown;   // Request body
-    headers?: H;         // Request headers
-    params?: P;          // URL parameters
-    state?: S;           // Instance state
-}
+// RequestKeyOptions defined in Deduplication Types above
 ```
 
 ## Policy Architecture
 
 FetchEngine policies share a common architecture for consistent behavior and performance.
-
-### Three-Method Pattern
-
-```
-ResiliencePolicy
-├── init(config)    → Parse config, validate rules, setup state (O(1))
-├── resolve(...)    → Memoized lookup + dynamic skip checks (O(1) amortized)
-└── compute(...)    → Rule matching, cached per method:path (O(n) first call only)
-```
 
 ### Policy Execution Order
 
@@ -1184,28 +921,6 @@ afterRequest (run):
 - Dedupe and retry wrap the actual network call via pipe middleware
 - Only the request initiator consumes a rate limit token; joiners share the result
 
-### Rule Matching
-
-Rules evaluated in declaration order, first match wins:
-
-```typescript
-rules: [
-    { is: '/users', ttl: 30000 },           // Exact match first
-    { startsWith: '/users', ttl: 60000 },   // Prefix second
-    { match: /^\/users/, ttl: 120000 }      // Regex third
-]
-```
-
-### Policy State
-
-```typescript
-interface PolicyInternalState {
-    enabled: boolean;                    // Global enable/disable
-    methods: Set<string>;                // Applicable HTTP methods
-    serializer: RequestSerializer;       // Key generation function
-    rulesCache: Map<string, Rule | null>; // Memoized rule lookups
-}
-```
 
 ## Plugin Architecture
 
@@ -1243,15 +958,3 @@ const cleanup = api.use(myPlugin);
 // Later: cleanup() to uninstall
 ```
 
-### FetchPlugin Interface
-
-```typescript
-interface FetchPlugin<H, P, S> {
-    name: string;
-    install(engine: FetchEnginePublic<H, P, S>): () => void;
-}
-```
-
-### Backward Compatibility
-
-Legacy config options (`cachePolicy`, `dedupePolicy`, `rateLimitPolicy`, `retry`) are automatically converted to plugins internally. The `plugins` config option takes precedence.

@@ -185,7 +185,7 @@ This creates a package with the correct structure, tsconfig, and package.json se
 
 - **Bugs**: [Open an issue](https://github.com/logosdx/monorepo/issues)
 - **Questions**: Check [CLAUDE.md](./CLAUDE.md) or open a discussion
-- **LLM Helpers**: See [llm-helpers/](./llm-helpers/) for AI-assisted development
+- **LLM References**: See [skill/references/](./skill/references/) for AI-assisted development
 
 ## License
 

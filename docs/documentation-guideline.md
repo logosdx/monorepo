@@ -465,7 +465,7 @@ const fn7 = memoize(..., { staleIn: ... })
 
 ### Purpose
 
-The `llm-helpers/{package}.md` files serve a different purpose: providing optimized context for AI assistants to understand and use your library correctly.
+The `skill/references/{package}.md` files serve a different purpose: providing optimized context for AI assistants to understand and use your library correctly.
 
 
 ### Structure

@@ -84,7 +84,9 @@ monorepo/
 │   ├── public/images/          # Brand assets and static files
 │   └── *.md                    # Getting started, philosophy, cheat sheets
 │
-├── llm-helpers/                # AI context guides for each package
+├── skill/                      # Claude Code skill with package reference guides
+│   ├── SKILL.md               # Skill definition and routing
+│   └── references/            # Per-package API reference files
 ├── scripts/                    # Build, documentation, and workflow scripts
 ├── internals/                  # Internal utilities and templates
 ├── typedoc/                    # Generated API documentation
@@ -121,7 +123,7 @@ monorepo/
 | `packages/` | Production code packages | `src/index.ts`, `package.json`, `tsconfig.json` | `/packages/CLAUDE.md` |
 | `tests/` | Validation test suite with relative imports | `src/`, `_helpers.ts`, `benchmark/` | `/tests/CLAUDE.md` |
 | `docs/` | VitePress documentation with TypeDoc integration | `*.md`, `packages/*.md`, `public/` | `/docs/CLAUDE.md` |
-| `llm-helpers/` | AI context guides | `utils.md`, `fetch.md`, `observer.md`, `dom.md` | - |
+| `skill/references/` | AI context guides (canonical source) | `utils.md`, `fetch.md`, `observer.md`, etc. | - |
 | `scripts/` | Build and deployment | `build.mjs`, `docs.zsh`, `new-pkg.zsh` | - |
 | `typedoc/` | Generated API documentation | Auto-generated HTML files | - |
 

@@ -29,12 +29,12 @@ export class StorageAdapter<Values> {
         assert(config?.driver, 'StorageAdapter requires a driver');
 
         this.#driver = config.driver;
-        this.#prefix = config.prefix;
+        this.#prefix = config.prefix ?? '';
         this.#structured = config.structured ?? false;
         this.#observer = new ObserverEngine();
 
         this.driver = config.driver;
-        this.prefix = config.prefix;
+        this.prefix = config.prefix ?? '';
         this.structured = this.#structured;
 
         this.remove = this.rm;

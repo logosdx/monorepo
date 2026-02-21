@@ -53,7 +53,7 @@ jobs:
 
             ## Step 3: Documentation Check
             If any source files in `packages/*/src/` were changed:
-            - Check if corresponding documentation in `docs/` or `llm-helpers/` needs updating
+            - Check if corresponding documentation in `docs/` or `skill/references/` needs updating
             - Flag any new exports or API changes that lack documentation
             - Note if JSDoc comments are missing or outdated for changed functions
 

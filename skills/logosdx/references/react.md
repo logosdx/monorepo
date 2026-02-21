@@ -1,6 +1,6 @@
 ---
 description: Usage patterns for the @logosdx/react package.
-globs: *.ts, *.tsx
+globs: '*.ts, *.tsx'
 ---
 
 # @logosdx/react Usage Patterns
@@ -210,26 +210,6 @@ const { Provider: ChatObserver, useHook: useChatEvents } = createObserverContext
 
 Free renaming, less verbose, and follows React's own hook convention.
 
-## composeProviders
-
-Eliminates nested provider trees. First entry = outermost wrapper:
-
-```typescript
-import { composeProviders } from '@logosdx/react'
-
-const Providers = composeProviders(AppObserver, ApiFetch, AppStorage, AppLocale)
-
-// With props for providers that need configuration:
-const Providers = composeProviders(
-    AppObserver,
-    [ThemeProvider, { theme: 'dark' }],
-    ApiFetch,
-)
-
-// Empty = pass-through (children rendered as-is)
-const NoOp = composeProviders()
-```
-
 ## Hook Rules
 
 All hook methods (`on`, `once`, `oncePromise`, `emitFactory`, `get`, `post`, `put`, `del`, `patch`) call React hooks internally:
@@ -256,59 +236,3 @@ const [, , res] = get<User[]>('/users')           // res?.data is User[]
 const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // res2?.headers['x-total'] typed
 ```
 
-## Production Pattern
-
-```typescript
-// setup.ts
-import { ObserverEngine } from '@logosdx/observer'
-import { FetchEngine } from '@logosdx/fetch'
-import { StorageAdapter, WebStorageDriver } from '@logosdx/storage'
-import { LocaleManager } from '@logosdx/localize'
-import {
-    createObserverContext,
-    createFetchContext,
-    createStorageContext,
-    createLocalizeContext,
-} from '@logosdx/react'
-
-interface AppEvents {
-    'auth.login': { userId: string; token: string }
-    'auth.logout': { userId: string }
-    'notification': { message: string; type: 'info' | 'error' }
-}
-
-interface AppStore {
-    theme: 'light' | 'dark'
-    userId: string
-    token: string
-}
-
-const observer = new ObserverEngine<AppEvents>()
-
-const api = new FetchEngine({
-    baseUrl: 'https://api.example.com',
-    retry: { maxAttempts: 3 }
-})
-
-const storage = new StorageAdapter<AppStore>({
-    driver: new WebStorageDriver(localStorage),
-    prefix: 'myapp',
-})
-const i18n = new LocaleManager({ current: 'en', fallback: 'en', locales })
-
-// Wire auth state
-observer.on('auth.login', ({ token, userId }) => {
-    api.state.set({ token })
-    storage.set({ token, userId })
-})
-
-observer.on('auth.logout', () => {
-    api.state.set({ token: null })
-    storage.remove(['token', 'userId'])
-})
-
-export const [AppObserver, useAppObserver] = createObserverContext(observer)
-export const [ApiFetch, useApiFetch] = createFetchContext(api)
-export const [AppStorage, useAppStorage] = createStorageContext(storage)
-export const [AppLocale, useAppLocale] = createLocalizeContext(i18n)
-```

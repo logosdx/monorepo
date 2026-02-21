@@ -1,6 +1,6 @@
 ---
 description: Usage patterns for the @logosdx/observer package.
-globs: *.ts
+globs: '*.ts'
 ---
 
 # @logosdx/observer Usage Patterns
@@ -314,7 +314,7 @@ observer.$internals() // internal maps (debugging only)
 // Error handling
 import { EventError, isEventError } from '@logosdx/observer'
 // EventErrors are thrown by EventGenerator methods
-const generator = observer.generator('user:login')
+const generator = observer.on('user:login') // no callback = EventGenerator
 
 try {
     generator.cleanup() // Mark as destroyed
@@ -339,36 +339,3 @@ try {
 }
 ```
 
-## Patterns Summary
-
-```ts
-// Basic event emitter
-const obs = new ObserverEngine<Events>()
-obs.on('event', callback)
-obs.emit('event', data)
-
-// Async iteration
-for await (const data of obs.on('event')) { }
-
-// Promise-based
-const data = await obs.once('event')
-
-// Queue processing
-const queue = obs.queue('event', processor, options)
-queue.add(data, priority)
-
-// Component extension
-const component = obs.observe(object)
-component.on('event', callback)
-
-// Regex matching
-obs.on(/pattern/, ({ event, data }) => {})
-
-// Resource cleanup
-const cleanup = obs.on('event', callback)
-cleanup()
-
-// Transfer listeners between observers
-ObserverEngine.transfer(source, target)
-ObserverEngine.copy(source, target, { filter: [/^user:/] })
-```

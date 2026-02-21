@@ -118,7 +118,7 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'Released under the MIT License.',
+      message: '<a href="https://github.com/logosdx/monorepo/blob/master/LICENSE">BSD-3-Clause License</a> · <a href="/llms.txt">llms.txt</a> · <a href="/llms-full.txt">llms-full.txt</a>',
       copyright: `Copyright © 2023+ Logos DX`
     }
   },
