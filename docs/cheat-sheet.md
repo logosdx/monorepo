@@ -94,7 +94,7 @@ const [data, err] = await attempt(() =>
 
 // Stream mode — raw Response with unconsumed body
 const [streamRes, err] = await attempt(() =>
-    api.get('/events', { stream: true })
+    api.get('/events').stream()
 );
 const reader = streamRes.data.body.getReader();
 
@@ -105,12 +105,18 @@ const [traced, err] = await attempt(() =>
 ```
 
 
-### AbortablePromise
+### FetchPromise
 
 ```typescript
+// Chain response type methods
+const data = await api.get('/users').json<User[]>();
+const text = await api.get('/readme').text();
+const blob = await api.get('/file.pdf').raw();
+const res  = await api.get('/events').stream();  // raw Response, body unconsumed
+
+// Abort and status
 const request = api.get('/slow-endpoint');
 
-// Check status
 if (!request.isFinished) {
     request.abort('User cancelled');
 }
@@ -549,7 +555,7 @@ await api.get('/orders', { requestId: incomingTraceId });
 ```typescript
 // Raw Response with unconsumed body (skips cache/dedupe)
 const [sse, err] = await attempt(() =>
-    api.get('/events', { stream: true })
+    api.get('/events').stream()
 );
 
 if (!err) {
