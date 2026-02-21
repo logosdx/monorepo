@@ -49,6 +49,86 @@ export class FetchPromise<
 
     #overrideSet = false;
     #directive: ResponseDirective | undefined;
+    #controller: AbortController | undefined;
+
+    /**
+     * Whether the executor has resolved or rejected (without abort).
+     */
+    isFinished = false;
+
+    /**
+     * Whether the request was aborted, either via `abort()` or
+     * an external signal on the controller.
+     */
+    isAborted = false;
+
+    /**
+     * Abort the in-flight request.
+     *
+     * Sets `isAborted` and delegates to the stored AbortController.
+     * Safe to call even when no controller is present (plain constructor).
+     */
+    abort(reason?: string): void {
+
+        this.isAborted = true;
+        this.#controller?.abort(reason);
+    }
+
+    /**
+     * Factory that wires an executor and AbortController into a FetchPromise
+     * with automatic finish/abort tracking.
+     *
+     * Replaces the previous pattern of patching abort state onto a plain
+     * promise, giving callers a typed, first-class abort surface.
+     *
+     * @example
+     *     const controller = new AbortController();
+     *     const fp = FetchPromise.create(
+     *         () => engine.execute(request, controller.signal),
+     *         controller
+     *     );
+     *     fp.abort('user cancelled');
+     */
+    static create<T, H, P, RH>(
+        executor: () => Promise<FetchResponse<T, H, P, RH>>,
+        controller: AbortController
+    ): FetchPromise<T, H, P, RH> {
+
+        let resolve!: (value: FetchResponse<T, H, P, RH>) => void;
+        let reject!: (reason?: unknown) => void;
+
+        const fp = new FetchPromise<T, H, P, RH>((res, rej) => {
+
+            resolve = res;
+            reject = rej;
+        });
+
+        fp.#controller = controller;
+
+        controller.signal.addEventListener('abort', () => {
+
+            fp.isAborted = true;
+        });
+
+        executor().then(
+            (value) => {
+
+                fp.isFinished = true;
+                resolve(value);
+            },
+            (err) => {
+
+                if (!fp.isAborted) {
+
+                    fp.isFinished = true;
+                }
+
+                reject(err);
+            }
+        );
+
+        return fp;
+    }
 
     /**
      * The active response directive, if any.

@@ -168,6 +168,106 @@ describe('FetchPromise: override guard', () => {
 });
 
 
+describe('FetchPromise: abort and finish tracking', () => {
+
+    it('should default isFinished and isAborted to false', () => {
+
+        const fp = new FetchPromise((resolve) => resolve({ data: null } as any));
+
+        expect(fp.isFinished).to.be.false;
+        expect(fp.isAborted).to.be.false;
+    });
+
+    it('should abort with reason via abort()', () => {
+
+        const controller = new AbortController();
+        const fp = FetchPromise.create(() => new Promise(() => {}), controller);
+
+        fp.abort('cancelled');
+
+        expect(fp.isAborted).to.be.true;
+        expect(controller.signal.aborted).to.be.true;
+        expect(controller.signal.reason).to.equal('cancelled');
+    });
+
+    it('should abort without reason', () => {
+
+        const controller = new AbortController();
+        const fp = FetchPromise.create(() => new Promise(() => {}), controller);
+
+        fp.abort();
+
+        expect(fp.isAborted).to.be.true;
+        expect(controller.signal.aborted).to.be.true;
+    });
+
+    it('should set isAborted when controller is aborted externally', () => {
+
+        const controller = new AbortController();
+        const fp = FetchPromise.create(() => new Promise(() => {}), controller);
+
+        controller.abort('external');
+
+        expect(fp.isAborted).to.be.true;
+    });
+
+    it('should set isFinished on resolve', async () => {
+
+        const controller = new AbortController();
+        const response = { data: 'ok' } as any;
+        const fp = FetchPromise.create(() => Promise.resolve(response), controller);
+
+        const result = await fp;
+
+        expect(result).to.deep.equal(response);
+        expect(fp.isFinished).to.be.true;
+        expect(fp.isAborted).to.be.false;
+    });
+
+    it('should set isFinished on reject when not aborted', async () => {
+
+        const controller = new AbortController();
+        const fp = FetchPromise.create(() => Promise.reject(new Error('fail')), controller);
+
+        await expect(fp).rejects.toThrow('fail');
+        expect(fp.isFinished).to.be.true;
+        expect(fp.isAborted).to.be.false;
+    });
+
+    it('should not set isFinished on reject when aborted', async () => {
+
+        const controller = new AbortController();
+        const fp = FetchPromise.create(() => {
+
+            controller.abort('cancelled');
+            return Promise.reject(new Error('aborted'));
+        }, controller);
+
+        await expect(fp).rejects.toThrow('aborted');
+        expect(fp.isAborted).to.be.true;
+        expect(fp.isFinished).to.be.false;
+    });
+
+    it('should preserve directive methods on created instance', () => {
+
+        const controller = new AbortController();
+        const fp = FetchPromise.create(() => Promise.resolve({ data: null } as any), controller);
+
+        fp.json();
+
+        expect(fp.directive).to.equal('json');
+    });
+
+    it('abort() should be a no-op without a controller (plain constructor)', () => {
+
+        const fp = new FetchPromise((resolve) => resolve({ data: null } as any));
+
+        expect(() => fp.abort()).not.to.throw();
+        expect(fp.isAborted).to.be.true;
+    });
+});
+
+
 describe('FetchPromise: chaining with then/catch', () => {
 
     it('should still resolve after setting a directive', async () => {
