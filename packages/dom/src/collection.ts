@@ -337,6 +337,17 @@ export class DomCollection<T extends HTMLElement> {
         return this;
     }
 
+
+    into(container: Element): this {
+
+        for (const el of this.#elements) {
+
+            container.appendChild(el);
+        }
+
+        return this;
+    }
+
     // --- Animate (callable namespace) ---
 
     get animate() {
