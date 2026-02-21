@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { ObserverEngine } from '@logosdx/observer';
 import type { StorageAdapter } from '@logosdx/storage';
 import type { LocaleManager } from '@logosdx/localize';
+import type { StateMachine } from '@logosdx/state-machine';
 import type { PathLeaves } from '@logosdx/utils';
 
 export type ProviderProps = {
@@ -54,4 +55,16 @@ export type UseLocalizeReturn<
     changeTo: (code: Code) => void;
     locales: { code: Code; text: string }[];
     instance: LocaleManager<Locale, Code>;
+};
+
+export type UseStateMachineReturn<
+    Context,
+    Events extends Record<string, any>,
+    States extends string,
+    Selected = Context
+> = {
+    state: States;
+    context: Selected;
+    send: StateMachine<Context, Events, States>['send'];
+    instance: StateMachine<Context, Events, States>;
 };
