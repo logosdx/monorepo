@@ -1,6 +1,6 @@
 ---
 title: React
-description: React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, and Localize.
+description: React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, Localize, and StateMachine.
 ---
 
 # React
@@ -30,7 +30,22 @@ pnpm add @logosdx/react
 Then install the engine packages you need:
 
 ```bash
-pnpm add @logosdx/observer @logosdx/fetch @logosdx/storage @logosdx/localize
+pnpm add @logosdx/observer @logosdx/fetch @logosdx/storage @logosdx/localize @logosdx/state-machine
+```
+
+### Subpath Imports
+
+Each binding is available as a standalone subpath export. This means peer dependencies are only required for the bindings you actually import:
+
+```typescript
+// Only requires @logosdx/storage as a peer dep
+import { createStorageContext } from '@logosdx/react/storage';
+
+// Only requires @logosdx/state-machine as a peer dep
+import { useStateMachine } from '@logosdx/react/state-machine';
+
+// Barrel import still works — requires all used peer deps
+import { createStorageContext, useStateMachine } from '@logosdx/react';
 ```
 
 ## Quick Start
@@ -39,27 +54,34 @@ pnpm add @logosdx/observer @logosdx/fetch @logosdx/storage @logosdx/localize
 // setup.ts — run once, types inferred from instances
 import { ObserverEngine } from '@logosdx/observer';
 import { FetchEngine } from '@logosdx/fetch';
-import { StorageAdapter } from '@logosdx/storage';
+import { StorageAdapter, WebStorageDriver } from '@logosdx/storage';
 import { LocaleManager } from '@logosdx/localize';
+import { StateMachine } from '@logosdx/state-machine';
 import {
     createObserverContext,
     createFetchContext,
     createStorageContext,
     createLocalizeContext,
+    createStateMachineContext,
     composeProviders,
 } from '@logosdx/react';
 
 // Create your engine instances
 const observer = new ObserverEngine<AppEvents>();
 const api = new FetchEngine({ baseUrl: 'https://api.example.com' });
-const storage = new StorageAdapter<AppStore>(localStorage, 'myapp');
+const storage = new StorageAdapter<AppStore>({
+    driver: new WebStorageDriver(localStorage),
+    prefix: 'myapp',
+});
 const i18n = new LocaleManager({ current: 'en', fallback: 'en', locales });
+const game = new StateMachine<GameContext, GameEvents, GameStates>({ ... });
 
 // Create context + hook pairs — rename freely
 export const [AppObserver, useAppObserver] = createObserverContext(observer);
 export const [ApiFetch, useApiFetch] = createFetchContext(api);
 export const [AppStorage, useAppStorage] = createStorageContext(storage);
 export const [AppLocale, useAppLocale] = createLocalizeContext(i18n);
+export const [GameProvider, useGame] = createStateMachineContext(game);
 
 // Compose into a single wrapper — no nesting required
 export const Providers = composeProviders(
@@ -67,6 +89,7 @@ export const Providers = composeProviders(
     ApiFetch,
     AppStorage,
     AppLocale,
+    GameProvider,
 );
 ```
 
@@ -300,8 +323,8 @@ function ExportButton() {
 `createStorageContext` wraps a `StorageAdapter`. Any mutation (`set`, `remove`, `assign`, `clear`) triggers a re-render automatically via internal event subscriptions.
 
 ```typescript
-import { createStorageContext } from '@logosdx/react';
-import { StorageAdapter } from '@logosdx/storage';
+import { createStorageContext } from '@logosdx/react/storage';
+import { StorageAdapter, WebStorageDriver } from '@logosdx/storage';
 
 interface AppStore {
     theme: 'light' | 'dark';
@@ -309,7 +332,10 @@ interface AppStore {
     preferences: { lang: string; notifications: boolean };
 }
 
-const storage = new StorageAdapter<AppStore>(localStorage, 'myapp');
+const storage = new StorageAdapter<AppStore>({
+    driver: new WebStorageDriver(localStorage),
+    prefix: 'myapp',
+});
 export const [AppStorage, useAppStorage] = createStorageContext(storage);
 ```
 
@@ -340,7 +366,7 @@ const {
     assign,    // assign('preferences', { lang: 'es' }) — Object.assign on value
     has,       // has('theme') → true
     clear,     // clear() — removes all prefixed keys
-    wrap,      // wrap('theme') → { get, set, remove, assign }
+    scope,     // scope('theme') → scoped adapter for a single key
     keys,      // keys() → ['theme', 'userId', ...]
     instance,  // raw StorageAdapter
 } = useAppStorage();
@@ -403,6 +429,93 @@ function Greeting() {
 | `changeTo(code)` | `(code: Code) => void` | Switch locale — triggers re-render |
 | `locales` | `{ code, text }[]` | All available locales |
 | `instance` | `LocaleManager` | Raw manager access |
+
+## State Machine
+
+Two options: `createStateMachineContext` for context-based sharing, or `useStateMachine` as a standalone hook when you don't need a provider.
+
+### Context + Hook Tuple
+
+```typescript
+import { createStateMachineContext } from '@logosdx/react/state-machine';
+import { StateMachine } from '@logosdx/state-machine';
+
+interface GameContext {
+    score: number;
+    level: number;
+}
+
+interface GameEvents {
+    SCORE: number;
+    LEVEL_UP: void;
+    RESET: void;
+}
+
+type GameStates = 'idle' | 'playing' | 'paused';
+
+const machine = new StateMachine<GameContext, GameEvents, GameStates>({
+    initial: 'idle',
+    context: { score: 0, level: 1 },
+    transitions: { /* ... */ },
+});
+
+export const [GameProvider, useGame] = createStateMachineContext(machine);
+```
+
+### Usage
+
+```typescript
+function ScoreBoard() {
+
+    const { state, context, send } = useGame();
+
+    return (
+        <div>
+            <p>State: {state}</p>
+            <p>Score: {context.score}</p>
+            <button onClick={() => send('SCORE', 10)}>+10 Points</button>
+        </div>
+    );
+}
+```
+
+### Standalone Hook
+
+Use `useStateMachine` directly when the machine doesn't need to be shared via context:
+
+```typescript
+import { useStateMachine } from '@logosdx/react/state-machine';
+
+function Counter() {
+
+    const { state, context, send } = useStateMachine(counterMachine);
+
+    return <button onClick={() => send('INCREMENT')}>{context.count}</button>;
+}
+```
+
+### Selector Support
+
+Pass a selector to narrow the context and prevent unnecessary re-renders when unrelated context values change:
+
+```typescript
+// Only re-renders when `score` changes — ignores `level` changes
+const { context: score } = useGame((ctx) => ctx.score);
+
+// Full context — re-renders on any context change
+const { context } = useGame();
+```
+
+The selector uses deep equality comparison via `equals` from `@logosdx/utils`. If the selected value hasn't changed, the component skips the re-render.
+
+### API
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `state` | `States` | Current state name (reactive) |
+| `context` | `Selected` | Full context or selector result (reactive) |
+| `send` | `(event, data?) => void` | Dispatch a transition event |
+| `instance` | `StateMachine` | Raw machine access |
 
 ## Compose Providers
 

@@ -17,7 +17,7 @@ This file provides comprehensive context about the LogosDX monorepo package arch
     ├── @logosdx/storage ────────┤
     └── @logosdx/dom ────────────┘
 
-@logosdx/react (React bindings - optional peer deps on observer, fetch, storage, localize)
+@logosdx/react (React bindings - optional peer deps on observer, fetch, storage, localize, state-machine)
 ```
 
 All packages depend on `@logosdx/utils` as the foundation layer.

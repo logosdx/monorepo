@@ -24,7 +24,10 @@ import type { ProviderProps, UseStorageReturn } from './types.ts';
  *         preferences: { lang: string; notifications: boolean };
  *     }
  *
- *     const storage = new StorageAdapter<AppStore>(localStorage, 'myapp');
+ *     const storage = new StorageAdapter<AppStore>({
+ *         driver: new WebStorageDriver(localStorage),
+ *         prefix: 'myapp',
+ *     });
  *
  *     export const [AppStorage, useAppStorage] = createStorageContext(storage);
  *
@@ -52,7 +55,7 @@ import type { ProviderProps, UseStorageReturn } from './types.ts';
  *
  * **Full API — typed pass-throughs to StorageAdapter:**
  *
- *     const { get, set, remove, assign, has, clear, wrap, keys, instance } = useAppStorage();
+ *     const { get, set, remove, assign, has, clear, scope, keys, instance } = useAppStorage();
  *
  *     get('theme');                          // 'dark'
  *     get();                                 // { theme: 'dark', userId: '...' ... }
@@ -62,7 +65,7 @@ import type { ProviderProps, UseStorageReturn } from './types.ts';
  *     assign('preferences', { lang: 'es' });// Object.assign on the value
  *     has('theme');                          // true
  *     clear();                               // removes all prefixed keys
- *     wrap('theme');                         // { get, set, remove, assign }
+ *     scope('theme');                         // scoped adapter for a single key
  *     keys();                                // ['theme', 'userId', ...]
  *
  * @param instance - The StorageAdapter to bind to

@@ -8,19 +8,6 @@ globs: *.ts, *.tsx
 
 React bindings for LogosDX engines. Factory-pattern context providers and hooks with full type inference.
 
-## Contents
-
-- Core Pattern
-- Observer Hook
-- Fetch Hook
-- Storage Hook
-- Localize Hook
-- Why Tuples, Not Objects?
-- composeProviders
-- Hook Rules
-- Type Inference
-- Production Pattern
-
 ## Core Pattern
 
 Every factory takes an engine instance and returns a `[Provider, useHook]` tuple:
@@ -35,19 +22,25 @@ import {
     createFetchContext,
     createStorageContext,
     createLocalizeContext,
+    createStateMachineContext,
 } from '@logosdx/react'
 
 // Create instances
 const observer = new ObserverEngine<AppEvents>()
 const api = new FetchEngine({ baseUrl: '/api' })
-const storage = new StorageAdapter<AppStore>(localStorage, 'app')
+const storage = new StorageAdapter<AppStore>({
+    driver: new WebStorageDriver(localStorage),
+    prefix: 'app',
+})
 const i18n = new LocaleManager<Locale, 'en' | 'es'>({ current: 'en', fallback: 'en', locales })
+const machine = new StateMachine<Ctx, Events, States>({ initial: 'idle', context: {}, transitions: {} })
 
 // Create context + hook pairs — rename freely
 export const [AppObserver, useAppObserver] = createObserverContext(observer)
 export const [ApiFetch, useApiFetch] = createFetchContext(api)
 export const [AppStorage, useAppStorage] = createStorageContext(storage)
 export const [AppLocale, useAppLocale] = createLocalizeContext(i18n)
+export const [GameProvider, useGame] = createStateMachineContext(machine)
 ```
 
 Compose providers into a single wrapper:
@@ -61,6 +54,7 @@ export const Providers = composeProviders(
     ApiFetch,
     AppStorage,
     AppLocale,
+    GameProvider,
 )
 ```
 
@@ -133,7 +127,7 @@ const handleExport = async () => {
 ## Storage Hook
 
 ```typescript
-const { get, set, remove, assign, has, clear, wrap, keys, instance } = useAppStorage()
+const { get, set, remove, assign, has, clear, scope, keys, instance } = useAppStorage()
 
 // Any mutation triggers a re-render automatically
 const theme = get('theme')          // read single key
@@ -144,7 +138,7 @@ remove('userId')                    // remove key
 assign('preferences', { lang: 'es' }) // Object.assign on value
 has('theme')                        // boolean
 clear()                             // remove all prefixed keys
-wrap('theme')                       // { get, set, remove, assign }
+scope('theme')                      // scoped adapter for a single key
 keys()                              // ['theme', 'userId', ...]
 ```
 
@@ -165,6 +159,40 @@ changeTo('es')
 
 // All available locales
 locales // [{ code: 'en', text: 'English' }, { code: 'es', text: 'Español' }]
+```
+
+## State Machine Hook
+
+Two options: `createStateMachineContext` for context-based sharing, or `useStateMachine` as a standalone hook.
+
+```typescript
+// Context + hook tuple (shared via Provider)
+const [GameProvider, useGame] = createStateMachineContext(machine)
+
+// Usage in component
+const { state, context, send, instance } = useGame()
+send('SCORE', 10)
+
+// Standalone hook (no Provider needed)
+import { useStateMachine } from '@logosdx/react/state-machine'
+const { state, context, send } = useStateMachine(machine)
+
+// Selector — only re-renders when selected value changes
+const { context: score } = useGame((ctx) => ctx.score)
+const { context: score } = useStateMachine(machine, (ctx) => ctx.score)
+```
+
+## Subpath Imports
+
+Each binding is available as a standalone subpath export. Peer deps only required for imported bindings:
+
+```typescript
+import { createStorageContext } from '@logosdx/react/storage'
+import { useStateMachine } from '@logosdx/react/state-machine'
+import { createObserverContext } from '@logosdx/react/observer'
+import { createFetchContext } from '@logosdx/react/fetch'
+import { createLocalizeContext } from '@logosdx/react/localize'
+import { composeProviders } from '@logosdx/react/compose'
 ```
 
 ## Why Tuples, Not Objects?
@@ -234,7 +262,7 @@ const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // res2?.headers[
 // setup.ts
 import { ObserverEngine } from '@logosdx/observer'
 import { FetchEngine } from '@logosdx/fetch'
-import { StorageAdapter } from '@logosdx/storage'
+import { StorageAdapter, WebStorageDriver } from '@logosdx/storage'
 import { LocaleManager } from '@logosdx/localize'
 import {
     createObserverContext,
@@ -262,7 +290,10 @@ const api = new FetchEngine({
     retry: { maxAttempts: 3 }
 })
 
-const storage = new StorageAdapter<AppStore>(localStorage, 'myapp')
+const storage = new StorageAdapter<AppStore>({
+    driver: new WebStorageDriver(localStorage),
+    prefix: 'myapp',
+})
 const i18n = new LocaleManager({ current: 'en', fallback: 'en', locales })
 
 // Wire auth state
