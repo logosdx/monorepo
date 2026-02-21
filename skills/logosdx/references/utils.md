@@ -264,15 +264,13 @@ const [u1, u2, u3] = await Promise.all([
 class SingleFlight<T = unknown> {
   constructor(opts?: SingleFlightOptions<T>)
 
-  // Cache primitives (sync for Map adapter, async for Redis/etc.)
-  getCache(key: string): CacheEntry<T> | null
-  getCacheAsync(key: string): Promise<CacheEntry<T> | null>
-  setCache(key: string, value: T, opts?: SetCacheOptions): void
-  setCacheAsync(key: string, value: T, opts?: SetCacheOptions): Promise<void>
-  deleteCache(key: string): boolean
-  deleteCacheAsync(key: string): Promise<boolean>
-  hasCache(key: string): boolean
-  hasCacheAsync(key: string): Promise<boolean>
+  // Cache primitives (all async for adapter flexibility)
+  getCache(key: string): Promise<CacheEntry<T> | null>
+  setCache(key: string, value: T, opts?: SetCacheOptions): Promise<void>
+  deleteCache(key: string): Promise<boolean>
+  hasCache(key: string): Promise<boolean>
+  invalidateCache(predicate: (key: string) => boolean): Promise<number>
+  clearCache(): Promise<void>
 
   // In-flight primitives
   getInflight(key: string): InflightEntry<T> | null
@@ -281,16 +279,16 @@ class SingleFlight<T = unknown> {
   hasInflight(key: string): boolean
 
   // Lifecycle
-  clear(): void
-  clearCache(): void
-  clearCacheAsync(): Promise<void>
+  clear(): Promise<void>
   stats(): SingleFlightStats
 }
 
 interface SingleFlightOptions<T> {
-  adapter?: SingleFlightCacheAdapter<T>  // Default: in-memory Map
-  defaultTtl?: number                    // Default: 60000 (1 minute)
-  defaultStaleIn?: number                // Default: undefined (no SWR)
+  adapter?: CacheAdapter<T>    // Default: MapCacheAdapter
+  defaultTtl?: number          // Default: 60000 (1 minute)
+  defaultStaleIn?: number      // Default: undefined (no SWR)
+  maxSize?: number             // Default: 1000
+  cleanupInterval?: number     // Default: 60000
 }
 
 interface CacheEntry<T> {
@@ -477,19 +475,37 @@ addHandlerFor('merge', MyClass, (target, source, opts) => new MyClass(merge(targ
 ### Collections
 
 ```ts
-// Priority queue (min-heap by default)
+// Priority queue (min-heap by default, O(log n) push/pop)
 class PriorityQueue<T> {
   constructor(options?: PriorityQueueOptions<T>)
-  push(value: T, priority?: number): void
-  pop(): T | undefined
-  peek(): T | undefined
+  push(value: T, priority?: number): void    // Default priority: 0
+  pop(): T | null                            // Remove highest-priority item
+  popMany(count?: number): T[]               // Remove multiple items
+  peek(): T | null                           // View without removing
+  peekMany(count?: number): T[]              // View multiple items
+  find(predicate: (value: T) => boolean): T | null
+  heapify(items: Node<T>[]): void            // Build heap from array O(n)
+  clone(): PriorityQueue<T>                  // Independent copy
+  toSortedArray(): T[]                       // Extract sorted
   size(): number
   isEmpty(): boolean
+  clear(): void
+  [Symbol.iterator](): IterableIterator<T>   // Iterate in priority order
+}
+
+interface PriorityQueueOptions<T> {
+  lifo?: boolean      // LIFO for equal priorities (default: false/FIFO)
+  compare?: (a: Node<T>, b: Node<T>) => number
+  maxHeap?: boolean   // Invert priority order (default: false)
 }
 
 const taskQueue = new PriorityQueue<Task>()
 taskQueue.push(urgentTask, 1)
 taskQueue.push(normalTask, 5)
+
+const leaderboard = new PriorityQueue<string>({ maxHeap: true })
+leaderboard.push('Alice', 95)
+leaderboard.pop() // 'Alice' (highest score first)
 ```
 
 ## Validation & Type Guards
@@ -669,6 +685,15 @@ timeout.clear() // Cancel the timeout
 
 // Wait with value
 const result = await wait(1000, 'completed')
+
+// Run functions in series (execute cleanup functions, etc.)
+const runInSeries: <T extends Iterable<Func>>(fns: T) => ReturnsOfReturns<T>
+runInSeries([cleanup1, cleanup2, cleanup3])
+
+// Create a function that runs multiple functions in series with separate args
+const makeInSeries: <T extends readonly Func[]>(fns: T) => (...args: ParamsOfParams<T>) => ReturnsOfReturns<T>
+const pipeline = makeInSeries([logStep, saveData, notify] as const)
+pipeline(['processing'], [userData], ['User created'])
 ```
 
 ## Array & Data Utilities
@@ -684,7 +709,16 @@ const oneOrMany: <T>(items: T[]) => T | T[]
 
 // Utility functions
 const noop: (...args: any[]) => any
-const generateId: () => string
+const generateId: () => string  // Returns '_' + random alphanumeric
+
+// Repeat a function N times
+const nTimes: <T>(fn: (iteration: number) => T, n: number) => T[]
+nTimes(() => createEl('span'), 3)  // [span, span, span]
+nTimes((i) => (i + 1) * 2, 3)     // [2, 4, 6]
+
+// Enhanced key generation for caching (handles circular refs, functions, Dates, Maps, Sets)
+const serializer: (args: unknown[]) => string
+serializer([{ b: 2, a: 1 }]) === serializer([{ a: 1, b: 2 }])  // true (sorted keys)
 ```
 
 ## Error Types & Utilities

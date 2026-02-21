@@ -240,10 +240,10 @@ You can deploy to production and be confident that if your users complain, it wi
 
 Get start with the packages:
 
-- [@logosdx/observer](/packages/observer)
-- [@logosdx/utils](/packages/utils)
+- [@logosdx/observer](/packages/observer/)
+- [@logosdx/utils](/packages/utils/)
 - [@logosdx/fetch](/packages/fetch/)
 - [@logosdx/dom](/packages/dom/)
-- [@logosdx/storage](/packages/storage)
+- [@logosdx/storage](/packages/storage/)
 - [@logosdx/localize](/packages/localize/)
 - [@logosdx/react](/packages/react)
