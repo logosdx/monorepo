@@ -316,7 +316,7 @@ export interface Options {
 - [ ] Follows monorepo import patterns (package names in prod, relative in tests)
 - [ ] Proper file organization (types.ts, index.ts exports)
 - [ ] Logical grouping of functions and classes
-- [ ] Keep up the `./llm-helpers` docs up to date
+- [ ] Keep all 3 documentation locations up to date (see Documentation Locations below)
 - [ ] Doesn't keep legacy code around
 
 ### ✅ TypeScript Standards
@@ -336,3 +336,15 @@ export interface Options {
 - [ ] Uses relative imports in tests
 - [ ] Tests all paths (happy, error, bad inputs, edge cases)
 - [ ] Tests somewhat mirror source structure
+
+## 📄 Documentation Locations
+
+When updating API surfaces or behavior, **all three** locations must be updated:
+
+| Location | Purpose |
+|----------|---------|
+| `docs/` | VitePress user-facing documentation (published to logosdx.dev) |
+| `llm-helpers/` | AI context guides consumed by LLM tools |
+| `skill/` | **Canonical local skill references** — NOT `~/.claude/skills/` |
+
+**`skill/` is the monorepo's own skill folder.** It contains reference files that Claude Code skills load for pattern guidance. This is distinct from the user's personal `~/.claude/skills/` directory. When updating documentation, `skill/references/` is the authoritative source — the user's `~/.claude/skills/` may contain a copy but it is not the canonical location.
