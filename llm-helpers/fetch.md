@@ -51,12 +51,25 @@ const [{ data: external }, err] = await attempt(() => get('https://api.external.
 ## HTTP Methods
 
 ```typescript
-// All methods return AbortablePromise<FetchResponse<T>>
-interface AbortablePromise<T> extends Promise<T> {
+// All methods return FetchPromise<FetchResponse<T>>
+interface FetchPromise<T, H, P, RH> extends Promise<FetchResponse<T, H, P, RH>> {
     isFinished: boolean;
     isAborted: boolean;
     abort(reason?: string): void;
+
+    // Response chaining — declare expected response type before awaiting
+    json(): FetchPromise<T, H, P, RH>;
+    text(): FetchPromise<string, H, P, RH>;
+    blob(): FetchPromise<Blob, H, P, RH>;
+    arrayBuffer(): FetchPromise<ArrayBuffer, H, P, RH>;
+    formData(): FetchPromise<FormData, H, P, RH>;
+    raw(): FetchPromise<Response, H, P, RH>;
+    stream(): FetchStreamPromise<H, P, RH>;
 }
+
+// Stream promise supports async iteration over chunks
+interface FetchStreamPromise<H, P, RH>
+    extends FetchPromise<Response, H, P, RH>, AsyncIterable<Uint8Array> {}
 
 // Enhanced response object with typed headers, params, and response headers
 interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams, RH = FetchEngine.InstanceResponseHeaders> {
@@ -78,16 +91,16 @@ interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceP
     determineType?: any;
 }
 
-// HTTP convenience methods - all return FetchResponse with typed config and response headers
-api.get<User, RH>(path, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
-api.post<User, CreateUserData, RH>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
-api.put<User, UpdateUserData, RH>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
-api.patch<User, Partial<User>, RH>(path, payload?, options?): AbortablePromise<FetchResponse<User, H, P, RH>>
-api.delete<void, any, RH>(path, payload?, options?): AbortablePromise<FetchResponse<void, H, P, RH>>
-api.options<any, RH>(path, options?): AbortablePromise<FetchResponse<any, H, P, RH>>
+// HTTP convenience methods - all return FetchPromise (chainable)
+api.get<User, RH>(path, options?): FetchPromise<User, H, P, RH>
+api.post<User, CreateUserData, RH>(path, payload?, options?): FetchPromise<User, H, P, RH>
+api.put<User, UpdateUserData, RH>(path, payload?, options?): FetchPromise<User, H, P, RH>
+api.patch<User, Partial<User>, RH>(path, payload?, options?): FetchPromise<User, H, P, RH>
+api.delete<void, any, RH>(path, payload?, options?): FetchPromise<void, H, P, RH>
+api.options<any, RH>(path, options?): FetchPromise<any, H, P, RH>
 
 // Generic request method
-api.request<Response, RequestData, RH>(method, path, options & { payload?: RequestData }): AbortablePromise<FetchResponse<Response, H, P, RH>>
+api.request<Response, RequestData, RH>(method, path, options & { payload?: RequestData }): FetchPromise<Response, H, P, RH>
 
 // Request cancellation
 const request = api.get('/users');
@@ -686,18 +699,49 @@ if (isFetchError(err)) {
 | Server closed connection | 499 | `false` | `undefined` | `'fetch'` |
 | Network error | 499 | `false` | `undefined` | `'fetch'` |
 
-## Stream Mode
+## Response Chaining
 
-Return raw `Response` objects with unconsumed body streams. Cache and deduplication are skipped (each caller needs its own readable stream). Rate limiting and lifecycle events still fire normally.
+Declare how the response body should be parsed by chaining a directive method before awaiting. No directive means auto-detection based on content-type (backwards compatible).
 
 ```typescript
-// Stream mode — raw Response with unconsumed body
-const [sse, err] = await attempt(() =>
-    api.get('/events', { stream: true })
-);
+// Explicit response type via chaining
+const { data: user } = await api.get<User>('/users/123').json();
+const { data: html } = await api.get('/page').text();
+const { data: file } = await api.get('/file').blob();
+const { data: buf } = await api.get('/binary').arrayBuffer();
+const { data: form } = await api.get('/form').formData();
+const { data: res } = await api.get('/endpoint').raw();
 
+// No directive — auto-parse based on content-type (backwards compatible)
+const { data: auto } = await api.get<User>('/users/123');
+
+// Override guard — setting directive twice throws
+api.get('/users').json().text(); // throws: 'Response type already set'
+
+// Works with error handling
+const [response, err] = await attempt(() => api.get<User>('/users/123').json());
+if (err) return handleError(err);
+console.log(response.data); // typed as User
+
+// Works with abort
+const request = api.get('/slow').json();
+setTimeout(() => request.abort('Too slow'), 5000);
+```
+
+## Stream Mode
+
+Return raw `Response` objects with unconsumed body streams via `.stream()`. Cache and deduplication are skipped (each caller needs its own readable stream). Rate limiting and lifecycle events still fire normally.
+
+```typescript
+// Stream mode via .stream() — supports async iteration
+for await (const chunk of api.get('/events').stream()) {
+    console.log(new TextDecoder().decode(chunk));
+}
+
+// With error handling
+const [response, err] = await attempt(() => api.get('/events').stream());
 if (!err) {
-    const reader = sse.data.body.getReader();
+    const reader = response.data.body.getReader();
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -707,11 +751,11 @@ if (!err) {
 
 // Works with all HTTP methods
 const [response, err] = await attempt(() =>
-    api.post('/upload-stream', largePayload, { stream: true })
+    api.post('/upload-stream', largePayload).stream()
 );
 
-// Type signature: when stream: true, data is Response
-// api.get<Response>(path, { stream: true }): AbortablePromise<FetchResponse<Response>>
+// Type signature: .stream() returns FetchStreamPromise (async iterable)
+// api.get('/path').stream(): FetchStreamPromise<H, P, RH>
 ```
 
 ## Advanced Features
@@ -779,7 +823,7 @@ const [response, err] = await attempt(() =>
         headers: { 'X-Request-ID': '123' },
         params: { include: 'profile' },
         requestId: 'upstream-trace-id',  // Override auto-generated request ID
-        stream: false,                   // Set true for raw Response with unconsumed body
+        // Use .stream() chaining for raw Response with unconsumed body
         retry: { maxAttempts: 5 }
     })
 );
@@ -1024,7 +1068,7 @@ if (process.env.NODE_ENV === 'development') {
     api.config.set('baseUrl', 'https://api.dev.com');
 }
 
-// AbortablePromise with timeout
+// FetchPromise with timeout
 const request = api.get('/long-running-task');
 const timeoutId = setTimeout(() => {
     if (!request.isFinished) request.abort('Timeout');

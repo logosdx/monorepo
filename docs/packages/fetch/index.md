@@ -105,7 +105,7 @@ on('error', (event) => console.error('Request failed:', event.error));
 ## Core Concepts
 
 
-FetchEngine returns a `FetchResponse<T>` object containing parsed data, response metadata, and request context. All HTTP methods return an `AbortablePromise` that can be cancelled.
+FetchEngine returns a `FetchResponse<T>` object containing parsed data, response metadata, and request context. All HTTP methods return a `FetchPromise` that supports abort, response chaining (`.json()`, `.text()`, `.stream()`, etc.), and cancellation.
 
 ```typescript
 // Destructure just the data
@@ -197,7 +197,7 @@ const baseUrl = api.config.get('baseUrl');
 ## HTTP Methods
 
 
-All request methods return an `AbortablePromise<FetchResponse<T>>`.
+All request methods return a `FetchPromise<T>` that resolves to `FetchResponse<T>`. Chain `.json()`, `.text()`, `.blob()`, `.stream()`, and more to declare the expected response type.
 
 ```typescript
 // GET - retrieve data
@@ -234,7 +234,7 @@ const { data } = await api.request<User>('PATCH', '/users/123', {
 Explore each aspect of FetchEngine in detail:
 
 - **[Configuration](./configuration)** - Engine config, headers, parameters, and state management
-- **[Making Requests](./requests)** - HTTP methods, request options, and AbortablePromise
+- **[Making Requests](./requests)** - HTTP methods, request options, and FetchPromise
 - **[Hooks](./hooks)** - Request lifecycle hooks for intercepting and modifying requests
 - **[Plugins](./plugins)** - Extend FetchEngine with reusable plugins
 - **[Resilience](./resilience)** - Retry configuration, timeouts, and error handling
