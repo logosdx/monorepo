@@ -242,4 +242,49 @@ export class FetchPromise<
         this.#directive = 'stream';
         return this as unknown as FetchStreamPromise<H, P, RH>;
     }
+
+    /**
+     * Async iterator that yields response body chunks as `Uint8Array`.
+     *
+     * Only available after calling `.stream()`. Reads from the underlying
+     * `ReadableStream` and releases the reader lock when iteration ends.
+     *
+     * @example
+     *     for await (const chunk of api.get('/large-file').stream()) {
+     *         process(chunk);
+     *     }
+     */
+    async *[Symbol.asyncIterator](): AsyncIterator<Uint8Array> {
+
+        if (!this.isStream) {
+
+            throw new Error('Cannot iterate: not a stream. Call .stream() before iterating.');
+        }
+
+        const response = await this;
+        const body = (response.data as unknown as Response).body;
+
+        if (!body) {
+
+            throw new Error('Response body is not readable');
+        }
+
+        const reader = body.getReader();
+
+        try {
+
+            while (true) {
+
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                yield value;
+            }
+        }
+        finally {
+
+            reader.releaseLock();
+        }
+    }
 }

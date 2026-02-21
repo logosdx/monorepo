@@ -268,6 +268,112 @@ describe('FetchPromise: abort and finish tracking', () => {
 });
 
 
+describe('FetchPromise: async iteration', () => {
+
+    it('should iterate chunks when stream directive is set', async () => {
+
+        const chunk1 = new Uint8Array([1, 2, 3]);
+        const chunk2 = new Uint8Array([4, 5, 6]);
+
+        const body = new ReadableStream<Uint8Array>({
+
+            start(controller) {
+
+                controller.enqueue(chunk1);
+                controller.enqueue(chunk2);
+                controller.close();
+            }
+        });
+
+        const mockResponse = new Response(body);
+        const fp = new FetchPromise((resolve) => resolve({ data: mockResponse } as any));
+        const streamFp = fp.stream();
+
+        const chunks: Uint8Array[] = [];
+
+        for await (const chunk of streamFp) {
+
+            chunks.push(chunk);
+        }
+
+        expect(chunks).to.have.length(2);
+        expect(chunks[0]).to.deep.equal(chunk1);
+        expect(chunks[1]).to.deep.equal(chunk2);
+    });
+
+    it('should throw when iterating without stream directive', async () => {
+
+        const fp = new FetchPromise((resolve) => resolve({ data: null } as any));
+
+        const chunks: Uint8Array[] = [];
+        let error: Error | undefined;
+
+        try {
+
+            for await (const chunk of fp) {
+
+                chunks.push(chunk);
+            }
+        }
+        catch (err) {
+
+            error = err as Error;
+        }
+
+        expect(error).to.be.instanceOf(Error);
+        expect(error!.message).to.equal('Cannot iterate: not a stream. Call .stream() before iterating.');
+    });
+
+    it('should handle empty stream', async () => {
+
+        const body = new ReadableStream<Uint8Array>({
+
+            start(controller) {
+
+                controller.close();
+            }
+        });
+
+        const mockResponse = new Response(body);
+        const fp = new FetchPromise((resolve) => resolve({ data: mockResponse } as any));
+        const streamFp = fp.stream();
+
+        const chunks: Uint8Array[] = [];
+
+        for await (const chunk of streamFp) {
+
+            chunks.push(chunk);
+        }
+
+        expect(chunks).to.have.length(0);
+    });
+
+    it('should throw when response body is null', async () => {
+
+        const mockResponse = { body: null } as Response;
+        const fp = new FetchPromise((resolve) => resolve({ data: mockResponse } as any));
+        const streamFp = fp.stream();
+
+        let error: Error | undefined;
+
+        try {
+
+            for await (const _chunk of streamFp) {
+
+                // should not reach here
+            }
+        }
+        catch (err) {
+
+            error = err as Error;
+        }
+
+        expect(error).to.be.instanceOf(Error);
+        expect(error!.message).to.equal('Response body is not readable');
+    });
+});
+
+
 describe('FetchPromise: chaining with then/catch', () => {
 
     it('should still resolve after setting a directive', async () => {
