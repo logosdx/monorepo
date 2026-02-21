@@ -16,9 +16,6 @@ hero:
       text: Get Started
       link: /getting-started
     - theme: alt
-      text: Cheat Sheet
-      link: /cheat-sheet
-    - theme: alt
       text: Sponsor Us
       link: https://github.com/sponsors/logosdx
 
