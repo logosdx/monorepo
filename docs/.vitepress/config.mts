@@ -1,10 +1,7 @@
 import { DefaultTheme, defineConfig } from 'vitepress'
 
 const simplePackages: DefaultTheme.SidebarItem[] = [
-  ['Observer', 'observer'],
   ['Hooks', 'hooks'],
-  ['Utils', 'utils'],
-  ['Storage', 'storage'],
   ['React', 'react'],
   // ['State Machine', 'state-machine'],
 ].map(([text, link]) => ({
@@ -13,7 +10,29 @@ const simplePackages: DefaultTheme.SidebarItem[] = [
 }));
 
 const packages: DefaultTheme.SidebarItem[] = [
-  ...simplePackages.slice(0, 3), // Observer, Hooks, Utils
+  {
+    text: 'Observer',
+    link: '/packages/observer/',
+    collapsed: true,
+    items: [
+      { text: 'Events', link: '/packages/observer/events' },
+      { text: 'Generators', link: '/packages/observer/generators' },
+      { text: 'Queues', link: '/packages/observer/queues' },
+      { text: 'Advanced', link: '/packages/observer/advanced' },
+    ]
+  },
+  {
+    text: 'Utils',
+    link: '/packages/utils/',
+    collapsed: true,
+    items: [
+      { text: 'Error Handling', link: '/packages/utils/error-handling' },
+      { text: 'Flow Control', link: '/packages/utils/flow-control' },
+      { text: 'Data Operations', link: '/packages/utils/data' },
+      { text: 'Performance & Caching', link: '/packages/utils/performance' },
+      { text: 'Validation & Type Guards', link: '/packages/utils/validation' },
+    ]
+  },
   {
     text: 'Fetch',
     link: '/packages/fetch/',
@@ -52,7 +71,16 @@ const packages: DefaultTheme.SidebarItem[] = [
       { text: 'Observers', link: '/packages/dom/observers' },
     ]
   },
-  ...simplePackages.slice(3), // Storage, React
+  {
+    text: 'Storage',
+    link: '/packages/storage/',
+    collapsed: true,
+    items: [
+      { text: 'API Reference', link: '/packages/storage/api' },
+      { text: 'Drivers', link: '/packages/storage/drivers' },
+      { text: 'Events', link: '/packages/storage/events' },
+    ]
+  },
   {
     text: 'Localize',
     link: '/packages/localize/',
@@ -68,6 +96,8 @@ const packages: DefaultTheme.SidebarItem[] = [
       { text: 'API Reference', link: '/packages/localize/api' },
     ]
   },
+  simplePackages[0], // Hooks
+  simplePackages[1], // React
 ];
 
 const metadata = {

@@ -23,6 +23,17 @@ type Events<Shape> = keyof Shape
 type EventData<Shape, E extends Events<Shape>> = Shape[E]
 type EventCallback<T> = (data: T, info?: { event: string, listener: Function }) => void
 type Cleanup = () => void
+type FuncName = 'on' | 'once' | 'off' | 'emit' | 'cleanup'
+type ListenerOptions = { signal?: AbortSignal }
+type ObserveOptions = { signal?: AbortSignal }
+
+type SpyAction<Ev> = {
+    event: keyof Ev | RegExp | '*'
+    listener?: Function | null
+    data?: unknown
+    fn: FuncName
+    context: ObserverEngine<any>
+}
 ```
 
 ## ObserverEngine - Core Event Emitter
@@ -31,11 +42,20 @@ type Cleanup = () => void
 import { ObserverEngine } from '@logosdx/observer'
 
 // Create typed observer
+const controller = new AbortController()
 const observer = new ObserverEngine<AppEvents>({
     name: 'app-events',
     spy: (action) => console.log(action.fn, action.event),
-    emitValidator: (event, data) => { /* validate data */ }
+    emitValidator: (event, data) => { /* validate data */ },
+    signal: controller.signal // aborts all listeners when signal fires
 })
+
+// Instance properties
+observer.name // 'app-events' (non-enumerable, defaults to random string)
+
+// Set/replace spy after construction
+observer.spy(newSpyFn) // throws if spy already set
+observer.spy(newSpyFn, true) // force replace existing spy
 
 // Basic event patterns
 observer.on('user:login', (data) => {
@@ -55,6 +75,16 @@ cleanup() // remove listener
 observer.off('user:login', specificCallback)
 observer.off('user:login') // remove all listeners
 observer.clear() // remove all listeners
+
+// AbortSignal cleanup — all methods accept { signal }
+const ac = new AbortController()
+observer.on('user:login', handler, { signal: ac.signal })
+observer.once('user:logout', handler, { signal: ac.signal })
+const gen = observer.on('user:login', { signal: ac.signal })
+ac.abort() // removes all listeners at once
+
+// Works with AbortSignal.timeout()
+observer.on('heartbeat', handler, { signal: AbortSignal.timeout(30_000) })
 ```
 
 ## Regex Event Matching
@@ -171,7 +201,7 @@ queue.stop()
 queue.shutdown() // drain and stop
 queue.shutdown(true) // force stop
 
-// Add items
+// Add items (returns boolean: true if added, false if rejected)
 queue.add(data, priority) // higher priority = processed first
 observer.emit('data:process', data) // also adds to queue
 
@@ -219,6 +249,7 @@ queue.on('flush', ({ pending }) => {}) // starting flush
 queue.on('flushed', ({ flushed }) => {}) // finished flushing
 queue.on('purged', ({ count }) => {}) // items purged
 queue.on('shutdown', ({ force }) => {}) // queue shutdown
+queue.on('cleanup', () => {}) // queue cleaned up
 
 // Promise-based event waiting
 const success = await queue.once('success')
@@ -230,7 +261,7 @@ const errorItem = await queue.once('error')
 ```ts
 // Extend any object with event capabilities
 const modal = { isOpen: false }
-const enhancedModal = observer.observe(modal)
+const enhancedModal = observer.observe(modal) // accepts optional { signal } for auto-cleanup
 
 // Now modal has event methods (returns C & Component<Events> & { cleanup: () => void })
 enhancedModal.on('open', () => enhancedModal.isOpen = true)
@@ -309,7 +340,13 @@ const observer = new ObserverEngine({ emitValidator })
 observer.$has('event') // check if event has listeners
 observer.$has(/pattern/) // check if regex has matches
 observer.$facts() // listener counts and state
-observer.$internals() // internal maps (debugging only)
+observer.$internals() // internal maps (debugging only, returns cloned copies)
+
+// Queue exported types
+import { QueueState, QueueRejectionReason, InternalQueueEvent } from '@logosdx/observer'
+// QueueState: 'running' | 'paused' | 'stopped' | 'draining'
+// QueueRejectionReason: 'Queue is full' | 'Queue is not running'
+// InternalQueueEvent<T>: wrapper with .data property, used to mark queue events
 
 // Error handling
 import { EventError, isEventError } from '@logosdx/observer'

@@ -45,7 +45,7 @@ await storage.rm('sessionData')
 ```typescript
 class StorageAdapter<Values> {
     readonly driver: StorageDriver
-    readonly prefix?: string
+    readonly prefix: string  // defaults to '' (empty string)
     readonly structured: boolean
 
     // Aliases
@@ -96,6 +96,9 @@ await storage.set('userId', '12345')                   // Single key-value
 await storage.set({ userId: '12345', cache: {} })     // Multiple key-values
 
 // Object assignment (shallow merge)
+// - If key doesn't exist, behaves like set()
+// - Throws Error if current value is not an object
+// - Error message: "key (keyName) value cannot be assigned (not an object)"
 await storage.assign('userPreferences', { theme: 'light' })
 
 // Remove operations
@@ -106,8 +109,8 @@ await storage.remove('sessionData')                    // Alias for rm()
 // Utilities
 const hasUser = await storage.has('userId')            // boolean
 const allKeys = await storage.keys()                   // (keyof Values)[]
-const allEntries = await storage.entries()             // [key, value][]
-const allValues = await storage.values()               // value[]
+const allEntries = await storage.entries()             // [key, value][] (calls get() internally)
+const allValues = await storage.values()               // value[] (calls get() internally)
 await storage.clear()                                  // Removes all keys with prefix
 ```
 
@@ -127,12 +130,14 @@ const session = new StorageAdapter<AppStorage>({
 })
 
 // Node.js - file system (JSON file)
+// Lazy-loads node:fs/promises on first operation, not on construction
 const file = new StorageAdapter<AppSettings>({
     driver: new FileSystemDriver('./data/settings.json'),
     prefix: 'config'
 })
 
 // Browser - IndexedDB (structured data, skip JSON serialization)
+// Database opens lazily; object store auto-created via onupgradeneeded
 const idb = new StorageAdapter<AppData>({
     driver: new IndexedDBDriver('my-app', 'settings'),
     structured: true
@@ -151,13 +156,14 @@ const prefs = await userScope.get()
 await userScope.remove()
 
 // ScopedKey interface
+// WARNING: clear() is an alias for remove() on scoped keys — it deletes the key, not all keys
 interface ScopedKey<V, K extends keyof V> {
     get(): Promise<V[K]>
     set(value: V[K]): Promise<void>
     assign(val: Partial<V[K]>): Promise<void>
-    rm(): Promise<void>
+    rm(): Promise<void>       // alias for remove()
     remove(): Promise<void>
-    clear(): Promise<void>
+    clear(): Promise<void>    // alias for remove() — NOT adapter.clear()
 }
 ```
 
@@ -172,14 +178,18 @@ const cleanup = storage.on('after-set', (event) => {
 // Remove when done
 cleanup()
 
-// Event payload
+// Event payload — undefined values are normalized to null
 interface StorageEventPayload<V, K extends keyof V> {
     key: K
-    value?: V[K] | null
+    value?: V[K] | null  // present for set events; null for remove events
 }
 
-// All event names (no prefix)
-// 'before-set' | 'after-set' | 'before-remove' | 'after-remove' | 'clear'
+// All event names
+// 'before-set' | 'after-set'       → payload has key + value
+// 'before-remove' | 'after-remove' → payload has key, value is null
+// 'clear'                           → no payload
+
+// Empty string keys throw: assert(key, 'invalid key')
 
 // Manual off()
 function handler(event) { /* ... */ }
@@ -243,6 +253,7 @@ const serialized = new StorageAdapter<AppStorage>({
 })
 
 // JSON caveats: Date → string, Map/Set → object, undefined → null
+// WARNING: WebStorageDriver calls String(value) — never use structured: true with WebStorage drivers
 
 // Structured: skip JSON (IndexedDB, custom drivers with native object support)
 const structured = new StorageAdapter<AppStorage>({
