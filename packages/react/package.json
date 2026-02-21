@@ -1,7 +1,7 @@
 {
   "name": "@logosdx/react",
   "version": "0.1.0-beta.1",
-  "description": "React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, and Localize",
+  "description": "React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, Localize, and StateMachine",
   "repository": {
     "type": "git",
     "url": "https://github.com/logosdx/monorepo",
@@ -12,6 +12,36 @@
       "types": "./dist/types/index.d.ts",
       "require": "./dist/cjs/index.js",
       "import": "./dist/esm/index.mjs"
+    },
+    "./observer": {
+      "types": "./dist/types/observer.d.ts",
+      "require": "./dist/cjs/observer.js",
+      "import": "./dist/esm/observer.mjs"
+    },
+    "./fetch": {
+      "types": "./dist/types/fetch.d.ts",
+      "require": "./dist/cjs/fetch.js",
+      "import": "./dist/esm/fetch.mjs"
+    },
+    "./storage": {
+      "types": "./dist/types/storage.d.ts",
+      "require": "./dist/cjs/storage.js",
+      "import": "./dist/esm/storage.mjs"
+    },
+    "./localize": {
+      "types": "./dist/types/localize.d.ts",
+      "require": "./dist/cjs/localize.js",
+      "import": "./dist/esm/localize.mjs"
+    },
+    "./state-machine": {
+      "types": "./dist/types/state-machine.d.ts",
+      "require": "./dist/cjs/state-machine.js",
+      "import": "./dist/esm/state-machine.mjs"
+    },
+    "./compose": {
+      "types": "./dist/types/utils/compose.d.ts",
+      "require": "./dist/cjs/utils/compose.js",
+      "import": "./dist/esm/utils/compose.mjs"
     }
   },
   "sideEffects": false,
@@ -51,7 +81,8 @@
     "@logosdx/observer": "workspace:^",
     "@logosdx/fetch": "workspace:^",
     "@logosdx/storage": "workspace:^",
-    "@logosdx/localize": "workspace:^"
+    "@logosdx/localize": "workspace:^",
+    "@logosdx/state-machine": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@logosdx/observer": {
@@ -65,10 +96,14 @@
     },
     "@logosdx/localize": {
       "optional": true
+    },
+    "@logosdx/state-machine": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
+    "@logosdx/state-machine": "workspace:^",
     "react": "^19.0.0"
   }
 }

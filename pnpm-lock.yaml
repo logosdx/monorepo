@@ -115,6 +115,9 @@ importers:
         specifier: workspace:^
         version: link:../utils
     devDependencies:
+      '@logosdx/state-machine':
+        specifier: workspace:^
+        version: link:../state-machine
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.13
