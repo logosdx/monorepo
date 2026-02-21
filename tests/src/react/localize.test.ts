@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { act } from 'react';
 
-import { LocaleManager } from '@logosdx/localize';
-import { createLocalizeContext } from '@logosdx/react';
+import { LocaleManager } from '../../../packages/localize/src/index.ts';
+import { createLocalizeContext } from '../../../packages/react/src/index.ts';
 import { renderHook } from './_helpers.ts';
 
 

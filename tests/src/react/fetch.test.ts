@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 
-import { FetchEngine } from '@logosdx/fetch';
-import { createFetchContext } from '@logosdx/react';
+import { FetchEngine } from '../../../packages/fetch/src/index.ts';
+import { createFetchContext } from '../../../packages/react/src/index.ts';
 import { renderHook, flush } from './_helpers.ts';
 
 

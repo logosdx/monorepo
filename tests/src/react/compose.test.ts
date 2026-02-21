@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createElement, createContext, useContext, type ReactNode } from 'react';
 
-import { composeProviders } from '@logosdx/react';
+import { composeProviders } from '../../../packages/react/src/index.ts';
 import { renderHook } from './_helpers.ts';
 
 
