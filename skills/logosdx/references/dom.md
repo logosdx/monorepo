@@ -238,6 +238,48 @@ replace(oldEl, newEl);
 ```
 
 
+## Templates — Clone & Hydrate
+
+```ts
+import { $, TemplateStamper } from '@logosdx/dom';
+
+// Configure once — base styling, events, accessibility
+const userCard = $.template('#user-card-template', {
+    signal: controller.signal,
+    map: {
+        '.username': { css: { fontWeight: 'bold' } },
+        '.user-email': { css: { color: 'gray' } },
+        '.view-profile': {
+            on: { click: handleView },
+            aria: { label: 'View profile' }
+        }
+    }
+});
+
+// Stamp single — per-instance data merges with base config
+userCard.stamp({
+    '.username': 'Alice Johnson',
+    '.user-email': 'alice@example.com',
+    '.view-profile': { attrs: { 'data-id': '1' } }
+}).into(container);
+
+// Stamp many — mapper function per data item
+userCard.stamp(users, u => ({
+    '.username': u.name,
+    '.user-email': u.email,
+    '.view-profile': { data: { userId: u.id } }
+})).into(container);
+
+// String shorthand — equivalent to { text: '...' }
+stamper.stamp({ '.name': 'Alice' });
+// Same as:
+stamper.stamp({ '.name': { text: 'Alice' } });
+
+// StampOptions per selector: text, css, class, attrs, data, aria, on
+// Base config + stamp data are shallow-merged per selector (stamp wins on conflict)
+```
+
+
 ## Widget Lifecycle Example
 
 ```ts
@@ -263,7 +305,7 @@ function initChatWidget(container: HTMLElement) {
 
 ```
 @logosdx/dom
-├── index.ts          # $, $.create, all exports
+├── index.ts          # $, $.create, $.template, all exports
 ├── collection.ts     # DomCollection class
 ├── css.ts            # css() + css.remove()
 ├── attr.ts           # attr() + attr.remove() + attr.has()
@@ -275,6 +317,7 @@ function initChatWidget(container: HTMLElement) {
 ├── observe.ts        # observe (MutationObserver)
 ├── watch.ts          # watchVisibility, watchResize
 ├── viewport.ts       # viewport namespace
+├── template.ts       # TemplateStamper class
 ├── dom.ts            # create, append, prepend, remove, replace
 ├── helpers.ts        # internal utilities
 └── types.ts          # shared types
