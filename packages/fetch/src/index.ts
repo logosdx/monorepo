@@ -61,9 +61,12 @@ export type {
     InternalReqOptions,
     ExecuteResult,
     CallConfig,
-    AbortablePromise,
-    InstanceResponseHeaders
+    InstanceResponseHeaders,
+    FetchStreamPromise,
+    ResponseDirective
 } from './engine/index.ts';
+
+export { FetchPromise } from './engine/index.ts';
 
 export type {
     EventMap,

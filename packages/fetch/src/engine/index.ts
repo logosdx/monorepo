@@ -40,27 +40,20 @@ DetermineTypeFn as OptionsDetermineTypeFn,
     InstanceParams as OptionsInstanceParams,
     InstanceState as OptionsInstanceState
 } from '../options/types.ts';
-import type { HttpMethods, FetchResponse, DictAndT } from '../types.ts';
+import type { HttpMethods, DictAndT } from '../types.ts';
+import { FetchPromise } from './fetch-promise.ts';
+import type { FetchStreamPromise, ResponseDirective } from './fetch-promise.ts';
 
 
 // Re-export types
 export * from './events.ts';
 export * from './types.ts';
+export { FetchPromise } from './fetch-promise.ts';
+export type { FetchStreamPromise, ResponseDirective } from './fetch-promise.ts';
 
 
 // CallConfig is now imported from options/types.ts
 export type { CallConfig } from '../options/types.ts';
-
-
-/**
- * Promise that can be aborted.
- */
-export interface AbortablePromise<T> extends Promise<T> {
-
-    isFinished: boolean;
-    isAborted: boolean;
-    abort(reason?: string): void;
-}
 
 
 /**
@@ -285,7 +278,7 @@ export class FetchEngine<
     get<Res = unknown, ResHdr = RH>(
         path: string,
         options?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     get(path: string, options: CallConfig<H, P> = {}): any {
 
@@ -299,7 +292,7 @@ export class FetchEngine<
         path: string,
         payload?: Data,
         options?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     post(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
 
@@ -313,7 +306,7 @@ export class FetchEngine<
         path: string,
         payload?: Data,
         options?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     put(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
 
@@ -327,7 +320,7 @@ export class FetchEngine<
         path: string,
         payload?: Data,
         options?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     patch(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
 
@@ -341,7 +334,7 @@ export class FetchEngine<
         path: string,
         payload?: Data,
         options?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     delete(path: string, payload?: unknown, options: CallConfig<H, P> = {}): any {
 
@@ -354,7 +347,7 @@ export class FetchEngine<
     options<Res = unknown, ResHdr = RH>(
         path: string,
         opts?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     options(path: string, opts: CallConfig<H, P> = {}): any {
 
@@ -367,7 +360,7 @@ export class FetchEngine<
     head<ResHdr = RH>(
         path: string,
         opts?: CallConfig<H, P>
-    ): AbortablePromise<FetchResponse<null, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<null, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     head(path: string, opts: CallConfig<H, P> = {}): any {
 
@@ -381,7 +374,7 @@ export class FetchEngine<
         method: HttpMethods,
         path: string,
         options?: CallConfig<H, P> & { payload?: Data }
-    ): AbortablePromise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>>;
+    ): FetchPromise<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
 
     request(
         method: HttpMethods,
@@ -595,6 +588,8 @@ export namespace FetchEngine {
 
     // ===== Promise Type =====
 
-    /** Promise that can be aborted */
-    export type AbortPromise<T> = AbortablePromise<T>;
+    /** Promise that can be aborted and carries a response directive */
+    export type Promise<T = unknown, H = InstanceHeaders, P = InstanceParams, RH = InstanceResponseHeaders> = FetchPromise<T, H, P, RH>;
+    export type StreamPromise<H = InstanceHeaders, P = InstanceParams, RH = InstanceResponseHeaders> = FetchStreamPromise<DictAndT<H>, DictAndT<P>, DictAndT<RH>>;
+    export type Directive = ResponseDirective;
 }
