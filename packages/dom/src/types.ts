@@ -54,3 +54,22 @@ export interface EventOptions extends AddEventListenerOptions, SignalOptions {
 export interface SelectOptions extends SignalOptions {
     container?: Element;
 }
+
+/** Options for hydrating a single element inside a stamped template clone */
+export interface StampOptions {
+    text?: string;
+    css?: Record<string, string>;
+    class?: string[];
+    attrs?: Record<string, string>;
+    data?: Record<string, string>;
+    aria?: Record<string, string>;
+    on?: Record<string, EvListener>;
+}
+
+/** Map of CSS selectors to hydration options (string shorthand = { text }) */
+export type StampMap = Record<string, string | StampOptions>;
+
+/** Configuration for $.template() — base map + signal */
+export interface TemplateConfig extends SignalOptions {
+    map?: StampMap;
+}
