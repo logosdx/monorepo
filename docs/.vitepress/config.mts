@@ -47,6 +47,7 @@ const packages: DefaultTheme.SidebarItem[] = [
       { text: 'Styling', link: '/packages/dom/styling' },
       { text: 'Aria', link: '/packages/dom/aria' },
       { text: 'Events', link: '/packages/dom/events' },
+      { text: 'Templates', link: '/packages/dom/templates' },
       { text: 'Animate', link: '/packages/dom/animate' },
       { text: 'Observers', link: '/packages/dom/observers' },
     ]

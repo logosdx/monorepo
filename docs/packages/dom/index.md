@@ -147,6 +147,7 @@ function initChatWidget(container: HTMLElement) {
 | [Aria](./aria) | Accessibility-first namespace |
 | [Events](./events) | Event handling, delegation, signal lifecycle |
 | [Animate](./animate) | Web Animations API with presets |
+| [Templates](./templates) | Clone and hydrate HTML `<template>` elements |
 | [Observers](./observers) | MutationObserver, IntersectionObserver, ResizeObserver, viewport |
 
 ## Exports Reference
@@ -155,8 +156,9 @@ function initChatWidget(container: HTMLElement) {
 ```typescript
 // Entry point
 import {
-    $,                                    // selector + $.create
+    $,                                    // selector + $.create + $.template
     DomCollection,                        // collection class
+    TemplateStamper,                      // template cloning + hydration
 
     // Callable namespaces
     css,                                  // css() + css.remove()
@@ -190,6 +192,9 @@ import type {
     SignalOptions,    // { signal?: AbortSignal }
     SelectOptions,    // { signal?: AbortSignal; container?: Element }
     CreateOptions,    // { text, css, attrs, class, children, on, signal }
+    StampOptions,     // { text, css, class, attrs, data, aria, on }
+    StampMap,         // Record<string, string | StampOptions>
+    TemplateConfig,   // { signal?, map? }
     EventOptions,     // extends AddEventListenerOptions + { delegate?: string }
     GlobalEvents,     // keyof DocumentEventMap
     EvType,           // GlobalEvents | (string & {})
@@ -203,7 +208,7 @@ import type {
 
 ```
 @logosdx/dom
-├── index.ts          # $, $.create, all exports
+├── index.ts          # $, $.create, $.template, all exports
 ├── collection.ts     # DomCollection class
 ├── css.ts            # css() + css.remove()
 ├── attr.ts           # attr() + attr.remove() + attr.has()
@@ -215,6 +220,7 @@ import type {
 ├── observe.ts        # observe (MutationObserver)
 ├── watch.ts          # watchVisibility, watchResize
 ├── viewport.ts       # viewport namespace
+├── template.ts       # TemplateStamper class
 ├── dom.ts            # create, append, prepend, remove, replace
 ├── helpers.ts        # internal utilities
 └── types.ts          # shared types
