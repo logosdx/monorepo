@@ -41,7 +41,7 @@ export interface FetchStreamPromise<H, P, RH>
  *     const file = await api.get('/file').blob();
  */
 export class FetchPromise<
-    T = any,
+    T = unknown,
     H = unknown,
     P = unknown,
     RH = unknown
@@ -49,7 +49,6 @@ export class FetchPromise<
 
     #overrideSet = false;
     #directive: ResponseDirective | undefined;
-    #stream = false;
 
     /**
      * The active response directive, if any.
@@ -64,7 +63,7 @@ export class FetchPromise<
      */
     get isStream(): boolean {
 
-        return this.#stream;
+        return this.#directive === 'stream';
     }
 
     /**
@@ -153,7 +152,6 @@ export class FetchPromise<
 
         this.#guardOverride();
         this.#directive = 'stream';
-        this.#stream = true;
         return this as unknown as FetchStreamPromise<H, P, RH>;
     }
 }
