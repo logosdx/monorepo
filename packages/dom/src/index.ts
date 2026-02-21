@@ -1,6 +1,7 @@
 import { DomCollection } from './collection.ts';
 import { create } from './dom.ts';
-import type { SelectOptions, CreateOptions } from './types.ts';
+import { TemplateStamper } from './template.ts';
+import type { SelectOptions, CreateOptions, TemplateConfig } from './types.ts';
 
 /**
  * Query the DOM and return a {@link DomCollection} wrapping matched elements.
@@ -51,6 +52,26 @@ $.create = function createEl<K extends keyof HTMLElementTagNameMap>(
     opts?: CreateOptions
 ) => DomCollection<HTMLElementTagNameMap[K]>;
 
+/**
+ * Create a reusable {@link TemplateStamper} for an HTML `<template>` element.
+ *
+ * @example
+ *     const card = $.template('#user-card', {
+ *         map: { '.name': { css: { fontWeight: 'bold' } } }
+ *     });
+ *     card.stamp({ '.name': 'Alice' }).into(container);
+ */
+$.template = function templateFn(
+    source: string | HTMLTemplateElement,
+    config?: TemplateConfig
+): TemplateStamper {
+
+    return new TemplateStamper(source, config);
+} as (
+    source: string | HTMLTemplateElement,
+    config?: TemplateConfig
+) => TemplateStamper;
+
 // --- Re-exports ---
 export { DomCollection } from './collection.ts';
 export { css } from './css.ts';
@@ -64,6 +85,7 @@ export { observe } from './observe.ts';
 export { watchVisibility, watchResize } from './watch.ts';
 export { viewport } from './viewport.ts';
 export { create, append, prepend, remove, replace } from './dom.ts';
+export { TemplateStamper } from './template.ts';
 
 export type * from './types.ts';
 export type { AnimateOptions } from './animate.ts';

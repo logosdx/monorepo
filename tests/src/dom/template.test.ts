@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { DomCollection } from '../../../packages/dom/src/collection.ts';
 import { create } from '../../../packages/dom/src/dom.ts';
 import { TemplateStamper } from '../../../packages/dom/src/template.ts';
+import { $ } from '../../../packages/dom/src/index.ts';
 
 describe('@logosdx/dom: DomCollection.into', () => {
 
@@ -334,5 +335,45 @@ describe('@logosdx/dom: TemplateStamper', () => {
 
             expect(container.children.length).toBe(2);
         });
+    });
+});
+
+describe('@logosdx/dom: $.template', () => {
+
+    afterEach(() => {
+
+        document.body.innerHTML = '';
+    });
+
+    function createTemplate(id: string, html: string): HTMLTemplateElement {
+
+        const tmpl = document.createElement('template');
+        tmpl.id = id;
+        tmpl.innerHTML = html;
+        document.body.appendChild(tmpl);
+        return tmpl;
+    }
+
+    it('should create a TemplateStamper via $.template()', () => {
+
+        createTemplate('e1', '<div><span class="name"></span></div>');
+
+        const stamper = $.template('#e1', {
+            map: { '.name': { css: { fontWeight: 'bold' } } }
+        });
+
+        const result = stamper.stamp({ '.name': 'Alice' });
+
+        expect(result.first!.querySelector('.name')!.textContent).toBe('Alice');
+    });
+
+    it('should accept a template element directly', () => {
+
+        const tmpl = createTemplate('e2', '<div><span class="name"></span></div>');
+
+        const stamper = $.template(tmpl);
+        const result = stamper.stamp({ '.name': 'Bob' });
+
+        expect(result.first!.querySelector('.name')!.textContent).toBe('Bob');
     });
 });
