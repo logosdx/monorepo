@@ -1,5 +1,25 @@
 # @logosdx/observer
 
+## 2.4.0-beta.2
+
+### Minor Changes
+
+- 2f9c85c: ## Added
+
+  - `feat(observer):` `ObserverEngine.transfer()` static method to move listeners between observer instances
+  - `feat(observer):` `ObserverEngine.copy()` static method to duplicate listeners across observer instances
+  - `feat(observer):` `TransferOptions` type with `filter` and `exclude` for selective listener transfer
+
+  ## Fixed
+
+  - `fix(generator):` Fixed race condition where events emitted faster than async iterator consumption were silently dropped — replaced single Deferred with PriorityQueue buffer
+  - `fix(generator):` Reject pending promises on `EventGenerator` cancellation instead of resolving with last value — now rejects with `EventError('Aborted')`
+
+### Patch Changes
+
+- Updated dependencies [879cea2]
+  - @logosdx/utils@6.1.0-beta.1
+
 ## 2.3.1-beta.1
 
 ### Patch Changes

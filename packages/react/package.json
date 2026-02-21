@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/react",
-  "version": "0.1.0-beta.1",
+  "version": "1.0.0-beta.2",
   "description": "React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, Localize, and StateMachine",
   "repository": {
     "type": "git",

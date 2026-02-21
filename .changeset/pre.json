@@ -14,5 +14,13 @@
     "@logosdx/react": "0.0.1"
   },
   "changesets": [
+    "fetch-8",
+    "hooks-1",
+    "localize-2",
+    "observer-2.4",
+    "react-1",
+    "state-machine-2",
+    "storage-2",
+    "utils-6.1"
   ]
 }

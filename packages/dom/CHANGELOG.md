@@ -1,5 +1,12 @@
 # @logosdx/dom
 
+## 2.0.18-beta.1
+
+### Patch Changes
+
+- Updated dependencies [879cea2]
+  - @logosdx/utils@6.1.0-beta.1
+
 ## 2.0.18-beta.0
 
 ### Patch Changes
