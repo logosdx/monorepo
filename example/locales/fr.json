@@ -1,0 +1,31 @@
+{
+    "app": {
+        "title": "Liste de Tâches",
+        "subtitle": "Propulsé par LogosDX"
+    },
+    "todo": {
+        "placeholder": "Que faut-il faire ?",
+        "add": "Ajouter",
+        "empty": "Aucune tâche pour le moment. Ajoutez-en une !",
+        "status": {
+            "active": "Active",
+            "completed": "Terminée",
+            "deleted": "Supprimée"
+        },
+        "filters": {
+            "all": "Toutes",
+            "active": "Actives",
+            "completed": "Terminées"
+        },
+        "clear": "Effacer terminées",
+        "remaining": "{0} restantes"
+    },
+    "sync": {
+        "syncing": "Synchronisation...",
+        "synced": "Tous les changements enregistrés",
+        "error": "Échec de la synchronisation"
+    },
+    "locale": {
+        "label": "Langue"
+    }
+}

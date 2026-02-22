@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo App — Vanilla JS</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="app" class="max-w-lg mx-auto py-8 px-4"></div>
+
+    <template id="todo-item">
+        <li class="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm mb-2">
+            <input type="checkbox" class="todo-toggle w-5 h-5 rounded" />
+            <span class="todo-title flex-1 text-gray-800"></span>
+            <button class="todo-delete text-red-400 hover:text-red-600 text-sm">✕</button>
+        </li>
+    </template>
+
+    <script type="module" src="./ui-dom/app.ts"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+    "app": {
+        "title": "Todo List",
+        "subtitle": "Powered by LogosDX"
+    },
+    "todo": {
+        "placeholder": "What needs to be done?",
+        "add": "Add",
+        "empty": "No todos yet. Add one above!",
+        "status": {
+            "active": "Active",
+            "completed": "Completed",
+            "deleted": "Deleted"
+        },
+        "filters": {
+            "all": "All",
+            "active": "Active",
+            "completed": "Completed"
+        },
+        "clear": "Clear completed",
+        "remaining": "{0} remaining"
+    },
+    "sync": {
+        "syncing": "Syncing...",
+        "synced": "All changes saved",
+        "error": "Sync failed"
+    },
+    "locale": {
+        "label": "Language"
+    }
+}

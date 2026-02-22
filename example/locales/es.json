@@ -1,0 +1,31 @@
+{
+    "app": {
+        "title": "Lista de Tareas",
+        "subtitle": "Impulsado por LogosDX"
+    },
+    "todo": {
+        "placeholder": "¿Qué hay que hacer?",
+        "add": "Agregar",
+        "empty": "No hay tareas aún. ¡Agrega una arriba!",
+        "status": {
+            "active": "Activa",
+            "completed": "Completada",
+            "deleted": "Eliminada"
+        },
+        "filters": {
+            "all": "Todas",
+            "active": "Activas",
+            "completed": "Completadas"
+        },
+        "clear": "Limpiar completadas",
+        "remaining": "{0} restantes"
+    },
+    "sync": {
+        "syncing": "Sincronizando...",
+        "synced": "Todos los cambios guardados",
+        "error": "Error de sincronización"
+    },
+    "locale": {
+        "label": "Idioma"
+    }
+}
