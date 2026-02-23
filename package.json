@@ -8,7 +8,7 @@
     "test:coverage": "cd tests; pnpm run test:coverage",
     "clear": "rm -r packages/*/dist packages/*/node_modules tests/node_modules node_modules;",
     "new": "sh ./scripts/new-pkg.zsh",
-    "release": "pnpm recursive run build --filter '!@logosdx/example-todo' --release && changeset publish",
+    "release": "pnpm --filter '!@logosdx/example-todo' run build --release && changeset publish",
     "build": "pnpm recursive run build",
     "dts": "node ./scripts/build.mjs",
     "build:docs": "bash ./scripts/docs.zsh",
