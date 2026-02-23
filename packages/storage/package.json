@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/storage",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.0",
   "description": "Async key-value storage adapter with pluggable drivers",
   "repository": {
     "type": "git",

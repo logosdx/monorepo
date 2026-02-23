@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/hooks",
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0",
   "description": "A lightweight, type-safe hook system for extending function behavior",
   "repository": {
     "type": "git",
