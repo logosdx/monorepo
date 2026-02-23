@@ -66,7 +66,7 @@ describe('@logosdx/react: compose', () => {
 
         const Composed = composeProviders(
             ProviderA,
-            [ThemeProvider, { theme: 'dark' }],
+            [ThemeProvider, { theme: 'dark' }] as any,
             ProviderB,
         );
 

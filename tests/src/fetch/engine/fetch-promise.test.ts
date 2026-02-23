@@ -181,7 +181,7 @@ describe('FetchPromise: abort and finish tracking', () => {
     it('should abort with reason via abort()', () => {
 
         const controller = new AbortController();
-        const fp = FetchPromise.create(() => new Promise(() => {}), controller);
+        const fp = FetchPromise.create(() => new Promise(() => {}) as any, controller);
 
         fp.abort('cancelled');
 
@@ -193,7 +193,7 @@ describe('FetchPromise: abort and finish tracking', () => {
     it('should abort without reason', () => {
 
         const controller = new AbortController();
-        const fp = FetchPromise.create(() => new Promise(() => {}), controller);
+        const fp = FetchPromise.create(() => new Promise(() => {}) as any, controller);
 
         fp.abort();
 
@@ -204,7 +204,7 @@ describe('FetchPromise: abort and finish tracking', () => {
     it('should set isAborted when controller is aborted externally', () => {
 
         const controller = new AbortController();
-        const fp = FetchPromise.create(() => new Promise(() => {}), controller);
+        const fp = FetchPromise.create(() => new Promise(() => {}) as any, controller);
 
         controller.abort('external');
 

@@ -78,6 +78,7 @@ describe('localize: jsonToInterface', () => {
 
 describe('localize: scanDirectory', () => {
 
+    // @ts-expect-error import.meta.dirname not recognized under CommonJS module resolution
     const tmpDir = join(import.meta.dirname, '../../tmp/test-i18n');
 
     const setup = () => {
@@ -307,8 +308,11 @@ describe('localize: generateOutput', () => {
 
 describe('localize: CLI integration', () => {
 
+    // @ts-expect-error import.meta.dirname not recognized under CommonJS module resolution
     const cliPath = join(import.meta.dirname, '../../packages/localize/src/cli.ts');
+    // @ts-expect-error import.meta.dirname not recognized under CommonJS module resolution
     const tmpDir = join(import.meta.dirname, '../../tmp/test-i18n-cli');
+    // @ts-expect-error import.meta.dirname not recognized under CommonJS module resolution
     const outFile = join(import.meta.dirname, '../../tmp/test-output.ts');
 
     const setup = () => {

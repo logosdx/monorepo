@@ -235,7 +235,7 @@ export const makeTestStubs = async (port?: number) => {
                     query: Joi.object({
                         name: Joi.string().required(),
                         age: Joi.number().min(18).max(65)
-                    }),
+                    }) as any,
                     failAction: async (req, h, err) => {
 
                         if (err) {

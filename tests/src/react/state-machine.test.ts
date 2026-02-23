@@ -70,7 +70,7 @@ describe('@logosdx/react: state-machine', () => {
         it('returns the expected API shape', () => {
 
             const machine = createCounter();
-            const { result } = renderHook(() => useStateMachine(machine));
+            const { result } = renderHook(() => useStateMachine(machine as any));
 
             expect(result.current.state).to.equal('idle');
             expect(result.current.context).to.deep.equal({ count: 0, label: 'counter' });
@@ -86,7 +86,7 @@ describe('@logosdx/react: state-machine', () => {
             const { result } = renderHook(() => {
 
                 renderCount++;
-                return useStateMachine(machine);
+                return useStateMachine(machine as any);
             });
 
             expect(result.current.state).to.equal('idle');
@@ -95,19 +95,19 @@ describe('@logosdx/react: state-machine', () => {
             act(() => { machine.send('INCREMENT'); });
 
             expect(result.current.state).to.equal('active');
-            expect(result.current.context.count).to.equal(1);
+            expect((result.current.context as any).count).to.equal(1);
             expect(renderCount).to.be.greaterThan(before);
         });
 
         it('send() triggers transitions', () => {
 
             const machine = createCounter();
-            const { result } = renderHook(() => useStateMachine(machine));
+            const { result } = renderHook(() => useStateMachine(machine as any));
 
             act(() => { result.current.send('INCREMENT'); });
 
             expect(result.current.state).to.equal('active');
-            expect(result.current.context.count).to.equal(1);
+            expect((result.current.context as any).count).to.equal(1);
         });
 
         it('selector narrows context and prevents unnecessary re-renders', () => {
@@ -118,7 +118,7 @@ describe('@logosdx/react: state-machine', () => {
             const { result } = renderHook(() => {
 
                 renderCount++;
-                return useStateMachine(machine, (ctx) => ctx.count);
+                return useStateMachine(machine as any, (ctx: any) => ctx.count);
             });
 
             expect(result.current.context).to.equal(0);
@@ -145,7 +145,7 @@ describe('@logosdx/react: state-machine', () => {
             const { unmount } = renderHook(() => {
 
                 renderCount++;
-                return useStateMachine(machine);
+                return useStateMachine(machine as any);
             });
 
             const before = renderCount;
@@ -161,7 +161,7 @@ describe('@logosdx/react: state-machine', () => {
         it('returns [Provider, useHook] tuple', () => {
 
             const machine = createCounter();
-            const result = createStateMachineContext(machine);
+            const result = createStateMachineContext(machine as any);
 
             expect(result).to.be.an('array').with.lengthOf(2);
             expect(result[0]).to.be.a('function');
@@ -171,7 +171,7 @@ describe('@logosdx/react: state-machine', () => {
         it('hook works via Provider', () => {
 
             const machine = createCounter();
-            const [Provider, useMachine] = createStateMachineContext(machine);
+            const [Provider, useMachine] = createStateMachineContext(machine as any);
 
             const { result } = renderHook(
                 () => useMachine(),
@@ -185,10 +185,10 @@ describe('@logosdx/react: state-machine', () => {
         it('hook accepts selector via context', () => {
 
             const machine = createCounter();
-            const [Provider, useMachine] = createStateMachineContext(machine);
+            const [Provider, useMachine] = createStateMachineContext(machine as any);
 
             const { result } = renderHook(
-                () => useMachine((ctx) => ctx.count),
+                () => useMachine((ctx: any) => ctx.count),
                 Provider,
             );
 
@@ -201,7 +201,7 @@ describe('@logosdx/react: state-machine', () => {
         it('re-renders on transitions via context', () => {
 
             const machine = createCounter();
-            const [Provider, useMachine] = createStateMachineContext(machine);
+            const [Provider, useMachine] = createStateMachineContext(machine as any);
 
             let renderCount = 0;
             const { result } = renderHook(

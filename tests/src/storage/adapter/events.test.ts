@@ -29,7 +29,7 @@ describe('@logosdx/storage: adapter events', () => {
         await storage.set('count', 42);
 
         expect(before).toHaveBeenCalledOnce();
-        expect(before.mock.calls[0][0]).to.deep.include({ key: 'count' });
+        expect(before.mock.calls[0]![0]).to.deep.include({ key: 'count' });
         expect(after).toHaveBeenCalledOnce();
     });
 
@@ -67,7 +67,7 @@ describe('@logosdx/storage: adapter events', () => {
         await storage.set('count', 1);
         expect(listener).toHaveBeenCalledOnce();
 
-        cleanup();
+        (cleanup as any)();
 
         await storage.set('count', 2);
         expect(listener).toHaveBeenCalledOnce();

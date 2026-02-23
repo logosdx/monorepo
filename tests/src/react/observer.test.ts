@@ -3,7 +3,7 @@ import { act } from 'react';
 
 import { ObserverEngine } from '../../../packages/observer/src/index.ts';
 import { createObserverContext } from '../../../packages/react/src/index.ts';
-import { renderHook, flush } from './_helpers.ts';
+import { renderHook } from './_helpers.ts';
 
 
 interface TestEvents {
@@ -17,7 +17,7 @@ describe('@logosdx/react: observer', () => {
     it('createObserverContext returns [Provider, useHook] tuple', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const result = createObserverContext(engine);
+        const result = createObserverContext(engine as any);
 
         expect(result).to.be.an('array').with.lengthOf(2);
         expect(result[0]).to.be.a('function');
@@ -27,7 +27,7 @@ describe('@logosdx/react: observer', () => {
     it('useHook returns the expected API shape', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
 
         const { result } = renderHook(() => useObserver());
 
@@ -42,7 +42,7 @@ describe('@logosdx/react: observer', () => {
     it('on() subscribes to events and receives data', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
         const handler = vi.fn();
 
         renderHook(() => {
@@ -60,7 +60,7 @@ describe('@logosdx/react: observer', () => {
     it('on() cleans up subscription on unmount', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
         const handler = vi.fn();
 
         const { unmount } = renderHook(() => {
@@ -78,7 +78,7 @@ describe('@logosdx/react: observer', () => {
     it('on() re-subscribes when callback identity changes', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
         const handler1 = vi.fn();
         const handler2 = vi.fn();
 
@@ -108,7 +108,7 @@ describe('@logosdx/react: observer', () => {
     it('once() fires callback only once', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
         const handler = vi.fn();
 
         renderHook(() => {
@@ -127,7 +127,7 @@ describe('@logosdx/react: observer', () => {
     it('oncePromise() starts waiting and resolves with data', async () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
 
         const { result } = renderHook(() => {
 
@@ -150,7 +150,7 @@ describe('@logosdx/react: observer', () => {
     it('oncePromise() cleans up on unmount', async () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
 
         const { result, unmount } = renderHook(() => {
 
@@ -172,7 +172,7 @@ describe('@logosdx/react: observer', () => {
     it('emitFactory() returns a stable emitter function', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
         const handler = vi.fn();
 
         engine.on('user.logout', handler);
@@ -191,7 +191,7 @@ describe('@logosdx/react: observer', () => {
     it('emit() fires events directly', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
         const handler = vi.fn();
 
         engine.on('notification', handler);
@@ -206,7 +206,7 @@ describe('@logosdx/react: observer', () => {
     it('instance gives raw engine access', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [, useObserver] = createObserverContext(engine);
+        const [, useObserver] = createObserverContext(engine as any);
 
         const { result } = renderHook(() => useObserver());
 
@@ -216,7 +216,7 @@ describe('@logosdx/react: observer', () => {
     it('Provider wraps children with context', () => {
 
         const engine = new ObserverEngine<TestEvents>();
-        const [Provider, useObserver] = createObserverContext(engine);
+        const [Provider, useObserver] = createObserverContext(engine as any);
 
         const { result } = renderHook(
             () => useObserver(),

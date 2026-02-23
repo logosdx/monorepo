@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { StateMachine, StateHub } from '../../packages/state-machine/src/index.ts';
 import type { StorageAdapter } from '../../packages/state-machine/src/index.ts';
@@ -225,7 +225,7 @@ describe('@logosdx/state-machine', () => {
             machine.send('RETRY');
 
             expect(rejected).toHaveBeenCalledOnce();
-            expect(rejected.mock.calls[0][0]).to.deep.include({
+            expect(rejected.mock.calls[0]![0]).to.deep.include({
                 state: 'idle',
                 event: 'RETRY',
                 reason: 'no_transition',
@@ -261,7 +261,7 @@ describe('@logosdx/state-machine', () => {
 
             expect(machine.context.count).to.equal(3);
             expect(rejected).toHaveBeenCalledOnce();
-            expect(rejected.mock.calls[0][0].reason).to.equal('guard_failed');
+            expect(rejected.mock.calls[0]![0].reason).to.equal('guard_failed');
         });
     });
 
@@ -351,7 +351,7 @@ describe('@logosdx/state-machine', () => {
             machine.send('FETCH');
 
             expect(listener).toHaveBeenCalledOnce();
-            expect(listener.mock.calls[0][0]).to.deep.include({
+            expect(listener.mock.calls[0]![0]).to.deep.include({
                 from: 'idle',
                 to: 'loading',
                 event: 'FETCH',
@@ -680,7 +680,7 @@ describe('@logosdx/state-machine', () => {
                         on: {
                             LOGIN: {
                                 target: 'loggedIn',
-                                action: (ctx, data) => ({ user: data.user }),
+                                action: (_ctx, data) => ({ user: data.user }),
                             },
                         },
                     },
@@ -887,7 +887,7 @@ describe('@logosdx/state-machine', () => {
                             src: async () => ['b', 'c'],
                             onDone: {
                                 target: 'idle',
-                                action: (ctx, result) => ({ items: result }),
+                                action: (_ctx, result) => ({ items: result }),
                             },
                             onError: { target: 'idle' },
                         },
@@ -1022,7 +1022,7 @@ describe('@logosdx/state-machine', () => {
                 expect(doneFn).toHaveBeenCalledOnce();
             });
 
-            expect(doneFn.mock.calls[0][0]).to.deep.include({
+            expect(doneFn.mock.calls[0]![0]).to.deep.include({
                 state: 'loading',
                 result: 42,
             });
@@ -1056,8 +1056,8 @@ describe('@logosdx/state-machine', () => {
                 expect(errorFn).toHaveBeenCalledOnce();
             });
 
-            expect(errorFn.mock.calls[0][0].state).to.equal('loading');
-            expect(errorFn.mock.calls[0][0].error).to.be.instanceOf(Error);
+            expect(errorFn.mock.calls[0]![0].state).to.equal('loading');
+            expect(errorFn.mock.calls[0]![0].error).to.be.instanceOf(Error);
         });
 
         it('state with both invoke and manual on transitions', async () => {
@@ -1277,12 +1277,12 @@ describe('@logosdx/state-machine', () => {
 
             expect(saveFn).toHaveBeenCalledTimes(3);
 
-            expect(saveFn.mock.calls[0][1]).to.deep.equal({
+            expect((saveFn.mock.calls[0] as any)[1]).to.deep.equal({
                 state: 'idle',
                 context: { count: 1, error: null },
             });
 
-            expect(saveFn.mock.calls[2][1]).to.deep.equal({
+            expect((saveFn.mock.calls[2] as any)[1]).to.deep.equal({
                 state: 'loading',
                 context: { count: 2, error: null },
             });

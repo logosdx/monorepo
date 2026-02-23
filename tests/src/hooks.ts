@@ -269,7 +269,7 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const afterCallback = vi.fn();
 
-            engine.add('test', (_ctx: any) => { _ctx.fail('Ignored'); }, { ignoreOnFail: true });
+            engine.add('test', ((_ctx: any) => { _ctx.fail('Ignored'); }) as any, { ignoreOnFail: true });
             engine.add('test', afterCallback);
 
             const [, err] = await attempt(() => engine.run('test'));
@@ -318,10 +318,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             let secondReceivedArgs: unknown[] = [];
 
-            engine.add('test', (value: string, ctx: any) => {
+            engine.add('test', ((_value: string, ctx: any) => {
 
                 ctx.args('modified');
-            });
+            }) as any);
 
             engine.add('test', (...args: any[]) => {
 
@@ -338,11 +338,11 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const order: number[] = [];
 
-            engine.add('test', (_value: string, ctx: any) => {
+            engine.add('test', ((_value: string, ctx: any) => {
 
                 ctx.args('modified');
                 order.push(1);
-            });
+            }) as any);
 
             engine.add('test', () => {
 
@@ -359,10 +359,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const secondCallback = vi.fn();
 
-            engine.add('test', (_value: string, ctx: any) => {
+            engine.add('test', ((_value: string, ctx: any) => {
 
                 return ctx.args('modified');
-            });
+            }) as any);
 
             engine.add('test', secondCallback);
 
@@ -378,10 +378,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const secondCallback = vi.fn();
 
-            engine.add('test', (_value: string, ctx: any) => {
+            engine.add('test', ((_value: string, ctx: any) => {
 
                 return ctx.returns('cached');
-            });
+            }) as any);
 
             engine.add('test', secondCallback);
 
@@ -396,10 +396,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('test', (_value: string, ctx: any) => {
+            engine.add('test', ((_value: string, ctx: any) => {
 
                 ctx.fail('Validation failed');
-            });
+            }) as any);
 
             const [, err] = await attempt(() => engine.run('test', 'value'));
 
@@ -411,10 +411,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('validate', (_ctx: any) => {
+            engine.add('validate', ((_ctx: any) => {
 
                 _ctx.fail('Invalid');
-            });
+            }) as any);
 
             const [, err] = await attempt(() => engine.run('validate'));
 
@@ -427,7 +427,7 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             let callCount = 0;
 
-            engine.add('test', (_ctx: any) => {
+            engine.add('test', ((_ctx: any) => {
 
                 callCount++;
 
@@ -435,7 +435,7 @@ describe('@logosdx/hooks', () => {
 
                     _ctx.removeHook();
                 }
-            });
+            }) as any);
 
             await engine.run('test');
             await engine.run('test');
@@ -449,7 +449,7 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
             const firstFn = vi.fn();
-            const selfRemovingFn = vi.fn((_ctx: any) => _ctx.removeHook());
+            const selfRemovingFn = vi.fn((_ctx: any) => _ctx.removeHook()) as any;
             const lastFn = vi.fn();
 
             engine.add('test', firstFn);
@@ -574,10 +574,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             let secondArgs: unknown[] = [];
 
-            engine.add('test', (_value: string, ctx: any) => {
+            engine.add('test', ((_value: string, ctx: any) => {
 
                 ctx.args('modified');
-            });
+            }) as any);
 
             engine.add('test', (...args: any[]) => {
 
@@ -594,10 +594,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const second = vi.fn();
 
-            engine.add('test', (_val: string, ctx: any) => {
+            engine.add('test', ((_val: string, ctx: any) => {
 
                 return ctx.args('modified');
-            });
+            }) as any);
 
             engine.add('test', second);
 
@@ -613,10 +613,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const second = vi.fn();
 
-            engine.add('test', (_val: string, ctx: any) => {
+            engine.add('test', ((_val: string, ctx: any) => {
 
                 return ctx.returns('cached');
-            });
+            }) as any);
 
             engine.add('test', second);
 
@@ -631,10 +631,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('test', (_ctx: any) => {
+            engine.add('test', ((_ctx: any) => {
 
                 _ctx.fail('Failed');
-            });
+            }) as any);
 
             const [, err] = attemptSync(() => engine.runSync('test'));
 
@@ -726,10 +726,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('preAdd', (a: number, b: number, ctx: any) => {
+            engine.add('preAdd', ((a: number, b: number, ctx: any) => {
 
                 ctx.args(a * 10, b * 10);
-            });
+            }) as any);
 
             const wrapped = engine.wrap(
                 async (a: number, b: number) => a + b,
@@ -747,12 +747,12 @@ describe('@logosdx/hooks', () => {
             const cache = new Map([['foo', 'cached-foo']]);
             const actualFn = vi.fn(async (key: string) => `fetched-${key}`);
 
-            engine.add('preGet', (key: string, ctx: any) => {
+            engine.add('preGet', ((key: string, ctx: any) => {
 
                 const cached = cache.get(key);
 
                 if (cached) return ctx.returns(cached);
-            });
+            }) as any);
 
             const wrapped = engine.wrap(actualFn, { pre: 'preGet' });
 
@@ -769,10 +769,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('postDouble', (result: number, _input: number, ctx: any) => {
+            engine.add('postDouble', ((result: number, _input: number, ctx: any) => {
 
                 return ctx.returns(result * 2);
-            });
+            }) as any);
 
             const wrapped = engine.wrap(
                 async (input: number) => input + 1,
@@ -789,17 +789,17 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const callOrder: string[] = [];
 
-            engine.add('preTransform', (value: string, ctx: any) => {
+            engine.add('preTransform', ((value: string, ctx: any) => {
 
                 callOrder.push('pre');
                 ctx.args(value.toUpperCase());
-            });
+            }) as any);
 
-            engine.add('postTransform', (result: string, _value: string, ctx: any) => {
+            engine.add('postTransform', ((result: string, _value: string, ctx: any) => {
 
                 callOrder.push('post');
                 return ctx.returns(`[${result}]`);
-            });
+            }) as any);
 
             const wrapped = engine.wrap(
                 async (value: string) => `processed:${value}`,
@@ -818,10 +818,10 @@ describe('@logosdx/hooks', () => {
             const fetchFn = vi.fn(async (url: string) => `fetched:${url}`);
             const postCallback = vi.fn();
 
-            engine.add('preFetch', (_url: string, ctx: any) => {
+            engine.add('preFetch', ((_url: string, ctx: any) => {
 
                 return ctx.returns('cached-result');
-            });
+            }) as any);
 
             engine.add('postFetch', postCallback);
 
@@ -889,10 +889,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('postDouble', (result: number, _input: number, ctx: any) => {
+            engine.add('postDouble', ((result: number, _input: number, ctx: any) => {
 
                 return ctx.returns(result * 2);
-            });
+            }) as any);
 
             const wrapped = engine.wrapSync(
                 (input: number) => input + 1,
@@ -909,10 +909,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const actualFn = vi.fn((key: string) => `computed-${key}`);
 
-            engine.add('preGet', (key: string, ctx: any) => {
+            engine.add('preGet', ((key: string, ctx: any) => {
 
                 if (key === 'cached') return ctx.returns('from-cache');
-            });
+            }) as any);
 
             const wrapped = engine.wrapSync(actualFn, { pre: 'preGet' });
 
@@ -927,10 +927,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('preAdd', (a: number, b: number, ctx: any) => {
+            engine.add('preAdd', ((a: number, b: number, ctx: any) => {
 
                 ctx.args(a * 10, b * 10);
-            });
+            }) as any);
 
             const wrapped = engine.wrapSync(
                 (a: number, b: number) => a + b,
@@ -1041,10 +1041,10 @@ describe('@logosdx/hooks', () => {
                 handleFail: CustomError
             });
 
-            engine.add('test', (_ctx: any) => {
+            engine.add('test', ((_ctx: any) => {
 
                 _ctx.fail('Custom message');
-            });
+            }) as any);
 
             const [, err] = await attempt(() => engine.run('test'));
 
@@ -1071,10 +1071,10 @@ describe('@logosdx/hooks', () => {
                 handleFail: HttpsError
             });
 
-            engine.add('validate', (_ctx: any) => {
+            engine.add('validate', ((_ctx: any) => {
 
                 _ctx.fail('failed-precondition', 'Email is required', { field: 'email' });
-            });
+            }) as any);
 
             const [, err] = await attempt(() => engine.run('validate'));
 
@@ -1095,10 +1095,10 @@ describe('@logosdx/hooks', () => {
                 }
             });
 
-            engine.add('test', (_ctx: any) => {
+            engine.add('test', ((_ctx: any) => {
 
                 _ctx.fail('Error message', 500);
-            });
+            }) as any);
 
             const [, err] = await attempt(() => engine.run('test'));
 
@@ -1118,10 +1118,10 @@ describe('@logosdx/hooks', () => {
                 }
             });
 
-            engine.add('test', (_ctx: any) => {
+            engine.add('test', ((_ctx: any) => {
 
                 _ctx.fail('message', { data: true }, 123);
-            });
+            }) as any);
 
             await attempt(() => engine.run('test'));
 
@@ -1136,12 +1136,12 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const cache = new Map([['cached-url', 'cached-data']]);
 
-            engine.add('cacheCheck', (url: string, ctx: any) => {
+            engine.add('cacheCheck', ((url: string, ctx: any) => {
 
                 const cached = cache.get(url);
 
                 if (cached) return ctx.returns(cached);
-            });
+            }) as any);
 
             const cachedResult = await engine.run('cacheCheck', 'cached-url');
             expect(cachedResult.result).to.equal('cached-data');
@@ -1156,10 +1156,10 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('validate', (data: { email?: string }, ctx: any) => {
+            engine.add('validate', ((data: { email?: string }, ctx: any) => {
 
                 if (!data.email) ctx.fail('Email is required');
-            });
+            }) as any);
 
             const [, err] = await attempt(() => engine.run('validate', {}));
 
@@ -1175,13 +1175,13 @@ describe('@logosdx/hooks', () => {
 
             const engine = new HookEngine();
 
-            engine.add('beforeRequest', (url: string, opts: any, ctx: any) => {
+            engine.add('beforeRequest', ((url: string, opts: any, ctx: any) => {
 
                 ctx.args(url, {
                     ...opts,
                     headers: { ...opts?.headers, Authorization: 'Bearer token123' }
                 });
-            });
+            }) as any);
 
             const result = await engine.run('beforeRequest', '/api/users', {});
 
@@ -1210,11 +1210,11 @@ describe('@logosdx/hooks', () => {
             const tracked: string[] = [];
             const importantCallback = vi.fn();
 
-            engine.add('action', (name: string) => {
+            engine.add('action', ((name: string) => {
 
                 if (name === 'fail') throw new Error('Analytics failed');
                 tracked.push(name);
-            }, { ignoreOnFail: true });
+            }) as any, { ignoreOnFail: true });
 
             engine.add('action', importantCallback);
 
@@ -1289,10 +1289,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             let capturedScope: HookScope | undefined;
 
-            engine.add('test', (_data: unknown, ctx: any) => {
+            engine.add('test', ((_data: unknown, ctx: any) => {
 
                 capturedScope = ctx.scope;
-            });
+            }) as any);
 
             const result = await engine.run('test', 'data');
 
@@ -1308,10 +1308,10 @@ describe('@logosdx/hooks', () => {
 
             let sawExisting = false;
 
-            engine.add('test', (_data: unknown, ctx: any) => {
+            engine.add('test', ((_data: unknown, ctx: any) => {
 
                 sawExisting = ctx.scope.get('existing') === true;
-            });
+            }) as any);
 
             await engine.run('test', 'data', { scope });
 
@@ -1323,15 +1323,15 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             const KEY = Symbol('shared');
 
-            engine.add('test', (_data: unknown, ctx: any) => {
+            engine.add('test', ((_data: unknown, ctx: any) => {
 
                 ctx.scope.set(KEY, 'from-first');
-            });
+            }) as any);
 
-            engine.add('test', (_data: unknown, ctx: any) => {
+            engine.add('test', ((_data: unknown, ctx: any) => {
 
                 ctx.scope.set('received', ctx.scope.get(KEY));
-            });
+            }) as any);
 
             const result = await engine.run('test', 'data');
 
@@ -1360,7 +1360,7 @@ describe('@logosdx/hooks', () => {
             });
 
             const scope = new HookScope();
-            const pre = await engine.run('before', 'input', { scope });
+            await engine.run('before', 'input', { scope });
             const post = await engine.run('after', 42, 'input', { scope });
 
             expect(post.scope.get(CACHE_KEY)).to.equal('computed-key');
@@ -1405,10 +1405,10 @@ describe('@logosdx/hooks', () => {
             const engine = new HookEngine();
             let capturedScope: HookScope | undefined;
 
-            engine.add('test', (_data: unknown, ctx: any) => {
+            engine.add('test', ((_data: unknown, ctx: any) => {
 
                 capturedScope = ctx.scope;
-            });
+            }) as any);
 
             const result = engine.runSync('test', 'data');
 
@@ -1424,10 +1424,10 @@ describe('@logosdx/hooks', () => {
 
             let received: number | undefined;
 
-            engine.add('test', (_data: unknown, ctx: any) => {
+            engine.add('test', ((_data: unknown, ctx: any) => {
 
                 received = ctx.scope.get('pre-set');
-            });
+            }) as any);
 
             engine.runSync('test', 'data', { scope });
 
@@ -1441,11 +1441,11 @@ describe('@logosdx/hooks', () => {
             const KEY = Symbol('test');
             const order: string[] = [];
 
-            engine.add('test', (_data: unknown, ctx: any) => {
+            engine.add('test', ((_data: unknown, ctx: any) => {
 
                 ctx.scope.set(KEY, 'main');
                 order.push('main');
-            });
+            }) as any);
 
             const result = engine.runSync('test', 'data', {
                 scope,

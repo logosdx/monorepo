@@ -133,7 +133,7 @@ describe('@logosdx/dom: events', () => {
             emit(el, 'widget:open', { chatId: 123 });
 
             expect(handler).toHaveBeenCalledTimes(1);
-            const event = handler.mock.calls[0][0] as CustomEvent;
+            const event = handler.mock.calls[0]![0] as CustomEvent;
             expect(event.detail).toEqual({ chatId: 123 });
             expect(event.bubbles).toBe(true);
         });
@@ -171,7 +171,7 @@ describe('@logosdx/dom: events', () => {
             on(parent, 'click', handler, { delegate: '.child' });
 
             child.click();
-            const event = handler.mock.calls[0][0] as Event;
+            const event = handler.mock.calls[0]![0] as Event;
             expect(event.target).toBe(child);
         });
 
@@ -186,7 +186,7 @@ describe('@logosdx/dom: events', () => {
             grandchild.click();
             expect(handler).toHaveBeenCalledTimes(1);
 
-            const event = handler.mock.calls[0][0] as Event;
+            const event = handler.mock.calls[0]![0] as Event;
             expect(event.target).toBe(grandchild);
         });
 

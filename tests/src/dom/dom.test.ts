@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { create, append, prepend, remove, replace } from '../../../packages/dom/src/dom.ts';
 
 describe('@logosdx/dom: create', () => {
@@ -52,8 +52,8 @@ describe('@logosdx/dom: create', () => {
 
         expect(el.childNodes.length).toBe(2);
         expect(el.childNodes[0]).toBe(span);
-        expect(el.childNodes[1].nodeType).toBe(Node.TEXT_NODE);
-        expect(el.childNodes[1].textContent).toBe('text');
+        expect(el.childNodes[1]!.nodeType).toBe(Node.TEXT_NODE);
+        expect(el.childNodes[1]!.textContent).toBe('text');
     });
 
     it('should wire event handlers via on option', () => {

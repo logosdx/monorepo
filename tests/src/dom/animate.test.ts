@@ -152,9 +152,9 @@ describe('@logosdx/dom: animate', () => {
 
         expect(el.animate).not.toHaveBeenCalled();
         expect(result).toHaveLength(1);
-        expect(result[0].playState).toBe('finished');
-        expect(result[0].finished).toBeInstanceOf(Promise);
-        expect(typeof result[0].cancel).toBe('function');
+        expect(result[0]!.playState).toBe('finished');
+        expect(result[0]!.finished).toBeInstanceOf(Promise);
+        expect(typeof result[0]!.cancel).toBe('function');
 
         globalThis.matchMedia = originalMatchMedia;
     });
@@ -167,8 +167,8 @@ describe('@logosdx/dom: animate', () => {
         const result = animate([el, el2], [{ opacity: '0' }, { opacity: '1' }], 300);
 
         expect(result).toHaveLength(2);
-        expect(result[0].playState).toBe('finished');
-        expect(result[1].playState).toBe('finished');
+        expect(result[0]!.playState).toBe('finished');
+        expect(result[1]!.playState).toBe('finished');
 
         globalThis.matchMedia = originalMatchMedia;
     });
