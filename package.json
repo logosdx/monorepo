@@ -13,7 +13,7 @@
     "dts": "node ./scripts/build.mjs",
     "build:docs": "bash ./scripts/docs.zsh",
     "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs && zx scripts/build-llm-txt.mjs",
+    "docs:build": "zx scripts/build-llm-txt.mjs && vitepress build docs",
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
