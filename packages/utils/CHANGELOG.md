@@ -1,5 +1,13 @@
 # @logosdx/utils
 
+## 6.1.0
+
+### Minor Changes
+
+- 879cea2: ### Added
+
+  - `SingleFlight.invalidateCache(predicate)`: Selectively invalidate cache entries matching a predicate function
+
 ## 6.1.0-beta.1
 
 ### Minor Changes
