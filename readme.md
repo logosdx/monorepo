@@ -81,4 +81,4 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development workflow and release pr
 
 ## License
 
-MIT © [LogosDX](https://logosdx.dev)
+BSD-3-Clause © [LogosDX](https://logosdx.dev)
