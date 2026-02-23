@@ -14,7 +14,7 @@
 import 'zx/globals';
 
 const ROOT = path.join(import.meta.dirname, '..');
-const LLM_HELPERS_DIR = path.join(ROOT, 'skill', 'references');
+const LLM_HELPERS_DIR = path.join(ROOT, 'skills', 'logosdx', 'references');
 const DOCS_DIR = path.join(ROOT, 'docs');
 const OUTPUT_DIR = path.join(DOCS_DIR, 'public', 'llm');
 const OUTPUT_PATH = path.join(DOCS_DIR, 'public', 'llms.txt');
