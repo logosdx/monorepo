@@ -268,15 +268,13 @@ for await (const chunk of api.get('/events').stream()) {
 }
 
 // With error handling
-const [response, err] = await attempt(() => api.get('/events').stream());
-if (!err) {
-    const reader = response.data.body.getReader();
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        console.log(new TextDecoder().decode(value));
+const stream = api.get('/events').stream();
+const [, err] = await attempt(async () => {
+    for await (const chunk of stream) {
+        console.log(new TextDecoder().decode(chunk));
     }
-}
+});
+if (err) console.error('Stream failed:', err.message);
 
 // Works with all HTTP methods
 for await (const chunk of api.post('/upload-stream', largePayload).stream()) {
