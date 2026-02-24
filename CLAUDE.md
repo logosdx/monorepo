@@ -127,6 +127,14 @@ monorepo/
 | `scripts/` | Build and deployment | `build.mjs`, `docs.zsh`, `new-pkg.zsh` | - |
 | `typedoc/` | Generated API documentation | Auto-generated HTML files | - |
 
+### GitHub Pages Deployment Gotchas
+
+- Both doc sites (`logosdx.dev` and `typedoc.logosdx.dev`) deploy to GitHub Pages with **legacy build type**, which means Jekyll runs on every deploy.
+- Jekyll ignores dotfiles/directories (`.well-known/`, `.nojekyll`, etc.) by default.
+- A `_config.yml` with `include: [".well-known"]` is generated during deploy in `scripts/docs.zsh` to force Jekyll to serve `.well-known/`.
+- VitePress converts `.md` files in `docs/public/` to `.html` pages. The `llms.txt` links use `.html` extensions to match this behavior.
+- The docs build is handled by `scripts/build-docs.mjs` (pre-build: generate `.txt` + copy `.md` to `public/llm/`, then run VitePress).
+
 **Imports**:
 
 ```ts
