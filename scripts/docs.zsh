@@ -59,6 +59,7 @@ if [[ $DEPLOY_TYPEDOC -eq 1 ]]; then
     pnpm build
     pnpm typedoc
 
+    touch typedoc/.nojekyll
     mkdir -p typedoc/.well-known
     echo '{"url":"https://context7.com/websites/typedoc_logosdx_dev","public_key":"pk_u2Fc8zDl9wRt6VLFMcbCB"}' > typedoc/.well-known/context7.json
 
