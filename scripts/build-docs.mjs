@@ -3,9 +3,8 @@
 /**
  * Builds the full documentation site.
  *
- * 1. Pre-build: Generate llms.txt and llms-full.txt into docs/public/
- * 2. Build: Run VitePress build
- * 3. Post-build: Copy reference .md files into dist/llm/
+ * 1. Pre-build: Generate llms.txt, llms-full.txt, and copy reference .md files into docs/public/
+ * 2. Build: Run VitePress (converts public/llm/*.md to .html pages)
  */
 
 import 'zx/globals';
@@ -13,8 +12,8 @@ import 'zx/globals';
 const ROOT = path.join(import.meta.dirname, '..');
 const LLM_HELPERS_DIR = path.join(ROOT, 'skills', 'logosdx', 'references');
 const DOCS_DIR = path.join(ROOT, 'docs');
-const DIST_DIR = path.join(DOCS_DIR, '.vitepress', 'dist');
 const PUBLIC_DIR = path.join(DOCS_DIR, 'public');
+const LLM_OUTPUT_DIR = path.join(PUBLIC_DIR, 'llm');
 
 $.verbose = false;
 
@@ -57,7 +56,8 @@ const packageLinks = mdFiles
     .map((file) => {
 
         const name = file.replace('.md', '');
-        const url = `https://logosdx.dev/llm/${file}`;
+        const htmlFile = file.replace('.md', '.html');
+        const url = `https://logosdx.dev/llm/${htmlFile}`;
         const desc = packageDescriptions[name] || '';
         return `- [${name}](${url}): ${desc}`;
     })
@@ -116,23 +116,22 @@ ${fullSections.join('\n\n---\n\n')}
 await fs.writeFile(path.join(PUBLIC_DIR, 'llms-full.txt'), llmsFullTxt);
 log.success(`Generated llms-full.txt with ${mdFiles.length} inlined packages`);
 
-// === Build: Run VitePress ===
+// === Pre-build: Copy .md reference files into public/llm/ ===
 
-log.info('Building VitePress site...');
-await $`vitepress build docs`;
-log.success('VitePress build complete');
-
-// === Post-build: Copy .md reference files into dist/llm/ ===
-
-const distLlmDir = path.join(DIST_DIR, 'llm');
-await fs.ensureDir(distLlmDir);
+await fs.ensureDir(LLM_OUTPUT_DIR);
 
 for (const file of mdFiles) {
 
     await fs.copy(
         path.join(LLM_HELPERS_DIR, file),
-        path.join(distLlmDir, file),
+        path.join(LLM_OUTPUT_DIR, file),
     );
 }
 
-log.success(`Copied ${mdFiles.length} reference .md files to dist/llm/`);
+log.success(`Copied ${mdFiles.length} reference .md files to public/llm/`);
+
+// === Build: Run VitePress ===
+
+log.info('Building VitePress site...');
+await $`vitepress build docs`;
+log.success('VitePress build complete');
