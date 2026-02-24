@@ -71,6 +71,7 @@ if [[ $DEPLOY_TYPEDOC -eq 1 ]]; then
     fi
 
     echo "typedoc.logosdx.dev" > CNAME
+    echo 'include: [".well-known"]' > _config.yml
 
     step 'Initializing git for typedoc'
     git init
@@ -97,6 +98,7 @@ if [[ $DEPLOY_MAIN -eq 1 ]]; then
     cd docs/.vitepress/dist
 
     echo "logosdx.dev" > CNAME
+    echo 'include: [".well-known"]' > _config.yml
 
     step 'Initializing git for main site'
     git init
