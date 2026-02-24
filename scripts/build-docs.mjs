@@ -1,14 +1,11 @@
 #!/usr/bin/env zx
 
 /**
- * Generates llms.txt following the llmstxt.org specification.
+ * Builds the full documentation site.
  *
- * Structure:
- * - H1: Project name (required)
- * - Blockquote: Brief summary
- * - H2 sections: File lists with markdown links
- *
- * Also copies skill/references/*.md to docs/public/llm/ for direct access.
+ * 1. Pre-build: Generate llms.txt and llms-full.txt into docs/public/
+ * 2. Build: Run VitePress build
+ * 3. Post-build: Copy reference .md files into dist/llm/
  */
 
 import 'zx/globals';
@@ -16,8 +13,8 @@ import 'zx/globals';
 const ROOT = path.join(import.meta.dirname, '..');
 const LLM_HELPERS_DIR = path.join(ROOT, 'skills', 'logosdx', 'references');
 const DOCS_DIR = path.join(ROOT, 'docs');
-const OUTPUT_DIR = path.join(DOCS_DIR, 'public', 'llm');
-const OUTPUT_PATH = path.join(DOCS_DIR, 'public', 'llms.txt');
+const DIST_DIR = path.join(DOCS_DIR, '.vitepress', 'dist');
+const PUBLIC_DIR = path.join(DOCS_DIR, 'public');
 
 $.verbose = false;
 
@@ -27,7 +24,7 @@ const log = {
     error: (msg) => console.log(chalk.red(`✗ ${msg}`)),
 };
 
-log.info('Building llms.txt from skill/references...');
+// === Read reference files ===
 
 const files = await fs.readdir(LLM_HELPERS_DIR);
 const mdFiles = files
@@ -40,20 +37,10 @@ if (mdFiles.length === 0) {
     process.exit(1);
 }
 
-// Copy markdown files to public/llm/ for direct access
-await fs.ensureDir(OUTPUT_DIR);
+// === Pre-build: Generate .txt files into public/ ===
 
-for (const file of mdFiles) {
+log.info('Generating llms.txt and llms-full.txt...');
 
-    const source = path.join(LLM_HELPERS_DIR, file);
-    const destination = path.join(OUTPUT_DIR, file);
-
-    await fs.copy(source, destination);
-}
-
-log.info(`Copied ${mdFiles.length} reference files to docs/public/llm/`);
-
-// Build package links with descriptions
 const packageDescriptions = {
     dom: 'DOM manipulation utilities for CSS, attributes, events, and behaviors',
     fetch: 'HTTP client with retries, timeouts, lifecycle hooks, and streaming',
@@ -70,14 +57,13 @@ const packageLinks = mdFiles
     .map((file) => {
 
         const name = file.replace('.md', '');
-        const path = `https://logosdx.dev/llm/${file}`;
+        const url = `https://logosdx.dev/llm/${file}`;
         const desc = packageDescriptions[name] || '';
-        return `- [${name}](${path}): ${desc}`;
+        return `- [${name}](${url}): ${desc}`;
     })
     .join('\n');
 
-// Generate llms.txt following the spec
-const output = `# LogosDX
+const llmsTxt = `# LogosDX
 
 > Focused TypeScript utilities for building JavaScript applications in any runtime. Zero dependencies, type-safe, and designed for production resilience.
 
@@ -98,26 +84,19 @@ ${packageLinks}
 - [GitHub Repository](https://github.com/logosdx/monorepo): Source code and issue tracker
 `;
 
-await fs.writeFile(OUTPUT_PATH, output);
-
+await fs.writeFile(path.join(PUBLIC_DIR, 'llms.txt'), llmsTxt);
 log.success(`Generated llms.txt with ${mdFiles.length} package links`);
-
-// Generate llms-full.txt — inlines all package reference content
-const FULL_OUTPUT_PATH = path.join(DOCS_DIR, 'public', 'llms-full.txt');
 
 const fullSections = [];
 
 for (const file of mdFiles) {
 
-    const source = path.join(LLM_HELPERS_DIR, file);
-    const content = await fs.readFile(source, 'utf-8');
-
-    // Strip YAML frontmatter if present
+    const content = await fs.readFile(path.join(LLM_HELPERS_DIR, file), 'utf-8');
     const stripped = content.replace(/^---[\s\S]*?---\n*/, '');
     fullSections.push(stripped.trim());
 }
 
-const fullOutput = `# LogosDX
+const llmsFullTxt = `# LogosDX
 
 > Focused TypeScript utilities for building JavaScript applications in any runtime. Zero dependencies, type-safe, and designed for production resilience.
 
@@ -134,6 +113,26 @@ LogosDX provides a collection of packages that work together or independently. E
 ${fullSections.join('\n\n---\n\n')}
 `;
 
-await fs.writeFile(FULL_OUTPUT_PATH, fullOutput);
-
+await fs.writeFile(path.join(PUBLIC_DIR, 'llms-full.txt'), llmsFullTxt);
 log.success(`Generated llms-full.txt with ${mdFiles.length} inlined packages`);
+
+// === Build: Run VitePress ===
+
+log.info('Building VitePress site...');
+await $`vitepress build docs`;
+log.success('VitePress build complete');
+
+// === Post-build: Copy .md reference files into dist/llm/ ===
+
+const distLlmDir = path.join(DIST_DIR, 'llm');
+await fs.ensureDir(distLlmDir);
+
+for (const file of mdFiles) {
+
+    await fs.copy(
+        path.join(LLM_HELPERS_DIR, file),
+        path.join(distLlmDir, file),
+    );
+}
+
+log.success(`Copied ${mdFiles.length} reference .md files to dist/llm/`);

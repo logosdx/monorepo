@@ -110,7 +110,6 @@ const metadata = {
 export default defineConfig({
   title: 'Logos DX',
   description: 'Focused TypeScript utilities for building JS apps in any runtime',
-  srcExclude: ['**/public/llm/**'],
 
   // https://vitepress.dev/reference/default-theme-config
   themeConfig: {

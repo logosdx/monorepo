@@ -1,0 +1,3649 @@
+# LogosDX
+
+> Focused TypeScript utilities for building JavaScript applications in any runtime. Zero dependencies, type-safe, and designed for production resilience.
+
+LogosDX provides a collection of packages that work together or independently. Each package follows consistent patterns: error tuples with `attempt()`, event-driven architecture, and comprehensive TypeScript support.
+
+## Documentation
+
+- [Getting Started](https://logosdx.dev/getting-started): Installation and basic usage
+- [API Reference](https://typedoc.logosdx.dev): Full TypeScript API documentation
+- [Cheat Sheet](https://logosdx.dev/cheat-sheet): Quick reference for common patterns
+
+---
+
+# @logosdx/dom Package Summary
+
+Lightweight (~10KB) element-centric DOM utility for embeddable widgets. Chainable `$()` collections backed by standalone tree-shakeable functions. AbortController-based lifecycle, modern observer wrappers, and accessibility-first aria namespace.
+
+
+## Core: `$()` Selector
+
+```ts
+import { $, DomCollection } from '@logosdx/dom';
+
+// Selection — returns DomCollection
+const btns = $<HTMLButtonElement>('.btn');
+const scoped = $('.item', { container: sidebar });       // scoped to parent
+const chat = $('.chat', { signal: controller.signal });  // auto-cleanup
+const both = $('.btn', { container, signal });           // scoped + signal
+const wrap = $(element);                                 // wrap single element
+const wrap = $([el1, el2], { signal });                  // wrap array + options
+
+// Properties
+btns.elements    // HTMLButtonElement[]
+btns.length      // number
+btns.first       // HTMLButtonElement | undefined
+btns.at(2)       // HTMLButtonElement | undefined
+
+// Iteration
+btns.each(el => { ... })              // chainable
+btns.map(el => el.textContent)        // string[]
+btns.filter(el => !el.disabled)       // new DomCollection
+for (const btn of btns) { ... }       // iterable
+
+// Element creation
+$.create('div', {
+    text: 'Hello',
+    css: { padding: '1rem', '--theme': 'dark' },
+    attrs: { 'data-id': '123' },
+    class: ['card', 'active'],
+    children: [$.create('span', { text: 'child' }).first],
+    on: { click: handler },
+    signal: controller.signal
+})
+```
+
+
+## CSS — Callable Namespace
+
+```ts
+import { css } from '@logosdx/dom';
+
+// Standalone
+css(el, { color: 'red', '--theme': 'dark' });      // set
+css(el, 'color');                                    // get → string
+css(el, ['color', 'fontSize']);                       // get → Record
+css.remove(el, ['color', '--theme']);                  // remove
+
+// Chained
+$('.btn').css({ color: 'red' }).css.remove('fontSize');
+$('.btn').css('color');  // get from first element
+```
+
+
+## Attributes — Callable Namespace
+
+```ts
+import { attr } from '@logosdx/dom';
+
+attr(el, { role: 'button', 'data-id': '1' });       // set
+attr(el, 'role');                                     // get → string | null
+attr(el, ['role', 'data-id']);                        // get → Record
+attr.remove(el, 'role');                              // remove
+attr.has(el, 'disabled');                             // → boolean
+
+// Chained
+$('.btn').attr({ role: 'button' }).attr.remove('tabindex');
+```
+
+
+## Classes — Namespace
+
+```ts
+import { classify } from '@logosdx/dom';
+
+classify.add(el, ['active', 'highlighted']);
+classify.remove(el, 'active');
+classify.toggle(el, 'active');
+classify.has(el, 'active');                          // → boolean
+classify.swap(el, 'active', 'inactive');
+
+// Chained
+$('.btn').class.add('active').class.toggle('highlight');
+$('.btn').class.has('active');  // boolean from first
+```
+
+
+## Data — Callable Namespace
+
+```ts
+import { data } from '@logosdx/dom';
+
+data(el, { userId: '123', role: 'admin' });          // set via dataset
+data(el, 'userId');                                   // get → string | undefined
+data(el, ['userId', 'role']);                          // get → Record
+data.remove(el, 'userId');                            // remove
+
+// Chained
+$('.card').data({ id: '1' }).data.remove('stale');
+```
+
+
+## Aria — Accessibility
+
+```ts
+import { aria } from '@logosdx/dom';
+
+// Auto-prefixes with aria-
+aria(el, { pressed: 'true', expanded: 'false' });    // set
+aria(el, 'pressed');                                  // get → string | null
+aria.remove(el, 'pressed');                           // remove single
+aria.remove(el, ['pressed', 'expanded']);              // remove multiple
+
+// Shorthand methods
+aria.role(el, 'button');    aria.role(el);            // set/get role
+aria.label(el, 'Submit');   aria.label(el);           // set/get aria-label
+aria.hide(el);                                        // aria-hidden="true"
+aria.show(el);                                        // remove aria-hidden
+aria.live(el, 'polite');                              // aria-live
+
+// Chained
+$('.modal').aria({ modal: 'true' }).aria.role('dialog').aria.label('Settings');
+```
+
+
+## Events — AbortController Integration
+
+```ts
+import { on, once, off, emit } from '@logosdx/dom';
+
+on(el, 'click', handler);
+on(el, ['pointerenter', 'focus'], handler);           // multiple events
+on(el, 'click', handler, { capture: true });
+on(el, 'click', handler, { signal: controller.signal }); // auto-cleanup
+on(parent, 'click', handler, { delegate: '.child' }); // delegation
+
+once(el, 'click', handler);                           // fires once
+off(el, 'click', handler);                            // remove
+off(el, ['pointerenter', 'focus'], handler);          // multiple events
+emit(el, 'widget:open', { chatId: 123 });             // CustomEvent
+
+// Chained — collection signal auto-inherited
+const chat = $('.chat', { signal: controller.signal });
+chat.on('click', openMenu);    // signal auto-attached
+chat.once('keydown', sendMsg); // fires once, signal auto-attached
+chat.off('click', openMenu);   // remove specific listener
+chat.emit('widget:open', { chatId: 1 }); // dispatch custom event
+controller.abort();            // removes all listeners
+```
+
+
+## Animate — Web Animations API
+
+```ts
+import { animate } from '@logosdx/dom';
+
+animate(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
+animate([el1, el2], [{ opacity: 0 }, { opacity: 1 }], 300); // multiple
+animate.fadeIn(el, 300);
+animate.fadeIn([el1, el2], 300);                              // multiple
+animate.fadeOut(el, 300);
+animate.slideTo(el, { x: 10, y: -20 }, 300);
+
+// Chained
+await $('.modal').animate.fadeIn(200);
+
+// Automatically respects prefers-reduced-motion
+```
+
+
+## Observers
+
+```ts
+import { observe, watchVisibility, watchResize } from '@logosdx/dom';
+
+// MutationObserver — auto-bind behaviors
+const stop = observe('[data-tooltip]', (el) => {
+
+    const tip = new Tooltip(el);
+    return () => tip.destroy();  // per-element cleanup
+});
+stop();  // disconnects + runs all cleanups
+
+// IntersectionObserver
+const stop = watchVisibility(el, (entry) => {
+
+    if (entry.isIntersecting) loadImage(el);
+}, { threshold: 0.5, once: true });
+
+// ResizeObserver
+const stop = watchResize(el, (entry) => {
+
+    if (entry.contentRect.width < 400) compact(el);
+});
+
+// All support signal
+observe(sel, init, { signal: controller.signal });
+```
+
+
+## Viewport
+
+```ts
+import { viewport } from '@logosdx/dom';
+
+viewport.width();          viewport.height();
+viewport.scrollX();        viewport.scrollY();
+viewport.scrollProgress();     // 0–1 (page)
+viewport.scrollProgress(el);   // 0–1 (element)
+viewport.pixelRatio();
+viewport.isAtTop(10);      viewport.isAtBottom(10);
+viewport.scrollTo(el, { behavior: 'smooth' });
+viewport.scrollTo(0, 500, { behavior: 'smooth' });
+```
+
+
+## DOM Manipulation
+
+```ts
+import { create, append, prepend, remove, replace } from '@logosdx/dom';
+
+const el = create('div', { text: 'Hello', class: ['card'] });
+append(parent, el, otherEl);
+prepend(parent, el);
+remove(el);
+replace(oldEl, newEl);
+```
+
+
+## Templates — Clone & Hydrate
+
+```ts
+import { $, TemplateStamper } from '@logosdx/dom';
+
+// Configure once — base styling, events, accessibility
+const userCard = $.template('#user-card-template', {
+    signal: controller.signal,
+    map: {
+        '.username': { css: { fontWeight: 'bold' } },
+        '.user-email': { css: { color: 'gray' } },
+        '.view-profile': {
+            on: { click: handleView },
+            aria: { label: 'View profile' }
+        }
+    }
+});
+
+// Stamp single — per-instance data merges with base config
+userCard.stamp({
+    '.username': 'Alice Johnson',
+    '.user-email': 'alice@example.com',
+    '.view-profile': { attrs: { 'data-id': '1' } }
+}).into(container);
+
+// Stamp many — mapper function per data item
+userCard.stamp(users, u => ({
+    '.username': u.name,
+    '.user-email': u.email,
+    '.view-profile': { data: { userId: u.id } }
+})).into(container);
+
+// String shorthand — equivalent to { text: '...' }
+stamper.stamp({ '.name': 'Alice' });
+// Same as:
+stamper.stamp({ '.name': { text: 'Alice' } });
+
+// StampOptions per selector: text, css, class, attrs, data, aria, on
+// Base config + stamp data are shallow-merged per selector (stamp wins on conflict)
+```
+
+
+## Widget Lifecycle Example
+
+```ts
+function initChatWidget(container: HTMLElement) {
+
+    const controller = new AbortController();
+    const ui = $(container, { signal: controller.signal });
+
+    ui.class.add('chat-active');
+    ui.aria({ role: 'dialog', label: 'Customer support' });
+    ui.css({ '--chat-bg': '#fff' });
+    ui.on('click', handler);
+
+    observe('[data-emoji]', initEmoji, { signal: controller.signal });
+    watchResize(container, relayout, { signal: controller.signal });
+
+    return () => controller.abort();  // single cleanup for everything
+}
+```
+
+
+## Module Structure
+
+```
+@logosdx/dom
+├── index.ts          # $, $.create, $.template, all exports
+├── collection.ts     # DomCollection class
+├── css.ts            # css() + css.remove()
+├── attr.ts           # attr() + attr.remove() + attr.has()
+├── class.ts          # classify.add/remove/toggle/has/swap
+├── data.ts           # data() + data.remove()
+├── aria.ts           # aria() + shorthand methods
+├── events.ts         # on, once, off, emit
+├── animate.ts        # animate() + presets
+├── observe.ts        # observe (MutationObserver)
+├── watch.ts          # watchVisibility, watchResize
+├── viewport.ts       # viewport namespace
+├── template.ts       # TemplateStamper class
+├── dom.ts            # create, append, prepend, remove, replace
+├── helpers.ts        # internal utilities
+└── types.ts          # shared types
+```
+
+---
+
+# @logosdx/fetch
+
+HTTP client with retry logic, request/response interception, and comprehensive error handling for production applications.
+
+## Core API
+
+```typescript
+import { FetchEngine, FetchError, FetchEvent, FetchEventNames, FetchResponse, isFetchError } from '@logosdx/fetch';
+import { attempt } from '@logosdx/utils';
+
+// Basic setup
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    defaultType: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData',
+    headers: { Authorization: 'Bearer token' },
+    totalTimeout: 5000,  // Total timeout for entire operation (including retries)
+    attemptTimeout: 2000 // Per-attempt timeout (allows retries on timeout)
+});
+
+// Error handling pattern
+const [response, err] = await attempt(() => api.get('/users/123'));
+if (err) {
+    console.error('Request failed:', err.status, err.message);
+    return;
+}
+
+const { data: user } = response;
+console.log('User:', user);
+console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
+
+// Global instance (simplified usage)
+import fetch, { get, post, headers, params, state, config, on, off } from '@logosdx/fetch';
+
+// Global instance auto-uses current domain as base URL
+const [{ data: users }, err] = await attempt(() => fetch.get('/api/users'));
+
+// Or use destructured methods
+headers.set('Authorization', 'Bearer token');
+state.set('userId', '123');
+const [{ data: user }, err] = await attempt(() => get('/api/users/123'));
+
+// Smart URL handling - absolute URLs bypass base URL
+const [{ data: external }, err] = await attempt(() => get('https://api.external.com/data'));
+```
+
+## HTTP Methods
+
+```typescript
+// All methods return FetchPromise<FetchResponse<T>>
+interface FetchPromise<T, H, P, RH> extends Promise<FetchResponse<T, H, P, RH>> {
+    isFinished: boolean;
+    isAborted: boolean;
+    abort(reason?: string): void;
+
+    // Response chaining — declare expected response type before awaiting
+    json(): FetchPromise<T, H, P, RH>;
+    text(): FetchPromise<string, H, P, RH>;
+    blob(): FetchPromise<Blob, H, P, RH>;
+    arrayBuffer(): FetchPromise<ArrayBuffer, H, P, RH>;
+    formData(): FetchPromise<FormData, H, P, RH>;
+    raw(): FetchPromise<Response, H, P, RH>;
+    stream(): FetchStreamPromise<H, P, RH>;
+}
+
+// Stream promise supports async iteration over chunks
+interface FetchStreamPromise<H, P, RH>
+    extends FetchPromise<Response, H, P, RH>, AsyncIterable<Uint8Array> {}
+
+// Enhanced response object with typed headers, params, and response headers
+interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams, RH = FetchEngine.InstanceResponseHeaders> {
+    data: T;                // Parsed response body
+    headers: Partial<RH>;   // Response headers as typed plain object
+    status: number;         // HTTP status code
+    request: Request;       // Original request object
+    config: FetchConfig<H, P>;  // Typed configuration used for request
+}
+
+// Configuration object with typed headers and params
+interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
+    baseUrl?: string;
+    timeout?: number;
+    headers?: H;            // Typed headers from your custom interface
+    params?: P;             // Typed params from your custom interface
+    retry?: RetryConfig | false;
+    method?: string;
+    determineType?: any;
+}
+
+// HTTP convenience methods - all return FetchPromise (chainable)
+api.get<User, RH>(path, options?): FetchPromise<User, H, P, RH>
+api.post<User, CreateUserData, RH>(path, payload?, options?): FetchPromise<User, H, P, RH>
+api.put<User, UpdateUserData, RH>(path, payload?, options?): FetchPromise<User, H, P, RH>
+api.patch<User, Partial<User>, RH>(path, payload?, options?): FetchPromise<User, H, P, RH>
+api.delete<void, any, RH>(path, payload?, options?): FetchPromise<void, H, P, RH>
+api.options<any, RH>(path, options?): FetchPromise<any, H, P, RH>
+
+// Generic request method
+api.request<Response, RequestData, RH>(method, path, options & { payload?: RequestData }): FetchPromise<Response, H, P, RH>
+
+// Request cancellation
+const request = api.get('/users');
+setTimeout(() => request.abort('User cancelled'), 2000);
+```
+
+## Configuration
+
+```typescript
+interface FetchEngine.Config<H, P, S> {
+    baseUrl: string;
+    defaultType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData';
+
+    // Timeout options
+    totalTimeout?: number;    // Total timeout for entire request lifecycle (ms)
+    attemptTimeout?: number;  // Per-attempt timeout (ms) - allows retries on timeout
+
+    // Headers - global and method-specific
+    headers?: Headers<H>;
+    methodHeaders?: {
+        GET?: Headers<H>;
+        POST?: Headers<H>;
+        // ... other methods
+    };
+
+    // URL parameters - global and method-specific
+    params?: Params<P>;
+    methodParams?: {
+        GET?: Params<P>;
+        // ... other methods
+    };
+
+    // Retry configuration (set to false to disable retries)
+    retry?: {
+        maxAttempts?: number; // default: 3
+        baseDelay?: number; // default: 1000 (in milliseconds)
+        maxDelay?: number; // default: 10000
+        useExponentialBackoff?: boolean; // default: true
+        retryableStatusCodes?: number[]; // default: [408, 429, 500, 502, 503, 504]
+        shouldRetry?: (error: FetchError, attempt: number) => boolean | number;
+    } | false;
+
+    // Validation
+    validate?: {
+        headers?: (headers: Headers<H>, method?: HttpMethods) => void;
+        params?: (params: Params<P>, method?: HttpMethods) => void;
+        state?: (state: S) => void;
+        perRequest?: {
+            headers?: boolean;
+            params?: boolean;
+        };
+    };
+
+    // Request ID tracing
+    generateRequestId?: () => string;          // Custom ID generator (default: generateId from utils)
+    requestIdHeader?: string;                  // Header name for sending requestId to server
+
+    // Response type determination
+    determineType?: (response: Response) => 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | Symbol;
+
+    // Deduplication policy (prevents duplicate concurrent requests)
+    dedupePolicy?: boolean | DeduplicationConfig<S, H, P>;
+
+    // Cache policy (caches responses with TTL and SWR support)
+    cachePolicy?: boolean | CacheConfig<S, H, P>;
+
+    // Rate limit policy (controls outgoing request rate with token bucket)
+    rateLimitPolicy?: boolean | RateLimitConfig<S, H, P>;
+}
+```
+
+## Error Handling
+
+```typescript
+interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
+    data: T | null;
+    status: number;
+    method: HttpMethods;
+    path: string;
+    aborted?: boolean;    // True if request was aborted (any cause)
+    timedOut?: boolean;   // True if aborted due to timeout (attemptTimeout or totalTimeout)
+    requestId?: string;   // Unique request ID for tracing (consistent across retries)
+    attempt?: number;
+    step?: 'fetch' | 'parse' | 'response';
+    url?: string;
+    headers?: H;
+
+    // Convenience methods for distinguishing 499 errors
+    isCancelled(): boolean;     // status === 499 && aborted && !timedOut
+    isTimeout(): boolean;       // status === 499 && timedOut
+    isConnectionLost(): boolean; // status === 499 && step === 'fetch' && !aborted
+}
+
+// Error checking - FetchError is thrown on failure
+if (isFetchError(error)) {
+    console.log('Fetch error:', error.status, error.step);
+    console.log('Failed URL:', error.url);
+    console.log('Response data (if any):', error.data);
+}
+
+// Lifecycle events
+api.on('error', (event: FetchEvent) => {
+    console.error('Request failed:', event.error);
+});
+
+api.on('retry', (event: FetchEvent) => {
+    console.log(`Retrying attempt ${event.nextAttempt} after ${event.delay}ms`);
+});
+```
+
+## Headers & Parameters Management
+
+```typescript
+// Headers
+api.headers.set('Authorization', 'Bearer new-token');
+api.headers.set({ 'X-API-Version': 'v2', 'X-Client': 'web' });
+api.headers.set('Content-Type', 'application/json', 'POST'); // method-specific
+api.headers.remove('Authorization');
+api.headers.remove(['X-API-Version', 'X-Client']);
+api.headers.has('Authorization'); // boolean
+
+// Parameters
+api.params.set('version', 'v1');
+api.params.set({ api_key: 'abc123', format: 'json' });
+api.params.set('page', '1', 'GET'); // method-specific
+api.params.remove('version');
+api.params.has('api_key'); // boolean
+
+// Access current configuration
+api.headers.defaults;           // Default headers (global)
+api.headers.all;                // All headers including method overrides
+api.headers.resolve('GET');     // Resolved headers for a specific method
+
+api.params.defaults;            // Default params (global)
+api.params.all;                 // All params including method overrides
+api.params.resolve('GET');      // Resolved params for a specific method
+
+// With global instance and destructured managers
+import { headers, params, config } from '@logosdx/fetch';
+headers.set('X-API-Key', 'key123');
+params.set('version', 'v1');
+```
+
+## State Management
+
+```typescript
+// Internal state for auth tokens, user context, etc.
+api.state.set('authToken', 'bearer-token-123');
+api.state.set({
+    userId: '456',
+    sessionId: 'abc',
+    preferences: { theme: 'dark' }
+});
+
+const currentState = api.state.get(); // deep clone
+api.state.reset(); // clear all state
+
+// Access response metadata with typed config
+const response = await api.get('/users');
+if (response.status === 200) {
+    console.log('Success! Users:', response.data);
+    console.log('Request URL:', response.request.url);
+    console.log('Config used:', response.config);
+    console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
+    // response.config.headers is typed as MyHeaders
+    // response.config.params is typed as MyParams
+    // response.headers is typed as Partial<InstanceResponseHeaders>
+}
+```
+
+## Event System
+
+```typescript
+enum FetchEventNames {
+    // Request lifecycle
+    'before-request' = 'before-request',
+    'after-request' = 'after-request',
+    'abort' = 'abort',
+    'error' = 'error',
+    'response' = 'response',
+    'retry' = 'retry',
+
+    // Configuration changes
+    'header-add' = 'header-add',
+    'header-remove' = 'header-remove',
+    'param-add' = 'param-add',
+    'param-remove' = 'param-remove',
+    'state-set' = 'state-set',
+    'state-reset' = 'state-reset',
+    'url-change' = 'url-change',
+    'config-change' = 'config-change',
+
+    // Deduplication events
+    'dedupe-start' = 'dedupe-start',   // New request tracked
+    'dedupe-join' = 'dedupe-join',     // Caller joined existing
+
+    // Caching events
+    'cache-hit' = 'cache-hit',         // Fresh cache hit
+    'cache-stale' = 'cache-stale',     // Stale cache hit (SWR)
+    'cache-miss' = 'cache-miss',       // No cache entry
+    'cache-set' = 'cache-set',         // New cache entry stored
+    'cache-revalidate' = 'cache-revalidate',           // SWR background refresh started
+    'cache-revalidate-error' = 'cache-revalidate-error', // SWR background refresh failed
+
+    // Rate limiting events
+    'ratelimit-wait' = 'ratelimit-wait',       // Waiting for token
+    'ratelimit-reject' = 'ratelimit-reject',   // Rejected (waitForToken: false)
+    'ratelimit-acquire' = 'ratelimit-acquire'  // Token acquired
+}
+
+// Event listeners (use regex to match all events)
+api.on(/./, ({ event, data }) => console.log('Event:', event, data));
+api.on('before-request', (event) => console.log('Request starting:', event.url));
+api.on('error', (event) => console.error('Request failed:', event.error));
+api.off('error', errorHandler); // remove listener
+
+// Event timing — terminal events include requestStart/requestEnd
+api.on('response', (event) => {
+    const duration = event.requestEnd - event.requestStart;
+    console.log(`[${event.requestId}] ${event.method} ${event.path} completed in ${duration}ms`);
+});
+```
+
+### Event Data Fields
+
+Request lifecycle events receive `EventData<S, H, P>`:
+
+```typescript
+interface EventData<S, H, P> {
+    state: S;
+    url?: string | URL;
+    method?: HttpMethods;
+    headers?: DictAndT<H>;
+    params?: DictAndT<P>;
+    error?: Error | FetchError;
+    response?: Response;
+    data?: unknown;
+    payload?: unknown;
+    attempt?: number;
+    nextAttempt?: number;
+    delay?: number;
+    step?: 'fetch' | 'parse' | 'response';
+    status?: number;
+    path?: string;
+    aborted?: boolean;
+    requestId?: string;      // Unique ID for this request (consistent across retries)
+    requestStart?: number;   // Date.now() when request entered pipeline (all request events)
+    requestEnd?: number;     // Date.now() when request resolved (response, error, abort only)
+}
+```
+
+| Field | Present in | Description |
+|-------|-----------|-------------|
+| `requestStart` | All request events | Timestamp when the request entered the execution pipeline |
+| `requestEnd` | `response`, `error`, `abort` | Timestamp when the request resolved |
+| `requestId` | All request events | Unique ID, consistent across retries of the same request |
+
+## Request Deduplication
+
+Prevents duplicate concurrent requests by sharing the same in-flight promise among callers with identical request keys.
+
+```typescript
+// Enable with defaults (GET requests only)
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    dedupePolicy: true
+});
+
+// Three concurrent calls → one network request
+const [user1, user2, user3] = await Promise.all([
+    api.get('/users/123'),
+    api.get('/users/123'),
+    api.get('/users/123')
+]);
+
+// Full configuration
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    dedupePolicy: {
+        enabled: true,
+        methods: ['GET', 'POST'],           // Default: ['GET']
+        serializer: (ctx) => `${ctx.method}:${ctx.path}`,
+        shouldDedupe: (ctx) => !ctx.payload?.skipDedupe,
+        rules: [
+            { startsWith: '/admin', enabled: false },
+            { startsWith: '/api/v2', serializer: customSerializer }
+        ]
+    }
+});
+
+// Events
+api.on('dedupe-start', (e) => console.log('New request:', e.key));
+api.on('dedupe-join', (e) => console.log('Joined request:', e.key, 'waiters:', e.waitingCount));
+```
+
+### Deduplication Types
+
+```typescript
+interface DeduplicationConfig<S, H, P> {
+    enabled?: boolean;                              // Default: true
+    methods?: HttpMethod[];                         // Default: ['GET']
+    serializer?: RequestSerializer<S, H, P>;        // Default: defaultRequestSerializer
+    shouldDedupe?: (ctx: RequestKeyOptions) => boolean;  // Dynamic skip
+    rules?: DedupeRule[];                           // Route-specific config
+}
+
+interface DedupeRule extends MatchTypes {
+    methods?: HttpMethod[];
+    enabled?: boolean;
+    serializer?: RequestSerializer;
+}
+
+interface RequestKeyOptions<S, H, P> {
+    method: string;
+    path: string;
+    payload?: unknown;
+    headers?: H;
+    params?: P;
+    state?: S;
+}
+```
+
+## Response Caching
+
+Cache responses with TTL and stale-while-revalidate (SWR) support.
+
+```typescript
+// Enable with defaults (GET requests, 60s TTL)
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: true
+});
+
+// Full configuration with SWR
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: {
+        enabled: true,
+        methods: ['GET'],
+        ttl: 300000,          // 5 minutes
+        staleIn: 60000,       // Stale after 1 minute (triggers background revalidation)
+        skip: (ctx) => ctx.path.includes('/realtime'),
+        rules: [
+            { startsWith: '/static', ttl: 3600000 },  // 1 hour for static
+            { startsWith: '/admin', enabled: false }   // No caching for admin
+        ]
+    }
+});
+
+// Cache events
+api.on('cache-hit', (e) => console.log('Cache hit:', e.key, 'stale:', e.isStale));
+api.on('cache-miss', (e) => console.log('Cache miss:', e.key));
+api.on('cache-set', (e) => console.log('Cached:', e.key, 'expires in:', e.expiresIn));
+api.on('cache-stale', (e) => console.log('Stale:', e.key));
+api.on('cache-revalidate', (e) => console.log('Revalidating:', e.key));
+
+// Cache invalidation API
+await api.clearCache();                                    // Clear all
+await api.deleteCache(key);                                // Delete specific key
+await api.invalidateCache((key) => key.includes('user')); // By predicate
+await api.invalidatePath('/users');                        // By path prefix
+await api.invalidatePath(/^\/api\/v\d+/);                  // By regex
+await api.invalidatePath((key) => key.includes('user'));   // By predicate (custom serializers)
+const stats = api.cacheStats();                            // { cacheSize, inflightCount }
+```
+
+### Caching Types
+
+```typescript
+interface CacheConfig<S, H, P> {
+    enabled?: boolean;                              // Default: true
+    methods?: HttpMethod[];                         // Default: ['GET']
+    ttl?: number;                                   // Default: 60000 (1 minute)
+    staleIn?: number;                               // Default: undefined (no SWR)
+    serializer?: RequestSerializer<S, H, P>;        // Default: defaultRequestSerializer
+    skip?: (ctx: RequestKeyOptions<S, H, P>) => boolean;  // Dynamic skip
+    rules?: CacheRule[];                            // Route-specific config
+    adapter?: CacheAdapter<unknown>;                // Custom storage backend (Redis, IndexedDB, etc.)
+}
+
+interface CacheRule extends MatchTypes {
+    methods?: HttpMethod[];
+    enabled?: boolean;
+    ttl?: number;
+    staleIn?: number;
+    serializer?: RequestSerializer;
+    skip?: (ctx: RequestKeyOptions) => boolean;
+}
+```
+
+## Rate Limiting
+
+Control outgoing request rates using a token bucket algorithm. Each unique request key gets its own rate limiter, enabling per-endpoint or per-user throttling.
+
+```typescript
+// Enable with defaults (100 requests/minute, all methods)
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: true
+});
+
+// Full configuration
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: {
+        enabled: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        maxCalls: 100,            // 100 requests per window
+        windowMs: 60000,          // 1 minute window
+        waitForToken: true,       // Wait for token (false = reject immediately)
+        serializer: (ctx) => `${ctx.method}|${ctx.url.pathname}`,
+        shouldRateLimit: (ctx) => !ctx.headers?.['X-Bypass-RateLimit'],
+        onRateLimit: (ctx, waitTimeMs) => console.log(`Rate limited, waiting ${waitTimeMs}ms`),
+        rules: [
+            { startsWith: '/api/search', maxCalls: 10, windowMs: 60000 },  // Stricter for search
+            { startsWith: '/api/bulk', waitForToken: false },              // Reject bulk if limited
+            { startsWith: '/health', enabled: false }                      // No limits for health checks
+        ]
+    }
+});
+
+// Cache checks run BEFORE rate limiting
+// Cached responses return immediately without consuming rate limit tokens
+
+// Events
+api.on('ratelimit-wait', (e) => console.log('Waiting for token:', e.key, e.waitTimeMs));
+api.on('ratelimit-reject', (e) => console.log('Rate limited:', e.key));
+api.on('ratelimit-acquire', (e) => console.log('Token acquired:', e.key, 'remaining:', e.currentTokens));
+```
+
+### Rate Limiting Types
+
+```typescript
+interface RateLimitConfig<S, H, P> {
+    enabled?: boolean;                              // Default: true
+    methods?: HttpMethod[];                         // Default: all methods
+    maxCalls?: number;                              // Default: 100
+    windowMs?: number;                              // Default: 60000 (1 minute)
+    waitForToken?: boolean;                         // Default: true (wait vs reject)
+    serializer?: RequestSerializer<S, H, P>;        // Default: defaultRateLimitSerializer
+    shouldRateLimit?: (ctx: RequestKeyOptions) => boolean;  // Dynamic bypass
+    onRateLimit?: (ctx: RequestKeyOptions, waitTimeMs: number) => void | Promise<void>;
+    rules?: RateLimitRule[];                        // Route-specific config
+}
+
+interface RateLimitRule extends MatchTypes {
+    methods?: HttpMethod[];
+    enabled?: boolean;
+    maxCalls?: number;
+    windowMs?: number;
+    waitForToken?: boolean;
+    serializer?: RequestSerializer;
+}
+
+// Default serializer groups by method + pathname (per-endpoint limiting)
+// defaultRateLimitSerializer: (ctx) => `${ctx.method}|${ctx.url.pathname}`
+```
+
+### Route Matching
+
+Deduplication, caching, and rate limiting all support flexible route matching:
+
+```typescript
+interface MatchTypes {
+    is?: string;           // Exact path match
+    startsWith?: string;   // Path prefix match
+    endsWith?: string;     // Path suffix match
+    includes?: string;     // Path contains match
+    match?: RegExp;        // Regex match
+}
+
+// Multiple match types use AND logic (except 'is' which is exclusive)
+const rules = [
+    { is: '/users' },                               // Exact match only
+    { startsWith: '/api', endsWith: '.json' },      // Must satisfy both
+    { includes: 'admin', match: /\/v\d+\// },       // Must satisfy both
+];
+```
+
+## Timeout Options
+
+FetchEngine provides two timeout types that can be used independently or together:
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+
+    // totalTimeout: Caps entire operation including all retries
+    // When triggered, stops everything immediately
+    totalTimeout: 30000,  // 30s max for entire request lifecycle
+
+    // attemptTimeout: Per-attempt timeout (creates fresh controller per attempt)
+    // When triggered, that attempt fails but can be retried
+    attemptTimeout: 5000, // 5s per attempt
+
+    retry: {
+        maxAttempts: 3,
+        shouldRetry: (error) => error.status === 499 // Retry on timeout
+    }
+});
+
+// timeout is deprecated - use totalTimeout instead
+// timeout: 5000 is equivalent to totalTimeout: 5000
+```
+
+### How They Work Together
+
+```
+totalTimeout (parent controller)
+    │
+    ├── attempt 1: attemptTimeout (child controller 1) → times out → retry
+    ├── attempt 2: attemptTimeout (child controller 2) → times out → retry
+    └── attempt 3: attemptTimeout (child controller 3) → still running...
+                                                          │
+totalTimeout fires ─────────────────────────────────────────┘
+    → Immediately stops all attempts, no more retries
+```
+
+### Distinguishing Abort Causes
+
+FetchError provides helper methods to distinguish between different types of 499 errors:
+
+```typescript
+const [, err] = await attempt(() => api.get('/slow'));
+
+if (isFetchError(err)) {
+    if (err.isCancelled()) {
+        // Manual abort - user navigated away, component unmounted, etc.
+        // Don't show error, don't log
+        return;
+    }
+
+    if (err.isTimeout()) {
+        // Our timeout fired (attemptTimeout or totalTimeout)
+        toast.warn('Request timed out. Retrying...');
+    }
+    else if (err.isConnectionLost()) {
+        // Server dropped connection or network failed (NOT our abort)
+        toast.error('Connection lost. Check your internet.');
+    }
+}
+```
+
+**Helper Methods (all return `false` for non-499 errors):**
+
+| Method | Logic | Use Case |
+|--------|-------|----------|
+| `isCancelled()` | `status === 499 && aborted && !timedOut` | User/app intentionally cancelled |
+| `isTimeout()` | `status === 499 && timedOut` | Our timeout fired |
+| `isConnectionLost()` | `status === 499 && step === 'fetch' && !aborted` | Server/network dropped us |
+
+**Raw Property Reference:**
+
+| Scenario | `status` | `aborted` | `timedOut` | `step` |
+|----------|----------|-----------|------------|--------|
+| Manual abort (`promise.abort()`) | 499 | `true` | `undefined` | `'fetch'` |
+| `attemptTimeout` fires | 499 | `true` | `true` | `'fetch'` |
+| `totalTimeout` fires | 499 | `true` | `true` | `'fetch'` |
+| Server closed connection | 499 | `false` | `undefined` | `'fetch'` |
+| Network error | 499 | `false` | `undefined` | `'fetch'` |
+
+## Response Chaining
+
+Declare how the response body should be parsed by chaining a directive method before awaiting. No directive means auto-detection based on content-type (backwards compatible).
+
+```typescript
+// Explicit response type via chaining
+const { data: user } = await api.get<User>('/users/123').json();
+const { data: html } = await api.get('/page').text();
+const { data: file } = await api.get('/file').blob();
+const { data: buf } = await api.get('/binary').arrayBuffer();
+const { data: form } = await api.get('/form').formData();
+const { data: res } = await api.get('/endpoint').raw();
+
+// No directive — auto-parse based on content-type (backwards compatible)
+const { data: auto } = await api.get<User>('/users/123');
+
+// Override guard — setting directive twice throws
+api.get('/users').json().text(); // throws: 'Response type already set'
+
+// Works with error handling
+const [response, err] = await attempt(() => api.get<User>('/users/123').json());
+if (err) return handleError(err);
+console.log(response.data); // typed as User
+
+// Works with abort
+const request = api.get('/slow').json();
+setTimeout(() => request.abort('Too slow'), 5000);
+```
+
+## Stream Mode
+
+Return raw `Response` objects with unconsumed body streams via `.stream()`. Cache and deduplication are skipped (each caller needs its own readable stream). Rate limiting and lifecycle events still fire normally.
+
+```typescript
+// Stream mode via .stream() — supports async iteration
+for await (const chunk of api.get('/events').stream()) {
+    console.log(new TextDecoder().decode(chunk));
+}
+
+// Cache and deduplication are skipped (each caller needs its own stream)
+// Rate limiting and lifecycle events still fire normally
+// Type: .stream() returns FetchStreamPromise (AsyncIterable<Uint8Array>)
+```
+
+## Advanced Features
+
+```typescript
+// Disable retries completely
+const noRetryApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retry: false  // No retries at all
+});
+
+// Custom retry logic with shouldRetry controlling delays
+const customRetryApi = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retry: {
+        maxAttempts: 5,
+        baseDelay: 1000,  // Base delay for exponential backoff
+        shouldRetry: (error, attempt) => {
+            // Return custom delay in milliseconds for rate limits
+            if (error.status === 429) {
+                const retryAfter = error.headers?.['retry-after'];
+                return retryAfter ? parseInt(retryAfter) * 1000 : 5000;
+            }
+
+            // Don't retry client errors
+            if (error.status >= 400 && error.status < 500) {
+                return false;
+            }
+
+            // Return custom delay for server errors
+            if (error.status >= 500) {
+                // Custom delay calculation overrides exponential backoff
+                return Math.min(2000 * attempt, 10000);
+            }
+
+            return true;  // Use default exponential backoff
+        }
+    }
+});
+
+// Custom type determination
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    determineType: (response) => {
+        if (response.url.includes('/download')) return 'blob';
+        if (response.url.includes('/csv')) return 'text';
+        return FetchEngine.useDefault; // fall back to built-in detection
+    }
+});
+
+// Environment switching
+api.config.set('baseUrl', 'https://api.staging.com');
+```
+
+## TypeScript Patterns
+
+```typescript
+// Extend interfaces for type safety
+declare module '@logosdx/fetch' {
+    namespace FetchEngine {
+        interface InstanceHeaders {
+            Authorization?: string;
+            'Content-Type'?: string;
+            'X-API-Key'?: string;
+        }
+
+        interface InstanceParams {
+            version?: string;
+            format?: 'json' | 'xml';
+        }
+
+        interface InstanceResponseHeaders extends Record<string, string> {
+            'x-rate-limit-remaining'?: string;
+            'x-rate-limit-reset'?: string;
+            'x-request-id'?: string;
+            'content-type'?: string;
+        }
+
+        interface InstanceState {
+            authToken?: string;
+            userId?: string;
+            sessionId?: string;
+        }
+    }
+}
+
+// Now both custom instances and global instance use the same types
+const api = new FetchEngine<
+    FetchEngine.InstanceHeaders,
+    FetchEngine.InstanceParams,
+    FetchEngine.InstanceState,
+    FetchEngine.InstanceResponseHeaders
+>({
+    baseUrl: 'https://api.example.com',
+    validate: {
+        headers: (headers) => {
+            if (!headers.Authorization) {
+                throw new Error('Authorization required');
+            }
+        },
+        state: (state) => {
+            if (state.userId && !state.sessionId) {
+                throw new Error('Session required with user');
+            }
+        }
+    }
+});
+
+// Global instance automatically gets the extended types
+import { state, get, put, post, patch, del, options } from '@logosdx/fetch';
+state.set('authToken', 'token123'); // Typed
+
+// Response is properly typed with FetchResponse including typed config
+const response = await get<User>('/api/user');
+response.data; // ✅ Typed as User
+response.status; // ✅ Typed as number
+response.headers; // ✅ Typed as Partial<InstanceResponseHeaders>
+response.headers['x-rate-limit-remaining']; // ✅ Typed access to response headers
+response.request; // ✅ Typed as Request
+response.config.headers; // ✅ Typed as InstanceHeaders
+response.config.params; // ✅ Typed as InstanceParams
+
+// Per-request response header typing
+interface CustomHeaders {
+    'x-custom-header': string;
+}
+
+const customResponse = await get<User, CustomHeaders>('/api/user');
+customResponse.headers['x-custom-header']; // ✅ Typed
+```
+
+## Lifecycle Management
+
+```typescript
+// Destroy instances when done (component unmount, app teardown)
+api.destroy();
+api.isDestroyed(); // true
+await api.get('/users'); // throws: "Cannot make requests on destroyed FetchEngine instance"
+
+// on() returns cleanup function; all listeners auto-removed on destroy()
+const cleanup = api.on('error', (e) => console.error(e));
+cleanup();  // manual removal
+
+// off() for named handler removal
+api.off('error', errorHandler);
+```
+
+## Request Serializers
+
+Serializers generate unique keys for identifying requests. Used by dedupe, cache, and rate limit policies.
+
+### Built-in Serializers
+
+```typescript
+import { endpointSerializer, requestSerializer } from '@logosdx/fetch';
+
+// requestSerializer (Default for Cache & Dedupe)
+// Format: method|path+query|payload|stableHeaders
+// Only includes stable headers: authorization, accept, accept-language, content-type, accept-encoding
+// Excludes dynamic headers: X-Timestamp, X-HMAC-Signature, X-Request-Id, etc.
+
+// endpointSerializer (Default for Rate Limit)
+// Format: method|pathname
+// Groups all requests to same endpoint regardless of params
+```
+
+### Custom Serializers
+
+```typescript
+// Custom serializer example: user-scoped rate limiting
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    rateLimitPolicy: {
+        serializer: (ctx) => `user:${ctx.state?.userId ?? 'anonymous'}`,
+        maxCalls: 100
+    }
+});
+```
+
+### Serializer Signature
+
+```typescript
+type RequestSerializer<S, H, P> = (ctx: RequestKeyOptions<S, H, P>) => string;
+// RequestKeyOptions defined in Deduplication Types above
+```
+
+## Policy Architecture
+
+FetchEngine policies share a common architecture for consistent behavior and performance.
+
+### Policy Execution Order
+
+FetchEngine uses a 3-phase hook pipeline powered by `@logosdx/hooks`:
+
+```
+beforeRequest (run):
+  -30: cache plugin → return cached if hit (skip network entirely)
+  -20: rate-limit plugin → wait or reject if exceeded
+    0: user hooks
+
+execute (pipe — onion middleware):
+  -30: dedupe plugin → join in-flight if exists
+  -20: retry plugin → wrap with retry logic
+    0: user hooks
+  core: actual HTTP call (makeCall)
+
+afterRequest (run):
+  -10: cache plugin → store response
+    0: user hooks
+```
+
+**Key implications:**
+- Cached responses don't consume rate limit tokens (cache runs first)
+- Rate limiting only gates cache misses
+- Dedupe and retry wrap the actual network call via pipe middleware
+- Only the request initiator consumes a rate limit token; joiners share the result
+
+
+## Plugin Architecture
+
+FetchEngine's resilience features are implemented as plugins using `@logosdx/hooks`. Plugins install hooks on the engine's `HookEngine` instance.
+
+### Plugin Factories
+
+```typescript
+import { cachePlugin, dedupePlugin, retryPlugin, rateLimitPlugin } from '@logosdx/fetch';
+
+// Create plugins
+const cache = cachePlugin({ ttl: 300000, staleIn: 60000 });
+const dedupe = dedupePlugin(true);
+const retry = retryPlugin({ maxAttempts: 3 });
+const rateLimit = rateLimitPlugin({ maxCalls: 100, windowMs: 60000 });
+
+// Use with FetchEngine
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    plugins: [cache, dedupe, retry, rateLimit]
+});
+
+// Access plugin methods directly
+cache.clearCache();
+cache.stats();   // { cacheSize, inflightCount }
+dedupe.inflightCount();
+```
+
+### engine.use(plugin)
+
+Install a plugin at runtime. Returns a cleanup function.
+
+```typescript
+const cleanup = api.use(myPlugin);
+// Later: cleanup() to uninstall
+```
+
+---
+
+# @logosdx/hooks - LLM Helper
+
+
+A lightweight, type-safe lifecycle hook system for extending behavior without modifying code.
+
+
+## Core Concept
+
+Lifecycle hooks let you respond to named events with bidirectional communication. Unlike traditional events (fire-and-forget), hooks support arg modification, short-circuiting, and result injection via `HookContext`.
+
+Distinct verbs from Observer: `add`/`run` (hooks) vs `on`/`emit` (observer).
+
+
+## API Overview
+
+```typescript
+import { HookEngine, HookScope, HookError, isHookError } from '@logosdx/hooks';
+
+interface Lifecycle {
+    beforeFetch(url: string, options: RequestInit): Promise<Response>;
+    afterFetch(result: Response, url: string): Promise<Response>;
+}
+
+const hooks = new HookEngine<Lifecycle>()
+    .register('beforeFetch', 'afterFetch');
+
+// Subscribe — callbacks receive spread args + ctx as last param
+const cleanup = hooks.add('beforeFetch', (url, options, ctx) => {
+    ctx.args(url, { ...options, cache: 'no-store' });
+});
+
+// Run
+const result = await hooks.run('beforeFetch', url, options);
+// result.args, result.result, result.returned, result.scope
+
+// Wrap function with pre/post hooks
+const wrapped = hooks.wrap(fn, { pre: 'beforeFetch', post: 'afterFetch' });
+
+// Clear all
+hooks.clear();
+
+// Remove subscription
+cleanup();
+```
+
+
+## HookEngine Methods
+
+| Method | Description |
+|--------|-------------|
+| `register(...names)` | Register hooks for runtime validation. Returns `this`. |
+| `add(name, callback, options?)` | Subscribe to hook. Returns cleanup function. |
+| `run(name, ...args)` | Run hook async. Returns `Promise<RunResult>`. |
+| `runSync(name, ...args)` | Run hook sync. Returns `RunResult`. |
+| `pipe(name, coreFn, ...args)` | Pipe hook async (onion middleware). Returns `Promise<result>`. |
+| `pipeSync(name, coreFn, ...args)` | Pipe hook sync. Returns result. |
+| `wrap(fn, { pre?, post? })` | Wrap async function with pre/post hooks. |
+| `wrapSync(fn, { pre?, post? })` | Wrap sync function with pre/post hooks. |
+| `clear()` | Remove all hooks, reset to permissive mode. |
+
+
+## HookContext Methods
+
+Passed as the last argument to every callback:
+
+| Method | Returns | Effect |
+|--------|---------|--------|
+| `ctx.args(...newArgs)` | `EarlyReturnSignal` | Replace args for downstream callbacks |
+| `return ctx.args(...)` | — | Replace args **and** stop the chain |
+| `ctx.returns(value)` | `EarlyReturnSignal` | Set result and stop (always use with `return`) |
+| `ctx.fail(...args)` | `never` | Abort with error |
+| `ctx.removeHook()` | `void` | Remove this callback from future runs |
+| `ctx.scope` | `HookScope` | Request-scoped state bag |
+
+**Short-circuit rules:**
+
+| Code | Args changed | Chain stops |
+|------|-------------|-------------|
+| `ctx.args(...)` | yes | no |
+| `return ctx.args(...)` | yes | yes |
+| `return ctx.returns(value)` | n/a | yes |
+| `ctx.fail(...)` | n/a | throws |
+
+
+## RunResult
+
+```typescript
+interface RunResult<F> {
+    args: Parameters<F>;      // Final args (possibly modified)
+    result?: ReturnType<F>;   // Result if set via ctx.returns()
+    returned: boolean;        // Whether chain was short-circuited
+    scope: HookScope;         // Scope used during this run
+}
+```
+
+
+## AddOptions
+
+```typescript
+hooks.add('name', callback, {
+    once: true,           // Remove after first run (sugar for times: 1)
+    times: 3,             // Run N times then auto-remove
+    ignoreOnFail: true,   // Continue if callback throws
+    priority: -10         // Lower runs first, default 0
+});
+```
+
+
+## RunOptions
+
+```typescript
+await hooks.run('beforeRequest', url, opts, {
+    append: (url, opts, ctx) => { /* ephemeral, runs last */ },
+    scope: existingScope   // Share state across runs/engines
+});
+```
+
+
+## pipe() — Middleware Composition
+
+Onion/middleware pattern where each callback wraps the next. Used for cross-cutting concerns like retry, dedupe, caching execution.
+
+```typescript
+// Core function is the innermost call
+const result = await hooks.pipe('execute',
+    async (opts) => fetch(opts.url, opts),  // core
+    opts                                      // args
+);
+
+// Callbacks: (next, ...args, ctx) — call next() to proceed
+hooks.add('execute', async (next, opts, ctx) => {
+    const start = Date.now();
+    const result = await next();
+    console.log(`Took ${Date.now() - start}ms`);
+    return result;
+}, { priority: -10 });
+```
+
+**PipeContext** — simpler than HookContext:
+
+| Method | Effect |
+|--------|--------|
+| `ctx.args(...newArgs)` | Replace args for downstream callbacks |
+| `ctx.fail(...args)` | Abort with error |
+| `ctx.removeHook()` | Remove this callback from future runs |
+| `ctx.scope` | Request-scoped state bag |
+
+Note: No `ctx.returns()` in pipe — return from callback directly.
+
+
+## HookScope
+
+Request-scoped state bag that flows across hook runs and engine instances.
+
+```typescript
+import { HookScope } from '@logosdx/hooks';
+
+const scope = new HookScope();
+scope.set(Symbol('private'), value);   // Symbol keys for private state
+scope.set('shared', value);            // String keys for cross-plugin contracts
+scope.get<T>(key);
+scope.has(key);
+scope.delete(key);
+```
+
+**Flowing across runs:**
+
+```typescript
+const scope = new HookScope();
+const pre = await hooks.run('beforeRequest', url, opts, { scope });
+const post = await hooks.run('afterRequest', res, url, opts, { scope });
+// Both runs share the same scope
+```
+
+**Flowing across engine instances:**
+
+```typescript
+// Main engine hook calls a plugin's own engine with the same scope
+mainEngine.add('process', async (data, ctx) => {
+    await pluginEngine.run('validate', data, { scope: ctx.scope });
+});
+```
+
+
+## Priority & Execution Order
+
+Hooks execute in priority order (lower first). Built-in plugins use negative values, user hooks default to 0.
+
+**FetchEngine hook priorities:**
+
+```
+beforeRequest (run):
+  -30: cache plugin (return cached before consuming tokens)
+  -20: rate-limit plugin (gate requests on cache miss)
+    0: user hooks (default)
+    ∞: per-request hook (via RunOptions.append)
+
+execute (pipe):
+  -30: dedupe plugin (join in-flight requests)
+  -20: retry plugin (wrap with retry logic)
+    0: user hooks (default)
+
+afterRequest (run):
+  -10: cache plugin (store response)
+    0: user hooks (default)
+```
+
+
+## Library Integration
+
+Use `run()` to provide extension points in your library:
+
+```typescript
+async function fetchWithHooks(url: string, options: RequestInit = {}) {
+
+    const scope = new HookScope();
+
+    const pre = await hooks.run('beforeFetch', url, options, { scope });
+    if (pre.returned) return pre.result!;
+
+    const response = await fetch(...pre.args);
+
+    const post = await hooks.run('afterFetch', response, url, { scope });
+    return post.returned ? post.result! : response;
+}
+```
+
+
+## Registration
+
+Catches typos at runtime:
+
+```typescript
+const hooks = new HookEngine<Lifecycle>()
+    .register('beforeFetch', 'afterFetch');
+
+hooks.add('beforeFecth', cb);
+// Error: Hook "beforeFecth" is not registered.
+// Registered hooks: beforeFetch, afterFetch
+```
+
+
+## Custom Error Handler
+
+```typescript
+// Error constructor
+const hooks = new HookEngine<Lifecycle, [string, string, object?]>({
+    handleFail: HttpsError
+});
+
+// Function that throws
+const hooks = new HookEngine<Lifecycle, [string, object?]>({
+    handleFail: (msg, data) => { throw Boom.badRequest(msg, data); }
+});
+```
+
+
+## Common Patterns
+
+### Caching with Early Return
+
+```typescript
+hooks.add('beforeGet', (url, opts, ctx) => {
+    const cached = cache.get(url);
+    if (cached) return ctx.returns(cached);
+});
+```
+
+### Validation
+
+```typescript
+hooks.add('validate', (user, ctx) => {
+    if (!user.email) ctx.fail('Email required');
+});
+```
+
+### Arg Modification
+
+```typescript
+hooks.add('beforeRequest', (url, opts, ctx) => {
+    ctx.args(url, { ...opts, headers: { ...opts.headers, 'X-Trace': traceId } });
+});
+```
+
+### Non-Critical Hooks
+
+```typescript
+hooks.add('analytics', (event) => {
+    track(event);
+}, { ignoreOnFail: true });
+```
+
+
+## Type Parameters
+
+```typescript
+new HookEngine<Lifecycle, FailArgs>()
+```
+
+- `Lifecycle` — Interface defining hooks (default: permissive `Record<string, Func>`)
+- `FailArgs` — Tuple for `ctx.fail()` args (default: `[string]`)
+
+Only function properties are valid hook names:
+
+```typescript
+interface Doc {
+    id: string;                // Excluded — data property
+    save(): Promise<void>;     // Available as hook
+}
+
+hooks.add('save', cb);  // ✓ OK
+hooks.add('id', cb);    // ✗ Type error
+```
+
+---
+
+# @logosdx/observer Usage Patterns
+
+Advanced type-safe event system with async iteration, queuing, and component observation.
+
+## Core Types
+
+```ts
+// Define your event shape
+interface AppEvents {
+    'user:login': { userId: string; timestamp: number }
+    'user:logout': { userId: string }
+    'data:update': any[]
+    'system:error': Error
+}
+
+// Generic types for constraints
+type Events<Shape> = keyof Shape
+type EventData<Shape, E extends Events<Shape>> = Shape[E]
+type EventCallback<T> = (data: T, info?: { event: string, listener: Function }) => void
+type Cleanup = () => void
+type FuncName = 'on' | 'once' | 'off' | 'emit' | 'cleanup'
+type ListenerOptions = { signal?: AbortSignal }
+type ObserveOptions = { signal?: AbortSignal }
+
+type SpyAction<Ev> = {
+    event: keyof Ev | RegExp | '*'
+    listener?: Function | null
+    data?: unknown
+    fn: FuncName
+    context: ObserverEngine<any>
+}
+```
+
+## ObserverEngine - Core Event Emitter
+
+```ts
+import { ObserverEngine } from '@logosdx/observer'
+
+// Create typed observer
+const controller = new AbortController()
+const observer = new ObserverEngine<AppEvents>({
+    name: 'app-events',
+    spy: (action) => console.log(action.fn, action.event),
+    emitValidator: (event, data) => { /* validate data */ },
+    signal: controller.signal // aborts all listeners when signal fires
+})
+
+// Instance properties
+observer.name // 'app-events' (non-enumerable, defaults to random string)
+
+// Set/replace spy after construction
+observer.spy(newSpyFn) // throws if spy already set
+observer.spy(newSpyFn, true) // force replace existing spy
+
+// Basic event patterns
+observer.on('user:login', (data) => {
+    // data is { userId: string; timestamp: number }
+})
+
+observer.once('user:logout', (data) => {
+    // fires once, data is { userId: string }
+})
+
+observer.emit('user:login', { userId: '123', timestamp: Date.now() })
+
+// Cleanup patterns
+const cleanup = observer.on('data:update', callback)
+cleanup() // remove listener
+
+observer.off('user:login', specificCallback)
+observer.off('user:login') // remove all listeners
+observer.clear() // remove all listeners
+
+// AbortSignal cleanup — all methods accept { signal }
+const ac = new AbortController()
+observer.on('user:login', handler, { signal: ac.signal })
+observer.once('user:logout', handler, { signal: ac.signal })
+const gen = observer.on('user:login', { signal: ac.signal })
+ac.abort() // removes all listeners at once
+
+// Works with AbortSignal.timeout()
+observer.on('heartbeat', handler, { signal: AbortSignal.timeout(30_000) })
+```
+
+## Regex Event Matching
+
+```ts
+// Listen to patterns
+observer.on(/^user:/, ({ event, data }) => {
+    // Matches 'user:login', 'user:logout', etc.
+    // event: string, data: any
+})
+
+observer.on(/error$/, ({ event, data }) => {
+    // Matches 'system:error', 'validation:error', etc.
+})
+
+// Emit to regex (matches all matching listeners)
+observer.emit(/^user:/, { type: 'broadcast' })
+```
+
+## EventGenerator - Async Iteration
+
+Events are buffered internally in FIFO order. No events are dropped even if
+they arrive faster than the consumer iterates.
+
+```ts
+// Generator from on() without callback
+const userEvents = observer.on('user:login')
+
+// Async iteration (events buffered while doing async work between iterations)
+for await (const loginData of userEvents) {
+    console.log('User logged in:', loginData.userId)
+    await saveToDatabase(loginData) // buffered events won't be lost here
+
+    if (shouldStop) {
+        userEvents.cleanup()
+        break
+    }
+}
+
+// Manual iteration
+const loginData = await userEvents.next()
+console.log(loginData) // { userId: string; timestamp: number }
+
+// Events emitted before next() is called are also buffered
+observer.emit('user:login', first)
+observer.emit('user:login', second)
+await userEvents.next() // first
+await userEvents.next() // second
+
+// Generator properties
+userEvents.lastValue // last received value
+userEvents.done // boolean
+userEvents.emit(data) // emit to underlying observer
+userEvents.cleanup() // stop listening
+
+// Regex generators
+const allUserEvents = observer.on(/^user:/)
+for await (const { event, data } of allUserEvents) {
+    console.log(`${event}:`, data)
+}
+```
+
+## Promise-Based once()
+
+```ts
+// Promise without callback
+const loginPromise = observer.once('user:login')
+const userData = await loginPromise
+loginPromise.cleanup() // optional cleanup
+
+// Promise with timeout
+const userData = await Promise.race([
+    observer.once('user:login'),
+    new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000)
+    )
+])
+```
+
+## EventQueue - Processing Pipeline
+
+```ts
+// Create queue from observer
+const queue = observer.queue('data:process', async (data) => {
+    // Process each data item - can return Promise<any> or any (MaybePromise)
+    await processData(data)
+    return result // optional return value
+}, {
+    name: 'data-processor',
+    concurrency: 3,
+    type: 'fifo', // or 'lifo'
+
+    // Rate limiting
+    rateLimitCapacity: 100,
+    rateLimitIntervalMs: 1000,
+
+    // Timing
+    pollIntervalMs: 100,
+    processIntervalMs: 50,
+    taskTimeoutMs: 30000,
+    jitterFactor: 0.1,
+
+    // Limits
+    maxQueueSize: 1000,
+    autoStart: true,
+    debug: 'verbose'
+})
+
+// Queue lifecycle
+queue.start()
+queue.pause()
+queue.resume()
+queue.stop()
+queue.shutdown() // drain and stop
+queue.shutdown(true) // force stop
+
+// Add items (returns boolean: true if added, false if rejected)
+queue.add(data, priority) // higher priority = processed first
+observer.emit('data:process', data) // also adds to queue
+
+// Queue operations
+queue.flush(10) // process 10 items
+queue.purge() // clear all items
+await queue.shutdown() // drain and stop
+
+// Queue state
+queue.isRunning
+queue.isPaused
+queue.isStopped
+queue.isDraining
+queue.isIdle
+queue.isWaiting
+queue.pending // items in queue
+queue.state // 'running' | 'paused' | 'stopped' | 'draining'
+```
+
+## Queue Events
+
+```ts
+// Lifecycle events
+queue.on('start', () => {})
+queue.on('started', () => {})
+queue.on('stopped', () => {})
+queue.on('paused', () => {})
+queue.on('resumed', () => {})
+
+// Processing events
+queue.on('added', (item) => {}) // item added to queue
+queue.on('processing', (item) => {}) // item being processed
+queue.on('success', (item) => {}) // item processed successfully
+queue.on('error', (item) => {}) // item processing failed
+queue.on('timeout', (item) => {}) // item processing timed out
+queue.on('rejected', (item) => {}) // item rejected (queue full, etc.)
+
+// Queue state events
+queue.on('empty', () => {}) // queue became empty
+queue.on('idle', () => {}) // queue idle (no pending items)
+queue.on('rate-limited', (item) => {}) // rate limit hit
+queue.on('drain', ({ pending }) => {}) // starting to drain
+queue.on('drained', ({ drained }) => {}) // finished draining
+queue.on('flush', ({ pending }) => {}) // starting flush
+queue.on('flushed', ({ flushed }) => {}) // finished flushing
+queue.on('purged', ({ count }) => {}) // items purged
+queue.on('shutdown', ({ force }) => {}) // queue shutdown
+queue.on('cleanup', () => {}) // queue cleaned up
+
+// Promise-based event waiting
+const success = await queue.once('success')
+const errorItem = await queue.once('error')
+```
+
+## Component Observation
+
+```ts
+// Extend any object with event capabilities
+const modal = { isOpen: false }
+const enhancedModal = observer.observe(modal) // accepts optional { signal } for auto-cleanup
+
+// Now modal has event methods (returns C & Component<Events> & { cleanup: () => void })
+enhancedModal.on('open', () => enhancedModal.isOpen = true)
+enhancedModal.on('close', () => enhancedModal.isOpen = false)
+enhancedModal.emit('open')
+
+// Two cleanup methods available
+enhancedModal.clear() // clears all listeners for this component
+enhancedModal.cleanup() // cleans up and removes internal tracking
+
+// Component types from the package
+type Component<Events> = {
+    on: ObserverEngine<Events>['on']
+    once: ObserverEngine<Events>['once']
+    emit: ObserverEngine<Events>['emit']
+    off: ObserverEngine<Events>['off']
+}
+
+type Child<C, Events> = C & Component<Events> & {
+    cleanup: () => void
+}
+```
+
+## Listener Transfer & Copy
+
+```ts
+// Transfer: move listeners from source to target (source loses them)
+ObserverEngine.transfer(source, target)
+
+// Copy: duplicate listeners to target (source keeps them)
+ObserverEngine.copy(source, target)
+
+// Opt-in filter: only transfer specific events
+ObserverEngine.transfer(source, target, { filter: ['analytics', /^user:/] })
+
+// Opt-out exclude: transfer everything except these
+ObserverEngine.copy(source, target, { exclude: [/^internal:/] })
+
+// Compose: filter first, then exclude from that set
+ObserverEngine.transfer(source, target, {
+    filter: [/^fetch:/],
+    exclude: ['fetch:debug']
+})
+
+// Stacking: target's existing listeners are untouched
+target.on('analytics', existingHandler)
+ObserverEngine.transfer(source, target) // existingHandler still works
+
+// TransferOptions type
+type TransferOptions<Ev> = {
+    filter?: (Events<Ev> | RegExp)[]    // opt-in whitelist (applied first)
+    exclude?: (Events<Ev> | RegExp)[]   // opt-out blacklist (applied second)
+}
+```
+
+## Advanced Features
+
+```ts
+// Debugging and tracing
+observer.debug(true) // enable stack traces
+observer.debug(false) // disable
+
+// Spy on all operations
+const spy = (action) => {
+    console.log(`${action.fn}(${action.event})`, action.data)
+}
+const observer = new ObserverEngine({ spy })
+
+// Emit validation
+const emitValidator = (event, data, context) => {
+    if (!isValid(data)) throw new Error('Invalid data')
+}
+const observer = new ObserverEngine({ emitValidator })
+
+// Inspector methods
+observer.$has('event') // check if event has listeners
+observer.$has(/pattern/) // check if regex has matches
+observer.$facts() // listener counts and state
+observer.$internals() // internal maps (debugging only, returns cloned copies)
+
+// Queue exported types
+import { QueueState, QueueRejectionReason, InternalQueueEvent } from '@logosdx/observer'
+// QueueState: 'running' | 'paused' | 'stopped' | 'draining'
+// QueueRejectionReason: 'Queue is full' | 'Queue is not running'
+// InternalQueueEvent<T>: wrapper with .data property, used to mark queue events
+
+// Error handling
+import { EventError, isEventError } from '@logosdx/observer'
+// EventErrors are thrown by EventGenerator methods
+const generator = observer.on('user:login') // no callback = EventGenerator
+
+try {
+    generator.cleanup() // Mark as destroyed
+    await generator.next() // This will throw EventError
+} catch (err) {
+    if (isEventError(err)) {
+        console.log(err.event, err.data, err.listener)
+    }
+}
+
+// EmitValidator can also throw (but not EventError)
+const observer = new ObserverEngine({
+    emitValidator: (event, data) => {
+        if (event === 'restricted') throw new Error('Access denied')
+    }
+})
+
+try {
+    observer.emit('restricted', {})
+} catch (err) {
+    console.log('Validation failed:', err.message)
+}
+```
+
+---
+
+# @logosdx/react Usage Patterns
+
+
+React bindings for LogosDX engines. Factory-pattern context providers and hooks with full type inference.
+
+## Core Pattern
+
+Every factory takes an engine instance and returns a `[Provider, useHook]` tuple:
+
+```typescript
+import { ObserverEngine } from '@logosdx/observer'
+import { FetchEngine } from '@logosdx/fetch'
+import { StorageAdapter } from '@logosdx/storage'
+import { LocaleManager } from '@logosdx/localize'
+import {
+    createObserverContext,
+    createFetchContext,
+    createStorageContext,
+    createLocalizeContext,
+    createStateMachineContext,
+} from '@logosdx/react'
+
+// Create instances
+const observer = new ObserverEngine<AppEvents>()
+const api = new FetchEngine({ baseUrl: '/api' })
+const storage = new StorageAdapter<AppStore>({
+    driver: new WebStorageDriver(localStorage),
+    prefix: 'app',
+})
+const i18n = new LocaleManager<Locale, 'en' | 'es'>({ current: 'en', fallback: 'en', locales })
+const machine = new StateMachine<Ctx, Events, States>({ initial: 'idle', context: {}, transitions: {} })
+
+// Create context + hook pairs — rename freely
+export const [AppObserver, useAppObserver] = createObserverContext(observer)
+export const [ApiFetch, useApiFetch] = createFetchContext(api)
+export const [AppStorage, useAppStorage] = createStorageContext(storage)
+export const [AppLocale, useAppLocale] = createLocalizeContext(i18n)
+export const [GameProvider, useGame] = createStateMachineContext(machine)
+```
+
+Compose providers into a single wrapper:
+
+```typescript
+import { composeProviders } from '@logosdx/react'
+
+// First entry = outermost wrapper
+export const Providers = composeProviders(
+    AppObserver,
+    ApiFetch,
+    AppStorage,
+    AppLocale,
+    GameProvider,
+)
+```
+
+```tsx
+<Providers>
+    <App />
+</Providers>
+```
+
+Providers that need props beyond children use `[Provider, props]` tuples:
+
+```typescript
+const Providers = composeProviders(
+    AppObserver,
+    [ThemeProvider, { theme: 'dark' }],
+    ApiFetch,
+)
+```
+
+## Observer Hook
+
+```typescript
+const { on, once, oncePromise, emit, emitFactory, instance } = useAppObserver()
+
+// Subscribe — auto-cleans on unmount, re-subscribes on callback change
+const handler = useCallback((data) => console.log(data.userId), [])
+on('user.login', handler)
+
+// One-shot with callback
+once('app.init', useCallback((cfg) => bootstrap(cfg), []))
+
+// One-shot reactive tuple — no callback needed
+const [waiting, data, cancel] = oncePromise('notification')
+// waiting: boolean, data: Shape[E] | null, cancel: () => void
+
+// Emit directly (stable, bound to engine)
+emit('user.logout', { userId: '123' })
+
+// Memoized emitter for a specific event
+const logout = emitFactory('user.logout')
+// <button onClick={() => logout({ userId: '123' })} />
+```
+
+## Fetch Hook
+
+```typescript
+const { get, post, put, del, patch, instance } = useApiFetch()
+
+// Query — auto-fetches on mount, re-fetches when path/options change
+// Returns [cancel, isLoading, response, error]
+const [cancel, isLoading, res, error] = get<User[]>('/users')
+const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // typed response headers
+
+// Mutation — starts idle, fires when triggered
+// Returns [trigger, cancel, isLoading, response, error]
+const [submit, cancelSubmit, isSubmitting, result, submitErr] = post<Comment>('/comments')
+const [remove, cancelRemove, isRemoving, , removeErr] = del<void>('/items/123')
+
+// Fire mutation
+submit({ text: 'Hello' })
+remove()
+
+// Escape hatch for imperative use
+const { instance } = useApiFetch()
+const handleExport = async () => {
+    const [res, err] = await attempt(() => instance.get('/export'))
+}
+```
+
+## Storage Hook
+
+```typescript
+const { get, set, remove, assign, has, clear, scope, keys, instance } = useAppStorage()
+
+// Any mutation triggers a re-render automatically
+const theme = get('theme')          // read single key
+const all = get()                   // read all values
+set('theme', 'dark')                // set single
+set({ theme: 'dark', userId: '42' }) // bulk set
+remove('userId')                    // remove key
+assign('preferences', { lang: 'es' }) // Object.assign on value
+has('theme')                        // boolean
+clear()                             // remove all prefixed keys
+scope('theme')                      // scoped adapter for a single key
+keys()                              // ['theme', 'userId', ...]
+```
+
+## Localize Hook
+
+```typescript
+const { t, locale, changeTo, locales, instance } = useAppLocale()
+
+// Translate with type-safe keys and optional interpolation
+const greeting = t('home.greeting', { name: 'World' })
+const logout = t('nav.logout')
+
+// Current locale code
+console.log(locale) // 'en'
+
+// Switch locale — triggers re-render, t() returns new language
+changeTo('es')
+
+// All available locales
+locales // [{ code: 'en', text: 'English' }, { code: 'es', text: 'Español' }]
+```
+
+## State Machine Hook
+
+Two options: `createStateMachineContext` for context-based sharing, or `useStateMachine` as a standalone hook.
+
+```typescript
+// Context + hook tuple (shared via Provider)
+const [GameProvider, useGame] = createStateMachineContext(machine)
+
+// Usage in component
+const { state, context, send, instance } = useGame()
+send('SCORE', 10)
+
+// Standalone hook (no Provider needed)
+import { useStateMachine } from '@logosdx/react/state-machine'
+const { state, context, send } = useStateMachine(machine)
+
+// Selector — only re-renders when selected value changes
+const { context: score } = useGame((ctx) => ctx.score)
+const { context: score } = useStateMachine(machine, (ctx) => ctx.score)
+```
+
+## Subpath Imports
+
+Each binding is available as a standalone subpath export. Peer deps only required for imported bindings:
+
+```typescript
+import { createStorageContext } from '@logosdx/react/storage'
+import { useStateMachine } from '@logosdx/react/state-machine'
+import { createObserverContext } from '@logosdx/react/observer'
+import { createFetchContext } from '@logosdx/react/fetch'
+import { createLocalizeContext } from '@logosdx/react/localize'
+import { composeProviders } from '@logosdx/react/compose'
+```
+
+## Why Tuples, Not Objects?
+
+Factories return `[Provider, useHook]` tuples (like `useState`) instead of objects:
+
+```typescript
+// Tuples — rename naturally, no aliasing syntax
+const [ChatObserver, useChatEvents] = createObserverContext(chatEngine)
+const [ApiObserver, useApiObserver] = createObserverContext(apiEngine)
+
+// Objects would require verbose aliasing
+const { Provider: ChatObserver, useHook: useChatEvents } = createObserverContext(chatEngine)
+```
+
+Free renaming, less verbose, and follows React's own hook convention.
+
+## Hook Rules
+
+All hook methods (`on`, `once`, `oncePromise`, `emitFactory`, `get`, `post`, `put`, `del`, `patch`) call React hooks internally:
+
+- Call at the top level of your component
+- Never conditionally or in loops
+- Provider must be an ancestor in the component tree
+
+## Type Inference
+
+All generics are inferred from the engine instance — no manual type params needed:
+
+```typescript
+// Engine types flow through automatically
+const api = new FetchEngine<CustomHeaders, CustomParams, ApiState>({ baseUrl: '/api' })
+const [, useApiFetch] = createFetchContext(api)
+
+// instance preserves the full FetchEngine<CustomHeaders, CustomParams, ApiState> type
+const { instance } = useApiFetch()
+instance.headers.set('X-Custom', 'value') // typed
+
+// Per-call generics for response body and headers
+const [, , res] = get<User[]>('/users')           // res?.data is User[]
+const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // res2?.headers['x-total'] typed
+```
+
+---
+
+# @logosdx/state-machine Usage Patterns
+
+
+Type-safe finite state machine with enforced transitions, guarded context, async invoke, and machine-to-machine coordination.
+
+## Core Types
+
+```ts
+// Define your context (data the machine carries)
+interface CheckoutContext {
+    items: Item[]
+    error: string | null
+}
+
+// Define your events (what the machine responds to)
+interface CheckoutEvents {
+    FETCH: void
+    ADD_ITEM: { id: string, name: string }
+    SUCCESS: { items: Item[] }
+    FAILURE: { message: string }
+    RETRY: void
+    RESET: void
+}
+
+// Transition targets — string shorthand or object with action/guard
+type TransitionTarget<Context, Data> = string | {
+    target: string
+    action?: (context: Context, data: Data) => Context
+    guard?: (context: Context, data: Data) => boolean
+}
+
+// Per-state config
+type StateConfig<Context, Events> = {
+    on?: { [E in keyof Events]?: TransitionTarget<Context, Events[E]> }
+    invoke?: InvokeConfig<Context>
+    final?: boolean
+}
+
+// Machine config
+type MachineConfig<Context, Events> = {
+    initial: string
+    context: Context
+    transitions: Record<string, StateConfig<Context, Events>>
+    debug?: boolean
+}
+```
+
+## StateMachine — Core FSM
+
+```ts
+import { StateMachine } from '@logosdx/state-machine'
+
+const machine = new StateMachine<CheckoutContext, CheckoutEvents>({
+    initial: 'idle',
+    context: { items: [], error: null },
+    transitions: {
+        idle: {
+            on: {
+                FETCH: 'loading',
+                ADD_ITEM: {
+                    target: 'idle',
+                    action: (ctx, data) => ({ ...ctx, items: [...ctx.items, data] }),
+                },
+            },
+        },
+        loading: {
+            on: {
+                SUCCESS: {
+                    target: 'idle',
+                    action: (ctx, data) => ({ ...ctx, items: data.items }),
+                },
+                FAILURE: {
+                    target: 'error',
+                    action: (ctx, data) => ({ ...ctx, error: data.message }),
+                },
+            },
+        },
+        error: {
+            on: {
+                RETRY: 'loading',
+                RESET: {
+                    target: 'idle',
+                    action: () => ({ items: [], error: null }),
+                },
+            },
+        },
+    },
+})
+
+// Properties
+machine.state    // 'idle' — current state name
+machine.context  // { items: [], error: null } — cloned, safe to read
+```
+
+## Sending Events
+
+```ts
+// Void events need no data
+machine.send('FETCH')
+
+// Typed data required for non-void events
+machine.send('ADD_ITEM', { id: '1', name: 'Widget' })
+
+// Invalid for current state — silent no-op, emits $rejected
+machine.send('RETRY') // ignored when in 'idle'
+```
+
+## Guards
+
+```ts
+const machine = new StateMachine<{ count: number }, { INCREMENT: void }>({
+    initial: 'idle',
+    context: { count: 0 },
+    transitions: {
+        idle: {
+            on: {
+                INCREMENT: {
+                    target: 'idle',
+                    action: (ctx) => ({ count: ctx.count + 1 }),
+                    guard: (ctx) => ctx.count < 10, // blocks when count >= 10
+                },
+            },
+        },
+    },
+})
+```
+
+## Listening for Transitions
+
+```ts
+// Specific state entry
+machine.on('error', ({ from, to, event, context, data }) => {
+    console.error(`Entered error from ${from} via ${event}`)
+})
+
+// Wildcard — any transition
+machine.on('*', (payload) => {
+    console.log(`${payload.from} → ${payload.to}`)
+})
+
+// Regex matching
+machine.on(/error|failed/, (payload) => { ... })
+
+// Rejected transitions
+machine.on('$rejected', ({ state, event, reason }) => {
+    console.warn(`"${event}" rejected in "${state}" — ${reason}`)
+    // reason: 'no_transition' | 'guard_failed'
+})
+
+// Cleanup
+const cleanup = machine.on('loading', listener)
+cleanup() // stop listening
+
+machine.off('loading', listener)
+```
+
+## Invoke — Async State Transitions
+
+```ts
+const machine = new StateMachine<{ data: any, error: string | null }, { FETCH: void }>({
+    initial: 'idle',
+    context: { data: null, error: null },
+    transitions: {
+        idle: {
+            on: { FETCH: 'loading' },
+        },
+        loading: {
+            invoke: {
+                src: async (ctx) => {
+                    const res = await fetch('/api/items')
+                    return res.json()
+                },
+                onDone: {
+                    target: 'idle',
+                    action: (ctx, result) => ({ ...ctx, data: result }),
+                },
+                onError: {
+                    target: 'error',
+                    action: (ctx, err) => ({ ...ctx, error: err.message }),
+                },
+            },
+        },
+        error: {
+            on: { RETRY: 'loading' },
+        },
+    },
+})
+
+// Invoke fires automatically when entering a state with invoke config.
+// If the machine transitions away before the promise settles,
+// the result is discarded and $invoke.cancelled is emitted.
+
+// Observable invoke events
+machine.on('$invoke.done', ({ state, result }) => { ... })
+machine.on('$invoke.error', ({ state, error }) => { ... })
+machine.on('$invoke.cancelled', ({ state }) => { ... })
+```
+
+## Persistence
+
+```ts
+import { StateMachine } from '@logosdx/state-machine'
+import type { StorageAdapter } from '@logosdx/state-machine'
+
+// Any adapter that implements load/save
+const adapter: StorageAdapter = {
+    load: async (key) => {
+        const raw = localStorage.getItem(key)
+        return raw ? JSON.parse(raw) : null
+    },
+    save: async (key, snapshot) => {
+        localStorage.setItem(key, JSON.stringify(snapshot))
+    },
+}
+
+const machine = new StateMachine(config, {
+    persistence: { key: 'checkout', adapter },
+})
+
+// Wait for hydration before using
+await machine.ready()
+
+// Machine auto-saves { state, context } on every transition.
+// On hydration, falls back to initial if saved state no longer exists.
+```
+
+## StateHub — Machine Coordination
+
+```ts
+import { StateMachine, StateHub } from '@logosdx/state-machine'
+
+const hub = new StateHub({
+    auth: authMachine,
+    checkout: checkoutMachine,
+    notifications: notifMachine,
+})
+
+// Type-safe access
+const auth = hub.get('auth')
+auth.send('LOGIN', { user: 'admin' })
+
+// Declarative machine-to-machine wiring
+hub.connect({
+    from: 'auth',
+    enters: 'loggedOut',
+    to: 'checkout',
+    send: 'RESET',
+})
+
+hub.connect({
+    from: 'checkout',
+    enters: 'confirmed',
+    to: 'notifications',
+    send: 'NOTIFY',
+    data: (ctx) => ({ message: `Order: ${ctx.items.length} items` }),
+})
+
+// Returns cleanup function
+const cleanup = hub.connect({ ... })
+cleanup()
+```
+
+## Internal Events Reference
+
+| Event | When | Payload |
+|-------|------|---------|
+| `*` | Any successful transition | `{ from, to, event, context, data }` |
+| `{stateName}` | Entering a specific state | `{ from, to, event, context, data }` |
+| `$rejected` | Invalid transition attempted | `{ state, event, data, reason }` |
+| `$invoke.done` | Invoke promise resolved | `{ state, result }` |
+| `$invoke.error` | Invoke promise rejected | `{ state, error }` |
+| `$invoke.cancelled` | Invoke discarded (state changed) | `{ state }` |
+
+## Constructor Validation
+
+The constructor validates at creation time:
+
+- Every transition target references an existing state
+- `initial` references an existing state
+- Final states have no `on` transitions
+- Invoke `onDone`/`onError` targets reference existing states
+
+## Patterns Summary
+
+```ts
+// Create machine
+const machine = new StateMachine<Context, Events>(config)
+
+// Send events
+machine.send('EVENT')
+machine.send('EVENT', data)
+
+// Listen
+const cleanup = machine.on('state', listener)
+machine.on('*', listener)
+machine.on('$rejected', listener)
+machine.on(/pattern/, listener)
+machine.off('state', listener)
+
+// Coordinate
+const hub = new StateHub({ a: machineA, b: machineB })
+hub.connect({ from: 'a', enters: 'done', to: 'b', send: 'START' })
+```
+
+---
+
+# @logosdx/storage Usage Patterns
+
+
+Async driver-based key-value abstraction with type-safe keys, prefix scoping, JSON serialization, and reactive events via `@logosdx/observer`.
+
+## Core API Overview
+
+```typescript
+import {
+    StorageAdapter,
+    LocalStorageDriver,
+    SessionStorageDriver,
+    FileSystemDriver,
+    IndexedDBDriver,
+} from '@logosdx/storage'
+import { attempt } from '@logosdx/utils'
+
+// Define your storage shape for type safety
+interface AppStorage {
+    userId: string
+    userPreferences: { theme: 'light' | 'dark'; notifications: boolean }
+    sessionData: { token: string; expiresAt: number }
+}
+
+// Create typed storage adapter with a driver
+const storage = new StorageAdapter<AppStorage>({
+    driver: new LocalStorageDriver(),
+    prefix: 'myapp'
+})
+
+// All operations are async
+const [userId, err] = await attempt(() => storage.get('userId'))
+await storage.set('userId', '12345')
+await storage.assign('userPreferences', { theme: 'dark' })
+await storage.rm('sessionData')
+```
+
+## StorageAdapter Class
+
+```typescript
+class StorageAdapter<Values> {
+    readonly driver: StorageDriver
+    readonly prefix: string  // defaults to '' (empty string)
+    readonly structured: boolean
+
+    // Aliases
+    remove: StorageAdapter<Values>['rm']
+    reset: StorageAdapter<Values>['clear']
+
+    constructor(config: StorageAdapter.Config)
+
+    // Event system (returns cleanup function)
+    on(event: StorageEventName, listener: StorageEventListener<Values>): () => void
+    off(event: StorageEventName, listener: StorageEventListener<Values>): void
+}
+
+namespace StorageAdapter {
+    interface Config {
+        driver: StorageDriver
+        prefix?: string
+        structured?: boolean  // skip JSON serialization (default: false)
+    }
+}
+
+interface StorageDriver {
+    get(key: string): Promise<unknown>
+    set(key: string, value: unknown): Promise<void>
+    remove(key: string): Promise<void>
+    keys(): Promise<string[]>
+    clear(): Promise<void>
+}
+
+type StorageEventName =
+    | 'before-set'
+    | 'after-set'
+    | 'before-remove'
+    | 'after-remove'
+    | 'clear'
+```
+
+## CRUD Operations
+
+```typescript
+// Get operations (overloaded, all async)
+const allData = await storage.get()                    // Returns entire Values object
+const userId = await storage.get('userId')             // Returns Values[K] | null
+const subset = await storage.get(['userId', 'cache'])  // Returns Partial<Values>
+
+// Set operations
+await storage.set('userId', '12345')                   // Single key-value
+await storage.set({ userId: '12345', cache: {} })     // Multiple key-values
+
+// Object assignment (shallow merge)
+// - If key doesn't exist, behaves like set()
+// - Throws Error if current value is not an object
+// - Error message: "key (keyName) value cannot be assigned (not an object)"
+await storage.assign('userPreferences', { theme: 'light' })
+
+// Remove operations
+await storage.rm('userId')                             // Single key
+await storage.rm(['userId', 'cache'])                  // Multiple keys
+await storage.remove('sessionData')                    // Alias for rm()
+
+// Utilities
+const hasUser = await storage.has('userId')            // boolean
+const allKeys = await storage.keys()                   // (keyof Values)[]
+const allEntries = await storage.entries()             // [key, value][] (calls get() internally)
+const allValues = await storage.values()               // value[] (calls get() internally)
+await storage.clear()                                  // Removes all keys with prefix
+```
+
+## Built-in Drivers
+
+```typescript
+// Browser - localStorage
+const local = new StorageAdapter<AppStorage>({
+    driver: new LocalStorageDriver(),
+    prefix: 'app'
+})
+
+// Browser - sessionStorage
+const session = new StorageAdapter<AppStorage>({
+    driver: new SessionStorageDriver(),
+    prefix: 'session'
+})
+
+// Node.js - file system (JSON file)
+// Lazy-loads node:fs/promises on first operation, not on construction
+const file = new StorageAdapter<AppSettings>({
+    driver: new FileSystemDriver('./data/settings.json'),
+    prefix: 'config'
+})
+
+// Browser - IndexedDB (structured data, skip JSON serialization)
+// Database opens lazily; object store auto-created via onupgradeneeded
+const idb = new StorageAdapter<AppData>({
+    driver: new IndexedDBDriver('my-app', 'settings'),
+    structured: true
+})
+```
+
+## scope() Pattern
+
+```typescript
+// Create a single-key scoped interface (all methods async)
+const userScope = storage.scope('userPreferences')
+
+await userScope.set({ theme: 'dark', notifications: true })
+await userScope.assign({ theme: 'light' })
+const prefs = await userScope.get()
+await userScope.remove()
+
+// ScopedKey interface
+// WARNING: clear() is an alias for remove() on scoped keys — it deletes the key, not all keys
+interface ScopedKey<V, K extends keyof V> {
+    get(): Promise<V[K]>
+    set(value: V[K]): Promise<void>
+    assign(val: Partial<V[K]>): Promise<void>
+    rm(): Promise<void>       // alias for remove()
+    remove(): Promise<void>
+    clear(): Promise<void>    // alias for remove() — NOT adapter.clear()
+}
+```
+
+## Event System
+
+```typescript
+// on() returns a cleanup function
+const cleanup = storage.on('after-set', (event) => {
+    console.log('Set:', event.key, event.value)
+})
+
+// Remove when done
+cleanup()
+
+// Event payload — undefined values are normalized to null
+interface StorageEventPayload<V, K extends keyof V> {
+    key: K
+    value?: V[K] | null  // present for set events; null for remove events
+}
+
+// All event names
+// 'before-set' | 'after-set'       → payload has key + value
+// 'before-remove' | 'after-remove' → payload has key, value is null
+// 'clear'                           → no payload
+
+// Empty string keys throw: assert(key, 'invalid key')
+
+// Manual off()
+function handler(event) { /* ... */ }
+storage.on('before-remove', handler)
+storage.off('before-remove', handler)
+```
+
+## Custom Driver Implementation
+
+```typescript
+import type { StorageDriver } from '@logosdx/storage'
+
+// Implement 5 async methods
+class RedisDriver implements StorageDriver {
+
+    #client: Redis
+
+    constructor(redisUrl: string) {
+        this.#client = new Redis(redisUrl)
+    }
+
+    async get(key: string) {
+        const raw = await this.#client.get(key)
+        return raw ?? null
+    }
+
+    async set(key: string, value: unknown) {
+        await this.#client.set(key, String(value))
+    }
+
+    async remove(key: string) {
+        await this.#client.del(key)
+    }
+
+    async keys() {
+        return this.#client.keys('*')
+    }
+
+    async clear() {
+        const allKeys = await this.keys()
+        if (allKeys.length > 0) {
+            await this.#client.del(...allKeys)
+        }
+    }
+}
+
+const storage = new StorageAdapter<SessionData>({
+    driver: new RedisDriver('redis://localhost:6379'),
+    prefix: 'sessions'
+})
+```
+
+## Structured vs Serialized Mode
+
+```typescript
+// Default: JSON serialization (localStorage, sessionStorage, file system)
+const serialized = new StorageAdapter<AppStorage>({
+    driver: new LocalStorageDriver(),
+    prefix: 'app'
+    // structured defaults to false
+})
+
+// JSON caveats: Date → string, Map/Set → object, undefined → null
+// WARNING: WebStorageDriver calls String(value) — never use structured: true with WebStorage drivers
+
+// Structured: skip JSON (IndexedDB, custom drivers with native object support)
+const structured = new StorageAdapter<AppStorage>({
+    driver: new IndexedDBDriver('my-app'),
+    structured: true
+})
+
+// Values pass through to/from the driver without serialization
+```
+
+---
+
+# @logosdx/utils - Usage Context
+
+A comprehensive utility library providing Go-style error handling, advanced flow control, type-safe data operations, and powerful TypeScript type utilities.
+
+## Core Philosophy
+
+**Never use try-catch.** Always use error tuple pattern for fail-prone operations.
+
+```ts
+import { attempt, attemptSync } from '@logosdx/utils'
+
+// ✅ Fail-prone operations (I/O, network, async)
+const [result, err] = await attempt(() => fetch('/api/users'))
+if (err) return handleError(err)
+
+// ✅ Business logic returns directly
+function calculateTotal(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+}
+```
+
+## Error Handling
+
+### `attempt` & `attemptSync`
+Go-style error tuple for safe async/sync operations.
+
+```ts
+type ResultTuple<T> = [T, null] | [null, Error]
+
+const attempt: <T extends () => Promise<any>>(fn: T) => Promise<ResultTuple<Awaited<ReturnType<T>>>>
+const attemptSync: <T extends () => any>(fn: T) => ResultTuple<ReturnType<T>>
+
+// Usage
+const [user, err] = await attempt(() => fetchUser(id))
+if (err) throw err
+
+const [parsed, parseErr] = attemptSync(() => JSON.parse(data))
+if (parseErr) return defaultValue
+```
+
+## Flow Control
+
+### Timing & Rate Control
+
+```ts
+// Enhanced Debounce - delay execution until calls stop with flush, cancel, and maxWait
+interface DebouncedFunction<T extends Func> {
+  (...args: Parameters<T>): void;
+  flush(): ReturnType<T> | undefined;  // Execute immediately and return result
+  cancel(): void;                      // Stop pending execution
+}
+
+const debounce: <T extends Func>(fn: T, options: DebounceOptions) => DebouncedFunction<T>
+
+interface DebounceOptions {
+  delay: number;
+  maxWait?: number;  // Maximum time to wait before execution
+}
+
+const debouncedSearch = debounce(searchUsers, {
+  delay: 300,
+  maxWait: 1000  // Execute after 1s max even if still getting calls
+})
+
+// Call flush() to execute immediately
+const result = debouncedSearch.flush()
+// Call cancel() to prevent execution
+debouncedSearch.cancel()
+
+// Enhanced Throttle - limit execution frequency with cancel capability
+interface ThrottledFunction<T extends Func> {
+  (...args: Parameters<T>): ReturnType<T>;
+  cancel(): void;  // Clear throttle state and allow immediate execution
+}
+
+const throttle: <T extends Func>(fn: T, options: ThrottleOptions) => ThrottledFunction<T>
+
+class ThrottleError extends Error {}
+const isThrottleError: (error: unknown) => error is ThrottleError
+
+const throttledScroll = throttle(updatePosition, {
+  delay: 16,
+  throws: false,
+  onThrottle: (args) => console.log('throttled', args)
+})
+
+// Call cancel() to reset throttle state
+throttledScroll.cancel()
+
+// Rate limiting - control call frequency per time window
+const rateLimit: <T extends Func>(fn: T, options: RateLimitOptions<T> | RateLimitBucketOptions<T>) => T
+
+class RateLimitTokenBucket {
+  constructor(config: RateLimitTokenBucket.Config)
+  consume(count?: number): boolean
+  waitForToken(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<void>
+  waitAndConsume(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<boolean>
+  hasTokens(count?: number): boolean
+  get tokens(): number
+  get snapshot(): { currentTokens: number; capacity: number; rejectionRate: number; /* ... */ }
+  get state(): RateLimitTokenBucket.State
+  get isSaveable(): boolean
+  save(): Promise<void>
+  load(): Promise<void>
+  reset(): void
+}
+
+namespace RateLimitTokenBucket {
+  interface Config {
+    capacity: number
+    refillIntervalMs: number
+    initialState?: State
+    save?: (state: State) => void | Promise<void>
+    load?: () => State | null | Promise<State | null>
+  }
+  interface State {
+    tokens: number
+    lastRefill: number
+    stats?: Stats
+  }
+  interface Stats {
+    totalRequests: number
+    rejectedRequests: number
+    totalWaitTime: number
+    waitCount: number
+    createdAt: number
+  }
+}
+
+class RateLimitError extends Error {
+  constructor(message: string, maxCalls: number)
+}
+const isRateLimitError: (error: unknown) => error is RateLimitError
+
+const limitedApi = rateLimit(apiCall, { maxCalls: 10, windowMs: 60000 })
+```
+
+### Resilience Patterns
+
+```ts
+// Retry with backoff
+const retry: <T extends Func>(fn: T, options: RetryOptions) => Promise<ReturnType<T>>
+const makeRetryable: <T extends Func>(fn: T, options: RetryOptions) => T
+
+interface RetryOptions {
+  retries?: number           // Number of retries (default: 3)
+  delay?: number             // Delay between retries in ms (default: 0)
+  backoff?: number           // Multiplier for delay between retries (default: 1)
+  jitterFactor?: number      // Jitter factor for delay randomization (default: 0)
+  shouldRetry?: (error: Error) => boolean  // Determine if should retry
+  signal?: AbortSignal       // Abort signal to cancel retry
+  throwLastError?: boolean   // Throw original error instead of RetryError (default: false)
+  onRetry?: (error: Error, attempt: number) => void | Promise<void>  // Callback before each retry
+  onRetryExhausted?: (error: Error) => ReturnType<Func> | Promise<ReturnType<Func>>  // Fallback handler
+}
+
+class RetryError extends Error {}
+const isRetryError: (error: unknown) => error is RetryError
+
+// Basic retry with backoff
+const resilientFetch = makeRetryable(fetch, { retries: 3, delay: 1000, backoff: 2 })
+
+// Preserve original error instead of RetryError (for downstream error handling)
+const [result, err] = await attempt(() => retry(fetchData, {
+  retries: 3,
+  delay: 100,
+  throwLastError: true  // Throws the actual network error, not RetryError
+}))
+if (err) {
+  // err is the original error from fetchData, not RetryError
+  console.log(err.message)  // e.g., "Network timeout" not "Max retries reached"
+}
+
+// Logging retry attempts
+await retry(fetchData, {
+  retries: 3,
+  delay: 100,
+  onRetry: (error, attempt) => {
+    console.log(`Retry attempt ${attempt} after error: ${error.message}`)
+  }
+})
+
+// Graceful fallback when retries exhausted (no throw)
+const data = await retry(fetchData, {
+  retries: 3,
+  delay: 100,
+  onRetryExhausted: (error) => {
+    console.warn(`All retries failed: ${error.message}`)
+    return { fallback: true }  // Return fallback value instead of throwing
+  }
+})
+
+// Circuit breaker for failing services
+const circuitBreaker: <T extends Func>(fn: T, options: CircuitBreakerOptions<T>) => T
+
+class CircuitBreakerError extends Error {}
+const isCircuitBreakerError: (error: unknown) => error is CircuitBreakerError
+
+const protectedApi = circuitBreaker(apiCall, { maxFailures: 3, resetAfter: 30000 })
+
+// Timeout protection
+const withTimeout: <T extends Func>(fn: T, options: WithTimeoutOptions) => T
+const runWithTimeout: <T extends Func>(fn: T, options: WithTimeoutOptions) => Promise<ReturnType<T> | null>
+
+class TimeoutError extends Error {}
+const isTimeoutError: (error: unknown) => error is TimeoutError
+
+const timedFetch = withTimeout(fetch, { timeout: 5000 })
+
+// Batch operations with comprehensive tracking
+type BatchResult<T, R> = {
+  result: R | null
+  error: Error | null
+  item: T
+  index: number
+  itemIndex: number
+}
+
+const batch: <T, R>(
+  fn: BatchFunction<[T], R>,
+  options: BatchOptions<T, R>
+) => Promise<BatchResult<T, R>[]>
+
+await batch(processItem, {
+  items: [1, 2, 3, 4, 5],
+  concurrency: 3,
+  failureMode: 'continue',
+  onChunkStart: ({ index, total }) => console.log(`Starting chunk ${index + 1}/${total}`)
+})
+
+// In-flight promise deduplication - share promises for concurrent calls
+const withInflightDedup: <Args extends any[], Value, Key = string>(
+  producer: AsyncFunc<Args, Value>,
+  opts?: InflightOptions<Args, Key, Value>
+) => AsyncFunc<Args, Value>
+
+interface InflightOptions<Args, Key, Value> {
+  generateKey?: (...args: Args) => Key          // Spread args: (arg1, arg2, ...)
+  shouldDedupe?: (...args: Args) => boolean     // Spread args: (arg1, arg2, ...)
+  onStart?: (key: Key) => void                  // First caller starts
+  onJoin?: (key: Key) => void                   // Subsequent caller joins
+  onResolve?: (key: Key, value: Value) => void  // Promise resolved
+  onReject?: (key: Key, error: unknown) => void // Promise rejected
+}
+
+// Basic usage - deduplicate concurrent calls
+const fetchUser = withInflightDedup(async (id: string) => {
+  return db.users.findById(id)
+})
+
+// Three concurrent calls → one database query
+const [u1, u2, u3] = await Promise.all([
+  fetchUser("42"),
+  fetchUser("42"),
+  fetchUser("42")
+])
+
+// SingleFlight - Generic coordinator for cache and in-flight deduplication
+class SingleFlight<T = unknown> {
+  constructor(opts?: SingleFlightOptions<T>)
+
+  // Cache primitives (all async for adapter flexibility)
+  getCache(key: string): Promise<CacheEntry<T> | null>
+  setCache(key: string, value: T, opts?: SetCacheOptions): Promise<void>
+  deleteCache(key: string): Promise<boolean>
+  hasCache(key: string): Promise<boolean>
+  invalidateCache(predicate: (key: string) => boolean): Promise<number>
+  clearCache(): Promise<void>
+
+  // In-flight primitives
+  getInflight(key: string): InflightEntry<T> | null
+  trackInflight(key: string, promise: Promise<T>): () => void  // Returns cleanup fn
+  joinInflight(key: string): number  // Returns new waitingCount
+  hasInflight(key: string): boolean
+
+  // Lifecycle
+  clear(): Promise<void>
+  stats(): SingleFlightStats
+}
+
+interface SingleFlightOptions<T> {
+  adapter?: CacheAdapter<T>    // Default: MapCacheAdapter
+  defaultTtl?: number          // Default: 60000 (1 minute)
+  defaultStaleIn?: number      // Default: undefined (no SWR)
+  maxSize?: number             // Default: 1000
+  cleanupInterval?: number     // Default: 60000
+}
+
+interface CacheEntry<T> {
+  value: T
+  isStale: boolean
+  expiresAt: number
+  staleAt?: number
+}
+
+interface InflightEntry<T> {
+  promise: Promise<T>
+  waitingCount: number
+}
+
+interface SetCacheOptions {
+  ttl?: number      // Override defaultTtl
+  staleIn?: number  // Override defaultStaleIn
+}
+
+// Basic deduplication usage
+const flight = new SingleFlight<User>()
+
+async function fetchUser(id: string): Promise<User> {
+  const key = `user:${id}`
+
+  const inflight = flight.getInflight(key)
+  if (inflight) {
+    flight.joinInflight(key)
+    return inflight.promise
+  }
+
+  const promise = api.fetchUser(id)
+  const cleanup = flight.trackInflight(key, promise)
+
+  try {
+    return await promise
+  } finally {
+    cleanup()
+  }
+}
+```
+
+### Memoization & Caching
+
+```ts
+// Async memoization with LRU eviction, inflight deduplication, and stale-while-revalidate
+type EnhancedMemoizedFunction<T> = T & {
+  cache: {
+    clear(): void
+    delete(key: string): boolean
+    has(key: string): boolean
+    size: number
+    stats(): CacheStats
+    keys(): IterableIterator<string>
+    entries(): Array<[string, ReturnType<T> | undefined]>
+  }
+}
+
+interface CacheStats {
+  hits: number          // Successful cache lookups
+  misses: number        // Cache misses (function executed)
+  evictions: number     // Items evicted due to maxSize
+  hitRate: number       // hits / (hits + misses)
+  size: number          // Current cache size
+}
+
+interface MemoizeOptions<T> {
+  ttl?: number                    // Time to live in milliseconds (default: 60000)
+  maxSize?: number                // Maximum cache size with LRU eviction (default: 1000)
+  cleanupInterval?: number        // Background cleanup interval (default: 60000)
+  useWeakRef?: boolean            // Use WeakRef for objects (memory-sensitive) (default: false)
+  generateKey?: (...args: Parameters<T>) => string       // Spread args: (arg1, arg2, ...)
+  onError?: (error: Error, args: Parameters<T>) => void  // Tuple args: ([arg1, arg2, ...])
+  shouldCache?: (...args: Parameters<T>) => boolean     // Spread args: (arg1, arg2, ...)
+  staleIn?: number                // Time after which data is stale (enables SWR)
+  staleTimeout?: number           // Max wait for fresh data when stale (default: undefined)
+  adapter?: CacheAdapter          // Custom cache adapter (Redis, Memcached, etc.)
+}
+
+const memoize: <T extends AsyncFunc>(fn: T, options?: MemoizeOptions<T>) => EnhancedMemoizedFunction<T>
+const memoizeSync: <T extends Func>(fn: T, options?: Omit<MemoizeOptions<T>, 'adapter' | 'staleIn' | 'staleTimeout'>) => EnhancedMemoizedFunction<T>
+
+// Basic async memoization - caches results with TTL and LRU eviction
+const fetchUser = async (id: string) => database.users.findById(id)
+const getUser = memoize(fetchUser, {
+  ttl: 60000,              // Cache for 1 minute
+  maxSize: 500             // Keep 500 users max (LRU eviction)
+})
+
+// Three concurrent calls → one database query (inflight deduplication)
+const [user1, user2, user3] = await Promise.all([
+  getUser("42"),
+  getUser("42"),
+  getUser("42")
+])
+
+// Stale-while-revalidate pattern - fast responses with fresh data
+const getPrices = memoize(fetchPrices, {
+  ttl: 60000,              // Expire after 1 minute
+  staleIn: 30000,          // Consider stale after 30 seconds
+  staleTimeout: 1000       // Wait max 1 second for fresh data
+})
+// Fresh (age < staleIn): Returns cached. Stale (age > staleIn): Races fresh vs timeout.
+// No cached data: Fetches fresh (blocks).
+
+// Cache management
+getUser.cache.stats()     // { hits: 10, misses: 3, hitRate: 0.77, evictions: 0, size: 3 }
+getUser.cache.clear()     // Clear all entries
+```
+
+## Data Operations
+
+### Object Manipulation
+
+```ts
+// Deep cloning (handles all JS types, circular refs)
+const clone: <T>(value: T) => T
+const cloned = clone(complexState)
+
+// Deep equality comparison
+const equals: (a: unknown, b: unknown) => boolean
+if (!equals(oldState, newState)) triggerUpdate()
+
+// Deep merging with type safety
+const merge: <T, U>(target: T, source: U) => T & U
+const mergeDefaults: <T, U>(target: T, defaults: U) => T & U
+
+const config = mergeDefaults(userConfig, defaultConfig)
+```
+
+### Safe Property Access
+
+```ts
+// Dot-notation path traversal (read)
+const reach: <T, P extends PathNames<T>>(obj: T, path: P) => PathValue<T, P> | undefined
+
+const userName = reach(response, 'data.user.profile.name')
+const score = reach(gameState, 'players.0.stats.score')
+
+// Dot-notation path setting (write)
+const setDeep: <T, P extends PathNames<T>>(obj: T, path: P, value: PathValue<T, P>) => void
+const setDeepMany: <T>(obj: T, entries: Array<[PathNames<T>, any]>) => void
+
+setDeep(config, 'server.port', 3000)
+setDeep(metrics, 'memory.rss', 1024)
+
+setDeepMany(response, [
+  ['status.code', 200],
+  ['status.message', 'OK'],
+  ['data.results', [1, 2, 3]]
+])
+
+// Safe object key operations
+const getSafeKeys: <T extends object>(obj: T) => Array<keyof T>
+const getSafeEntries: <T extends object>(obj: T) => Array<[keyof T, T[keyof T]]>
+const isDangerousKey: (key: string) => boolean
+
+// Advanced merge type for complex nested objects
+type MergeTypes<Target, Source> = {
+  [K in keyof Target | keyof Source]: K extends keyof Source
+    ? K extends keyof Target
+      ? /* complex merge logic for nested objects, arrays, Maps, Sets */
+      : Source[K]
+    : K extends keyof Target
+      ? Target[K]
+      : never
+}
+
+// Extend built-in operations with custom handlers
+interface AddHandlerFor {
+  <T extends AnyConstructor>(fn: 'clone', cnstr: T, handler: (original: InstanceType<T>, seen?: WeakMap<any, any>) => InstanceType<T>): void
+  <T extends AnyConstructor>(fn: 'merge', cnstr: T, handler: (target: InstanceType<T>, source: InstanceType<T>, opts?: MergeOptions) => InstanceType<T>): void
+  <T extends AnyConstructor>(fn: 'equals', cnstr: T, handler: (target: InstanceType<T>, source: InstanceType<T>) => boolean): void
+}
+
+const addHandlerFor: AddHandlerFor
+
+// Usage: extend clone/merge/equals for custom classes
+addHandlerFor('clone', MyClass, (original, seen) => new MyClass(original.value))
+addHandlerFor('equals', MyClass, (a, b) => a.id === b.id)
+addHandlerFor('merge', MyClass, (target, source, opts) => new MyClass(merge(target.data, source.data, opts)))
+```
+
+### Collections
+
+```ts
+// Priority queue (min-heap by default, O(log n) push/pop)
+class PriorityQueue<T> {
+  constructor(options?: PriorityQueueOptions<T>)
+  push(value: T, priority?: number): void    // Default priority: 0
+  pop(): T | null                            // Remove highest-priority item
+  popMany(count?: number): T[]               // Remove multiple items
+  peek(): T | null                           // View without removing
+  peekMany(count?: number): T[]              // View multiple items
+  find(predicate: (value: T) => boolean): T | null
+  heapify(items: Node<T>[]): void            // Build heap from array O(n)
+  clone(): PriorityQueue<T>                  // Independent copy
+  toSortedArray(): T[]                       // Extract sorted
+  size(): number
+  isEmpty(): boolean
+  clear(): void
+  [Symbol.iterator](): IterableIterator<T>   // Iterate in priority order
+}
+
+interface PriorityQueueOptions<T> {
+  lifo?: boolean      // LIFO for equal priorities (default: false/FIFO)
+  compare?: (a: Node<T>, b: Node<T>) => number
+  maxHeap?: boolean   // Invert priority order (default: false)
+}
+
+const taskQueue = new PriorityQueue<Task>()
+taskQueue.push(urgentTask, 1)
+taskQueue.push(normalTask, 5)
+
+const leaderboard = new PriorityQueue<string>({ maxHeap: true })
+leaderboard.push('Alice', 95)
+leaderboard.pop() // 'Alice' (highest score first)
+```
+
+## Validation & Type Guards
+
+### Environment Detection
+
+```ts
+const isBrowser: () => boolean
+const isNode: () => string | false
+const isReactNative: () => boolean
+const isCloudflare: () => boolean
+const isBrowserLike: () => boolean
+
+if (isBrowser()) {
+  document.querySelector('#app')
+} else {
+  const fs = require('fs')
+}
+```
+
+### Assertions & Guards
+
+```ts
+// Basic assertion
+const assert: (test: unknown, message?: string, ErrorClass?: typeof Error) => void
+
+// Object validation with path-based assertions
+const assertObject: <T extends object>(obj: T, assertions: AssertionMap<T>) => void
+
+assertObject(user, {
+  'id': (val) => [typeof val === 'string', 'ID must be string'],
+  'profile.email': (val) => [val.includes('@'), 'Invalid email'],
+  'settings.notifications': (val) => [typeof val === 'boolean', 'Must be boolean']
+})
+
+// Optional value validation
+const isOptional: <T>(val: T | undefined, check: Function | boolean) => boolean
+const assertOptional: <T>(val: T | undefined, ...rest: Parameters<typeof assert>) => void
+
+// Type guards
+const isFunction: (a: unknown) => a is Function
+const isObject: (a: unknown) => a is Object
+const isPlainObject: (a: unknown) => a is object
+const isPrimitive: (val: unknown) => boolean
+const isUndefined: (val: unknown) => val is undefined
+const isDefined: (val: unknown) => val is NonNullable<unknown>
+const isNull: (val: unknown) => val is null
+
+// Advanced type checks
+const isNonIterable: (val: unknown) => boolean
+const hasNoConstructor: (val: unknown) => boolean
+const hasSameConstructor: (value: unknown, compare: unknown) => boolean
+const isSameLength: <A extends Iterable<unknown>, B extends Iterable<unknown>>(a: A, b: B) => boolean
+```
+
+### Collection Validation
+
+```ts
+// Validate all object properties
+const allKeysValid: <T extends object>(item: T, check: (value: T[keyof T], key: string | number) => boolean) => boolean
+
+// Validate all iterable items
+const allItemsValid: <I extends Iterable<unknown>>(item: I, check: (value: unknown) => boolean) => boolean
+
+const configValid = allKeysValid(config, (value, key) => {
+  return value !== null && value !== undefined
+})
+```
+
+## TypeScript Type Utilities
+
+### Function Types
+
+```ts
+type Func<A extends unknown[] = unknown[], R = unknown> = (...args: A) => R
+type AsyncFunc<A extends unknown[] = unknown[], R = unknown> = (...args: A) => Promise<R>
+type ClassType = { new (...args: any[]): any }
+```
+
+### Object Type Manipulation
+
+```ts
+// Extract function/non-function properties
+type FunctionProps<T> = { [K in keyof T]: T[K] extends Func | ClassType ? K : never }[keyof T]
+type NonFunctionProps<T> = { [K in keyof T]: T[K] extends Func | ClassType ? never : K }[keyof T]
+
+// Deep optional and nullable variants
+type DeepOptional<T> = { [K in keyof T]?: T[K] extends object ? DeepOptional<T[K]> : T[K] }
+type NullableObject<T> = { [K in keyof T]: T[K] | null }
+```
+
+### Path Navigation Types
+
+```ts
+// Generate all possible paths in an object
+type PathNames<T> = // Complex recursive type for dot-notation paths
+
+// Get value type at specific path
+type PathValue<T, P extends string> = // Type-safe path value extraction
+
+// Usage in generic functions
+function getValue<T, P extends PathNames<T>>(obj: T, path: P): PathValue<T, P> | undefined {
+  return reach(obj, path)
+}
+```
+
+### Utility Types
+
+```ts
+type OneOrMany<T> = T | T[]
+type MaybePromise<T> = T | Promise<T>
+type StrOrNum = string | number
+type Falsy = false | 0 | "" | null | undefined | 0n
+type Truthy<T> = T extends Falsy ? never : T
+type NotUndefined<T> = T extends undefined ? never : T
+
+interface StringProps { [key: string]: string }
+interface BoolProps { [key: string]: boolean }
+```
+
+## Property Management
+
+### Property Definition
+
+```ts
+// Public (enumerable) properties
+const definePublicProps: <T, U extends Record<string, unknown>>(
+  target: T,
+  props: U,
+  configurable?: boolean
+) => void
+
+// Private (non-enumerable) properties
+const definePrivateProps: <T, U extends Record<string, unknown>>(
+  target: T,
+  props: U,
+  configurable?: boolean
+) => void
+
+// Private getters
+const definePrivateGetters: <T, U extends Record<string, Func>>(
+  target: T,
+  props: U,
+  configurable?: boolean
+) => void
+
+// Usage in classes
+class DataProcessor {
+  constructor(config: Config) {
+    definePrivateProps(this, {
+      _cache: new Map(),
+      _process: this.process.bind(this)
+    })
+  }
+}
+```
+
+## Async Utilities
+
+```ts
+// Deferred promise with external control
+class Deferred<T> {
+  promise: Promise<T>
+  resolve: (value: T | PromiseLike<T>) => void
+  reject: (reason?: Error | string) => void
+}
+
+// Clearable timeout promise
+class TimeoutPromise<T = void> extends Promise<T> {
+  clear: () => void
+}
+
+const wait: <T>(ms: number, value?: T) => TimeoutPromise<T>
+
+const timeout = wait(1000)
+timeout.clear() // Cancel the timeout
+
+// Wait with value
+const result = await wait(1000, 'completed')
+
+// Run functions in series (execute cleanup functions, etc.)
+const runInSeries: <T extends Iterable<Func>>(fns: T) => ReturnsOfReturns<T>
+runInSeries([cleanup1, cleanup2, cleanup3])
+
+// Create a function that runs multiple functions in series with separate args
+const makeInSeries: <T extends readonly Func[]>(fns: T) => (...args: ParamsOfParams<T>) => ReturnsOfReturns<T>
+const pipeline = makeInSeries([logStep, saveData, notify] as const)
+pipeline(['processing'], [userData], ['User created'])
+```
+
+## Array & Data Utilities
+
+```ts
+// Array chunking
+const chunk: <T>(array: T[], size: number) => T[][]
+const batches = chunk(largeArray, 100)
+
+// Array normalization
+const itemsToArray: <T>(items: T | T[]) => T[]
+const oneOrMany: <T>(items: T[]) => T | T[]
+
+// Utility functions
+const noop: (...args: any[]) => any
+const generateId: () => string  // Returns '_' + random alphanumeric
+
+// Repeat a function N times
+const nTimes: <T>(fn: (iteration: number) => T, n: number) => T[]
+nTimes(() => createEl('span'), 3)  // [span, span, span]
+nTimes((i) => (i + 1) * 2, 3)     // [2, 4, 6]
+
+// Enhanced key generation for caching (handles circular refs, functions, Dates, Maps, Sets)
+const serializer: (args: unknown[]) => string
+serializer([{ b: 2, a: 1 }]) === serializer([{ a: 1, b: 2 }])  // true (sorted keys)
+```
+
+## Error Types & Utilities
+
+Flow control utilities provide specific error types for different failure modes:
+
+```ts
+class RetryError extends Error {}
+const isRetryError: (error: unknown) => error is RetryError
+
+class TimeoutError extends Error {}
+const isTimeoutError: (error: unknown) => error is TimeoutError
+
+class CircuitBreakerError extends Error {}
+const isCircuitBreakerError: (error: unknown) => error is CircuitBreakerError
+
+class RateLimitError extends Error {
+  constructor(message: string, maxCalls: number)
+}
+const isRateLimitError: (error: unknown) => error is RateLimitError
+
+class ThrottleError extends Error {}
+const isThrottleError: (error: unknown) => error is ThrottleError
+
+class AssertError extends Error {}
+const isAssertError: (error: unknown) => error is AssertError
+```
+
+## Configuration & Environment Variables
+
+```ts
+const makeNestedConfig: <C extends object, F extends Record<string, string>>(
+  flatConfig: F,
+  opts?: {
+    filter?: (key: string, val: string) => boolean
+    forceAllCapToLower?: boolean  // Default: true
+    separator?: string            // Default: "_"
+    stripPrefix?: string | number // Strip prefix from keys
+    parseUnits?: boolean          // Default: false
+    skipConversion?: (key: string, value: unknown) => boolean
+    memoizeOpts?: MemoizeOptions | false
+  }
+) => <P extends PathLeaves<C>>(path?: P, defaultValue?: PathValue<C, P>) => C
+
+const castValuesToTypes: (
+  obj: object,
+  opts?: {
+    parseUnits?: boolean  // Default: false
+    skipConversion?: (key: string, value: unknown) => boolean
+  }
+) => void  // Mutates in place
+
+const isEnabledValue: (val: unknown) => boolean
+const isDisabledValue: (val: unknown) => boolean
+const hasEnabledOrDisabledValue: (val: unknown) => boolean
+```
+
+### Basic Usage
+
+```ts
+// Given process.env: APP_DB_HOST='localhost', APP_DB_PORT='5432', APP_DEBUG='true'
+type AppConfig = {
+  db: { host: string; port: number };
+  debug: boolean;
+}
+
+const config = makeNestedConfig<AppConfig>(process.env, {
+  filter: (key) => key.startsWith('APP_'),
+  stripPrefix: 'APP_',
+  forceAllCapToLower: true
+})
+
+config()            // { db: { host: 'localhost', port: 5432 }, debug: true }
+config('db.host')   // 'localhost'
+config('db.port')   // 5432
+config('api.timeout', 5000)  // 5000 (default for missing path)
+```
+
+### Type Coercion Table
+
+`castValuesToTypes` converts string values recursively:
+
+| Input | Output | Rule |
+|-------|--------|------|
+| `"true"`, `"yes"` | `true` | Boolean enabled |
+| `"false"`, `"no"` | `false` | Boolean disabled |
+| `"3000"` | `3000` | Digits-only string → number |
+| `"myapp"` | `"myapp"` | Non-numeric string unchanged |
+| `"5m"` | `300000` | Time duration (with `parseUnits: true`) |
+| `"10mb"` | `10485760` | Byte size (with `parseUnits: true`) |
+
+## Unit Conversion & Formatting
+
+```ts
+// Time units (all values in milliseconds)
+const timeUnits: {
+  sec: number, min: number, hour: number, day: number, week: number
+  min15: number, min30: number, hour2: number, hour4: number, hour8: number, hour12: number
+  secs(n: number): number, mins(n: number): number, hours(n: number): number
+  days(n: number): number, weeks(n: number): number, months(n: number): number, years(n: number): number
+}
+
+// Byte units (all values in bytes)
+const byteUnits: {
+  kb: number, mb: number, gb: number, tb: number
+  kbs(n: number): number, mbs(n: number): number, gbs(n: number): number, tbs(n: number): number
+}
+
+// Convenience exports
+const seconds: (n: number) => number
+const minutes: (n: number) => number
+const hours: (n: number) => number
+const days: (n: number) => number
+const weeks: (n: number) => number
+const months: (n: number) => number
+const years: (n: number) => number
+
+const kilobytes: (n: number) => number
+const megabytes: (n: number) => number
+const gigabytes: (n: number) => number
+const terabytes: (n: number) => number
+
+// Parsing - flexible input formats
+const parseTimeDuration: (str: string) => number  // → milliseconds
+const parseByteSize: (str: string) => number      // → bytes
+
+// Formatting - numbers to human-readable strings
+const formatTimeDuration: (ms: number, opts?: {
+  decimals?: number
+  unit?: 'sec' | 'min' | 'hour' | 'day' | 'week' | 'month' | 'year'
+}) => string
+
+const formatByteSize: (bytes: number, opts?: {
+  decimals?: number  // Default: 2
+  unit?: 'kb' | 'mb' | 'gb' | 'tb'
+}) => string
+
+// Parse examples: '5m' → 300000, '2.5 hours' → 9000000, '10mb' → 10485760
+// Format examples: formatTimeDuration(90000) → "1.5min", formatByteSize(10485760) → "10mb"
+
+// Usage in configuration
+setTimeout(cleanup, minutes(5))
+cache.set(key, value, { ttl: hours(1) })
+const maxUpload = parseByteSize(process.env.MAX_UPLOAD || '10mb')
+```
