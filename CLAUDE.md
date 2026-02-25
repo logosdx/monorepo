@@ -123,7 +123,7 @@ monorepo/
 | `packages/` | Production code packages | `src/index.ts`, `package.json`, `tsconfig.json` | `/packages/CLAUDE.md` |
 | `tests/` | Validation test suite with relative imports | `src/`, `_helpers.ts`, `benchmark/` | `/tests/CLAUDE.md` |
 | `docs/` | VitePress documentation with TypeDoc integration | `*.md`, `packages/*.md`, `public/` | `/docs/CLAUDE.md` |
-| `skill/references/` | AI context guides (canonical source) | `utils.md`, `fetch.md`, `observer.md`, etc. | - |
+| `skills/logosdx/references/` | AI context guides (canonical source) | `utils.md`, `fetch.md`, `localize.md`, etc. | - |
 | `scripts/` | Build and deployment | `build.mjs`, `docs.zsh`, `new-pkg.zsh` | - |
 | `typedoc/` | Generated API documentation | Auto-generated HTML files | - |
 

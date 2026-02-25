@@ -9,7 +9,9 @@ Use this index to pick the smallest LogosDX reference file that matches the task
 | `@logosdx/dom` | `references/dom.md` | DOM manipulation, CSS styles, attributes, event handling, declarative behaviors, viewport/scroll utilities |
 | `@logosdx/hooks` | `references/hooks.md` | Lifecycle hooks, middleware chains, priority ordering, plugins, pre/post wrapping, short-circuit control flow |
 | `@logosdx/fetch` | `references/fetch.md` | HTTP client setup, retries, timeout behavior, dedupe/cache/rate-limit policies, request lifecycle events |
+| `@logosdx/localize` | `references/localize.md` | i18n, translations, ICU pluralization, Intl formatting, lazy locale loading, namespace scoping |
 | `@logosdx/observer` | `references/observer.md` | Typed events, regex matching, async generators, event queues, component observation |
+| `@logosdx/state-machine` | `references/state-machine.md` | State management, reducers, history/time-travel, parent-child sync, bidirectional state |
 | `@logosdx/storage` | `references/storage.md` | Typed storage CRUD, key wrappers, storage events, custom storage implementations |
 | `@logosdx/react` | `references/react.md` | Context factories, hook API behavior, provider composition, engine integration in React |
 | `@logosdx/utils` | `references/utils.md` | Error tuple handling, retries/timeouts/rate control, memoization, data helpers, unit parsing/formatting helpers, TypeScript utility types |
@@ -19,7 +21,9 @@ Use this index to pick the smallest LogosDX reference file that matches the task
 - Manipulate DOM elements, styles, attributes, or behaviors: read `references/dom.md`
 - Add lifecycle hooks, middleware, or plugin systems: read `references/hooks.md`
 - Build a resilient API client: read `references/fetch.md`
+- Internationalize text, plurals, or format numbers/dates: read `references/localize.md`
 - Add a domain event bus or queue processor: read `references/observer.md`
+- Manage stateful flows with reducers and history: read `references/state-machine.md`
 - Persist and react to local/session state changes: read `references/storage.md`
 - Wire engines into UI components: read `references/react.md`
 - Standardize error handling and utility workflows: read `references/utils.md`
