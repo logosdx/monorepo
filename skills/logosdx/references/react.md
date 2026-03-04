@@ -182,7 +182,92 @@ const { context: score } = useGame((ctx) => ctx.score)
 const { context: score } = useStateMachine(machine, (ctx) => ctx.score)
 ```
 
+## API Hooks (Apollo-Style)
+
+
+Higher-level hooks for API interactions. Return `{ data, loading, error }` objects (not tuples). Auto-refetch on reactive config changes. ObserverEngine integration for event-driven invalidation.
+
+### Setup
+
+```typescript
+import { FetchEngine } from '@logosdx/fetch'
+import { ObserverEngine } from '@logosdx/observer'
+import { createApiHooks } from '@logosdx/react/api'
+
+interface AppEvents {
+    'users.created': { id: string; name: string }
+    'users.deleted': { id: string }
+}
+
+const api = new FetchEngine({ baseUrl: '/api' })
+const events = new ObserverEngine<AppEvents>()
+
+const { useQuery, useMutation, useAsync, createQuery, createMutation } = createApiHooks(api, events)
+```
+
+### useQuery — Auto-Fetch with Reactive Config
+
+```typescript
+const { data, loading, error, refetch, cancel } = useQuery<User[]>('/users', {
+    defaults: { headers: { 'X-Api-Version': '2' } },    // Fixed — no re-fetch
+    reactive: { params: { page, limit: 20 } },           // Watched — changes trigger re-fetch
+    skip: !isReady,                                       // Conditional execution
+    pollInterval: 30000,                                  // Re-fetch every 30s
+    invalidateOn: ['users.created', 'users.deleted'],     // Re-fetch on observer event
+})
+```
+
+### useMutation — Fire on Demand
+
+```typescript
+const { mutate, loading, error, data, called, reset, cancel } = useMutation<User>('post', '/users', {
+    defaults: { headers: { 'Content-Type': 'application/json' } },
+    emitOnSuccess: 'users.created',                       // Emit observer event on success
+})
+
+// mutate() returns Promise<T> — await in handlers
+const user = await mutate({ name: 'Alice' })
+
+// emitOnSuccess supports: string | { event, payload? } | array of either
+emitOnSuccess: [
+    'users.created',
+    { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) },
+]
+```
+
+### useAsync — Wrap Any Async Function
+
+```typescript
+class MyApi extends FetchEngine {
+    getUsers(page: number) { return this.get<User[]>('/users', { params: { page } }) }
+}
+
+const { data, loading, error } = useAsync<User[]>(
+    () => myApi.getUsers(page),
+    [page],                                                // React deps — re-executes on change
+    { invalidateOn: ['users.created'] },
+)
+// Auto-unwraps FetchResponse — data is User[], not FetchResponse<User[]>
+```
+
+### Factory Functions — Reusable Hooks
+
+```typescript
+// Define once at module level
+const useUsers = createQuery<User[]>('/users', {
+    invalidateOn: ['users.created', 'users.deleted'],
+})
+const useCreateUser = createMutation<User>('post', '/users', {
+    emitOnSuccess: 'users.created',
+})
+
+// Use in any component
+const { data } = useUsers({ reactive: { params: { page: 1 } } })
+const { mutate } = useCreateUser()
+```
+
 ## Subpath Imports
+
 
 Each binding is available as a standalone subpath export. Peer deps only required for imported bindings:
 
@@ -193,6 +278,7 @@ import { createObserverContext } from '@logosdx/react/observer'
 import { createFetchContext } from '@logosdx/react/fetch'
 import { createLocalizeContext } from '@logosdx/react/localize'
 import { composeProviders } from '@logosdx/react/compose'
+import { createApiHooks, useQuery, useMutation, useAsync } from '@logosdx/react/api'
 ```
 
 ## Why Tuples, Not Objects?
