@@ -34,12 +34,12 @@ export function createMutation<
 
     return (overrides?: Partial<MutationOptions<H, P, E>>) => {
 
-        const merged: MutationOptions<H, P, E> = {
+        const merged = {
             ...defaults,
             ...overrides,
-            defaults: { ...defaults?.defaults, ...overrides?.defaults } as any,
+            defaults: { ...defaults?.defaults, ...overrides?.defaults },
             emitOnSuccess: overrides?.emitOnSuccess ?? defaults?.emitOnSuccess,
-        };
+        } as MutationOptions<H, P, E>;
 
         return useMutation<T, H, P, E>(engine, method, path, merged, observer);
     };

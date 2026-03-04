@@ -32,13 +32,13 @@ export function createQuery<
 
     return (overrides?: Partial<QueryOptions<H, P, E>>) => {
 
-        const merged: QueryOptions<H, P, E> = {
+        const merged = {
             ...defaults,
             ...overrides,
-            defaults: { ...defaults?.defaults, ...overrides?.defaults } as any,
-            reactive: { ...defaults?.reactive, ...overrides?.reactive } as any,
+            defaults: { ...defaults?.defaults, ...overrides?.defaults },
+            reactive: { ...defaults?.reactive, ...overrides?.reactive },
             invalidateOn: overrides?.invalidateOn ?? defaults?.invalidateOn,
-        };
+        } as QueryOptions<H, P, E>;
 
         return useQuery<T, H, P, E>(engine, path, merged, observer);
     };

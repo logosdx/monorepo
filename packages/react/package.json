@@ -42,6 +42,11 @@
       "types": "./dist/types/utils/compose.d.ts",
       "require": "./dist/cjs/utils/compose.js",
       "import": "./dist/esm/utils/compose.mjs"
+    },
+    "./api": {
+      "types": "./dist/types/api/index.d.ts",
+      "require": "./dist/cjs/api/index.js",
+      "import": "./dist/esm/api/index.mjs"
     }
   },
   "sideEffects": false,
