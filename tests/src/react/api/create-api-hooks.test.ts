@@ -157,7 +157,7 @@ describe('@logosdx/react api: createApiHooks', () => {
     it('full integration: mutation emits, query invalidates', async () => {
 
         let callCount = 0;
-        globalThis.fetch = vi.fn().mockImplementation((url: URL, opts: RequestInit) => {
+        globalThis.fetch = vi.fn().mockImplementation((_url: URL, opts: RequestInit) => {
 
             if (opts.method === 'GET') {
                 return Promise.resolve(jsonResponse({ count: ++callCount }));

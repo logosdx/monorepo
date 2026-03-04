@@ -47,7 +47,7 @@ export function createApiHooks<
         options?: QueryOptions<H, P, E>,
     ): QueryResult<T> {
 
-        return useQueryBase<T, H, P, E>(engine, path, options, observer);
+        return useQueryBase<T, H, P, S, RH, E>(engine, path, options, observer);
     }
 
     function useMutation<T = unknown>(
@@ -56,7 +56,7 @@ export function createApiHooks<
         options?: MutationOptions<H, P, E>,
     ): MutationResult<T> {
 
-        return useMutationBase<T, H, P, E>(engine, method, path, options, observer);
+        return useMutationBase<T, H, P, S, RH, E>(engine, method, path, options, observer);
     }
 
     function useAsync<T = unknown>(
@@ -73,7 +73,7 @@ export function createApiHooks<
         defaults?: QueryOptions<H, P, E>,
     ) {
 
-        return createQueryBase<T, H, P, E>(engine, path, defaults, observer);
+        return createQueryBase<T, H, P, S, RH, E>(engine, path, defaults, observer);
     }
 
     function createMutation<T = unknown>(
@@ -82,7 +82,7 @@ export function createApiHooks<
         defaults?: MutationOptions<H, P, E>,
     ) {
 
-        return createMutationBase<T, H, P, E>(engine, method, path, defaults, observer);
+        return createMutationBase<T, H, P, S, RH, E>(engine, method, path, defaults, observer);
     }
 
     return { useQuery, useMutation, useAsync, createQuery, createMutation };

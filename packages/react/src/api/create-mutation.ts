@@ -23,9 +23,11 @@ export function createMutation<
     T = unknown,
     H = FetchEngine.InstanceHeaders,
     P = FetchEngine.InstanceParams,
-    E extends Record<string, any> = Record<string, any>,
+    S = FetchEngine.InstanceState,
+    RH = FetchEngine.InstanceResponseHeaders,
+    E extends Record<string, any> = any,
 >(
-    engine: FetchEngine<H, P, any, any>,
+    engine: FetchEngine<H, P, S, RH>,
     method: 'post' | 'put' | 'delete' | 'patch',
     path: string,
     defaults?: MutationOptions<H, P, E>,
@@ -41,6 +43,6 @@ export function createMutation<
             emitOnSuccess: overrides?.emitOnSuccess ?? defaults?.emitOnSuccess,
         } as MutationOptions<H, P, E>;
 
-        return useMutation<T, H, P, E>(engine, method, path, merged, observer);
+        return useMutation<T, H, P, S, RH, E>(engine, method, path, merged, observer);
     };
 }

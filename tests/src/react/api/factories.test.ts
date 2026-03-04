@@ -50,8 +50,8 @@ describe('@logosdx/react api: createQuery', () => {
             defaults: { headers: { 'X-Default': 'yes' } },
         });
 
-        const { result, unmount } = renderHook(() =>
-            useItems({ reactive: { params: { page: 1 } } })
+        const { unmount } = renderHook(() =>
+            useItems({ reactive: { params: { page: '1' } } })
         );
 
         await flush();
@@ -137,7 +137,7 @@ describe('@logosdx/react api: createMutation', () => {
 
         observer.on('users.created', handler);
 
-        const useCreateUser = createMutation<{ id: number }, any, any, Events>(
+        const useCreateUser = createMutation<{ id: number }>(
             engine, 'post', '/users',
             { emitOnSuccess: 'users.created' },
             observer

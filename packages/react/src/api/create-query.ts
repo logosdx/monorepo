@@ -22,9 +22,11 @@ export function createQuery<
     T = unknown,
     H = FetchEngine.InstanceHeaders,
     P = FetchEngine.InstanceParams,
-    E extends Record<string, any> = Record<string, any>,
+    S = FetchEngine.InstanceState,
+    RH = FetchEngine.InstanceResponseHeaders,
+    E extends Record<string, any> = any,
 >(
-    engine: FetchEngine<H, P, any, any>,
+    engine: FetchEngine<H, P, S, RH>,
     path: string,
     defaults?: QueryOptions<H, P, E>,
     observer?: ObserverEngine<E>,
@@ -40,6 +42,6 @@ export function createQuery<
             invalidateOn: overrides?.invalidateOn ?? defaults?.invalidateOn,
         } as QueryOptions<H, P, E>;
 
-        return useQuery<T, H, P, E>(engine, path, merged, observer);
+        return useQuery<T, H, P, S, RH, E>(engine, path, merged, observer);
     };
 }

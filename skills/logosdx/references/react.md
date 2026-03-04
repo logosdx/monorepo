@@ -104,17 +104,17 @@ const logout = emitFactory('user.logout')
 const { get, post, put, del, patch, instance } = useApiFetch()
 
 // Query — auto-fetches on mount, re-fetches when path/options change
-// Returns [cancel, isLoading, response, error]
-const [cancel, isLoading, res, error] = get<User[]>('/users')
-const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // typed response headers
+// Returns { data, loading, error, response, refetch, cancel }
+const { data, loading, error, response, refetch, cancel } = get<User[]>('/users')
+const { response: res2 } = get<Post, { 'x-total': string }>('/posts')  // typed response headers
 
-// Mutation — starts idle, fires when triggered
-// Returns [trigger, cancel, isLoading, response, error]
-const [submit, cancelSubmit, isSubmitting, result, submitErr] = post<Comment>('/comments')
-const [remove, cancelRemove, isRemoving, , removeErr] = del<void>('/items/123')
+// Mutation — starts idle, fires when mutate() is called
+// Returns { data, loading, error, response, mutate, reset, cancel, called }
+const { mutate: submit, loading: isSubmitting, data: result, error: submitErr } = post<Comment>('/comments')
+const { mutate: remove, loading: isRemoving, error: removeErr } = del<void>('/items/123')
 
-// Fire mutation
-submit({ text: 'Hello' })
+// mutate() returns Promise<T> — await in handlers
+const comment = await submit({ text: 'Hello' })
 remove()
 
 // Escape hatch for imperative use
@@ -185,7 +185,7 @@ const { context: score } = useStateMachine(machine, (ctx) => ctx.score)
 ## API Hooks (Apollo-Style)
 
 
-Higher-level hooks for API interactions. Return `{ data, loading, error }` objects (not tuples). Auto-refetch on reactive config changes. ObserverEngine integration for event-driven invalidation.
+Higher-level hooks for API interactions. Return `{ data, loading, error }` objects. Auto-refetch on reactive config changes. ObserverEngine integration for event-driven invalidation.
 
 ### Setup
 
@@ -194,13 +194,13 @@ import { FetchEngine } from '@logosdx/fetch'
 import { ObserverEngine } from '@logosdx/observer'
 import { createApiHooks } from '@logosdx/react/api'
 
-interface AppEvents {
-    'users.created': { id: string; name: string }
-    'users.deleted': { id: string }
+interface LoanEvents {
+    'loan.created': { id: string; amount: number }
+    'loan.deleted': { id: string }
 }
 
 const api = new FetchEngine({ baseUrl: '/api' })
-const events = new ObserverEngine<AppEvents>()
+const events = new ObserverEngine<LoanEvents>()
 
 const { useQuery, useMutation, useAsync, createQuery, createMutation } = createApiHooks(api, events)
 ```
@@ -208,29 +208,29 @@ const { useQuery, useMutation, useAsync, createQuery, createMutation } = createA
 ### useQuery — Auto-Fetch with Reactive Config
 
 ```typescript
-const { data, loading, error, refetch, cancel } = useQuery<User[]>('/users', {
+const { data, loading, error, refetch, cancel } = useQuery<Loan[]>('/loans', {
     defaults: { headers: { 'X-Api-Version': '2' } },    // Fixed — no re-fetch
     reactive: { params: { page, limit: 20 } },           // Watched — changes trigger re-fetch
     skip: !isReady,                                       // Conditional execution
     pollInterval: 30000,                                  // Re-fetch every 30s
-    invalidateOn: ['users.created', 'users.deleted'],     // Re-fetch on observer event
+    invalidateOn: ['loan.created', 'loan.deleted'],       // Re-fetch on observer event
 })
 ```
 
 ### useMutation — Fire on Demand
 
 ```typescript
-const { mutate, loading, error, data, called, reset, cancel } = useMutation<User>('post', '/users', {
+const { mutate, loading, error, data, called, reset, cancel } = useMutation<Loan>('post', '/loans', {
     defaults: { headers: { 'Content-Type': 'application/json' } },
-    emitOnSuccess: 'users.created',                       // Emit observer event on success
+    emitOnSuccess: 'loan.created',                        // Emit observer event on success
 })
 
 // mutate() returns Promise<T> — await in handlers
-const user = await mutate({ name: 'Alice' })
+const loan = await mutate({ amount: 50000, borrower: 'Alice' })
 
 // emitOnSuccess supports: string | { event, payload? } | array of either
 emitOnSuccess: [
-    'users.created',
+    'loan.created',
     { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) },
 ]
 ```
@@ -238,32 +238,32 @@ emitOnSuccess: [
 ### useAsync — Wrap Any Async Function
 
 ```typescript
-class MyApi extends FetchEngine {
-    getUsers(page: number) { return this.get<User[]>('/users', { params: { page } }) }
+class LoanApi extends FetchEngine {
+    getLoans(page: number) { return this.get<Loan[]>('/loans', { params: { page } }) }
 }
 
-const { data, loading, error } = useAsync<User[]>(
-    () => myApi.getUsers(page),
+const { data, loading, error } = useAsync<Loan[]>(
+    () => loanApi.getLoans(page),
     [page],                                                // React deps — re-executes on change
-    { invalidateOn: ['users.created'] },
+    { invalidateOn: ['loan.created'] },
 )
-// Auto-unwraps FetchResponse — data is User[], not FetchResponse<User[]>
+// Auto-unwraps FetchResponse — data is Loan[], not FetchResponse<Loan[]>
 ```
 
 ### Factory Functions — Reusable Hooks
 
 ```typescript
 // Define once at module level
-const useUsers = createQuery<User[]>('/users', {
-    invalidateOn: ['users.created', 'users.deleted'],
+const useLoans = createQuery<Loan[]>('/loans', {
+    invalidateOn: ['loan.created', 'loan.deleted'],
 })
-const useCreateUser = createMutation<User>('post', '/users', {
-    emitOnSuccess: 'users.created',
+const useCreateLoan = createMutation<Loan>('post', '/loans', {
+    emitOnSuccess: 'loan.created',
 })
 
 // Use in any component
-const { data } = useUsers({ reactive: { params: { page: 1 } } })
-const { mutate } = useCreateUser()
+const { data } = useLoans({ reactive: { params: { page: 1 } } })
+const { mutate } = useCreateLoan()
 ```
 
 ## Subpath Imports
@@ -280,21 +280,6 @@ import { createLocalizeContext } from '@logosdx/react/localize'
 import { composeProviders } from '@logosdx/react/compose'
 import { createApiHooks, useQuery, useMutation, useAsync } from '@logosdx/react/api'
 ```
-
-## Why Tuples, Not Objects?
-
-Factories return `[Provider, useHook]` tuples (like `useState`) instead of objects:
-
-```typescript
-// Tuples — rename naturally, no aliasing syntax
-const [ChatObserver, useChatEvents] = createObserverContext(chatEngine)
-const [ApiObserver, useApiObserver] = createObserverContext(apiEngine)
-
-// Objects would require verbose aliasing
-const { Provider: ChatObserver, useHook: useChatEvents } = createObserverContext(chatEngine)
-```
-
-Free renaming, less verbose, and follows React's own hook convention.
 
 ## Hook Rules
 
@@ -318,7 +303,7 @@ const { instance } = useApiFetch()
 instance.headers.set('X-Custom', 'value') // typed
 
 // Per-call generics for response body and headers
-const [, , res] = get<User[]>('/users')           // res?.data is User[]
-const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // res2?.headers['x-total'] typed
+const { data } = get<User[]>('/users')                         // data is User[] | null
+const { response } = get<Post, { 'x-total': string }>('/posts')  // response?.headers['x-total'] typed
 ```
 

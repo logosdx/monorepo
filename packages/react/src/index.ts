@@ -10,6 +10,8 @@ export type {
     UseStorageReturn,
     UseLocalizeReturn,
     UseStateMachineReturn,
+    FetchContextQueryResult,
+    FetchContextMutationResult,
 } from './types.ts';
 export {
     useQuery,

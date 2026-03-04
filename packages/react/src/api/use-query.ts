@@ -29,9 +29,11 @@ export function useQuery<
     T = unknown,
     H = FetchEngine.InstanceHeaders,
     P = FetchEngine.InstanceParams,
-    E extends Record<string, any> = Record<string, any>,
+    S = FetchEngine.InstanceState,
+    RH = FetchEngine.InstanceResponseHeaders,
+    E extends Record<string, any> = any,
 >(
-    engine: FetchEngine<H, P, any, any>,
+    engine: FetchEngine<H, P, S, RH>,
     path: string,
     options?: QueryOptions<H, P, E>,
     observer?: ObserverEngine<E>,

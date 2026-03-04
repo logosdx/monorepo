@@ -145,7 +145,7 @@ describe('@logosdx/react api: useMutation', () => {
         observer.on('users.created', handler);
 
         const { result, unmount } = renderHook(() =>
-            useMutation<{ id: number; name: string }, any, any, Events>(
+            useMutation<{ id: number; name: string }>(
                 engine, 'post', '/users',
                 { emitOnSuccess: 'users.created' },
                 observer
@@ -177,7 +177,7 @@ describe('@logosdx/react api: useMutation', () => {
         observer.on('audit.log', handler);
 
         const { result, unmount } = renderHook(() =>
-            useMutation<{ id: number; name: string }, any, any, Events>(
+            useMutation<{ id: number; name: string }>(
                 engine, 'post', '/users',
                 {
                     emitOnSuccess: {
@@ -219,7 +219,7 @@ describe('@logosdx/react api: useMutation', () => {
         observer.on('dashboard.refresh', handler2);
 
         const { result, unmount } = renderHook(() =>
-            useMutation<{ id: number }, any, any, Events>(
+            useMutation<{ id: number }>(
                 engine, 'post', '/users',
                 { emitOnSuccess: ['users.created', 'dashboard.refresh'] },
                 observer
