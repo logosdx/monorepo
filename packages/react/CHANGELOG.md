@@ -1,5 +1,43 @@
 # @logosdx/react
 
+## 2.0.0
+
+### Major Changes
+
+- e6fc2da: **BREAKING:** `createFetchContext` hooks now return objects instead of tuples.
+
+  **Queries** (`get()`):
+
+  - Before: `[cancel, isLoading, response, error]`
+  - After: `{ data, loading, error, response, refetch, cancel }`
+  - `data` is unwrapped `T` (no longer need `response.data`)
+  - `response` provides full `FetchResponse<T>` access (status, headers)
+  - `isLoading` renamed to `loading`
+  - Added `refetch()` to re-trigger the query
+
+  **Mutations** (`post`, `put`, `del`, `patch`):
+
+  - Before: `[trigger, cancel, isLoading, response, error]`
+  - After: `{ data, loading, error, response, mutate, reset, cancel, called }`
+  - `trigger()` renamed to `mutate()`, now returns `Promise<T>`
+  - `data` is unwrapped `T` (no longer need `response.data`)
+  - `response` provides full `FetchResponse<T>` access (status, headers)
+  - `isLoading` renamed to `loading`
+  - Added `reset()` to clear mutation state
+  - Added `called` boolean to track whether `mutate()` has been invoked
+
+  **New types:** `FetchContextQueryResult<T, RH>` and `FetchContextMutationResult<T, RH>` exported from `@logosdx/react`.
+
+### Minor Changes
+
+- 05e0b81: ## Added
+
+  - `feat(api):` Apollo-style `useQuery`, `useMutation`, and `useAsync` hooks with auto-fetch, reactive config, polling, and cancellation
+  - `feat(api):` `createQuery` and `createMutation` factory functions for reusable pre-bound hooks
+  - `feat(api):` `createApiHooks` binding that pre-wires FetchEngine and ObserverEngine to all API hooks
+  - `feat(api):` ObserverEngine integration — `invalidateOn` for automatic refetch on events, `emitOnSuccess` for mutation-driven event emission
+  - `feat(api):` New `@logosdx/react/api` subpath export
+
 ## 1.0.0
 
 ### Major Changes
