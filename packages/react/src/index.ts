@@ -11,3 +11,20 @@ export type {
     UseLocalizeReturn,
     UseStateMachineReturn,
 } from './types.ts';
+export {
+    useQuery,
+    useMutation,
+    useAsync,
+    createQuery,
+    createMutation,
+    createApiHooks,
+} from './api/index.ts';
+export type {
+    QueryResult,
+    MutationResult,
+    QueryOptions,
+    MutationOptions,
+    AsyncOptions,
+    EmitConfig,
+    EmitEntry,
+} from './api/index.ts';

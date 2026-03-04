@@ -1,6 +1,4 @@
-import type { DependencyList } from 'react';
-import type { FetchEngine, CallConfig, FetchError } from '@logosdx/fetch';
-import type { ObserverEngine } from '@logosdx/observer';
+import type { CallConfig, FetchError } from '@logosdx/fetch';
 
 // === Return shapes ===
 
