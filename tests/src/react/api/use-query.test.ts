@@ -76,7 +76,7 @@ describe('@logosdx/react api: useQuery', () => {
 
         const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
 
-        let page = 1;
+        let page = '1';
 
         const { result, rerender, unmount } = renderHook(() =>
             useQuery(engine, '/items', {
@@ -87,7 +87,7 @@ describe('@logosdx/react api: useQuery', () => {
         await flush();
         expect(result.current.data).to.deep.equal({ page: 1 });
 
-        page = 2;
+        page = '2';
         rerender();
         await flush();
 
@@ -124,10 +124,10 @@ describe('@logosdx/react api: useQuery', () => {
 
         const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
 
-        const { result, unmount } = renderHook(() =>
+        const { unmount } = renderHook(() =>
             useQuery(engine, '/with-config', {
                 defaults: { headers: { 'X-Custom': 'value' } },
-                reactive: { params: { page: 1 } },
+                reactive: { params: { page: '1' } },
             })
         );
 

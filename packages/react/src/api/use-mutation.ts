@@ -55,9 +55,11 @@ export function useMutation<
     T = unknown,
     H = FetchEngine.InstanceHeaders,
     P = FetchEngine.InstanceParams,
-    E extends Record<string, any> = Record<string, any>,
+    S = FetchEngine.InstanceState,
+    RH = FetchEngine.InstanceResponseHeaders,
+    E extends Record<string, any> = any,
 >(
-    engine: FetchEngine<H, P, any, any>,
+    engine: FetchEngine<H, P, S, RH>,
     method: 'post' | 'put' | 'delete' | 'patch',
     path: string,
     options?: MutationOptions<H, P, E>,

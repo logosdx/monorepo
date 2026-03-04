@@ -3,7 +3,19 @@
     "compilerOptions": {
         "emitDeclarationOnly": false,
         "noEmit": true,
-        "types": ["vitest/globals"]
+        "types": ["vitest/globals"],
+        "baseUrl": ".",
+        "paths": {
+            "@logosdx/utils": ["../packages/utils/src/index.ts"],
+            "@logosdx/fetch": ["../packages/fetch/src/index.ts"],
+            "@logosdx/observer": ["../packages/observer/src/index.ts"],
+            "@logosdx/react": ["../packages/react/src/index.ts"],
+            "@logosdx/dom": ["../packages/dom/src/index.ts"],
+            "@logosdx/hooks": ["../packages/hooks/src/index.ts"],
+            "@logosdx/localize": ["../packages/localize/src/index.ts"],
+            "@logosdx/state-machine": ["../packages/state-machine/src/index.ts"],
+            "@logosdx/storage": ["../packages/storage/src/index.ts"]
+        }
     },
     "include": [
         "src"

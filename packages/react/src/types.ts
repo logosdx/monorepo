@@ -4,6 +4,7 @@ import type { StorageAdapter } from '@logosdx/storage';
 import type { LocaleManager } from '@logosdx/localize';
 import type { StateMachine } from '@logosdx/state-machine';
 import type { PathLeaves } from '@logosdx/utils';
+import type { FetchError, FetchResponse } from '@logosdx/fetch';
 
 export type ProviderProps = {
     children?: ReactNode;
@@ -67,4 +68,24 @@ export type UseStateMachineReturn<
     context: Selected;
     send: StateMachine<Context, Events, States>['send'];
     instance: StateMachine<Context, Events, States>;
+};
+
+export type FetchContextQueryResult<T, RH = Record<string, string>> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    response: FetchResponse<T, any, any, RH> | null;
+    refetch: () => void;
+    cancel: () => void;
+};
+
+export type FetchContextMutationResult<T, RH = Record<string, string>> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    response: FetchResponse<T, any, any, RH> | null;
+    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
+    reset: () => void;
+    cancel: () => void;
+    called: boolean;
 };

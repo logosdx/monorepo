@@ -103,26 +103,6 @@ export const Providers = composeProviders(
 </Providers>
 ```
 
-## Why Tuples?
-
-Every factory returns a `[Provider, useHook]` tuple instead of an object. This follows the same convention as React's own hooks (`useState`, `useReducer`) for good reason:
-
-**Free renaming.** Array destructuring lets you name each piece whatever fits your domain. No aliasing syntax needed:
-
-```typescript
-// Tuples — rename naturally
-const [ChatObserver, useChatEvents] = createObserverContext(chatEngine);
-const [ApiObserver, useApiObserver] = createObserverContext(apiEngine);
-
-// Objects would require aliasing — more verbose, more noise
-const { Provider: ChatObserver, useHook: useChatEvents } = createObserverContext(chatEngine);
-const { Provider: ApiObserver, useHook: useApiObserver } = createObserverContext(apiEngine);
-```
-
-**Less verbose.** Destructuring an array is shorter than destructuring an object with named keys. When you create several contexts in a setup file, the difference adds up fast.
-
-**Familiar pattern.** React developers already think in tuples. `const [state, setState] = useState()` is muscle memory. `const [Provider, useHook] = createObserverContext()` reads the same way.
-
 ## Pattern
 
 Every factory follows the same pattern:
@@ -246,54 +226,57 @@ export const [ApiFetch, useApiFetch] = createFetchContext(api);
 
 ### Queries — `get(path, options?)`
 
-Auto-fetches on mount. Returns `[cancel, isLoading, response, error]`.
+Auto-fetches on mount. Returns `{ data, loading, error, response, refetch, cancel }`. `data` is the unwrapped `T`. `response` provides full `FetchResponse` access (status, headers).
 
 ```typescript
 function UserList() {
 
     const { get } = useApiFetch();
 
-    const [cancel, isLoading, res, error] = get<User[]>('/users');
+    const { data, loading, error, refetch } = get<User[]>('/users');
 
-    if (isLoading) return <Spinner />;
+    if (loading) return <Spinner />;
     if (error) return <Error status={error.status} message={error.message} />;
 
     return (
         <ul>
-            {res?.data.map(u => <li key={u.id}>{u.name}</li>)}
+            {data?.map(u => <li key={u.id}>{u.name}</li>)}
         </ul>
     );
 }
 ```
 
-With typed response headers:
+With typed response headers via the `response` field:
 
 ```typescript
-const [, , res] = get<Post[], { 'x-total': string }>('/posts');
-// res?.headers['x-total'] is typed as string
+const { response } = get<Post[], { 'x-total': string }>('/posts');
+// response?.headers['x-total'] is typed as string
 ```
 
 ### Mutations — `post`, `put`, `del`, `patch`
 
-Start idle. Returns `[trigger, cancel, isLoading, response, error]`.
+Start idle. Returns `{ data, loading, error, response, mutate, reset, cancel, called }`. `mutate()` returns `Promise<T>` so you can await the result in handlers.
 
 ```typescript
 function CreateComment() {
 
     const { post, del } = useApiFetch();
 
-    const [submit, cancelSubmit, isSubmitting, result, submitErr] =
+    const { mutate: submit, loading: isSubmitting, data: result, error: submitErr } =
         post<Comment>('/comments');
 
-    const [remove, cancelRemove, isRemoving, , removeErr] =
+    const { mutate: remove, loading: isRemoving, error: removeErr } =
         del<void>('/comments/123');
 
     return (
-        <form onSubmit={() => submit({ text: 'Hello' })}>
+        <form onSubmit={async () => {
+            const comment = await submit({ text: 'Hello' });
+            if (comment) navigate(`/comments/${comment.id}`);
+        }}>
             <button disabled={isSubmitting}>
                 {isSubmitting ? 'Sending...' : 'Submit'}
             </button>
-            {result && <p>Created: {result.data.id}</p>}
+            {result && <p>Created: {result.id}</p>}
             {submitErr && <p>Failed: {submitErr.message}</p>}
         </form>
     );
@@ -319,6 +302,236 @@ function ExportButton() {
 
     return <button onClick={handleExport}>Export</button>;
 }
+```
+
+## API Hooks
+
+
+Apollo-style hooks for API interactions. Like `createFetchContext`, these return `{ data, loading, error }` objects — familiar to anyone who's used Apollo Client or TanStack Query. Auto-refetch on reactive config changes, polling, and ObserverEngine-driven cache invalidation built in.
+
+```typescript
+import { FetchEngine } from '@logosdx/fetch';
+import { ObserverEngine } from '@logosdx/observer';
+import { createApiHooks } from '@logosdx/react/api';
+
+interface LoanEvents {
+    'loan.created': { id: string; amount: number };
+    'loan.deleted': { id: string };
+    'audit.log': { action: string; entity: unknown };
+}
+
+const api = new FetchEngine({ baseUrl: 'https://rainbow-loans.com/api' });
+const events = new ObserverEngine<LoanEvents>();
+
+// Pre-bind engine + observer — no need to pass them in components
+const {
+    useQuery,
+    useMutation,
+    useAsync,
+    createQuery,
+    createMutation,
+} = createApiHooks(api, events);
+```
+
+### `useQuery` — Auto-Fetch with Reactive Config
+
+Fires on mount and re-fetches when reactive options change. `data` is the parsed response body — not the full `FetchResponse`.
+
+```typescript
+function LoanList({ page }: { page: number }) {
+
+    const { data, loading, error, refetch, cancel } = useQuery<Loan[]>('/loans', {
+        defaults: { headers: { 'X-Api-Version': '2' } },     // Fixed — won't trigger re-fetch
+        reactive: { params: { page, limit: 20 } },            // Watched — changes trigger re-fetch
+        skip: !isAuthenticated,                                // Conditional execution
+        pollInterval: 30_000,                                  // Re-fetch every 30s
+        invalidateOn: ['loan.created', 'loan.deleted'],        // Re-fetch on observer events
+    });
+
+    if (loading) return <Spinner />;
+    if (error) return <Error status={error.status} />;
+
+    return (
+        <ul>
+            {data?.map(loan => <li key={loan.id}>{loan.borrower}</li>)}
+        </ul>
+    );
+}
+```
+
+### `useMutation` — Fire on Demand
+
+Stays idle until `mutate()` is called. Returns a promise so you can `await` the result in handlers.
+
+```typescript
+function CreateLoan() {
+
+    const { mutate, loading, error, data, called, reset, cancel } =
+        useMutation<Loan>('post', '/loans', {
+            defaults: { headers: { 'Content-Type': 'application/json' } },
+            emitOnSuccess: 'loan.created',   // Emit event on observer after success
+        });
+
+    const handleSubmit = async (form: LoanForm) => {
+
+        const loan = await mutate(form);
+        if (loan) navigate(`/loans/${loan.id}`);
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <button disabled={loading}>{loading ? 'Creating...' : 'Create Loan'}</button>
+            {error && <p>Failed: {error.message}</p>}
+        </form>
+    );
+}
+```
+
+`emitOnSuccess` supports three forms — use whichever fits your case:
+
+```typescript
+// String — emit with response data as payload
+emitOnSuccess: 'loan.created'
+
+// Object — transform the payload
+emitOnSuccess: { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) }
+
+// Array — emit multiple events
+emitOnSuccess: [
+    'loan.created',
+    { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) },
+]
+```
+
+### `useAsync` — Wrap Any Async Function
+
+For when you need more than simple GET/POST — wrap any async function with loading/error/data state. If the function returns a `FetchResponse` (from FetchEngine methods), `data` is automatically unwrapped.
+
+```typescript
+class LoanApi extends FetchEngine {
+
+    getLoans(page: number) {
+        return this.get<Loan[]>('/loans', { params: { page } });
+    }
+}
+
+function LoanDashboard({ page }: { page: number }) {
+
+    const { data, loading, error, refetch } = useAsync<Loan[]>(
+        () => loanApi.getLoans(page),
+        [page],                                                // React deps — re-executes on change
+        { invalidateOn: ['loan.created'] },                    // Observer-driven invalidation
+    );
+
+    if (loading) return <Spinner />;
+
+    return <LoanTable loans={data ?? []} onRefresh={refetch} />;
+}
+```
+
+### Factory Functions — Reusable Hooks
+
+Define hooks at module level, use them in any component. Factories close over the engine and observer so components stay clean:
+
+```typescript
+// hooks/loans.ts — define once
+const useLoans = createQuery<Loan[]>('/loans', {
+    invalidateOn: ['loan.created', 'loan.deleted'],
+});
+
+const useCreateLoan = createMutation<Loan>('post', '/loans', {
+    emitOnSuccess: 'loan.created',
+});
+
+// LoanPage.tsx — use anywhere
+function LoanPage({ page }: { page: number }) {
+
+    const { data, loading } = useLoans({ reactive: { params: { page } } });
+    const { mutate } = useCreateLoan();
+
+    return (
+        <>
+            {loading ? <Spinner /> : <LoanTable loans={data ?? []} />}
+            <button onClick={() => mutate({ amount: 5000 })}>New Loan</button>
+        </>
+    );
+}
+```
+
+### API Hooks vs Fetch Context
+
+Both `createFetchContext` and `createApiHooks` wrap the same `FetchEngine`. Choose based on your needs:
+
+| | `createFetchContext` | `createApiHooks` |
+|---|---|---|
+| Return shape | `{ data, loading, error, response, ... }` objects | `{ data, loading, error, ... }` objects |
+| Response | Both `data` (unwrapped `T`) and `response` (`FetchResponse<T>`) | Unwrapped `T` (just the data) |
+| Requires Provider | Yes | No |
+| Observer integration | Manual | Built-in (`invalidateOn`, `emitOnSuccess`) |
+| Polling | Manual | Built-in (`pollInterval`) |
+| Factory functions | No | Yes (`createQuery`, `createMutation`) |
+
+Use `createFetchContext` when you need Provider-scoped sharing and full response access. Use `createApiHooks` when you want Apollo-style ergonomics with automatic cache invalidation.
+
+### Type Definitions
+
+**Fetch Context return types** (from `createFetchContext`):
+
+```typescript
+type FetchContextQueryResult<T, RH> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    response: FetchResponse<T, any, any, RH> | null;
+    refetch: () => void;
+    cancel: () => void;
+};
+
+type FetchContextMutationResult<T, RH> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    response: FetchResponse<T, any, any, RH> | null;
+    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
+    reset: () => void;
+    cancel: () => void;
+    called: boolean;
+};
+```
+
+**API Hooks return types** (from `createApiHooks`):
+
+```typescript
+type QueryResult<T> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    refetch: () => void;
+    cancel: () => void;
+};
+
+type MutationResult<T> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
+    reset: () => void;
+    cancel: () => void;
+    called: boolean;
+};
+
+type QueryOptions<H, P, E> = {
+    defaults?: CallConfig<H, P>;
+    reactive?: CallConfig<H, P>;
+    skip?: boolean;
+    pollInterval?: number;
+    invalidateOn?: (keyof E)[];
+};
+
+type MutationOptions<H, P, E> = {
+    defaults?: CallConfig<H, P>;
+    emitOnSuccess?: EmitConfig<E>;
+};
 ```
 
 ## Storage
@@ -519,209 +732,6 @@ The selector uses deep equality comparison via `equals` from `@logosdx/utils`. I
 | `context` | `Selected` | Full context or selector result (reactive) |
 | `send` | `(event, data?) => void` | Dispatch a transition event |
 | `instance` | `StateMachine` | Raw machine access |
-
-## API Hooks
-
-
-Apollo-style hooks for API interactions. Unlike the tuple-based `createFetchContext` hooks, these return `{ data, loading, error }` objects — familiar to anyone who's used Apollo Client or TanStack Query. Auto-refetch on reactive config changes, polling, and ObserverEngine-driven cache invalidation built in.
-
-```typescript
-import { FetchEngine } from '@logosdx/fetch';
-import { ObserverEngine } from '@logosdx/observer';
-import { createApiHooks } from '@logosdx/react/api';
-
-interface AppEvents {
-    'users.created': { id: string; name: string };
-    'users.deleted': { id: string };
-    'audit.log': { action: string; entity: unknown };
-}
-
-const api = new FetchEngine({ baseUrl: 'https://rainbow-loans.com/api' });
-const events = new ObserverEngine<AppEvents>();
-
-// Pre-bind engine + observer — no need to pass them in components
-const {
-    useQuery,
-    useMutation,
-    useAsync,
-    createQuery,
-    createMutation,
-} = createApiHooks(api, events);
-```
-
-### `useQuery` — Auto-Fetch with Reactive Config
-
-Fires on mount and re-fetches when reactive options change. `data` is the parsed response body — not the full `FetchResponse`.
-
-```typescript
-function LoanList({ page }: { page: number }) {
-
-    const { data, loading, error, refetch, cancel } = useQuery<Loan[]>('/loans', {
-        defaults: { headers: { 'X-Api-Version': '2' } },     // Fixed — won't trigger re-fetch
-        reactive: { params: { page, limit: 20 } },            // Watched — changes trigger re-fetch
-        skip: !isAuthenticated,                                // Conditional execution
-        pollInterval: 30_000,                                  // Re-fetch every 30s
-        invalidateOn: ['users.created', 'users.deleted'],      // Re-fetch on observer events
-    });
-
-    if (loading) return <Spinner />;
-    if (error) return <Error status={error.status} />;
-
-    return (
-        <ul>
-            {data?.map(loan => <li key={loan.id}>{loan.borrower}</li>)}
-        </ul>
-    );
-}
-```
-
-### `useMutation` — Fire on Demand
-
-Stays idle until `mutate()` is called. Returns a promise so you can `await` the result in handlers.
-
-```typescript
-function CreateLoan() {
-
-    const { mutate, loading, error, data, called, reset, cancel } =
-        useMutation<Loan>('post', '/loans', {
-            defaults: { headers: { 'Content-Type': 'application/json' } },
-            emitOnSuccess: 'users.created',   // Emit event on observer after success
-        });
-
-    const handleSubmit = async (form: LoanForm) => {
-
-        const loan = await mutate(form);
-        if (loan) navigate(`/loans/${loan.id}`);
-    };
-
-    return (
-        <form onSubmit={handleSubmit}>
-            <button disabled={loading}>{loading ? 'Creating...' : 'Create Loan'}</button>
-            {error && <p>Failed: {error.message}</p>}
-        </form>
-    );
-}
-```
-
-`emitOnSuccess` supports three forms — use whichever fits your case:
-
-```typescript
-// String — emit with response data as payload
-emitOnSuccess: 'users.created'
-
-// Object — transform the payload
-emitOnSuccess: { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) }
-
-// Array — emit multiple events
-emitOnSuccess: [
-    'users.created',
-    { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) },
-]
-```
-
-### `useAsync` — Wrap Any Async Function
-
-For when you need more than simple GET/POST — wrap any async function with loading/error/data state. If the function returns a `FetchResponse` (from FetchEngine methods), `data` is automatically unwrapped.
-
-```typescript
-class LoanApi extends FetchEngine {
-    getLoans(page: number) {
-        return this.get<Loan[]>('/loans', { params: { page } });
-    }
-}
-
-function LoanDashboard({ page }: { page: number }) {
-
-    const { data, loading, error, refetch } = useAsync<Loan[]>(
-        () => loanApi.getLoans(page),
-        [page],                                                // React deps — re-executes on change
-        { invalidateOn: ['users.created'] },                   // Observer-driven invalidation
-    );
-
-    if (loading) return <Spinner />;
-
-    return <LoanTable loans={data ?? []} onRefresh={refetch} />;
-}
-```
-
-### Factory Functions — Reusable Hooks
-
-Define hooks at module level, use them in any component. Factories close over the engine and observer so components stay clean:
-
-```typescript
-// hooks/loans.ts — define once
-const useLoans = createQuery<Loan[]>('/loans', {
-    invalidateOn: ['users.created', 'users.deleted'],
-});
-
-const useCreateLoan = createMutation<Loan>('post', '/loans', {
-    emitOnSuccess: 'users.created',
-});
-
-// LoanPage.tsx — use anywhere
-function LoanPage({ page }: { page: number }) {
-
-    const { data, loading } = useLoans({ reactive: { params: { page } } });
-    const { mutate } = useCreateLoan();
-
-    return (
-        <>
-            {loading ? <Spinner /> : <LoanTable loans={data ?? []} />}
-            <button onClick={() => mutate({ amount: 5000 })}>New Loan</button>
-        </>
-    );
-}
-```
-
-### API Hooks vs Fetch Context
-
-Both `createFetchContext` and `createApiHooks` wrap the same `FetchEngine`. Choose based on your needs:
-
-| | `createFetchContext` | `createApiHooks` |
-|---|---|---|
-| Return shape | `[cancel, loading, response, error]` tuples | `{ data, loading, error, ... }` objects |
-| Response | Full `FetchResponse<T>` | Unwrapped `T` (just the data) |
-| Requires Provider | Yes | No |
-| Observer integration | Manual | Built-in (`invalidateOn`, `emitOnSuccess`) |
-| Polling | Manual | Built-in (`pollInterval`) |
-| Factory functions | No | Yes (`createQuery`, `createMutation`) |
-
-Use `createFetchContext` when you need Provider-scoped sharing and full response access. Use `createApiHooks` when you want Apollo-style ergonomics with automatic cache invalidation.
-
-### Type Definitions
-
-```typescript
-type QueryResult<T> = {
-    data: T | null;
-    loading: boolean;
-    error: FetchError | null;
-    refetch: () => void;
-    cancel: () => void;
-};
-
-type MutationResult<T> = {
-    data: T | null;
-    loading: boolean;
-    error: FetchError | null;
-    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
-    reset: () => void;
-    cancel: () => void;
-    called: boolean;
-};
-
-type QueryOptions<H, P, E> = {
-    defaults?: CallConfig<H, P>;
-    reactive?: CallConfig<H, P>;
-    skip?: boolean;
-    pollInterval?: number;
-    invalidateOn?: (keyof E)[];
-};
-
-type MutationOptions<H, P, E> = {
-    defaults?: CallConfig<H, P>;
-    emitOnSuccess?: EmitConfig<E>;
-};
-```
 
 ## Compose Providers
 
