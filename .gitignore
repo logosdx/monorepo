@@ -16,3 +16,4 @@ docs/public/llm/
 .env
 tests/src/smoke/__screenshots__/**/*
 .swp
+.worktrees
