@@ -1,6 +1,6 @@
 ---
 title: React
-description: React bindings for LogosDX — context providers and hooks for Observer, Fetch, Storage, Localize, and StateMachine.
+description: React bindings for LogosDX — context providers, Apollo-style API hooks, and hooks for Observer, Fetch, Storage, Localize, and StateMachine.
 ---
 
 # React
@@ -43,6 +43,9 @@ import { createStorageContext } from '@logosdx/react/storage';
 
 // Only requires @logosdx/state-machine as a peer dep
 import { useStateMachine } from '@logosdx/react/state-machine';
+
+// Only requires @logosdx/fetch (+ optional @logosdx/observer) as peer deps
+import { createApiHooks, useQuery, useMutation, useAsync } from '@logosdx/react/api';
 
 // Barrel import still works — requires all used peer deps
 import { createStorageContext, useStateMachine } from '@logosdx/react';
@@ -516,6 +519,209 @@ The selector uses deep equality comparison via `equals` from `@logosdx/utils`. I
 | `context` | `Selected` | Full context or selector result (reactive) |
 | `send` | `(event, data?) => void` | Dispatch a transition event |
 | `instance` | `StateMachine` | Raw machine access |
+
+## API Hooks
+
+
+Apollo-style hooks for API interactions. Unlike the tuple-based `createFetchContext` hooks, these return `{ data, loading, error }` objects — familiar to anyone who's used Apollo Client or TanStack Query. Auto-refetch on reactive config changes, polling, and ObserverEngine-driven cache invalidation built in.
+
+```typescript
+import { FetchEngine } from '@logosdx/fetch';
+import { ObserverEngine } from '@logosdx/observer';
+import { createApiHooks } from '@logosdx/react/api';
+
+interface AppEvents {
+    'users.created': { id: string; name: string };
+    'users.deleted': { id: string };
+    'audit.log': { action: string; entity: unknown };
+}
+
+const api = new FetchEngine({ baseUrl: 'https://rainbow-loans.com/api' });
+const events = new ObserverEngine<AppEvents>();
+
+// Pre-bind engine + observer — no need to pass them in components
+const {
+    useQuery,
+    useMutation,
+    useAsync,
+    createQuery,
+    createMutation,
+} = createApiHooks(api, events);
+```
+
+### `useQuery` — Auto-Fetch with Reactive Config
+
+Fires on mount and re-fetches when reactive options change. `data` is the parsed response body — not the full `FetchResponse`.
+
+```typescript
+function LoanList({ page }: { page: number }) {
+
+    const { data, loading, error, refetch, cancel } = useQuery<Loan[]>('/loans', {
+        defaults: { headers: { 'X-Api-Version': '2' } },     // Fixed — won't trigger re-fetch
+        reactive: { params: { page, limit: 20 } },            // Watched — changes trigger re-fetch
+        skip: !isAuthenticated,                                // Conditional execution
+        pollInterval: 30_000,                                  // Re-fetch every 30s
+        invalidateOn: ['users.created', 'users.deleted'],      // Re-fetch on observer events
+    });
+
+    if (loading) return <Spinner />;
+    if (error) return <Error status={error.status} />;
+
+    return (
+        <ul>
+            {data?.map(loan => <li key={loan.id}>{loan.borrower}</li>)}
+        </ul>
+    );
+}
+```
+
+### `useMutation` — Fire on Demand
+
+Stays idle until `mutate()` is called. Returns a promise so you can `await` the result in handlers.
+
+```typescript
+function CreateLoan() {
+
+    const { mutate, loading, error, data, called, reset, cancel } =
+        useMutation<Loan>('post', '/loans', {
+            defaults: { headers: { 'Content-Type': 'application/json' } },
+            emitOnSuccess: 'users.created',   // Emit event on observer after success
+        });
+
+    const handleSubmit = async (form: LoanForm) => {
+
+        const loan = await mutate(form);
+        if (loan) navigate(`/loans/${loan.id}`);
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <button disabled={loading}>{loading ? 'Creating...' : 'Create Loan'}</button>
+            {error && <p>Failed: {error.message}</p>}
+        </form>
+    );
+}
+```
+
+`emitOnSuccess` supports three forms — use whichever fits your case:
+
+```typescript
+// String — emit with response data as payload
+emitOnSuccess: 'users.created'
+
+// Object — transform the payload
+emitOnSuccess: { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) }
+
+// Array — emit multiple events
+emitOnSuccess: [
+    'users.created',
+    { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) },
+]
+```
+
+### `useAsync` — Wrap Any Async Function
+
+For when you need more than simple GET/POST — wrap any async function with loading/error/data state. If the function returns a `FetchResponse` (from FetchEngine methods), `data` is automatically unwrapped.
+
+```typescript
+class LoanApi extends FetchEngine {
+    getLoans(page: number) {
+        return this.get<Loan[]>('/loans', { params: { page } });
+    }
+}
+
+function LoanDashboard({ page }: { page: number }) {
+
+    const { data, loading, error, refetch } = useAsync<Loan[]>(
+        () => loanApi.getLoans(page),
+        [page],                                                // React deps — re-executes on change
+        { invalidateOn: ['users.created'] },                   // Observer-driven invalidation
+    );
+
+    if (loading) return <Spinner />;
+
+    return <LoanTable loans={data ?? []} onRefresh={refetch} />;
+}
+```
+
+### Factory Functions — Reusable Hooks
+
+Define hooks at module level, use them in any component. Factories close over the engine and observer so components stay clean:
+
+```typescript
+// hooks/loans.ts — define once
+const useLoans = createQuery<Loan[]>('/loans', {
+    invalidateOn: ['users.created', 'users.deleted'],
+});
+
+const useCreateLoan = createMutation<Loan>('post', '/loans', {
+    emitOnSuccess: 'users.created',
+});
+
+// LoanPage.tsx — use anywhere
+function LoanPage({ page }: { page: number }) {
+
+    const { data, loading } = useLoans({ reactive: { params: { page } } });
+    const { mutate } = useCreateLoan();
+
+    return (
+        <>
+            {loading ? <Spinner /> : <LoanTable loans={data ?? []} />}
+            <button onClick={() => mutate({ amount: 5000 })}>New Loan</button>
+        </>
+    );
+}
+```
+
+### API Hooks vs Fetch Context
+
+Both `createFetchContext` and `createApiHooks` wrap the same `FetchEngine`. Choose based on your needs:
+
+| | `createFetchContext` | `createApiHooks` |
+|---|---|---|
+| Return shape | `[cancel, loading, response, error]` tuples | `{ data, loading, error, ... }` objects |
+| Response | Full `FetchResponse<T>` | Unwrapped `T` (just the data) |
+| Requires Provider | Yes | No |
+| Observer integration | Manual | Built-in (`invalidateOn`, `emitOnSuccess`) |
+| Polling | Manual | Built-in (`pollInterval`) |
+| Factory functions | No | Yes (`createQuery`, `createMutation`) |
+
+Use `createFetchContext` when you need Provider-scoped sharing and full response access. Use `createApiHooks` when you want Apollo-style ergonomics with automatic cache invalidation.
+
+### Type Definitions
+
+```typescript
+type QueryResult<T> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    refetch: () => void;
+    cancel: () => void;
+};
+
+type MutationResult<T> = {
+    data: T | null;
+    loading: boolean;
+    error: FetchError | null;
+    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
+    reset: () => void;
+    cancel: () => void;
+    called: boolean;
+};
+
+type QueryOptions<H, P, E> = {
+    defaults?: CallConfig<H, P>;
+    reactive?: CallConfig<H, P>;
+    skip?: boolean;
+    pollInterval?: number;
+    invalidateOn?: (keyof E)[];
+};
+
+type MutationOptions<H, P, E> = {
+    defaults?: CallConfig<H, P>;
+    emitOnSuccess?: EmitConfig<E>;
+};
+```
 
 ## Compose Providers
 
