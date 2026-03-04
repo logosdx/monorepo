@@ -1,0 +1,46 @@
+import type { FetchEngine } from '@logosdx/fetch';
+import type { ObserverEngine } from '@logosdx/observer';
+import type { MutationResult, MutationOptions } from './types.ts';
+import { useMutation } from './use-mutation.ts';
+
+/**
+ * Factory that creates a reusable mutation hook pre-bound to an engine, method, and path.
+ *
+ *     const useCreateUser = createMutation<User>(api, 'post', '/users', {
+ *         emitOnSuccess: 'users.created',
+ *     }, observer);
+ *
+ *     // In any component:
+ *     const { mutate, loading } = useCreateUser();
+ *
+ * @param engine - FetchEngine instance
+ * @param method - HTTP method (post, put, delete, patch)
+ * @param path - Request path
+ * @param defaults - Default mutation options
+ * @param observer - Optional ObserverEngine for emitOnSuccess
+ */
+export function createMutation<
+    T = unknown,
+    H = FetchEngine.InstanceHeaders,
+    P = FetchEngine.InstanceParams,
+    E extends Record<string, any> = Record<string, any>,
+>(
+    engine: FetchEngine<H, P, any, any>,
+    method: 'post' | 'put' | 'delete' | 'patch',
+    path: string,
+    defaults?: MutationOptions<H, P, E>,
+    observer?: ObserverEngine<E>,
+): (overrides?: Partial<MutationOptions<H, P, E>>) => MutationResult<T> {
+
+    return (overrides?: Partial<MutationOptions<H, P, E>>) => {
+
+        const merged: MutationOptions<H, P, E> = {
+            ...defaults,
+            ...overrides,
+            defaults: { ...defaults?.defaults, ...overrides?.defaults } as any,
+            emitOnSuccess: overrides?.emitOnSuccess ?? defaults?.emitOnSuccess,
+        };
+
+        return useMutation<T, H, P, E>(engine, method, path, merged, observer);
+    };
+}
