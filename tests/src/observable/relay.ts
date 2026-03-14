@@ -60,8 +60,8 @@ describe('@logosdx/observer', function () {
                 relay.emit('msg:hello', { greeting: 'hi' });
 
                 expect(relay.sent.length).to.eq(1);
-                expect(relay.sent[0].event).to.eq('msg:hello');
-                expect(relay.sent[0].data).to.deep.eq({ greeting: 'hi' });
+                expect(relay.sent[0]!.event).to.eq('msg:hello');
+                expect(relay.sent[0]!.data).to.deep.eq({ greeting: 'hi' });
             });
 
             it('should call send for each emission', function () {
@@ -72,7 +72,7 @@ describe('@logosdx/observer', function () {
                 relay.emit('msg:goodbye', { farewell: 'bye' });
 
                 expect(relay.sent.length).to.eq(2);
-                expect(relay.sent[1].event).to.eq('msg:goodbye');
+                expect(relay.sent[1]!.event).to.eq('msg:goodbye');
             });
         });
 
@@ -227,8 +227,8 @@ describe('@logosdx/observer', function () {
                 await new Promise(r => setTimeout(r, 300));
 
                 expect(processed.length).to.eq(1);
-                expect(processed[0].data).to.deep.eq({ greeting: 'hi' });
-                expect(processed[0].ctx).to.eq(ctx);
+                expect(processed[0]!.data).to.deep.eq({ greeting: 'hi' });
+                expect(processed[0]!.ctx).to.eq(ctx);
 
                 queue.shutdown(true);
             });
@@ -521,8 +521,8 @@ describe('@logosdx/observer', function () {
 
                 expect(bus.length).to.eq(0);
                 expect(received.length).to.eq(1);
-                expect(received[0].data).to.deep.eq({ greeting: 'hello world' });
-                expect(received[0].ctx).to.eq(ctx);
+                expect(received[0]!.data).to.deep.eq({ greeting: 'hello world' });
+                expect(received[0]!.ctx).to.eq(ctx);
 
                 // Shutdown
                 relay.shutdown();
