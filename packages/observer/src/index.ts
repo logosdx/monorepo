@@ -25,3 +25,9 @@ export {
 } from './queue/index.ts';
 
 export { ObserverEngine } from './engine.ts';
+
+export {
+    ObserverRelay,
+    type RelayEvents,
+    type ObserverRelayOptions,
+} from './relay.ts';

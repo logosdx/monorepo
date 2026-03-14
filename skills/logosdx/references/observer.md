@@ -376,3 +376,119 @@ try {
 }
 ```
 
+## ObserverRelay - Cross-Boundary Event Bridge
+
+Abstract class that bridges ObserverEngine events across network/process boundaries
+via two internal engines (pub and sub). Subclasses implement `send()` for the transport
+and call `receive()` when messages arrive.
+
+**Design spec:** `docs/superpowers/specs/2026-03-14-observer-relay-design.md`
+
+```ts
+import { ObserverRelay, type RelayEvents, type ObserverRelayOptions } from '@logosdx/observer'
+
+// Event shape (same for both pub and sub sides)
+interface OrderEvents {
+    'order:placed': { id: string; total: number }
+    'order:shipped': { id: string; trackingNo: string }
+}
+
+// Transport context (only appears on the receiving side)
+interface RedisCtx {
+    ack(): void
+    nack(): void
+}
+
+// Subclass implements send() and calls receive()
+class RedisRelay extends ObserverRelay<OrderEvents, RedisCtx> {
+
+    #redis: RedisClient
+
+    constructor(redis: RedisClient, channel: string) {
+
+        super({ name: 'redis' })
+        this.#redis = redis
+
+        redis.subscribe(channel, (msg) => {
+
+            const { event, data } = JSON.parse(msg.body)
+            this.receive(event, data, {
+                ack: () => msg.ack(),
+                nack: () => msg.nack(),
+            })
+        })
+    }
+
+    protected send(event: string, data: unknown) {
+
+        this.#redis.publish('orders', JSON.stringify({ event, data }))
+    }
+}
+
+// Usage — emit is pure data, on receives { data, ctx }
+const relay = new RedisRelay(redisClient, 'orders')
+
+relay.emit('order:placed', { id: '123', total: 99.99 })
+
+relay.on('order:placed', ({ data, ctx }) => {
+
+    processOrder(data)
+    ctx.ack()
+})
+
+// Queue — concurrency-controlled inbound processing
+const queue = relay.queue('order:placed', async ({ data, ctx }) => {
+
+    await fulfillOrder(data)
+    ctx.ack()
+}, { name: 'order-processing', concurrency: 5 })
+
+// Observability — spy, $has, $facts, $internals all return { pub, sub }
+relay.spy((action) => telemetry.track(action))
+relay.$facts() // → { pub: { listeners: [...] }, sub: { listeners: [...] } }
+
+// Lifecycle
+relay.isShutdown // false
+relay.shutdown() // clears both engines, permanently inoperable
+```
+
+### RelayEvents Type
+
+Wraps event data with transport context for the sub engine:
+
+```ts
+type RelayEvents<TEvents, TCtx> = {
+    [K in keyof TEvents]: { data: TEvents[K]; ctx: TCtx }
+}
+```
+
+### Public API
+
+| Method | Delegates to | Notes |
+|--------|-------------|-------|
+| `emit` | `#pub.emit` | Pure `TEvents` data |
+| `on` | `#sub.on` | Receives `{ data, ctx }` |
+| `once` | `#sub.once` | Receives `{ data, ctx }` |
+| `off` | `#sub.off` | |
+| `queue` | `#sub.queue` | Processes inbound messages |
+| `spy()` | both engines | Attached to both with `force: true` |
+| `$has()` | both engines | Returns `{ pub: boolean, sub: boolean }` |
+| `$facts()` | both engines | Returns `{ pub: Facts, sub: Facts }` |
+| `$internals()` | both engines | Returns `{ pub: Internals, sub: Internals }` |
+| `shutdown()` | both `.clear()` | Permanently inoperable after call |
+| `isShutdown` | relay state | Getter returning `boolean` |
+
+### Constructor Options
+
+```ts
+interface ObserverRelayOptions {
+    name?: string        // auto-suffixed to name:pub and name:sub
+    spy?: Spy<any>       // passed to both engines
+    signal?: AbortSignal // passed to both engines + sets #isShutdown
+    emitValidator?: {
+        pub?: EmitValidator<any>  // validates outbound data
+        sub?: EmitValidator<any>  // validates inbound data
+    }
+}
+```
+

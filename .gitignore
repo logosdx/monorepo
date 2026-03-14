@@ -17,3 +17,4 @@ docs/public/llm/
 tests/src/smoke/__screenshots__/**/*
 .swp
 .worktrees
+.superpowers/
