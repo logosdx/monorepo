@@ -1,4 +1,6 @@
 import { DefaultTheme, defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
+import markdownItPlantuml from 'markdown-it-plantuml'
 
 const simplePackages: DefaultTheme.SidebarItem[] = [
   ['Hooks', 'hooks'],
@@ -18,6 +20,7 @@ const packages: DefaultTheme.SidebarItem[] = [
       { text: 'Events', link: '/packages/observer/events' },
       { text: 'Generators', link: '/packages/observer/generators' },
       { text: 'Queues', link: '/packages/observer/queues' },
+      { text: 'Relay', link: '/packages/observer/relay' },
       { text: 'Advanced', link: '/packages/observer/advanced' },
     ]
   },
@@ -107,9 +110,21 @@ const metadata = {
 }
 
 // https://vitepress.dev/reference/site-config
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'Logos DX',
   description: 'Focused TypeScript utilities for building JS apps in any runtime',
+
+  markdown: {
+    config: (md) => {
+      md.use(markdownItPlantuml)
+    },
+  },
+
+  vite: {
+    optimizeDeps: {
+      include: ['mermaid'],
+    },
+  },
 
   // https://vitepress.dev/reference/default-theme-config
   themeConfig: {
@@ -190,4 +205,4 @@ export default defineConfig({
 
   ],
 
-});
+}));
