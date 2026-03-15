@@ -1,5 +1,12 @@
 # @logosdx/localize
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [5b872ff]
+  - @logosdx/observer@2.5.0
+
 ## 2.0.0
 
 ### Major Changes
