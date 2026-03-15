@@ -1,5 +1,15 @@
 # @logosdx/observer
 
+## 2.5.0
+
+### Minor Changes
+
+- 5b872ff: ## Added
+
+  - `feat(relay):` ObserverRelay abstract class for bridging events across network/process boundaries
+  - `feat(relay):` RelayEvents mapped type for wrapping event data with transport context
+  - `feat(relay):` ObserverRelayOptions interface with split pub/sub emit validators
+
 ## 2.4.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # @logosdx/react
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [5b872ff]
+  - @logosdx/observer@2.5.0
+  - @logosdx/fetch@8.0.1
+  - @logosdx/localize@2.0.1
+  - @logosdx/state-machine@2.0.1
+  - @logosdx/storage@2.0.1
+
 ## 2.0.0
 
 ### Major Changes
