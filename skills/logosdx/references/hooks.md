@@ -1,3 +1,8 @@
+---
+description: Usage patterns for the @logosdx/hooks package.
+globs: '*.ts'
+---
+
 # @logosdx/hooks - LLM Helper
 
 

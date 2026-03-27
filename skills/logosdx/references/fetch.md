@@ -7,6 +7,28 @@ globs: '*.ts'
 
 HTTP client with retry logic, request/response interception, and comprehensive error handling for production applications.
 
+## Table of Contents
+
+- [Core API](#core-api) — Setup, error handling, global instance
+- [HTTP Methods](#http-methods) — GET/POST/PUT/PATCH/DELETE, FetchPromise, FetchResponse
+- [Configuration](#configuration) — Config interface, timeout, retry, validation, policies
+- [Error Handling](#error-handling) — FetchError, isFetchError, lifecycle events
+- [Headers & Parameters Management](#headers--parameters-management) — set/remove/resolve
+- [State Management](#state-management) — Internal state for auth, sessions
+- [Event System](#event-system) — All FetchEventNames, event data fields
+- [Request Deduplication](#request-deduplication) — Prevent duplicate concurrent requests
+- [Response Caching](#response-caching) — TTL and stale-while-revalidate
+- [Rate Limiting](#rate-limiting) — Token bucket per-endpoint throttling
+- [Timeout Options](#timeout-options) — totalTimeout vs attemptTimeout
+- [Response Chaining](#response-chaining) — .json(), .text(), .blob(), .stream()
+- [Stream Mode](#stream-mode) — Async iteration over response chunks
+- [Advanced Features](#advanced-features) — Custom retry, type determination
+- [TypeScript Patterns](#typescript-patterns) — Module augmentation, typed instances
+- [Lifecycle Management](#lifecycle-management) — destroy(), cleanup
+- [Request Serializers](#request-serializers) — Built-in and custom key generators
+- [Policy Architecture](#policy-architecture) — Hook pipeline execution order
+- [Plugin Architecture](#plugin-architecture) — Plugin factories, engine.use()
+
 ## Core API
 
 ```typescript

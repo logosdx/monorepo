@@ -382,8 +382,6 @@ Abstract class that bridges ObserverEngine events across network/process boundar
 via two internal engines (pub and sub). Subclasses implement `send()` for the transport
 and call `receive()` when messages arrive.
 
-**Design spec:** `docs/superpowers/specs/2026-03-14-observer-relay-design.md`
-
 ```ts
 import { ObserverRelay, type RelayEvents, type ObserverRelayOptions } from '@logosdx/observer'
 

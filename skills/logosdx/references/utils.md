@@ -7,6 +7,27 @@ globs: '*.ts'
 
 A comprehensive utility library providing Go-style error handling, advanced flow control, type-safe data operations, and powerful TypeScript type utilities.
 
+## Table of Contents
+
+- [Core Philosophy](#core-philosophy) — Error tuple pattern, never try-catch
+- [Error Handling](#error-handling) — attempt, attemptSync
+- [Flow Control](#flow-control)
+  - [Timing & Rate Control](#timing--rate-control) — debounce, throttle, rateLimit, RateLimitTokenBucket
+  - [Resilience Patterns](#resilience-patterns) — retry, circuitBreaker, withTimeout, batch, withInflightDedup, SingleFlight
+  - [Memoization & Caching](#memoization--caching) — memoize, memoizeSync with LRU/TTL/SWR
+- [Data Operations](#data-operations)
+  - [Object Manipulation](#object-manipulation) — clone, equals, merge, addHandlerFor
+  - [Safe Property Access](#safe-property-access) — reach, setDeep, getSafeKeys
+  - [Collections](#collections) — PriorityQueue
+- [Validation & Type Guards](#validation--type-guards) — Environment detection, assertions, guards
+- [TypeScript Type Utilities](#typescript-type-utilities) — Function types, path types, utility types
+- [Property Management](#property-management) — definePublicProps, definePrivateProps
+- [Async Utilities](#async-utilities) — Deferred, TimeoutPromise, wait, runInSeries
+- [Array & Data Utilities](#array--data-utilities) — chunk, nTimes, serializer
+- [Error Types & Utilities](#error-types--utilities) — RetryError, TimeoutError, etc.
+- [Configuration & Environment Variables](#configuration--environment-variables) — makeNestedConfig, castValuesToTypes
+- [Unit Conversion & Formatting](#unit-conversion--formatting) — timeUnits, byteUnits, parse/format
+
 ## Core Philosophy
 
 **Never use try-catch.** Always use error tuple pattern for fail-prone operations.
