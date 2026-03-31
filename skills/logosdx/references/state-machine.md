@@ -161,6 +161,8 @@ machine.off('loading', listener)
 
 ## Invoke — Async State Transitions
 
+> Inside invoke `src` functions, always wrap async operations with `attempt()` from `@logosdx/utils`.
+
 ```ts
 const machine = new StateMachine<{ data: any, error: string | null }, { FETCH: void }>({
     initial: 'idle',
@@ -190,6 +192,19 @@ const machine = new StateMachine<{ data: any, error: string | null }, { FETCH: v
         },
     },
 })
+
+// Invoke with attempt() — preferred pattern for error-prone async work
+loading_with_attempt: {
+    invoke: {
+        src: async (context) => {
+            const [result, err] = await attempt(() => validateAddress(context.shippingAddress));
+            if (err) throw err; // let onError handle it
+            return result;
+        },
+        onDone: { target: 'payment', action: (ctx, data) => ({ ...ctx, validated: true }) },
+        onError: { target: 'shipping_error', action: (ctx, data) => ({ ...ctx, error: data.message }) }
+    },
+},
 
 // Invoke fires automatically when entering a state with invoke config.
 // If the machine transitions away before the promise settles,

@@ -18,3 +18,11 @@ tests/src/smoke/__screenshots__/**/*
 .swp
 .worktrees
 .superpowers/
+
+# Tessl
+tessl.json
+.mcp.json
+.cursor/mcp.json
+.vscode/mcp.json
+skills/**/evals/
+skills/**/tile.json

@@ -5,6 +5,7 @@ globs: '*.ts'
 
 # @logosdx/hooks - LLM Helper
 
+> **Error handling rule:** Use `attempt()`/`attemptSync()` from `@logosdx/utils` for ALL error-prone operations in hook callbacks, pipe functions, and any I/O. Never use try-catch.
 
 A lightweight, type-safe lifecycle hook system for extending behavior without modifying code.
 
@@ -128,8 +129,12 @@ Onion/middleware pattern where each callback wraps the next. Used for cross-cutt
 ```typescript
 // Core function is the innermost call
 const result = await hooks.pipe('execute',
-    async (opts) => fetch(opts.url, opts),  // core
-    opts                                      // args
+    async (opts) => {
+        const [res, err] = await attempt(() => fetch(opts.url, opts));
+        if (err) throw err;
+        return res;
+    },
+    opts
 );
 
 // Callbacks: (next, ...args, ctx) — call next() to proceed
@@ -223,7 +228,8 @@ async function fetchWithHooks(url: string, options: RequestInit = {}) {
     const pre = await hooks.run('beforeFetch', url, options, { scope });
     if (pre.returned) return pre.result!;
 
-    const response = await fetch(...pre.args);
+    const [response, err] = await attempt(() => fetch(...pre.args));
+    if (err) throw err;
 
     const post = await hooks.run('afterFetch', response, url, { scope });
     return post.returned ? post.result! : response;
@@ -265,8 +271,9 @@ const hooks = new HookEngine<Lifecycle, [string, object?]>({
 ### Caching with Early Return
 
 ```typescript
-hooks.add('beforeGet', (url, opts, ctx) => {
-    const cached = cache.get(url);
+hooks.add('beforeGet', async (url, opts, ctx) => {
+    const [cached, err] = await attempt(() => cache.get(url));
+    if (err) return; // skip cache on error
     if (cached) return ctx.returns(cached);
 });
 ```
@@ -290,8 +297,9 @@ hooks.add('beforeRequest', (url, opts, ctx) => {
 ### Non-Critical Hooks
 
 ```typescript
-hooks.add('analytics', (event) => {
-    track(event);
+hooks.add('analytics', async (event) => {
+    const [, err] = await attempt(() => track(event));
+    if (err) console.warn('Analytics failed:', err);
 }, { ignoreOnFail: true });
 ```
 

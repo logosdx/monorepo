@@ -7,6 +7,8 @@ globs: '*.ts'
 
 Advanced type-safe event system with async iteration, queuing, and component observation.
 
+> Use `attempt()`/`attemptSync()` from `@logosdx/utils` for any error-prone operation inside event handlers and queue processors. Never use try-catch.
+
 ## Core Types
 
 ```ts
@@ -192,6 +194,12 @@ const queue = observer.queue('data:process', async (data) => {
     autoStart: true,
     debug: 'verbose'
 })
+
+// Queue processors should use attempt() for error-prone work
+const queue = bus.queue('process', async (item) => {
+    const [result, err] = await attempt(() => handleItem(item));
+    if (err) console.warn('Processing failed:', err);
+}, { concurrency: 1, taskTimeoutMs: 5000 });
 
 // Queue lifecycle
 queue.start()
@@ -419,7 +427,8 @@ class RedisRelay extends ObserverRelay<OrderEvents, RedisCtx> {
 
     protected send(event: string, data: unknown) {
 
-        this.#redis.publish('orders', JSON.stringify({ event, data }))
+        const [, err] = attemptSync(() => this.#redis.publish('orders', JSON.stringify({ event, data })))
+        if (err) console.warn('Relay send failed:', err)
     }
 }
 
@@ -430,14 +439,16 @@ relay.emit('order:placed', { id: '123', total: 99.99 })
 
 relay.on('order:placed', ({ data, ctx }) => {
 
-    processOrder(data)
+    const [, err] = attemptSync(() => processOrder(data))
+    if (err) { ctx.nack(); return }
     ctx.ack()
 })
 
 // Queue — concurrency-controlled inbound processing
 const queue = relay.queue('order:placed', async ({ data, ctx }) => {
 
-    await fulfillOrder(data)
+    const [, err] = await attempt(() => fulfillOrder(data))
+    if (err) { ctx.nack(); return }
     ctx.ack()
 }, { name: 'order-processing', concurrency: 5 })
 

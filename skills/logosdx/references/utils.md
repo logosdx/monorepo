@@ -64,6 +64,30 @@ const [parsed, parseErr] = attemptSync(() => JSON.parse(data))
 if (parseErr) return defaultValue
 ```
 
+> **Every async I/O call in LogosDX code must use `attempt()`.** This includes storage operations, fetch calls, state-machine invoke sources, observer queue processors, and any function that touches the network or filesystem. Never use try-catch — the error tuple is the only sanctioned pattern.
+
+### Common Patterns
+
+`attempt()` is not just for fetch. Use it for **every** I/O or error-prone operation:
+
+```ts
+// Storage operation
+const [user, err] = await attempt(() => storage.get('user'));
+
+// State machine invoke source
+const [result, err] = await attempt(() => validateAddress(address));
+
+// Queue processor
+const [, err] = await attempt(() => processNotification(item));
+
+// DOM operation that may fail
+const [, parseErr] = attemptSync(() => el.insertAdjacentHTML('beforeend', html));
+
+// Any async function
+const [data, err] = await attempt(() => someAsyncWork());
+if (err) return handleError(err);
+```
+
 ## Flow Control
 
 ### Timing & Rate Control
@@ -183,14 +207,23 @@ interface RetryOptions {
 class RetryError extends Error {}
 const isRetryError: (error: unknown) => error is RetryError
 
-// Basic retry with backoff
-const resilientFetch = makeRetryable(fetch, { retries: 3, delay: 1000, backoff: 2 })
+// Basic retry with exponential backoff and jitter
+// backoff multiplies the delay after each attempt: 1000 → 2000 → 4000 → ...
+// jitterFactor adds ±randomization to prevent thundering herd (0 = none, 1 = full)
+const resilientFetch = makeRetryable(fetch, {
+  retries: 5,
+  delay: 1000,
+  backoff: 2,
+  jitterFactor: 0.5
+})
 
 // Preserve original error instead of RetryError (for downstream error handling)
 const [result, err] = await attempt(() => retry(fetchData, {
   retries: 3,
   delay: 100,
-  throwLastError: true  // Throws the actual network error, not RetryError
+  backoff: 2,            // exponential backoff: 100 → 200 → 400
+  jitterFactor: 0.25,    // 25% jitter randomization on each delay
+  throwLastError: true    // Throws the actual network error, not RetryError
 }))
 if (err) {
   // err is the original error from fetchData, not RetryError
@@ -219,10 +252,33 @@ const data = await retry(fetchData, {
 // Circuit breaker for failing services
 const circuitBreaker: <T extends Func>(fn: T, options: CircuitBreakerOptions<T>) => T
 
+interface CircuitBreakerOptions<T extends Func> {
+  maxFailures?: number              // Consecutive failures before tripping (default: 3)
+  resetAfter?: number               // Ms before testing recovery (default: 1000)
+  halfOpenMaxAttempts?: number      // Test calls allowed in half-open (default: 1)
+  shouldTripOnError?: (error: Error) => boolean  // Filter which errors trip
+  onTripped?: (error: CircuitBreakerError, store: CircuitBreakerStore) => void
+  onError?: (error: Error, args: Parameters<T>) => void
+  onReset?: () => void              // Called when circuit closes after recovery
+  onHalfOpen?: (store: CircuitBreakerStore) => void
+}
+
 class CircuitBreakerError extends Error {}
 const isCircuitBreakerError: (error: unknown) => error is CircuitBreakerError
 
-const protectedApi = circuitBreaker(apiCall, { maxFailures: 3, resetAfter: 30000 })
+// Protect an API call — trips after 5 failures, tests recovery after 10s
+const protectedApi = circuitBreaker(apiCall, {
+  maxFailures: 5,
+  resetAfter: 10000,
+  shouldTripOnError: (err) => err.message.includes('HTTP 5'),
+  onTripped: (err, store) => console.warn(`Tripped after ${store.failures} failures`),
+  onReset: () => console.log('Service recovered')
+})
+
+const [data, err] = await attempt(() => protectedApi('/users'))
+if (isCircuitBreakerError(err)) {
+  // Service unavailable — use fallback
+}
 
 // Timeout protection
 const withTimeout: <T extends Func>(fn: T, options: WithTimeoutOptions) => T
@@ -247,12 +303,22 @@ const batch: <T, R>(
   options: BatchOptions<T, R>
 ) => Promise<BatchResult<T, R>[]>
 
-await batch(processItem, {
-  items: [1, 2, 3, 4, 5],
-  concurrency: 3,
-  failureMode: 'continue',
-  onChunkStart: ({ index, total }) => console.log(`Starting chunk ${index + 1}/${total}`)
+// Process 1000 records, 50 at a time, continuing past errors
+const results = await batch(processRecord, {
+  items: records,
+  concurrency: 50,
+  failureMode: 'continue',  // 'abort' (default) stops on first error
+  onError: (err, item, idx) => console.warn(`Item ${idx} failed:`, err),
+  onChunkStart: ({ index, total, completionPercent }) => {
+    console.log(`Chunk ${index + 1}/${total} (${completionPercent}%)`)
+  }
 })
+
+// Each result tracks success/failure per item
+for (const { result, error, item, itemIndex } of results) {
+  if (error) console.warn(`Item ${itemIndex} failed:`, error)
+  else console.log(`Item ${itemIndex} →`, result)
+}
 
 // In-flight promise deduplication - share promises for concurrent calls
 const withInflightDedup: <Args extends any[], Value, Key = string>(
@@ -344,11 +410,10 @@ async function fetchUser(id: string): Promise<User> {
   const promise = api.fetchUser(id)
   const cleanup = flight.trackInflight(key, promise)
 
-  try {
-    return await promise
-  } finally {
-    cleanup()
-  }
+  const [user, err] = await attempt(() => promise)
+  cleanup()
+  if (err) throw err
+  return user
 }
 ```
 
@@ -782,7 +847,10 @@ const makeNestedConfig: <C extends object, F extends Record<string, string>>(
     skipConversion?: (key: string, value: unknown) => boolean
     memoizeOpts?: MemoizeOptions | false
   }
-) => <P extends PathLeaves<C>>(path?: P, defaultValue?: PathValue<C, P>) => C
+) => {
+  allConfigs: () => C
+  getConfig: <P extends PathLeaves<C>>(path: P, defaultValue?: PathValue<C, P>) => PathValue<C, P>
+}
 
 const castValuesToTypes: (
   obj: object,
@@ -806,16 +874,16 @@ type AppConfig = {
   debug: boolean;
 }
 
-const config = makeNestedConfig<AppConfig>(process.env, {
+const { allConfigs, getConfig } = makeNestedConfig<AppConfig>(process.env, {
   filter: (key) => key.startsWith('APP_'),
   stripPrefix: 'APP_',
   forceAllCapToLower: true
 })
 
-config()            // { db: { host: 'localhost', port: 5432 }, debug: true }
-config('db.host')   // 'localhost'
-config('db.port')   // 5432
-config('api.timeout', 5000)  // 5000 (default for missing path)
+allConfigs()                   // { db: { host: 'localhost', port: 5432 }, debug: true }
+getConfig('db.host')           // 'localhost'
+getConfig('db.port')           // 5432
+getConfig('api.timeout', 5000) // 5000 (default for missing path)
 ```
 
 ### Type Coercion Table

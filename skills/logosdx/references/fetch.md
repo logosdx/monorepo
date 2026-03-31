@@ -44,10 +44,13 @@ const api = new FetchEngine({
     attemptTimeout: 2000 // Per-attempt timeout (allows retries on timeout)
 });
 
-// Error handling pattern
+// Error handling pattern — always narrow with isFetchError
 const [response, err] = await attempt(() => api.get('/users/123'));
 if (err) {
-    console.error('Request failed:', err.status, err.message);
+    if (isFetchError(err)) {
+        console.error('Request failed:', err.status, err.message);
+        if (err.isTimeout()) console.warn('Timed out on attempt', err.attempt);
+    }
     return;
 }
 
@@ -59,15 +62,24 @@ console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
 import fetch, { get, post, headers, params, state, config, on, off } from '@logosdx/fetch';
 
 // Global instance auto-uses current domain as base URL
-const [{ data: users }, err] = await attempt(() => fetch.get('/api/users'));
+const [{ data: users }, usersErr] = await attempt(() => fetch.get('/api/users'));
+if (usersErr) {
+    if (isFetchError(usersErr)) {
+        console.error('Status:', usersErr.status, 'Step:', usersErr.step);
+    }
+    return;
+}
 
 // Or use destructured methods
 headers.set('Authorization', 'Bearer token');
 state.set('userId', '123');
-const [{ data: user }, err] = await attempt(() => get('/api/users/123'));
-
-// Smart URL handling - absolute URLs bypass base URL
-const [{ data: external }, err] = await attempt(() => get('https://api.external.com/data'));
+const [{ data: user }, userErr] = await attempt(() => get('/api/users/123'));
+if (userErr) {
+    if (isFetchError(userErr)) {
+        if (userErr.status === 404) console.warn('User not found');
+    }
+    return;
+}
 ```
 
 ## HTTP Methods
@@ -196,6 +208,8 @@ interface FetchEngine.Config<H, P, S> {
 
 ## Error Handling
 
+> **Every error from FetchEngine should be narrowed with `isFetchError(err)`.** This gives access to `.status`, `.isCancelled()`, `.isTimeout()`, `.isConnectionLost()`, `.attempt`, `.step`, and `.requestId`. Without narrowing, these properties are inaccessible.
+
 ```typescript
 interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     data: T | null;
@@ -216,11 +230,34 @@ interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     isConnectionLost(): boolean; // status === 499 && step === 'fetch' && !aborted
 }
 
-// Error checking - FetchError is thrown on failure
-if (isFetchError(error)) {
-    console.log('Fetch error:', error.status, error.step);
-    console.log('Failed URL:', error.url);
-    console.log('Response data (if any):', error.data);
+// Always inspect errors with isFetchError — never use generic Error checks
+const [response, err] = await attempt(() => api.get('/products').json<Products>());
+
+if (isFetchError(err)) {
+    if (err.isCancelled())      return; // request was aborted
+    if (err.isTimeout())        return retry(); // timed out
+    if (err.isConnectionLost()) return offline(); // network down
+    if (err.status === 401)     return refreshToken();
+    if (err.status === 404)     return notFound();
+    if (err.status >= 500)      return serverError(err.requestId, err.attempt);
+    // err.step tells you where it failed: 'request' | 'response' | 'parse'
+}
+
+// Wrapper function pattern — log all error properties for diagnostics
+async function safeGet<T>(path: string): Promise<T | null> {
+
+    const [response, err] = await attempt(() => api.get(path).json<T>());
+    if (isFetchError(err)) {
+        console.error(`[${err.method}] ${err.path} failed (attempt ${err.attempt}):`, {
+            status: err.status,
+            timedOut: err.isTimeout(),
+            cancelled: err.isCancelled(),
+            step: err.step,
+            requestId: err.requestId
+        });
+        return null;
+    }
+    return response.data;
 }
 
 // Lifecycle events
@@ -279,6 +316,23 @@ api.state.set({
 
 const currentState = api.state.get(); // deep clone
 api.state.reset(); // clear all state
+
+// --- Auth token pattern: store token in state, attach via before-request hook ---
+// 1. Store the Bearer token in state
+api.state.set('authToken', 'my-jwt-token');
+
+// 2. Use a before-request hook to attach it to every outgoing request
+api.on('before-request', (event) => {
+
+    const { authToken } = event.state;
+    if (authToken) {
+        api.headers.set('Authorization', `Bearer ${authToken}`);
+    }
+});
+
+// Now all requests automatically include the Authorization header.
+// To update the token (e.g., after refresh):
+api.state.set('authToken', 'refreshed-jwt-token');
 
 // Access response metadata with typed config
 const response = await api.get('/users');
@@ -703,9 +757,15 @@ const { data: auto } = await api.get<User>('/users/123');
 // Override guard — setting directive twice throws
 api.get('/users').json().text(); // throws: 'Response type already set'
 
-// Works with error handling
+// Works with error handling — always narrow with isFetchError
 const [response, err] = await attempt(() => api.get<User>('/users/123').json());
-if (err) return handleError(err);
+if (err) {
+    if (isFetchError(err)) {
+        if (err.isTimeout()) return showRetryPrompt();
+        if (err.status === 404) return showNotFound();
+    }
+    return;
+}
 console.log(response.data); // typed as User
 
 // Works with abort

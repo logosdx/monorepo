@@ -1,8 +1,6 @@
 ---
 name: logosdx
-description: Implements LogosDX patterns for DOM manipulation, HTTP clients, lifecycle hooks, events, state machines, storage adapters, i18n/localization, and React context hooks. Use when tasks involve @logosdx libraries or code that imports from @logosdx/* packages. Trigger on any mention of HookEngine, FetchEngine, ObserverEngine, ObserverRelay, StateMachine, StateHub, StorageAdapter, LocaleManager, DomCollection, or the $() selector from @logosdx/dom. Also use when the user works with attempt/attemptSync error tuples, event queues, request deduplication/caching/rate-limiting, ICU pluralization, or any LogosDX pattern — even if they don't name the package explicitly.
-metadata:
-  references: dom, fetch, hooks, localize, observer, state-machine, storage, react, utils
+description: "Implements LogosDX patterns for DOM manipulation, HTTP clients, lifecycle hooks, events, state machines, storage adapters, i18n/localization, and React context hooks. Use when tasks involve LogosDX libraries or code that imports from any logosdx scoped package. Trigger on any mention of HookEngine, FetchEngine, ObserverEngine, ObserverRelay, StateMachine, StateHub, StorageAdapter, LocaleManager, DomCollection, or the $() DOM selector. Also use when the user works with attempt/attemptSync error tuples, event queues, request deduplication/caching/rate-limiting, ICU pluralization, or any LogosDX pattern — even if they don't name the package explicitly."
 ---
 
 # LogosDX Skill
@@ -19,7 +17,7 @@ Use this skill for LogosDX setup and integration. Read only the reference file(s
 ## Critical Rules
 
 - Define type shapes first (`headers`, `params`, `state`, `events`, storage schema, locale shape).
-- Prefer package-native error flows (`attempt`, `attemptSync`, `isFetchError`).
+- Use `attempt()`/`attemptSync()` for **all** I/O and error-prone operations — storage, fetch, invoke sources, queue processors, DOM mutations. Never use try-catch. The error tuple is the only sanctioned error handling pattern (see `references/utils.md`).
 - Always clean up resources (`cleanup()`, `off()`, `destroy()`).
 - Keep React hook methods at component top level only.
 

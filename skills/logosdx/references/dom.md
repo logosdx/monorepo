@@ -45,6 +45,20 @@ $.create('div', {
 })
 ```
 
+> **NEVER use `document.querySelector`, `document.querySelectorAll`, `document.getElementById`, or `element.querySelector`.** Always use `$()` from `@logosdx/dom` for ALL element selection. This applies everywhere — initial queries, scoped queries within containers, finding child elements, and filtering. The `$()` function returns a `DomCollection` that integrates with all @logosdx/dom features (events, CSS, ARIA, animation, cleanup).
+
+```ts
+// Scoped query within a container
+const rows = $('tr', { container: tableBody });   // NOT tableBody.querySelectorAll('tr')
+const btn  = $('button', { container: dialog });  // NOT dialog.querySelector('button')
+
+// Wrap + filter instead of scoped querySelector
+const active = $('li', { container: nav }).filter(el => el.classList.contains('active'));
+
+// Wrap a known element — still use $() for consistency
+const header = $(document.body.firstElementChild!);
+```
+
 
 ## CSS — Callable Namespace
 
@@ -157,6 +171,23 @@ chat.once('keydown', sendMsg); // fires once, signal auto-attached
 chat.off('click', openMenu);   // remove specific listener
 chat.emit('widget:open', { chatId: 1 }); // dispatch custom event
 controller.abort();            // removes all listeners
+```
+
+
+## Error Handling in DOM Operations
+
+Use `attemptSync` from `@logosdx/utils` for DOM operations that might throw (animations, observer setup, element manipulation on detached nodes). Do not use try-catch.
+
+```ts
+import { attemptSync } from '@logosdx/utils';
+
+// Use attemptSync for operations that might throw
+const [, err] = attemptSync(() => panel.animate({ opacity: [0, 1] }));
+if (err) console.warn('Animation failed:', err);
+
+// Guard observer setup on elements that may not exist
+const [stop, obsErr] = attemptSync(() => watchResize(el, relayout));
+if (obsErr) console.warn('Resize observer failed:', obsErr);
 ```
 
 

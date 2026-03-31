@@ -5,6 +5,7 @@ globs: '*.ts, *.tsx'
 
 # @logosdx/localize Usage Patterns
 
+> **Error handling rule:** Use `attempt()` from `@logosdx/utils` for ALL async locale operations — `changeTo()`, lazy loader functions, and any I/O. Never use try-catch.
 
 Type-safe i18n with async lazy loading, ICU-lite pluralization, Intl formatting, namespace scoping, and observer-based locale events.
 
@@ -162,22 +163,32 @@ i18n.t('inbox', { unread: 0 })  // "No messages"  (explicit 'zero' category)
 
 ## Intl Formatting
 
+> **Always use `manager.intl.date()`, `manager.intl.number()`, and `manager.intl.relative()` for locale-aware formatting.** Do NOT create raw `Intl.DateTimeFormat`, `Intl.NumberFormat`, or `Intl.RelativeTimeFormat` instances directly — the manager's intl formatters are cached, locale-aware, and automatically re-created when the locale changes.
 
 ```typescript
-// intl is lazy-initialized and re-created when locale changes
+// Intl formatters — lazy-created, re-created on locale change
 // All Intl formatters are cached by locale + serialized options
+// Access via manager.intl (or i18n.intl)
+//
+// CORRECT:   i18n.intl.date(new Date(), { dateStyle: 'long' })
+// INCORRECT: new Intl.DateTimeFormat(locale, opts).format(date)
+const { intl } = i18n;
 
-i18n.intl.number(1499.99)                                        // "1,499.99"
-i18n.intl.number(9.99, { style: 'currency', currency: 'USD' })   // "$9.99"
-i18n.intl.number(0.42, { style: 'percent' })                     // "42%"
+// Date formatting
+intl.date(new Date(), { dateStyle: 'long' });        // "March 15, 2026" / "15 mars 2026"
+intl.date(new Date(), { dateStyle: 'full' });         // full locale-aware date
+intl.date(new Date());                                // "3/15/2026" — default short format
+intl.date(Date.now());                                // accepts number or Date
 
-i18n.intl.date(new Date())                                       // "2/18/2026"
-i18n.intl.date(new Date(), { dateStyle: 'long' })                // "February 18, 2026"
-i18n.intl.date(Date.now())                                       // accepts number or Date
+// Number formatting
+intl.number(1234.56);                                  // "1,234.56" / "1.234,56"
+intl.number(1234.56, { style: 'currency', currency: 'USD' }); // "$1,234.56"
+intl.number(0.42, { style: 'percent' });               // "42%"
 
-i18n.intl.relative(-3, 'day')                                    // "3 days ago"
-i18n.intl.relative(2, 'hour')                                    // "in 2 hours"
-i18n.intl.relative(1, 'month', { numeric: 'auto' })              // "next month"
+// Relative time
+intl.relative(-3, 'day');                              // "3 days ago" / "hace 3 días"
+intl.relative(2, 'hour');                              // "in 2 hours"
+intl.relative(1, 'month', { numeric: 'auto' });       // "next month"
 ```
 
 ## Async Lazy Loading
@@ -186,35 +197,55 @@ i18n.intl.relative(1, 'month', { numeric: 'auto' })              // "next month"
 ```typescript
 import { attempt } from '@logosdx/utils'
 
-// Register lazy locales — loader is NOT called until changeTo() targets that code
+// Register lazy loaders — called on first changeTo()
+// The loader function returns the locale labels (must be async)
 i18n.register('ja', {
     text: '日本語',
-    loader: () => import('./locales/ja.json')
+    loader: async () => {
+        const [mod, err] = await attempt(() => import('./locales/ja.json'));
+        if (err) throw err;
+        return mod.default;
+    }
+})
+
+i18n.register('es', {
+    text: 'Español',
+    loader: async () => {
+        const [mod, err] = await attempt(() => import('./locales/es.json'));
+        if (err) throw err;
+        return mod.default;
+    }
 })
 
 // Check load status
 i18n.isLoaded('en')  // true — provided in constructor
 i18n.isLoaded('ja')  // false — registered but not fetched yet
 
-// changeTo() calls loader on first use, then caches
+// Switch locale — triggers lazy load
+// ALWAYS wrap changeTo() with attempt()
 const [, err] = await attempt(() => i18n.changeTo('ja'))
-if (err) console.error('Failed to load locale:', err.message)
+if (err) console.error('Failed to load locale:', err)
 
 i18n.isLoaded('ja')  // true now
 
 // Race guard: concurrent changeTo() calls share one loader execution
-const p1 = i18n.changeTo('de')
-const p2 = i18n.changeTo('de')
-await Promise.all([p1, p2])  // loader ran exactly once
+const [, raceErr] = await attempt(() => Promise.all([
+    i18n.changeTo('de'),
+    i18n.changeTo('de')
+]))  // loader ran exactly once
+if (raceErr) console.error('Failed:', raceErr)
 
 // Unknown code with no registration: warns + falls back to fallback locale
-await i18n.changeTo('xx' as LocaleCode)
+const [, unknownErr] = await attempt(() => i18n.changeTo('xx' as LocaleCode))
+if (unknownErr) console.error('Unknown locale:', unknownErr)
 ```
 
 ## Lifecycle Events
 
 
 ```typescript
+import { attempt } from '@logosdx/utils'
+
 // Event sequence for a lazy-loaded locale:
 // 1. 'loading' fires when loader starts
 // 2. 'change'  fires on success
@@ -225,7 +256,8 @@ const stopLoading = i18n.on('loading', ({ code }) => showSpinner(`Loading ${code
 const stopChange = i18n.on('change', ({ code }) => console.log('Active locale:', code))
 const stopError = i18n.on('error', ({ code }) => showToast(`Failed: ${code}`))
 
-await i18n.changeTo('ja')
+const [, changeErr] = await attempt(() => i18n.changeTo('ja'))
+if (changeErr) console.error('Locale change failed:', changeErr)
 
 stopLoading()  // cleanup
 stopChange()
@@ -289,7 +321,8 @@ if (!err) i18n.updateLang('en', overrides)
 // clone() creates an independent LocaleManager with the same config
 // Useful for isolated contexts (email templating, SSR)
 const serverI18n = i18n.clone()
-await serverI18n.changeTo('ja')  // doesn't affect the original
+const [, cloneErr] = await attempt(() => serverI18n.changeTo('ja'))  // doesn't affect the original
+if (cloneErr) console.error('Clone locale change failed:', cloneErr)
 ```
 
 ## Standalone Helpers
@@ -352,10 +385,12 @@ npx logosdx-locale extract --dir ./i18n --out ./src/locale-keys.ts
 // Programmatic extractor API
 import { scanDirectory, generateOutput } from '@logosdx/localize/extractor'
 import { writeFile } from 'node:fs/promises'
+import { attempt } from '@logosdx/utils'
 
 const scan = scanDirectory('./i18n', 'en')
 const source = generateOutput(scan, 'AppLocale')
-await writeFile('./src/locale-keys.ts', source)
+const [, writeErr] = await attempt(() => writeFile('./src/locale-keys.ts', source))
+if (writeErr) console.error('Failed to write locale types:', writeErr)
 ```
 
 ```typescript
