@@ -54,6 +54,20 @@ $.create('div', {
 })
 ```
 
+> **NEVER use `document.querySelector`, `document.querySelectorAll`, `document.getElementById`, or `element.querySelector`.** Always use `$()` from `@logosdx/dom` for ALL element selection. This applies everywhere — initial queries, scoped queries within containers, finding child elements, and filtering. The `$()` function returns a `DomCollection` that integrates with all @logosdx/dom features (events, CSS, ARIA, animation, cleanup).
+
+```ts
+// Scoped query within a container
+const rows = $('tr', { container: tableBody });   // NOT tableBody.querySelectorAll('tr')
+const btn  = $('button', { container: dialog });  // NOT dialog.querySelector('button')
+
+// Wrap + filter instead of scoped querySelector
+const active = $('li', { container: nav }).filter(el => el.classList.contains('active'));
+
+// Wrap a known element — still use $() for consistency
+const header = $(document.body.firstElementChild!);
+```
+
 
 ## CSS — Callable Namespace
 
@@ -166,6 +180,23 @@ chat.once('keydown', sendMsg); // fires once, signal auto-attached
 chat.off('click', openMenu);   // remove specific listener
 chat.emit('widget:open', { chatId: 1 }); // dispatch custom event
 controller.abort();            // removes all listeners
+```
+
+
+## Error Handling in DOM Operations
+
+Use `attemptSync` from `@logosdx/utils` for DOM operations that might throw (animations, observer setup, element manipulation on detached nodes). Do not use try-catch.
+
+```ts
+import { attemptSync } from '@logosdx/utils';
+
+// Use attemptSync for operations that might throw
+const [, err] = attemptSync(() => panel.animate({ opacity: [0, 1] }));
+if (err) console.warn('Animation failed:', err);
+
+// Guard observer setup on elements that may not exist
+const [stop, obsErr] = attemptSync(() => watchResize(el, relayout));
+if (obsErr) console.warn('Resize observer failed:', obsErr);
 ```
 
 
@@ -338,6 +369,28 @@ function initChatWidget(container: HTMLElement) {
 
 HTTP client with retry logic, request/response interception, and comprehensive error handling for production applications.
 
+## Table of Contents
+
+- [Core API](#core-api) — Setup, error handling, global instance
+- [HTTP Methods](#http-methods) — GET/POST/PUT/PATCH/DELETE, FetchPromise, FetchResponse
+- [Configuration](#configuration) — Config interface, timeout, retry, validation, policies
+- [Error Handling](#error-handling) — FetchError, isFetchError, lifecycle events
+- [Headers & Parameters Management](#headers--parameters-management) — set/remove/resolve
+- [State Management](#state-management) — Internal state for auth, sessions
+- [Event System](#event-system) — All FetchEventNames, event data fields
+- [Request Deduplication](#request-deduplication) — Prevent duplicate concurrent requests
+- [Response Caching](#response-caching) — TTL and stale-while-revalidate
+- [Rate Limiting](#rate-limiting) — Token bucket per-endpoint throttling
+- [Timeout Options](#timeout-options) — totalTimeout vs attemptTimeout
+- [Response Chaining](#response-chaining) — .json(), .text(), .blob(), .stream()
+- [Stream Mode](#stream-mode) — Async iteration over response chunks
+- [Advanced Features](#advanced-features) — Custom retry, type determination
+- [TypeScript Patterns](#typescript-patterns) — Module augmentation, typed instances
+- [Lifecycle Management](#lifecycle-management) — destroy(), cleanup
+- [Request Serializers](#request-serializers) — Built-in and custom key generators
+- [Policy Architecture](#policy-architecture) — Hook pipeline execution order
+- [Plugin Architecture](#plugin-architecture) — Plugin factories, engine.use()
+
 ## Core API
 
 ```typescript
@@ -353,10 +406,13 @@ const api = new FetchEngine({
     attemptTimeout: 2000 // Per-attempt timeout (allows retries on timeout)
 });
 
-// Error handling pattern
+// Error handling pattern — always narrow with isFetchError
 const [response, err] = await attempt(() => api.get('/users/123'));
 if (err) {
-    console.error('Request failed:', err.status, err.message);
+    if (isFetchError(err)) {
+        console.error('Request failed:', err.status, err.message);
+        if (err.isTimeout()) console.warn('Timed out on attempt', err.attempt);
+    }
     return;
 }
 
@@ -368,15 +424,24 @@ console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
 import fetch, { get, post, headers, params, state, config, on, off } from '@logosdx/fetch';
 
 // Global instance auto-uses current domain as base URL
-const [{ data: users }, err] = await attempt(() => fetch.get('/api/users'));
+const [{ data: users }, usersErr] = await attempt(() => fetch.get('/api/users'));
+if (usersErr) {
+    if (isFetchError(usersErr)) {
+        console.error('Status:', usersErr.status, 'Step:', usersErr.step);
+    }
+    return;
+}
 
 // Or use destructured methods
 headers.set('Authorization', 'Bearer token');
 state.set('userId', '123');
-const [{ data: user }, err] = await attempt(() => get('/api/users/123'));
-
-// Smart URL handling - absolute URLs bypass base URL
-const [{ data: external }, err] = await attempt(() => get('https://api.external.com/data'));
+const [{ data: user }, userErr] = await attempt(() => get('/api/users/123'));
+if (userErr) {
+    if (isFetchError(userErr)) {
+        if (userErr.status === 404) console.warn('User not found');
+    }
+    return;
+}
 ```
 
 ## HTTP Methods
@@ -505,6 +570,8 @@ interface FetchEngine.Config<H, P, S> {
 
 ## Error Handling
 
+> **Every error from FetchEngine should be narrowed with `isFetchError(err)`.** This gives access to `.status`, `.isCancelled()`, `.isTimeout()`, `.isConnectionLost()`, `.attempt`, `.step`, and `.requestId`. Without narrowing, these properties are inaccessible.
+
 ```typescript
 interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     data: T | null;
@@ -525,11 +592,34 @@ interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     isConnectionLost(): boolean; // status === 499 && step === 'fetch' && !aborted
 }
 
-// Error checking - FetchError is thrown on failure
-if (isFetchError(error)) {
-    console.log('Fetch error:', error.status, error.step);
-    console.log('Failed URL:', error.url);
-    console.log('Response data (if any):', error.data);
+// Always inspect errors with isFetchError — never use generic Error checks
+const [response, err] = await attempt(() => api.get('/products').json<Products>());
+
+if (isFetchError(err)) {
+    if (err.isCancelled())      return; // request was aborted
+    if (err.isTimeout())        return retry(); // timed out
+    if (err.isConnectionLost()) return offline(); // network down
+    if (err.status === 401)     return refreshToken();
+    if (err.status === 404)     return notFound();
+    if (err.status >= 500)      return serverError(err.requestId, err.attempt);
+    // err.step tells you where it failed: 'request' | 'response' | 'parse'
+}
+
+// Wrapper function pattern — log all error properties for diagnostics
+async function safeGet<T>(path: string): Promise<T | null> {
+
+    const [response, err] = await attempt(() => api.get(path).json<T>());
+    if (isFetchError(err)) {
+        console.error(`[${err.method}] ${err.path} failed (attempt ${err.attempt}):`, {
+            status: err.status,
+            timedOut: err.isTimeout(),
+            cancelled: err.isCancelled(),
+            step: err.step,
+            requestId: err.requestId
+        });
+        return null;
+    }
+    return response.data;
 }
 
 // Lifecycle events
@@ -588,6 +678,23 @@ api.state.set({
 
 const currentState = api.state.get(); // deep clone
 api.state.reset(); // clear all state
+
+// --- Auth token pattern: store token in state, attach via before-request hook ---
+// 1. Store the Bearer token in state
+api.state.set('authToken', 'my-jwt-token');
+
+// 2. Use a before-request hook to attach it to every outgoing request
+api.on('before-request', (event) => {
+
+    const { authToken } = event.state;
+    if (authToken) {
+        api.headers.set('Authorization', `Bearer ${authToken}`);
+    }
+});
+
+// Now all requests automatically include the Authorization header.
+// To update the token (e.g., after refresh):
+api.state.set('authToken', 'refreshed-jwt-token');
 
 // Access response metadata with typed config
 const response = await api.get('/users');
@@ -1012,9 +1119,15 @@ const { data: auto } = await api.get<User>('/users/123');
 // Override guard — setting directive twice throws
 api.get('/users').json().text(); // throws: 'Response type already set'
 
-// Works with error handling
+// Works with error handling — always narrow with isFetchError
 const [response, err] = await attempt(() => api.get<User>('/users/123').json());
-if (err) return handleError(err);
+if (err) {
+    if (isFetchError(err)) {
+        if (err.isTimeout()) return showRetryPrompt();
+        if (err.status === 404) return showNotFound();
+    }
+    return;
+}
 console.log(response.data); // typed as User
 
 // Works with abort
@@ -1260,18 +1373,19 @@ FetchEngine's resilience features are implemented as plugins using `@logosdx/hoo
 ### Plugin Factories
 
 ```typescript
-import { cachePlugin, dedupePlugin, retryPlugin, rateLimitPlugin } from '@logosdx/fetch';
+import { cachePlugin, dedupePlugin, retryPlugin, rateLimitPlugin, cookiePlugin } from '@logosdx/fetch';
 
 // Create plugins
 const cache = cachePlugin({ ttl: 300000, staleIn: 60000 });
 const dedupe = dedupePlugin(true);
 const retry = retryPlugin({ maxAttempts: 3 });
 const rateLimit = rateLimitPlugin({ maxCalls: 100, windowMs: 60000 });
+const cookies = cookiePlugin();
 
 // Use with FetchEngine
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    plugins: [cache, dedupe, retry, rateLimit]
+    plugins: [cache, dedupe, retry, rateLimit, cookies]
 });
 
 // Access plugin methods directly
@@ -1289,10 +1403,66 @@ const cleanup = api.use(myPlugin);
 // Later: cleanup() to uninstall
 ```
 
+
+## Cookie Management
+
+
+```typescript
+import { cookiePlugin } from '@logosdx/fetch';
+import type { Cookie, CookieAdapter, CookieConfig } from '@logosdx/fetch';
+
+// Basic — in-memory jar, session only
+const cookies = cookiePlugin();
+
+// With persistence adapter (survives process restarts / horizontal scaling)
+const cookies = cookiePlugin({
+    adapter: {
+        async load(): Promise<Cookie[]> { return JSON.parse(await redis.get('cookies') ?? '[]'); },
+        async save(cookies: Cookie[]): Promise<void> { await redis.set('cookies', JSON.stringify(cookies)); }
+    },
+    syncOnRequest: true, // re-load from adapter before each request (for shared backends)
+});
+await cookies.init(); // MUST call before first request when using an adapter
+
+const api = new FetchEngine({ baseUrl: '...', plugins: [cookies] });
+
+// After login — server sets session cookie, plugin captures it automatically
+await api.post('/login', credentials);
+
+// Subsequent requests automatically include the Cookie header
+await api.get('/me');
+
+// On logout — clear session (non-persistent) cookies
+cookies.jar.clearSession();
+
+// Manual jar access
+const all: Cookie[]  = cookies.jar.all();
+const url            = new URL('https://api.example.com/');
+const matching       = cookies.jar.get(url);
+cookies.jar.clear();                           // clear all
+cookies.jar.clear('example.com');              // clear by domain
+cookies.jar.delete('example.com', '/', 'sid'); // delete one cookie
+
+// Graceful shutdown — force any pending coalesced save and await the final write
+await cookies.flush();
+```
+
+**Persistence flow:**
+
+1. `afterRequest` hook captures `Set-Cookie` → `parseSetCookieHeader()` → `jar.set(cookie)`
+2. `CookieJar` fires its `onChange` callback; the plugin's `schedulePersist()` queues a microtask (coalesced — one per tick regardless of burst size)
+3. On the microtask, `adapter.save(jar.all())` runs fire-and-forget; errors are swallowed
+4. For graceful shutdown, `await cookies.flush()` forces `adapter.save(jar.all())` and surfaces rejection
+5. `beforeRequest` hook calls `jar.get(url)` → `serializeCookies()` → injects `Cookie` header. `jar.get()` also bumps `lastAccessTime` on retrieved cookies (RFC 6265 §5.4) which triggers another coalesced save
+6. With `syncOnRequest: true`, step 5 first calls `adapter.load()` to refresh the jar
+
+**RFC 6265 compliance:** full — date parser, domain matching, path matching, `Max-Age` > `Expires` precedence, host-only flag, eviction limits (4096 bytes/cookie, 50/domain, 3000 total).
+
 ---
 
 # @logosdx/hooks - LLM Helper
 
+> **Error handling rule:** Use `attempt()`/`attemptSync()` from `@logosdx/utils` for ALL error-prone operations in hook callbacks, pipe functions, and any I/O. Never use try-catch.
 
 A lightweight, type-safe lifecycle hook system for extending behavior without modifying code.
 
@@ -1416,8 +1586,12 @@ Onion/middleware pattern where each callback wraps the next. Used for cross-cutt
 ```typescript
 // Core function is the innermost call
 const result = await hooks.pipe('execute',
-    async (opts) => fetch(opts.url, opts),  // core
-    opts                                      // args
+    async (opts) => {
+        const [res, err] = await attempt(() => fetch(opts.url, opts));
+        if (err) throw err;
+        return res;
+    },
+    opts
 );
 
 // Callbacks: (next, ...args, ctx) — call next() to proceed
@@ -1511,7 +1685,8 @@ async function fetchWithHooks(url: string, options: RequestInit = {}) {
     const pre = await hooks.run('beforeFetch', url, options, { scope });
     if (pre.returned) return pre.result!;
 
-    const response = await fetch(...pre.args);
+    const [response, err] = await attempt(() => fetch(...pre.args));
+    if (err) throw err;
 
     const post = await hooks.run('afterFetch', response, url, { scope });
     return post.returned ? post.result! : response;
@@ -1553,8 +1728,9 @@ const hooks = new HookEngine<Lifecycle, [string, object?]>({
 ### Caching with Early Return
 
 ```typescript
-hooks.add('beforeGet', (url, opts, ctx) => {
-    const cached = cache.get(url);
+hooks.add('beforeGet', async (url, opts, ctx) => {
+    const [cached, err] = await attempt(() => cache.get(url));
+    if (err) return; // skip cache on error
     if (cached) return ctx.returns(cached);
 });
 ```
@@ -1578,8 +1754,9 @@ hooks.add('beforeRequest', (url, opts, ctx) => {
 ### Non-Critical Hooks
 
 ```typescript
-hooks.add('analytics', (event) => {
-    track(event);
+hooks.add('analytics', async (event) => {
+    const [, err] = await attempt(() => track(event));
+    if (err) console.warn('Analytics failed:', err);
 }, { ignoreOnFail: true });
 ```
 
@@ -1607,9 +1784,463 @@ hooks.add('id', cb);    // ✗ Type error
 
 ---
 
+# @logosdx/localize Usage Patterns
+
+> **Error handling rule:** Use `attempt()` from `@logosdx/utils` for ALL async locale operations — `changeTo()`, lazy loader functions, and any I/O. Never use try-catch.
+
+Type-safe i18n with async lazy loading, ICU-lite pluralization, Intl formatting, namespace scoping, and observer-based locale events.
+
+## Core Setup
+
+
+```typescript
+import { LocaleManager } from '@logosdx/localize'
+
+// Define your locale shape — all leaf values are strings
+interface AppLocale extends LocaleManager.LocaleType {
+    greeting: string
+    nav: {
+        home: string
+        logout: string
+    }
+    products: {
+        count: string  // ICU plural syntax
+    }
+}
+
+type LocaleCode = 'en' | 'es' | 'ja'
+
+const english: AppLocale = {
+    greeting: 'Hello, {name}!',
+    nav: { home: 'Home', logout: 'Logout' },
+    products: { count: '{count, plural, one {# product} other {# products}} in cart' }
+}
+
+const i18n = new LocaleManager<AppLocale, LocaleCode>({
+    current: 'en',
+    fallback: 'en',   // missing keys in current locale fall back to this
+    locales: {
+        en: { code: 'en', text: 'English', labels: english },
+        es: { code: 'es', text: 'Español', labels: spanishPartial }  // DeepOptional<AppLocale>
+    }
+})
+```
+
+## LocaleManager Class
+
+
+```typescript
+class LocaleManager<Locale extends LocaleManager.LocaleType, Code extends string = string> {
+
+    current: Code          // mutable — reflects active locale code
+    fallback: Code         // mutable — merge base for missing keys
+
+    // t() is an alias for text() — both are identical
+    t<K extends PathLeaves<Locale>>(key: K, values?: LocaleFormatArgs): string
+    text<K extends PathLeaves<Locale>>(key: K, values?: LocaleFormatArgs): string
+
+    readonly intl: IntlFormatters         // lazy-created, re-created on locale change
+    readonly locales: { code: Code; text: string }[]  // loaded + registered-but-unloaded
+
+    on(ev: LocaleEventName, listener: LocaleListener<Code>): () => void
+    once(ev: LocaleEventName, listener: LocaleListener<Code>): () => void
+    off(ev: LocaleEventName, listener?: LocaleListener<Code>): void
+
+    register<C extends Code>(code: C, opts: LazyLocale<Locale>): void
+    isLoaded(code: Code): boolean
+    async changeTo(code: Code): Promise<void>
+    updateLang<C extends Code>(code: C, locale: DeepOptional<Locale>): void
+
+    ns(prefix: string): ScopedLocale<Locale, Code>
+    clone(): LocaleManager<Locale, Code>
+}
+```
+
+## Types
+
+
+```typescript
+namespace LocaleManager {
+
+    type LocaleType = { [K in StrOrNum]: StrOrNum | LocaleType }
+    type LocaleReacher<T> = PathLeaves<T>
+    type LocaleFormatArgs = Array<StrOrNum> | Record<StrOrNum, StrOrNum>
+
+    type ManyLocales<Locale, Code extends string> = {
+        [P in Code]: { code: Code; text: string; labels: Locale | DeepOptional<Locale> }
+    }
+
+    interface LocaleOpts<Locale extends LocaleType, Code extends string = string> {
+        current: Code
+        fallback: Code
+        locales: ManyLocales<Locale, Code>
+    }
+
+    interface LazyLocale<Locale extends LocaleType> {
+        text: string                          // human-readable label for language picker
+        loader: () => Promise<Locale>         // called on first changeTo()
+    }
+
+    interface LocaleEventShape<Code extends string = string> {
+        change:  { code: Code }
+        loading: { code: Code }
+        error:   { code: Code }
+    }
+
+    type LocaleEventName = keyof LocaleEventShape
+    type LocaleListener<Code extends string = string> = (data: { code: Code }) => void
+
+    interface IntlFormatters {
+        number(value: number, opts?: Intl.NumberFormatOptions): string
+        date(value: Date | number, opts?: Intl.DateTimeFormatOptions): string
+        relative(value: number, unit: Intl.RelativeTimeFormatUnit, opts?: Intl.RelativeTimeFormatOptions): string
+    }
+}
+```
+
+## Translation — t() / text()
+
+
+```typescript
+// Named object substitution — {name}, {count}, ...
+i18n.t('greeting', { name: 'Maria' })
+// "Hello, Maria!"
+
+// Positional array substitution — {0}, {1}, ...
+i18n.t('greeting', ['Maria'])
+// "Hello, Maria!"  (if greeting = 'Hello, {0}!')
+
+// Nested key using dot-path — fully type-safe via PathLeaves<Locale>
+i18n.t('nav.logout')
+// "Logout"
+
+// Missing key returns bracketed key string + warns in non-production
+i18n.t('does.not.exist' as any)
+// "[does.not.exist]" + console.warn
+```
+
+## ICU-lite Pluralization
+
+
+```typescript
+// ICU plural syntax in locale labels:
+// {varName, plural, zero {…} one {# item} other {# items}}
+// # is replaced by the numeric count value
+
+const labels = {
+    cart: '{count, plural, one {# item} other {# items}} in cart',
+    inbox: '{unread, plural, zero {No messages} one {# message} other {# messages}}'
+}
+
+i18n.t('cart', { count: 0 })    // "0 items in cart"  (falls through to 'other')
+i18n.t('cart', { count: 1 })    // "1 item in cart"
+i18n.t('cart', { count: 5 })    // "5 items in cart"
+i18n.t('inbox', { unread: 0 })  // "No messages"  (explicit 'zero' category)
+
+// Plural categories resolved via Intl.PluralRules — locale-aware
+// Supported: zero | one | two | few | many | other
+// 'zero' exact-counts override Intl category; 'other' is final fallback
+```
+
+## Intl Formatting
+
+> **Always use `manager.intl.date()`, `manager.intl.number()`, and `manager.intl.relative()` for locale-aware formatting.** Do NOT create raw `Intl.DateTimeFormat`, `Intl.NumberFormat`, or `Intl.RelativeTimeFormat` instances directly — the manager's intl formatters are cached, locale-aware, and automatically re-created when the locale changes.
+
+```typescript
+// Intl formatters — lazy-created, re-created on locale change
+// All Intl formatters are cached by locale + serialized options
+// Access via manager.intl (or i18n.intl)
+//
+// CORRECT:   i18n.intl.date(new Date(), { dateStyle: 'long' })
+// INCORRECT: new Intl.DateTimeFormat(locale, opts).format(date)
+const { intl } = i18n;
+
+// Date formatting
+intl.date(new Date(), { dateStyle: 'long' });        // "March 15, 2026" / "15 mars 2026"
+intl.date(new Date(), { dateStyle: 'full' });         // full locale-aware date
+intl.date(new Date());                                // "3/15/2026" — default short format
+intl.date(Date.now());                                // accepts number or Date
+
+// Number formatting
+intl.number(1234.56);                                  // "1,234.56" / "1.234,56"
+intl.number(1234.56, { style: 'currency', currency: 'USD' }); // "$1,234.56"
+intl.number(0.42, { style: 'percent' });               // "42%"
+
+// Relative time
+intl.relative(-3, 'day');                              // "3 days ago" / "hace 3 días"
+intl.relative(2, 'hour');                              // "in 2 hours"
+intl.relative(1, 'month', { numeric: 'auto' });       // "next month"
+```
+
+## Async Lazy Loading
+
+
+```typescript
+import { attempt } from '@logosdx/utils'
+
+// Register lazy loaders — called on first changeTo()
+// The loader function returns the locale labels (must be async)
+i18n.register('ja', {
+    text: '日本語',
+    loader: async () => {
+        const [mod, err] = await attempt(() => import('./locales/ja.json'));
+        if (err) throw err;
+        return mod.default;
+    }
+})
+
+i18n.register('es', {
+    text: 'Español',
+    loader: async () => {
+        const [mod, err] = await attempt(() => import('./locales/es.json'));
+        if (err) throw err;
+        return mod.default;
+    }
+})
+
+// Check load status
+i18n.isLoaded('en')  // true — provided in constructor
+i18n.isLoaded('ja')  // false — registered but not fetched yet
+
+// Switch locale — triggers lazy load
+// ALWAYS wrap changeTo() with attempt()
+const [, err] = await attempt(() => i18n.changeTo('ja'))
+if (err) console.error('Failed to load locale:', err)
+
+i18n.isLoaded('ja')  // true now
+
+// Race guard: concurrent changeTo() calls share one loader execution
+const [, raceErr] = await attempt(() => Promise.all([
+    i18n.changeTo('de'),
+    i18n.changeTo('de')
+]))  // loader ran exactly once
+if (raceErr) console.error('Failed:', raceErr)
+
+// Unknown code with no registration: warns + falls back to fallback locale
+const [, unknownErr] = await attempt(() => i18n.changeTo('xx' as LocaleCode))
+if (unknownErr) console.error('Unknown locale:', unknownErr)
+```
+
+## Lifecycle Events
+
+
+```typescript
+import { attempt } from '@logosdx/utils'
+
+// Event sequence for a lazy-loaded locale:
+// 1. 'loading' fires when loader starts
+// 2. 'change'  fires on success
+// 3. 'error'   fires on failure (promise also rejects)
+
+// on() returns a cleanup function
+const stopLoading = i18n.on('loading', ({ code }) => showSpinner(`Loading ${code}...`))
+const stopChange = i18n.on('change', ({ code }) => console.log('Active locale:', code))
+const stopError = i18n.on('error', ({ code }) => showToast(`Failed: ${code}`))
+
+const [, changeErr] = await attempt(() => i18n.changeTo('ja'))
+if (changeErr) console.error('Locale change failed:', changeErr)
+
+stopLoading()  // cleanup
+stopChange()
+stopError()
+
+// once() for one-shot reactions
+i18n.once('change', ({ code }) => analytics.track('locale_changed', { code }))
+
+// off() to remove by reference or all
+i18n.on('change', handler)
+i18n.off('change', handler)   // remove specific
+i18n.off('change')            // remove all change listeners
+```
+
+## Namespace Scoping
+
+
+```typescript
+// ns() creates a ScopedLocale that prepends a prefix to all t() keys
+const authT = i18n.ns('auth')
+authT.t('login.title')    // resolves to i18n.t('auth.login.title')
+authT.t('errors.invalid') // resolves to i18n.t('auth.errors.invalid')
+
+// Scopes nest
+const loginT = authT.ns('login')
+loginT.t('title')          // resolves to i18n.t('auth.login.title')
+
+// ScopedLocale passes intl and format values through to parent
+authT.intl.number(9.99, { style: 'currency', currency: 'USD' })
+authT.t('welcome', { name: 'Maria' })
+```
+
+```typescript
+class ScopedLocale<Locale extends LocaleManager.LocaleType, Code extends string = string> {
+
+    t(key: string, values?: LocaleManager.LocaleFormatArgs): string
+    ns(subPrefix: string): ScopedLocale<Locale, Code>
+    readonly intl: LocaleManager.IntlFormatters
+}
+```
+
+## Runtime Label Updates
+
+
+```typescript
+// updateLang() merges new labels into an existing locale
+// If the target is the current locale, emits 'change' and resets intl cache
+i18n.updateLang('en', {
+    nav: { home: 'Dashboard' }  // partial update — other keys untouched
+})
+
+// Use case: override specific strings from a server config
+const [overrides, err] = await attempt(() => fetch('/api/locale-overrides/en').then(r => r.json()))
+if (!err) i18n.updateLang('en', overrides)
+```
+
+## Cloning
+
+
+```typescript
+// clone() creates an independent LocaleManager with the same config
+// Useful for isolated contexts (email templating, SSR)
+const serverI18n = i18n.clone()
+const [, cloneErr] = await attempt(() => serverI18n.changeTo('ja'))  // doesn't affect the original
+if (cloneErr) console.error('Clone locale change failed:', cloneErr)
+```
+
+## Standalone Helpers
+
+
+```typescript
+import { format, getMessage, reachIn } from '@logosdx/localize'
+
+// reachIn — deep path accessor with default fallback
+reachIn(labels, 'nav.home', '[nav.home]')
+// "Home" — or "[nav.home]" if key is missing
+
+// format — replace {key} / {0} placeholders in a string
+format('Hello, {name}!', { name: 'Maria' })
+// "Hello, Maria!"
+
+format('Items: {0}, {1}', ['apples', 'bananas'])
+// "Items: apples, bananas"
+
+// getMessage — full pipeline: reachIn + parsePlural + format
+// This is what LocaleManager.t() uses internally
+getMessage(labels, 'products.count', { count: 3 }, 'en')
+// "3 products in cart"
+```
+
+```typescript
+import { parsePlural } from '@logosdx/localize'
+
+// ICU-lite plural resolver — useful outside of LocaleManager
+parsePlural('{count, plural, one {# thing} other {# things}}', { count: 5 }, 'en')
+// "5 things"
+```
+
+```typescript
+import { createIntlFormatters } from '@logosdx/localize'
+
+// Cached IntlFormatters factory — same as LocaleManager.intl uses internally
+const fmt = createIntlFormatters('fr')
+fmt.number(1234.56)                           // "1 234,56"
+fmt.date(new Date(), { dateStyle: 'full' })   // "mercredi 18 février 2026"
+fmt.relative(-1, 'day')                       // "il y a 1 jour"
+```
+
+## Type Extractor CLI
+
+
+```bash
+# Generate TypeScript types from locale JSON files
+npx logosdx-locale extract --dir ./i18n --out ./src/locale-keys.ts
+
+# Options
+# --dir <path>     Directory containing locale JSON files (required)
+# --out <path>     Output path for generated .ts file (required)
+# --locale <code>  Which JSON to use as type source (default: 'en')
+# --name <name>    Interface name to generate (default: 'AppLocale')
+# --watch          Re-generate on file changes
+```
+
+```typescript
+// Programmatic extractor API
+import { scanDirectory, generateOutput } from '@logosdx/localize/extractor'
+import { writeFile } from 'node:fs/promises'
+import { attempt } from '@logosdx/utils'
+
+const scan = scanDirectory('./i18n', 'en')
+const source = generateOutput(scan, 'AppLocale')
+const [, writeErr] = await attempt(() => writeFile('./src/locale-keys.ts', source))
+if (writeErr) console.error('Failed to write locale types:', writeErr)
+```
+
+```typescript
+interface ScanResult {
+    rootShape: Record<string, unknown> | null  // from flat en.json
+    namespaces: Record<string, Record<string, unknown>>  // from subdirectories
+    codes: string[]  // all locale codes discovered
+}
+```
+
+## React Integration
+
+
+```typescript
+import { LocaleManager } from '@logosdx/localize'
+import { createLocalizeContext } from '@logosdx/react'
+
+const i18n = new LocaleManager<AppLocale, LocaleCode>({ current: 'en', fallback: 'en', locales })
+
+// Returns [Provider, useHook] tuple
+export const [AppLocaleProvider, useAppLocale] = createLocalizeContext(i18n)
+```
+
+```tsx
+<AppLocaleProvider>
+    <App />
+</AppLocaleProvider>
+```
+
+```typescript
+// In any child component
+const { t, locale, changeTo, locales, instance } = useAppLocale()
+
+t('home.greeting', { name: 'World' })  // type-safe translation
+locale                                  // current code, triggers re-render on change
+changeTo('es')                          // switch locale
+locales                                 // [{ code: 'en', text: 'English' }, ...]
+instance                                // raw LocaleManager escape hatch
+```
+
+## Package Exports
+
+
+```typescript
+// Main entry
+import {
+    LocaleManager,
+    ScopedLocale,
+    createIntlFormatters,
+    parsePlural,
+    format,
+    getMessage,
+    reachIn,
+} from '@logosdx/localize'
+
+// Extractor subpath (Node.js only)
+import { scanDirectory, generateOutput } from '@logosdx/localize/extractor'
+
+// CLI binary
+// npx logosdx-locale extract ...
+```
+
+---
+
 # @logosdx/observer Usage Patterns
 
 Advanced type-safe event system with async iteration, queuing, and component observation.
+
+> Use `attempt()`/`attemptSync()` from `@logosdx/utils` for any error-prone operation inside event handlers and queue processors. Never use try-catch.
 
 ## Core Types
 
@@ -1797,6 +2428,12 @@ const queue = observer.queue('data:process', async (data) => {
     debug: 'verbose'
 })
 
+// Queue processors should use attempt() for error-prone work
+const queue = bus.queue('process', async (item) => {
+    const [result, err] = await attempt(() => handleItem(item));
+    if (err) console.warn('Processing failed:', err);
+}, { concurrency: 1, taskTimeoutMs: 5000 });
+
 // Queue lifecycle
 queue.start()
 queue.pause()
@@ -1980,6 +2617,123 @@ try {
 }
 ```
 
+## ObserverRelay - Cross-Boundary Event Bridge
+
+Abstract class that bridges ObserverEngine events across network/process boundaries
+via two internal engines (pub and sub). Subclasses implement `send()` for the transport
+and call `receive()` when messages arrive.
+
+```ts
+import { ObserverRelay, type RelayEvents, type ObserverRelayOptions } from '@logosdx/observer'
+
+// Event shape (same for both pub and sub sides)
+interface OrderEvents {
+    'order:placed': { id: string; total: number }
+    'order:shipped': { id: string; trackingNo: string }
+}
+
+// Transport context (only appears on the receiving side)
+interface RedisCtx {
+    ack(): void
+    nack(): void
+}
+
+// Subclass implements send() and calls receive()
+class RedisRelay extends ObserverRelay<OrderEvents, RedisCtx> {
+
+    #redis: RedisClient
+
+    constructor(redis: RedisClient, channel: string) {
+
+        super({ name: 'redis' })
+        this.#redis = redis
+
+        redis.subscribe(channel, (msg) => {
+
+            const { event, data } = JSON.parse(msg.body)
+            this.receive(event, data, {
+                ack: () => msg.ack(),
+                nack: () => msg.nack(),
+            })
+        })
+    }
+
+    protected send(event: string, data: unknown) {
+
+        const [, err] = attemptSync(() => this.#redis.publish('orders', JSON.stringify({ event, data })))
+        if (err) console.warn('Relay send failed:', err)
+    }
+}
+
+// Usage — emit is pure data, on receives { data, ctx }
+const relay = new RedisRelay(redisClient, 'orders')
+
+relay.emit('order:placed', { id: '123', total: 99.99 })
+
+relay.on('order:placed', ({ data, ctx }) => {
+
+    const [, err] = attemptSync(() => processOrder(data))
+    if (err) { ctx.nack(); return }
+    ctx.ack()
+})
+
+// Queue — concurrency-controlled inbound processing
+const queue = relay.queue('order:placed', async ({ data, ctx }) => {
+
+    const [, err] = await attempt(() => fulfillOrder(data))
+    if (err) { ctx.nack(); return }
+    ctx.ack()
+}, { name: 'order-processing', concurrency: 5 })
+
+// Observability — spy, $has, $facts, $internals all return { pub, sub }
+relay.spy((action) => telemetry.track(action))
+relay.$facts() // → { pub: { listeners: [...] }, sub: { listeners: [...] } }
+
+// Lifecycle
+relay.isShutdown // false
+relay.shutdown() // clears both engines, permanently inoperable
+```
+
+### RelayEvents Type
+
+Wraps event data with transport context for the sub engine:
+
+```ts
+type RelayEvents<TEvents, TCtx> = {
+    [K in keyof TEvents]: { data: TEvents[K]; ctx: TCtx }
+}
+```
+
+### Public API
+
+| Method | Delegates to | Notes |
+|--------|-------------|-------|
+| `emit` | `#pub.emit` | Pure `TEvents` data |
+| `on` | `#sub.on` | Receives `{ data, ctx }` |
+| `once` | `#sub.once` | Receives `{ data, ctx }` |
+| `off` | `#sub.off` | |
+| `queue` | `#sub.queue` | Processes inbound messages |
+| `spy()` | both engines | Attached to both with `force: true` |
+| `$has()` | both engines | Returns `{ pub: boolean, sub: boolean }` |
+| `$facts()` | both engines | Returns `{ pub: Facts, sub: Facts }` |
+| `$internals()` | both engines | Returns `{ pub: Internals, sub: Internals }` |
+| `shutdown()` | both `.clear()` | Permanently inoperable after call |
+| `isShutdown` | relay state | Getter returning `boolean` |
+
+### Constructor Options
+
+```ts
+interface ObserverRelayOptions {
+    name?: string        // auto-suffixed to name:pub and name:sub
+    spy?: Spy<any>       // passed to both engines
+    signal?: AbortSignal // passed to both engines + sets #isShutdown
+    emitValidator?: {
+        pub?: EmitValidator<any>  // validates outbound data
+        sub?: EmitValidator<any>  // validates inbound data
+    }
+}
+```
+
 ---
 
 # @logosdx/react Usage Patterns
@@ -2083,17 +2837,17 @@ const logout = emitFactory('user.logout')
 const { get, post, put, del, patch, instance } = useApiFetch()
 
 // Query — auto-fetches on mount, re-fetches when path/options change
-// Returns [cancel, isLoading, response, error]
-const [cancel, isLoading, res, error] = get<User[]>('/users')
-const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // typed response headers
+// Returns { data, loading, error, response, refetch, cancel }
+const { data, loading, error, response, refetch, cancel } = get<User[]>('/users')
+const { response: res2 } = get<Post, { 'x-total': string }>('/posts')  // typed response headers
 
-// Mutation — starts idle, fires when triggered
-// Returns [trigger, cancel, isLoading, response, error]
-const [submit, cancelSubmit, isSubmitting, result, submitErr] = post<Comment>('/comments')
-const [remove, cancelRemove, isRemoving, , removeErr] = del<void>('/items/123')
+// Mutation — starts idle, fires when mutate() is called
+// Returns { data, loading, error, response, mutate, reset, cancel, called }
+const { mutate: submit, loading: isSubmitting, data: result, error: submitErr } = post<Comment>('/comments')
+const { mutate: remove, loading: isRemoving, error: removeErr } = del<void>('/items/123')
 
-// Fire mutation
-submit({ text: 'Hello' })
+// mutate() returns Promise<T> — await in handlers
+const comment = await submit({ text: 'Hello' })
 remove()
 
 // Escape hatch for imperative use
@@ -2161,7 +2915,92 @@ const { context: score } = useGame((ctx) => ctx.score)
 const { context: score } = useStateMachine(machine, (ctx) => ctx.score)
 ```
 
+## API Hooks (Apollo-Style)
+
+
+Higher-level hooks for API interactions. Return `{ data, loading, error }` objects. Auto-refetch on reactive config changes. ObserverEngine integration for event-driven invalidation.
+
+### Setup
+
+```typescript
+import { FetchEngine } from '@logosdx/fetch'
+import { ObserverEngine } from '@logosdx/observer'
+import { createApiHooks } from '@logosdx/react/api'
+
+interface LoanEvents {
+    'loan.created': { id: string; amount: number }
+    'loan.deleted': { id: string }
+}
+
+const api = new FetchEngine({ baseUrl: '/api' })
+const events = new ObserverEngine<LoanEvents>()
+
+const { useQuery, useMutation, useAsync, createQuery, createMutation } = createApiHooks(api, events)
+```
+
+### useQuery — Auto-Fetch with Reactive Config
+
+```typescript
+const { data, loading, error, refetch, cancel } = useQuery<Loan[]>('/loans', {
+    defaults: { headers: { 'X-Api-Version': '2' } },    // Fixed — no re-fetch
+    reactive: { params: { page, limit: 20 } },           // Watched — changes trigger re-fetch
+    skip: !isReady,                                       // Conditional execution
+    pollInterval: 30000,                                  // Re-fetch every 30s
+    invalidateOn: ['loan.created', 'loan.deleted'],       // Re-fetch on observer event
+})
+```
+
+### useMutation — Fire on Demand
+
+```typescript
+const { mutate, loading, error, data, called, reset, cancel } = useMutation<Loan>('post', '/loans', {
+    defaults: { headers: { 'Content-Type': 'application/json' } },
+    emitOnSuccess: 'loan.created',                        // Emit observer event on success
+})
+
+// mutate() returns Promise<T> — await in handlers
+const loan = await mutate({ amount: 50000, borrower: 'Alice' })
+
+// emitOnSuccess supports: string | { event, payload? } | array of either
+emitOnSuccess: [
+    'loan.created',
+    { event: 'audit.log', payload: (data) => ({ action: 'create', entity: data }) },
+]
+```
+
+### useAsync — Wrap Any Async Function
+
+```typescript
+class LoanApi extends FetchEngine {
+    getLoans(page: number) { return this.get<Loan[]>('/loans', { params: { page } }) }
+}
+
+const { data, loading, error } = useAsync<Loan[]>(
+    () => loanApi.getLoans(page),
+    [page],                                                // React deps — re-executes on change
+    { invalidateOn: ['loan.created'] },
+)
+// Auto-unwraps FetchResponse — data is Loan[], not FetchResponse<Loan[]>
+```
+
+### Factory Functions — Reusable Hooks
+
+```typescript
+// Define once at module level
+const useLoans = createQuery<Loan[]>('/loans', {
+    invalidateOn: ['loan.created', 'loan.deleted'],
+})
+const useCreateLoan = createMutation<Loan>('post', '/loans', {
+    emitOnSuccess: 'loan.created',
+})
+
+// Use in any component
+const { data } = useLoans({ reactive: { params: { page: 1 } } })
+const { mutate } = useCreateLoan()
+```
+
 ## Subpath Imports
+
 
 Each binding is available as a standalone subpath export. Peer deps only required for imported bindings:
 
@@ -2172,22 +3011,8 @@ import { createObserverContext } from '@logosdx/react/observer'
 import { createFetchContext } from '@logosdx/react/fetch'
 import { createLocalizeContext } from '@logosdx/react/localize'
 import { composeProviders } from '@logosdx/react/compose'
+import { createApiHooks, useQuery, useMutation, useAsync } from '@logosdx/react/api'
 ```
-
-## Why Tuples, Not Objects?
-
-Factories return `[Provider, useHook]` tuples (like `useState`) instead of objects:
-
-```typescript
-// Tuples — rename naturally, no aliasing syntax
-const [ChatObserver, useChatEvents] = createObserverContext(chatEngine)
-const [ApiObserver, useApiObserver] = createObserverContext(apiEngine)
-
-// Objects would require verbose aliasing
-const { Provider: ChatObserver, useHook: useChatEvents } = createObserverContext(chatEngine)
-```
-
-Free renaming, less verbose, and follows React's own hook convention.
 
 ## Hook Rules
 
@@ -2211,8 +3036,8 @@ const { instance } = useApiFetch()
 instance.headers.set('X-Custom', 'value') // typed
 
 // Per-call generics for response body and headers
-const [, , res] = get<User[]>('/users')           // res?.data is User[]
-const [, , res2] = get<Post, { 'x-total': string }>('/posts')  // res2?.headers['x-total'] typed
+const { data } = get<User[]>('/users')                         // data is User[] | null
+const { response } = get<Post, { 'x-total': string }>('/posts')  // response?.headers['x-total'] typed
 ```
 
 ---
@@ -2375,6 +3200,8 @@ machine.off('loading', listener)
 
 ## Invoke — Async State Transitions
 
+> Inside invoke `src` functions, always wrap async operations with `attempt()` from `@logosdx/utils`.
+
 ```ts
 const machine = new StateMachine<{ data: any, error: string | null }, { FETCH: void }>({
     initial: 'idle',
@@ -2404,6 +3231,19 @@ const machine = new StateMachine<{ data: any, error: string | null }, { FETCH: v
         },
     },
 })
+
+// Invoke with attempt() — preferred pattern for error-prone async work
+loading_with_attempt: {
+    invoke: {
+        src: async (context) => {
+            const [result, err] = await attempt(() => validateAddress(context.shippingAddress));
+            if (err) throw err; // let onError handle it
+            return result;
+        },
+        onDone: { target: 'payment', action: (ctx, data) => ({ ...ctx, validated: true }) },
+        onError: { target: 'shipping_error', action: (ctx, data) => ({ ...ctx, error: data.message }) }
+    },
+},
 
 // Invoke fires automatically when entering a state with invoke config.
 // If the machine transitions away before the promise settles,
@@ -2525,6 +3365,7 @@ hub.connect({ from: 'a', enters: 'done', to: 'b', send: 'START' })
 
 # @logosdx/storage Usage Patterns
 
+> **Error handling rule:** Use `attempt()` from `@logosdx/utils` for ALL async storage operations — `get()`, `set()`, `assign()`, `rm()`, `clear()`, `keys()`, `entries()`, `values()`. Storage is I/O. Never use try-catch.
 
 Async driver-based key-value abstraction with type-safe keys, prefix scoping, JSON serialization, and reactive events via `@logosdx/observer`.
 
@@ -2553,11 +3394,18 @@ const storage = new StorageAdapter<AppStorage>({
     prefix: 'myapp'
 })
 
-// All operations are async
+// All operations are async — always wrap with attempt()
 const [userId, err] = await attempt(() => storage.get('userId'))
-await storage.set('userId', '12345')
-await storage.assign('userPreferences', { theme: 'dark' })
-await storage.rm('sessionData')
+if (err) return handleError(err)
+
+const [, setErr] = await attempt(() => storage.set('userId', '12345'))
+if (setErr) return handleError(setErr)
+
+const [, assignErr] = await attempt(() => storage.assign('userPreferences', { theme: 'dark' }))
+if (assignErr) return handleError(assignErr)
+
+const [, rmErr] = await attempt(() => storage.rm('sessionData'))
+if (rmErr) return handleError(rmErr)
 ```
 
 ## StorageAdapter Class
@@ -2606,32 +3454,47 @@ type StorageEventName =
 ## CRUD Operations
 
 ```typescript
-// Get operations (overloaded, all async)
-const allData = await storage.get()                    // Returns entire Values object
-const userId = await storage.get('userId')             // Returns Values[K] | null
-const subset = await storage.get(['userId', 'cache'])  // Returns Partial<Values>
+// Get operations (overloaded, all async) — always use attempt()
+const [allData, err1] = await attempt(() => storage.get())                    // Returns entire Values object
+const [userId, err2] = await attempt(() => storage.get('userId'))             // Returns Values[K] | null
+const [subset, err3] = await attempt(() => storage.get(['userId', 'cache']))  // Returns Partial<Values>
 
 // Set operations
-await storage.set('userId', '12345')                   // Single key-value
-await storage.set({ userId: '12345', cache: {} })     // Multiple key-values
+const [, setErr1] = await attempt(() => storage.set('userId', '12345'))                   // Single key-value
+const [, setErr2] = await attempt(() => storage.set({ userId: '12345', cache: {} }))     // Multiple key-values
 
 // Object assignment (shallow merge)
 // - If key doesn't exist, behaves like set()
 // - Throws Error if current value is not an object
 // - Error message: "key (keyName) value cannot be assigned (not an object)"
-await storage.assign('userPreferences', { theme: 'light' })
+const [, assignErr] = await attempt(() => storage.assign('userPreferences', { theme: 'light' }))
 
 // Remove operations
-await storage.rm('userId')                             // Single key
-await storage.rm(['userId', 'cache'])                  // Multiple keys
-await storage.remove('sessionData')                    // Alias for rm()
+const [, rmErr1] = await attempt(() => storage.rm('userId'))                             // Single key
+const [, rmErr2] = await attempt(() => storage.rm(['userId', 'cache']))                  // Multiple keys
+const [, rmErr3] = await attempt(() => storage.remove('sessionData'))                    // Alias for rm()
 
 // Utilities
-const hasUser = await storage.has('userId')            // boolean
-const allKeys = await storage.keys()                   // (keyof Values)[]
-const allEntries = await storage.entries()             // [key, value][] (calls get() internally)
-const allValues = await storage.values()               // value[] (calls get() internally)
-await storage.clear()                                  // Removes all keys with prefix
+const [hasUser, hasErr] = await attempt(() => storage.has('userId'))            // boolean
+const [allKeys, keysErr] = await attempt(() => storage.keys())                   // (keyof Values)[]
+const [allEntries, entriesErr] = await attempt(() => storage.entries())          // [key, value][] (calls get() internally)
+const [allValues, valuesErr] = await attempt(() => storage.values())             // value[] (calls get() internally)
+const [, clearErr] = await attempt(() => storage.clear())                        // Removes all keys with prefix
+```
+
+> **Use `assign()` for partial updates.** It shallow-merges the given object into the stored value. This avoids the read-modify-write pattern (`get` → modify → `set`) and is atomic.
+
+```typescript
+// assign() shallow-merges into existing value — no read-modify-write needed
+const [, err] = await attempt(() => storage.assign('workspace', {
+    members: [...currentMembers, newMember]
+}))
+if (err) return handleError(err)
+
+// DON'T do this — assign() replaces the get-modify-set pattern:
+// const [workspace] = await attempt(() => storage.get('workspace'))
+// workspace.members.push(newMember)
+// await attempt(() => storage.set('workspace', workspace))
 ```
 
 ## Built-in Drivers
@@ -2667,13 +3530,13 @@ const idb = new StorageAdapter<AppData>({
 ## scope() Pattern
 
 ```typescript
-// Create a single-key scoped interface (all methods async)
+// Create a single-key scoped interface (all methods async — use attempt())
 const userScope = storage.scope('userPreferences')
 
-await userScope.set({ theme: 'dark', notifications: true })
-await userScope.assign({ theme: 'light' })
-const prefs = await userScope.get()
-await userScope.remove()
+const [, scopeSetErr] = await attempt(() => userScope.set({ theme: 'dark', notifications: true }))
+const [, scopeAssignErr] = await attempt(() => userScope.assign({ theme: 'light' }))
+const [prefs, scopeGetErr] = await attempt(() => userScope.get())
+const [, scopeRmErr] = await attempt(() => userScope.remove())
 
 // ScopedKey interface
 // WARNING: clear() is an alias for remove() on scoped keys — it deletes the key, not all keys
@@ -2790,6 +3653,27 @@ const structured = new StorageAdapter<AppStorage>({
 
 A comprehensive utility library providing Go-style error handling, advanced flow control, type-safe data operations, and powerful TypeScript type utilities.
 
+## Table of Contents
+
+- [Core Philosophy](#core-philosophy) — Error tuple pattern, never try-catch
+- [Error Handling](#error-handling) — attempt, attemptSync
+- [Flow Control](#flow-control)
+  - [Timing & Rate Control](#timing--rate-control) — debounce, throttle, rateLimit, RateLimitTokenBucket
+  - [Resilience Patterns](#resilience-patterns) — retry, circuitBreaker, withTimeout, batch, withInflightDedup, SingleFlight
+  - [Memoization & Caching](#memoization--caching) — memoize, memoizeSync with LRU/TTL/SWR
+- [Data Operations](#data-operations)
+  - [Object Manipulation](#object-manipulation) — clone, equals, merge, addHandlerFor
+  - [Safe Property Access](#safe-property-access) — reach, setDeep, getSafeKeys
+  - [Collections](#collections) — PriorityQueue
+- [Validation & Type Guards](#validation--type-guards) — Environment detection, assertions, guards
+- [TypeScript Type Utilities](#typescript-type-utilities) — Function types, path types, utility types
+- [Property Management](#property-management) — definePublicProps, definePrivateProps
+- [Async Utilities](#async-utilities) — Deferred, TimeoutPromise, wait, runInSeries
+- [Array & Data Utilities](#array--data-utilities) — chunk, nTimes, serializer
+- [Error Types & Utilities](#error-types--utilities) — RetryError, TimeoutError, etc.
+- [Configuration & Environment Variables](#configuration--environment-variables) — makeNestedConfig, castValuesToTypes
+- [Unit Conversion & Formatting](#unit-conversion--formatting) — timeUnits, byteUnits, parse/format
+
 ## Core Philosophy
 
 **Never use try-catch.** Always use error tuple pattern for fail-prone operations.
@@ -2824,6 +3708,30 @@ if (err) throw err
 
 const [parsed, parseErr] = attemptSync(() => JSON.parse(data))
 if (parseErr) return defaultValue
+```
+
+> **Every async I/O call in LogosDX code must use `attempt()`.** This includes storage operations, fetch calls, state-machine invoke sources, observer queue processors, and any function that touches the network or filesystem. Never use try-catch — the error tuple is the only sanctioned pattern.
+
+### Common Patterns
+
+`attempt()` is not just for fetch. Use it for **every** I/O or error-prone operation:
+
+```ts
+// Storage operation
+const [user, err] = await attempt(() => storage.get('user'));
+
+// State machine invoke source
+const [result, err] = await attempt(() => validateAddress(address));
+
+// Queue processor
+const [, err] = await attempt(() => processNotification(item));
+
+// DOM operation that may fail
+const [, parseErr] = attemptSync(() => el.insertAdjacentHTML('beforeend', html));
+
+// Any async function
+const [data, err] = await attempt(() => someAsyncWork());
+if (err) return handleError(err);
 ```
 
 ## Flow Control
@@ -2945,14 +3853,23 @@ interface RetryOptions {
 class RetryError extends Error {}
 const isRetryError: (error: unknown) => error is RetryError
 
-// Basic retry with backoff
-const resilientFetch = makeRetryable(fetch, { retries: 3, delay: 1000, backoff: 2 })
+// Basic retry with exponential backoff and jitter
+// backoff multiplies the delay after each attempt: 1000 → 2000 → 4000 → ...
+// jitterFactor adds ±randomization to prevent thundering herd (0 = none, 1 = full)
+const resilientFetch = makeRetryable(fetch, {
+  retries: 5,
+  delay: 1000,
+  backoff: 2,
+  jitterFactor: 0.5
+})
 
 // Preserve original error instead of RetryError (for downstream error handling)
 const [result, err] = await attempt(() => retry(fetchData, {
   retries: 3,
   delay: 100,
-  throwLastError: true  // Throws the actual network error, not RetryError
+  backoff: 2,            // exponential backoff: 100 → 200 → 400
+  jitterFactor: 0.25,    // 25% jitter randomization on each delay
+  throwLastError: true    // Throws the actual network error, not RetryError
 }))
 if (err) {
   // err is the original error from fetchData, not RetryError
@@ -2981,10 +3898,33 @@ const data = await retry(fetchData, {
 // Circuit breaker for failing services
 const circuitBreaker: <T extends Func>(fn: T, options: CircuitBreakerOptions<T>) => T
 
+interface CircuitBreakerOptions<T extends Func> {
+  maxFailures?: number              // Consecutive failures before tripping (default: 3)
+  resetAfter?: number               // Ms before testing recovery (default: 1000)
+  halfOpenMaxAttempts?: number      // Test calls allowed in half-open (default: 1)
+  shouldTripOnError?: (error: Error) => boolean  // Filter which errors trip
+  onTripped?: (error: CircuitBreakerError, store: CircuitBreakerStore) => void
+  onError?: (error: Error, args: Parameters<T>) => void
+  onReset?: () => void              // Called when circuit closes after recovery
+  onHalfOpen?: (store: CircuitBreakerStore) => void
+}
+
 class CircuitBreakerError extends Error {}
 const isCircuitBreakerError: (error: unknown) => error is CircuitBreakerError
 
-const protectedApi = circuitBreaker(apiCall, { maxFailures: 3, resetAfter: 30000 })
+// Protect an API call — trips after 5 failures, tests recovery after 10s
+const protectedApi = circuitBreaker(apiCall, {
+  maxFailures: 5,
+  resetAfter: 10000,
+  shouldTripOnError: (err) => err.message.includes('HTTP 5'),
+  onTripped: (err, store) => console.warn(`Tripped after ${store.failures} failures`),
+  onReset: () => console.log('Service recovered')
+})
+
+const [data, err] = await attempt(() => protectedApi('/users'))
+if (isCircuitBreakerError(err)) {
+  // Service unavailable — use fallback
+}
 
 // Timeout protection
 const withTimeout: <T extends Func>(fn: T, options: WithTimeoutOptions) => T
@@ -3009,12 +3949,22 @@ const batch: <T, R>(
   options: BatchOptions<T, R>
 ) => Promise<BatchResult<T, R>[]>
 
-await batch(processItem, {
-  items: [1, 2, 3, 4, 5],
-  concurrency: 3,
-  failureMode: 'continue',
-  onChunkStart: ({ index, total }) => console.log(`Starting chunk ${index + 1}/${total}`)
+// Process 1000 records, 50 at a time, continuing past errors
+const results = await batch(processRecord, {
+  items: records,
+  concurrency: 50,
+  failureMode: 'continue',  // 'abort' (default) stops on first error
+  onError: (err, item, idx) => console.warn(`Item ${idx} failed:`, err),
+  onChunkStart: ({ index, total, completionPercent }) => {
+    console.log(`Chunk ${index + 1}/${total} (${completionPercent}%)`)
+  }
 })
+
+// Each result tracks success/failure per item
+for (const { result, error, item, itemIndex } of results) {
+  if (error) console.warn(`Item ${itemIndex} failed:`, error)
+  else console.log(`Item ${itemIndex} →`, result)
+}
 
 // In-flight promise deduplication - share promises for concurrent calls
 const withInflightDedup: <Args extends any[], Value, Key = string>(
@@ -3106,11 +4056,10 @@ async function fetchUser(id: string): Promise<User> {
   const promise = api.fetchUser(id)
   const cleanup = flight.trackInflight(key, promise)
 
-  try {
-    return await promise
-  } finally {
-    cleanup()
-  }
+  const [user, err] = await attempt(() => promise)
+  cleanup()
+  if (err) throw err
+  return user
 }
 ```
 
@@ -3544,7 +4493,10 @@ const makeNestedConfig: <C extends object, F extends Record<string, string>>(
     skipConversion?: (key: string, value: unknown) => boolean
     memoizeOpts?: MemoizeOptions | false
   }
-) => <P extends PathLeaves<C>>(path?: P, defaultValue?: PathValue<C, P>) => C
+) => {
+  allConfigs: () => C
+  getConfig: <P extends PathLeaves<C>>(path: P, defaultValue?: PathValue<C, P>) => PathValue<C, P>
+}
 
 const castValuesToTypes: (
   obj: object,
@@ -3568,16 +4520,16 @@ type AppConfig = {
   debug: boolean;
 }
 
-const config = makeNestedConfig<AppConfig>(process.env, {
+const { allConfigs, getConfig } = makeNestedConfig<AppConfig>(process.env, {
   filter: (key) => key.startsWith('APP_'),
   stripPrefix: 'APP_',
   forceAllCapToLower: true
 })
 
-config()            // { db: { host: 'localhost', port: 5432 }, debug: true }
-config('db.host')   // 'localhost'
-config('db.port')   // 5432
-config('api.timeout', 5000)  // 5000 (default for missing path)
+allConfigs()                   // { db: { host: 'localhost', port: 5432 }, debug: true }
+getConfig('db.host')           // 'localhost'
+getConfig('db.port')           // 5432
+getConfig('api.timeout', 5000) // 5000 (default for missing path)
 ```
 
 ### Type Coercion Table

@@ -1011,18 +1011,19 @@ FetchEngine's resilience features are implemented as plugins using `@logosdx/hoo
 ### Plugin Factories
 
 ```typescript
-import { cachePlugin, dedupePlugin, retryPlugin, rateLimitPlugin } from '@logosdx/fetch';
+import { cachePlugin, dedupePlugin, retryPlugin, rateLimitPlugin, cookiePlugin } from '@logosdx/fetch';
 
 // Create plugins
 const cache = cachePlugin({ ttl: 300000, staleIn: 60000 });
 const dedupe = dedupePlugin(true);
 const retry = retryPlugin({ maxAttempts: 3 });
 const rateLimit = rateLimitPlugin({ maxCalls: 100, windowMs: 60000 });
+const cookies = cookiePlugin();
 
 // Use with FetchEngine
 const api = new FetchEngine({
     baseUrl: 'https://api.example.com',
-    plugins: [cache, dedupe, retry, rateLimit]
+    plugins: [cache, dedupe, retry, rateLimit, cookies]
 });
 
 // Access plugin methods directly
@@ -1039,4 +1040,62 @@ Install a plugin at runtime. Returns a cleanup function.
 const cleanup = api.use(myPlugin);
 // Later: cleanup() to uninstall
 ```
+
+
+## Cookie Management
+
+
+```typescript
+import { FetchEngine, cookiePlugin } from '@logosdx/fetch';
+import type { Cookie, CookieAdapter, CookieConfig } from '@logosdx/fetch';
+
+// Shorthand — in-memory jar, session only
+const api = new FetchEngine({ baseUrl: '...', cookies: true });
+
+// Shorthand with config — exclude domains, adjust limits
+const api = new FetchEngine({ baseUrl: '...', cookies: { exclude: ['cdn.example.com'] } });
+
+// Explicit plugin — when you need init/flush/jar access
+const cookies = cookiePlugin({
+    adapter: {
+        async load(): Promise<Cookie[]> { return JSON.parse(await redis.get('cookies') ?? '[]'); },
+        async save(cookies: Cookie[]): Promise<void> { await redis.set('cookies', JSON.stringify(cookies)); }
+    },
+    syncOnRequest: true, // re-load from adapter before each request (for shared backends)
+});
+await cookies.init(); // MUST call before first request when using an adapter
+
+const api = new FetchEngine({ baseUrl: '...', plugins: [cookies] });
+
+// After login — server sets session cookie, plugin captures it automatically
+await api.post('/login', credentials);
+
+// Subsequent requests automatically include the Cookie header
+await api.get('/me');
+
+// On logout — clear session (non-persistent) cookies
+cookies.jar.clearSession();
+
+// Manual jar access
+const all: Cookie[]  = cookies.jar.all();
+const url            = new URL('https://api.example.com/');
+const matching       = cookies.jar.get(url);
+cookies.jar.clear();                           // clear all
+cookies.jar.clear('example.com');              // clear by domain
+cookies.jar.delete('example.com', '/', 'sid'); // delete one cookie
+
+// Graceful shutdown — force any pending coalesced save and await the final write
+await cookies.flush();
+```
+
+**Persistence flow:**
+
+1. `afterRequest` hook captures `Set-Cookie` → `parseSetCookieHeader()` → `jar.set(cookie)`
+2. `CookieJar` fires its `onChange` callback; the plugin's `schedulePersist()` queues a microtask (coalesced — one per tick regardless of burst size)
+3. On the microtask, `adapter.save(jar.all())` runs fire-and-forget; errors are swallowed
+4. For graceful shutdown, `await cookies.flush()` forces `adapter.save(jar.all())` and surfaces rejection
+5. `beforeRequest` hook calls `jar.get(url)` → `serializeCookies()` → injects `Cookie` header. `jar.get()` also bumps `lastAccessTime` on retrieved cookies (RFC 6265 §5.4) which triggers another coalesced save
+6. With `syncOnRequest: true`, step 5 first calls `adapter.load()` to refresh the jar
+
+**RFC 6265 compliance:** full — date parser, domain matching, path matching, `Max-Age` > `Expires` precedence, host-only flag, eviction limits (4096 bytes/cookie, 50/domain, 3000 total).
 

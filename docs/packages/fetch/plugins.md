@@ -62,7 +62,7 @@ uninstall();
 
 ### Config Shorthand
 
-The config options `retry`, `cachePolicy`, `dedupePolicy`, and `rateLimitPolicy` are shorthand that internally create and install the corresponding plugins:
+The config options `retry`, `cachePolicy`, `dedupePolicy`, `rateLimitPolicy`, and `cookies` are shorthand that internally create and install the corresponding plugins:
 
 ```typescript
 // These two are equivalent:
@@ -70,6 +70,7 @@ const api1 = new FetchEngine({
     baseUrl: '...',
     cachePolicy: { ttl: 60000 },
     dedupePolicy: true,
+    cookies: true,
 });
 
 const api2 = new FetchEngine({
@@ -77,9 +78,12 @@ const api2 = new FetchEngine({
     plugins: [
         cachePlugin({ ttl: 60000 }),
         dedupePlugin(true),
+        cookiePlugin(),
     ]
 });
 ```
+
+For full cookie control (adapter `init()`/`flush()`, direct jar access), use the explicit `plugins` form and hold a reference to the plugin instance.
 
 
 ## Writing a Custom Plugin
@@ -270,6 +274,7 @@ FetchEngine ships four plugins. Each can be used via config shorthand or importe
 | `dedupePlugin` | `dedupePolicy` | `execute` (pipe) | -30 | Deduplicate in-flight requests |
 | `cachePlugin` | `cachePolicy` | `beforeRequest` + `afterRequest` | -30 / -10 | Response caching with SWR |
 | `rateLimitPlugin` | `rateLimitPolicy` | `beforeRequest` | -20 | Token bucket rate limiting |
+| `cookiePlugin` | `cookies` | `beforeRequest` + `afterRequest` | -25 / -5 | RFC 6265 cookie jar |
 
 See [Policies](./policies) for detailed configuration of each built-in plugin.
 
@@ -279,6 +284,7 @@ See [Policies](./policies) for detailed configuration of each built-in plugin.
 ```
 beforeRequest (run):
   -30  cachePlugin     → return cached hit
+  -25  cookiePlugin    → inject Cookie header
   -20  rateLimitPlugin → wait or reject
     0  user hooks
 
@@ -289,10 +295,168 @@ execute (pipe):
 
 afterRequest (run):
   -10  cachePlugin     → store response
+   -5  cookiePlugin    → capture Set-Cookie
     0  user hooks
 ```
 
 Cache checks run first so cached responses skip rate limiting entirely. Dedupe wraps retry so duplicate callers share the retried result.
+
+
+## Cookie Plugin
+
+
+The `cookiePlugin` implements a full RFC 6265-compliant cookie jar for `FetchEngine`. It is primarily useful in **Node.js** environments where the native `fetch` has no cookie jar — but it also works in browsers alongside the native jar.
+
+
+### Basic Usage
+
+The fastest way to enable cookies is the config shorthand:
+
+```typescript
+import { FetchEngine } from '@logosdx/fetch';
+
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cookies: true,
+});
+
+// FetchEngine now automatically captures Set-Cookie response headers
+// and sends Cookie request headers on subsequent requests.
+await api.post('/auth/login', { email, password });
+const { data: profile } = await api.get('/me'); // Cookie header included
+```
+
+When you need adapter lifecycle control (`init()`, `flush()`) or direct jar access, use the explicit plugin form:
+
+```typescript
+import { FetchEngine, cookiePlugin } from '@logosdx/fetch';
+
+const cookies = cookiePlugin({ adapter: myRedisAdapter });
+await cookies.init();
+
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    plugins: [cookies],
+});
+
+// cookies.jar, cookies.flush() available
+```
+
+
+### Persistence Adapter
+
+Provide a `CookieAdapter` to persist cookies across process restarts, or share them across multiple `FetchEngine` instances (horizontal scaling):
+
+```typescript
+import { cookiePlugin } from '@logosdx/fetch';
+
+// Redis example (horizontal scaling)
+const cookies = cookiePlugin({
+    syncOnRequest: true,  // re-load from Redis before every request
+    adapter: {
+        async load() {
+            const raw = await redis.get('fetch:cookies');
+            return raw ? JSON.parse(raw) : [];
+        },
+        async save(cookies) {
+            await redis.set('fetch:cookies', JSON.stringify(cookies));
+        }
+    }
+});
+
+await cookies.init(); // loads from adapter before first request
+```
+
+`adapter.save()` is **microtask-coalesced**. Any burst of jar mutations (e.g., a response with multiple `Set-Cookie` headers, or a `jar.load()` call) fires exactly one `adapter.save(jar.all())` per tick. A persistence failure is silently swallowed so it cannot break the request pipeline — if you need error visibility during graceful shutdown, call `await cookies.flush()` which surfaces adapter rejections to the caller.
+
+
+### Pre-Seeding the Jar
+
+Restore a session without a full adapter — pass cookies directly at construction:
+
+```typescript
+const cookies = cookiePlugin({
+    cookies: storedSession, // Cookie[] from your own storage
+});
+```
+
+
+### Session Cleanup
+
+Session cookies (no `Expires` or `Max-Age`) are cleared on `jar.clearSession()`. Call this on logout:
+
+```typescript
+cookies.jar.clearSession();
+```
+
+
+### Graceful Shutdown
+
+Persistence is microtask-coalesced so bursts of mutations only hit your adapter once per tick. On process exit or logout, call `flush()` to force a final save and surface any adapter failures to the caller:
+
+```typescript
+process.on('SIGTERM', async () => {
+
+    const [, err] = await attempt(() => cookies.flush());
+    if (err) logger.error('cookie flush failed', err);
+    process.exit(0);
+});
+```
+
+Without `flush()`, a mutation that happens in the last tick before exit may be lost because the microtask never runs.
+
+
+### Excluding Domains
+
+Prevent cookies from being sent or captured for specific hosts (e.g., third-party CDNs):
+
+```typescript
+const cookies = cookiePlugin({
+    exclude: ['cdn.example.com', /\.cloudfront\.net$/],
+});
+```
+
+
+### Direct Jar Access
+
+```typescript
+cookies.jar.all()                        // all stored cookies (no access-time update)
+cookies.jar.get(new URL('https://...'))  // matching cookies for a URL (bumps lastAccessTime)
+cookies.jar.clear()                      // remove all cookies
+cookies.jar.clear('example.com')         // remove cookies for a domain
+cookies.jar.clearSession()               // remove session (non-persistent) cookies
+cookies.jar.delete('example.com', '/', 'session') // remove specific cookie
+
+await cookies.flush()                    // force pending coalesced save (graceful shutdown)
+```
+
+
+### Configuration
+
+```typescript
+interface CookieConfig {
+    cookies?: Cookie[];              // pre-seed the jar
+    adapter?: CookieAdapter;         // persistence adapter
+    syncOnRequest?: boolean;         // re-load adapter before every request (default: false)
+    exclude?: (string | RegExp)[];   // domains to skip
+    maxCookieSize?: number;          // bytes per cookie (default: 4096)
+    maxCookiesPerDomain?: number;    // cookies per domain (default: 50)
+    maxCookies?: number;             // total cookies (default: 3000)
+    httpApi?: boolean;               // false = non-HTTP client, skip httpOnly (default: true)
+}
+```
+
+
+### RFC 6265 Compliance
+
+The plugin implements the full RFC 6265 specification:
+
+- Date parsing algorithm (§5.1.1) — lenient tokenizing, not `Date.parse()`
+- Domain matching (§5.1.3) — subdomain inclusion, IP address exclusion
+- Path matching (§5.1.4) — prefix rules with slash boundaries
+- `Set-Cookie` processing (§5.2) — all attributes, `Max-Age` over `Expires` precedence
+- Storage model (§5.3) — all 11 fields, duplicate handling, eviction
+- `Cookie` header construction (§5.4) — sort by path length, then creation time
 
 
 ## Plugin Lifecycle

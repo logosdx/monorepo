@@ -27,3 +27,20 @@ export type {
     PolicyInternalState,
     RequestKeyOptions
 } from './types.ts';
+
+export {
+    cookiePlugin,
+    type CookiePlugin
+} from './cookies/index.ts';
+
+export type {
+    Cookie,
+    CookieAdapter,
+    CookieConfig
+} from './cookies/index.ts';
+
+export {
+    CookieJar,
+    type CookieJarOptions,
+    MemoryAdapter
+} from './cookies/index.ts';

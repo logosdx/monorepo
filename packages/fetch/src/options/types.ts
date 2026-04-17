@@ -20,6 +20,7 @@ import type {
 
 import type { FetchError } from '../helpers/fetch-error.ts';
 import type { FetchLifecycle, FetchPlugin } from '../engine/types.ts';
+import type { CookieConfig } from '../plugins/cookies/types.ts';
 
 
 /**
@@ -276,6 +277,16 @@ export interface EngineConfig<
      * Rate limit policy configuration.
      */
     rateLimitPolicy?: boolean | RateLimitConfig<S, H, P> | undefined;
+
+    /**
+     * Cookie management configuration.
+     *
+     * `true` enables a basic in-memory cookie jar with RFC 6265 defaults.
+     * Pass a `CookieConfig` to configure persistence adapters, limits, or
+     * domain exclusions. For full control (init/flush/jar access), use
+     * `plugins: [cookiePlugin(config)]` instead.
+     */
+    cookies?: boolean | CookieConfig | undefined;
 
     /**
      * Plugins to install at construction time.

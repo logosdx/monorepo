@@ -618,12 +618,48 @@ export class RequestExecutor<
         if (directive === 'stream' || directive === 'raw') {
 
 
-            const responseHeaders = {} as Partial<ResHdr>;
+            // Build the plain headers object. Treat `set-cookie` specially so
+            // multi-value Set-Cookie headers survive (the default `forEach`
+            // path overwrites on each iteration for duplicate keys).
+            const responseHeaders: Record<string, unknown> = {};
+            const setCookies: string[] = [];
 
             response.headers.forEach((value, key) => {
 
-                responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
+                if (key.toLowerCase() === 'set-cookie') {
+
+                    setCookies.push(value);
+                    return;
+                }
+
+                responseHeaders[key] = value;
             });
+
+            // Prefer the native getter when available — on runtimes that support it
+            // (Node 18.14.1+, Chrome 113+, Firefox 112+, Safari 17+), it is the only
+            // lossless way to read multiple Set-Cookie values because `headers.get`
+            // joins them with ", " which is ambiguous (Expires dates contain commas).
+            //
+            // Runtime detection via Reflect.get avoids a type assertion: if the DOM
+            // typings on the target lib do not yet declare `getSetCookie`, the
+            // assertion would lie; instead we ask at runtime and narrow by typeof.
+            const nativeGetter = Reflect.get(response.headers, 'getSetCookie');
+
+            const cookies = typeof nativeGetter === 'function'
+                ? nativeGetter.call(response.headers)
+                : setCookies;
+
+            if (Array.isArray(cookies) && cookies.length > 0) {
+
+                responseHeaders['set-cookie'] = cookies.filter(
+                    (v): v is string => typeof v === 'string'
+                );
+            }
+
+            // Boundary cast: HTTP responses are an untyped external source and
+            // `ResHdr` is a user-provided generic. This is the single sanctioned
+            // assertion in this function.
+            const typedResponseHeaders = responseHeaders as unknown as Partial<ResHdr>;
 
             this.engine.emit('response', {
                 ...options,
@@ -645,7 +681,7 @@ export class RequestExecutor<
 
             return {
                 data: response as unknown as Res,
-                headers: responseHeaders,
+                headers: typedResponseHeaders,
                 status: response.status,
                 request: new Request(url, fetchOpts),
                 config
@@ -705,16 +741,52 @@ export class RequestExecutor<
                 determineType,
             };
 
-            const responseHeaders = {} as Partial<ResHdr>;
+            // Build the plain headers object. Treat `set-cookie` specially so
+            // multi-value Set-Cookie headers survive (the default `forEach`
+            // path overwrites on each iteration for duplicate keys).
+            const responseHeaders: Record<string, unknown> = {};
+            const setCookies: string[] = [];
 
             response.headers.forEach((value, key) => {
 
-                responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
+                if (key.toLowerCase() === 'set-cookie') {
+
+                    setCookies.push(value);
+                    return;
+                }
+
+                responseHeaders[key] = value;
             });
+
+            // Prefer the native getter when available — on runtimes that support it
+            // (Node 18.14.1+, Chrome 113+, Firefox 112+, Safari 17+), it is the only
+            // lossless way to read multiple Set-Cookie values because `headers.get`
+            // joins them with ", " which is ambiguous (Expires dates contain commas).
+            //
+            // Runtime detection via Reflect.get avoids a type assertion: if the DOM
+            // typings on the target lib do not yet declare `getSetCookie`, the
+            // assertion would lie; instead we ask at runtime and narrow by typeof.
+            const nativeGetter = Reflect.get(response.headers, 'getSetCookie');
+
+            const cookies = typeof nativeGetter === 'function'
+                ? nativeGetter.call(response.headers)
+                : setCookies;
+
+            if (Array.isArray(cookies) && cookies.length > 0) {
+
+                responseHeaders['set-cookie'] = cookies.filter(
+                    (v): v is string => typeof v === 'string'
+                );
+            }
+
+            // Boundary cast: HTTP responses are an untyped external source and
+            // `ResHdr` is a user-provided generic. This is the single sanctioned
+            // assertion in this function.
+            const typedResponseHeaders = responseHeaders as unknown as Partial<ResHdr>;
 
             return {
                 data: data!,
-                headers: responseHeaders,
+                headers: typedResponseHeaders,
                 status: response.status,
                 request: new Request(url, fetchOpts),
                 config
@@ -812,16 +884,52 @@ export class RequestExecutor<
 
         const request = new Request(url, fetchOpts);
 
-        const responseHeaders = {} as Partial<ResHdr>;
+        // Build the plain headers object. Treat `set-cookie` specially so
+        // multi-value Set-Cookie headers survive (the default `forEach`
+        // path overwrites on each iteration for duplicate keys).
+        const responseHeaders: Record<string, unknown> = {};
+        const setCookies: string[] = [];
 
         response.headers.forEach((value, key) => {
 
-            responseHeaders[key as keyof ResHdr] = value as ResHdr[keyof ResHdr];
+            if (key.toLowerCase() === 'set-cookie') {
+
+                setCookies.push(value);
+                return;
+            }
+
+            responseHeaders[key] = value;
         });
+
+        // Prefer the native getter when available — on runtimes that support it
+        // (Node 18.14.1+, Chrome 113+, Firefox 112+, Safari 17+), it is the only
+        // lossless way to read multiple Set-Cookie values because `headers.get`
+        // joins them with ", " which is ambiguous (Expires dates contain commas).
+        //
+        // Runtime detection via Reflect.get avoids a type assertion: if the DOM
+        // typings on the target lib do not yet declare `getSetCookie`, the
+        // assertion would lie; instead we ask at runtime and narrow by typeof.
+        const nativeGetter = Reflect.get(response.headers, 'getSetCookie');
+
+        const cookies = typeof nativeGetter === 'function'
+            ? nativeGetter.call(response.headers)
+            : setCookies;
+
+        if (Array.isArray(cookies) && cookies.length > 0) {
+
+            responseHeaders['set-cookie'] = cookies.filter(
+                (v): v is string => typeof v === 'string'
+            );
+        }
+
+        // Boundary cast: HTTP responses are an untyped external source and
+        // `ResHdr` is a user-provided generic. This is the single sanctioned
+        // assertion in this function.
+        const typedResponseHeaders = responseHeaders as unknown as Partial<ResHdr>;
 
         return {
             data: data!,
-            headers: responseHeaders,
+            headers: typedResponseHeaders,
             status: response.status,
             request,
             config

@@ -28,6 +28,7 @@ import { retryPlugin } from '../plugins/retry.ts';
 import { dedupePlugin } from '../plugins/dedupe.ts';
 import { cachePlugin } from '../plugins/cache.ts';
 import { rateLimitPlugin } from '../plugins/rate-limit.ts';
+import { cookiePlugin } from '../plugins/cookies/plugin.ts';
 import type {
     EngineConfig,
     EngineType,
@@ -221,6 +222,12 @@ export class FetchEngine<
         if (opts.rateLimitPolicy) {
 
             plugins.push(rateLimitPlugin<H, P, S>(opts.rateLimitPolicy as any));
+        }
+
+        // Cookie plugin
+        if (opts.cookies) {
+
+            plugins.push(cookiePlugin<H, P, S>(opts.cookies === true ? undefined : opts.cookies));
         }
 
         return plugins;

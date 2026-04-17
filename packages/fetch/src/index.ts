@@ -35,7 +35,10 @@ export {
     cachePlugin,
     RateLimitPolicy,
     rateLimitPlugin,
-    retryPlugin
+    retryPlugin,
+    cookiePlugin,
+    CookieJar,
+    MemoryAdapter
 } from './plugins/index.ts';
 
 export type {
@@ -43,7 +46,12 @@ export type {
     BasePolicyConfig,
     PolicyInternalState,
     CachePolicyState,
-    RateLimitPolicyState
+    RateLimitPolicyState,
+    CookiePlugin,
+    Cookie,
+    CookieAdapter,
+    CookieConfig,
+    CookieJarOptions
 } from './plugins/index.ts';
 
 export { FetchEngine } from './engine/index.ts';
