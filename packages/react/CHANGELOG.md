@@ -1,5 +1,12 @@
 # @logosdx/react
 
+## 4.0.0
+
+### Patch Changes
+
+- Updated dependencies [da017d6]
+  - @logosdx/fetch@8.1.0
+
 ## 3.0.0
 
 ### Patch Changes
