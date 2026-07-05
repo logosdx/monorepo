@@ -399,9 +399,14 @@ function makeNestedConfig<C extends object, F extends Record<string, string>>(
         stripPrefix?: string | number
         parseUnits?: boolean          // Default: false
         skipConversion?: (key: string, value: unknown) => boolean
-        memoizeOpts?: MemoizeOptions | false
     }
-): <P extends PathLeaves<C>>(path?: P, defaultValue?: PathValue<C, P>) => C
+): {
+    allConfigs: () => C
+    getConfig: <P extends PathLeaves<C>>(path: P, defaultValue?: PathValue<C, P>) => PathValue<C, P>
+    updateFlatConfig: (override: Partial<F>) => void
+    updateParsedConfig: (override: DeepOptional<C>) => void
+    setDeepInParsedConfig: (entries: Array<[PathNames<DeepOptional<C>>, unknown]>) => void
+}
 ```
 
 **Example:**
@@ -423,7 +428,7 @@ const config = makeNestedConfig<AppConfig>(process.env, {
     forceAllCapToLower: true
 })
 
-console.log(config())
+console.log(config.allConfigs())
 // {
 //   db: { host: 'localhost', port: 5432 },
 //   debug: true,
@@ -431,16 +436,16 @@ console.log(config())
 //   worker: { emails: { maxRunsPerMin: 100 } }
 // }
 
-// Reach into config with type-safe path parameter
-const dbHost = config('db.host')              // 'localhost'
-const dbPort = config('db.port')              // 5432
-const isDebug = config('debug')               // true
-const maxRuns = config('worker.emails.maxRunsPerMin')  // 100
+// Reach into config with a type-safe path parameter
+const dbHost = config.getConfig('db.host')                       // 'localhost'
+const dbPort = config.getConfig('db.port')                       // 5432
+const isDebug = config.getConfig('debug')                        // true
+const maxRuns = config.getConfig('worker.emails.maxRunsPerMin')  // 100
 
 // Use default values for missing configuration
-const apiTimeout = config('api.timeout', 5000)        // 5000 (default)
-const maxRetries = config('api.retries', 3)           // 3 (default)
-const logLevel = config('logging.level', 'info')      // 'info' (default)
+const apiTimeout = config.getConfig('api.timeout', 5000)   // 5000 (default)
+const maxRetries = config.getConfig('api.retries', 3)      // 3 (default)
+const logLevel = config.getConfig('logging.level', 'info') // 'info' (default)
 
 // Parse unit values (time durations and byte sizes)
 // Given: APP_TIMEOUT='5m', APP_MAX_SIZE='10mb'
@@ -449,8 +454,40 @@ const configWithUnits = makeNestedConfig(process.env, {
     stripPrefix: 'APP_',
     parseUnits: true
 })
-// { timeout: 300000, max: { size: 10485760 } }
+// configWithUnits.allConfigs() -> { timeout: 300000, max: { size: 10485760 } }
 ```
+
+**Caching and invalidation:**
+
+The first call to `allConfigs()` (or `getConfig()`, which calls it internally) parses the flatmap and caches the result. Subsequent calls return the same cached object — repeated lookups don't re-run the coercion pass on every access.
+
+```ts
+config.allConfigs() === config.allConfigs()  // true — same reference, no re-parse
+```
+
+`updateFlatConfig()`, `updateParsedConfig()`, and `setDeepInParsedConfig()` (when given a non-empty `entries` array) invalidate the cache, so the next `allConfigs()`/`getConfig()` call re-parses.
+
+**Updating configuration at runtime:**
+
+Three functions layer overrides on top of the flatmap-parsed config — useful for tests, feature flags, or reacting to a config reload:
+
+```ts
+// Deep-merge a partial override into the flat source, then invalidate
+config.updateFlatConfig({ APP_DB_HOST: 'db.internal' })
+
+// Deep-merge a partial override into the parsed shape (nested objects allowed)
+config.updateParsedConfig({ db: { host: 'db.internal' } })
+
+// Write specific paths into the parsed override without touching siblings
+config.setDeepInParsedConfig([
+    ['db.host', 'db.internal'],
+    ['debug', false]
+])
+```
+
+`updateParsedConfig()` and `setDeepInParsedConfig()` write into the same accumulated override object: each call merges on top of what came before, and the override **survives** a later `updateFlatConfig()` + re-parse — it's re-applied after every parse. `updateFlatConfig()` and `updateParsedConfig()` both throw if `override` is not a non-null object.
+
+**Layering order:** every re-parse rebuilds the config from the flat source first, then merges the accumulated `updateParsedConfig()`/`setDeepInParsedConfig()` override on top — parsed-level overrides always win over flat values, including flat values changed afterward by `updateFlatConfig()`.
 
 ---
 
