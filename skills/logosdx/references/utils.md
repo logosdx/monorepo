@@ -845,12 +845,17 @@ const makeNestedConfig: <C extends object, F extends Record<string, string>>(
     stripPrefix?: string | number // Strip prefix from keys
     parseUnits?: boolean          // Default: false
     skipConversion?: (key: string, value: unknown) => boolean
-    memoizeOpts?: MemoizeOptions | false
   }
 ) => {
-  allConfigs: () => C
+  allConfigs: () => C   // Parses once, caches result; re-parses after any update below
   getConfig: <P extends PathLeaves<C>>(path: P, defaultValue?: PathValue<C, P>) => PathValue<C, P>
+  updateFlatConfig: (override: Partial<F>) => void         // Merge into flat source, invalidate cache
+  updateParsedConfig: (override: DeepOptional<C>) => void  // Accumulate parsed-level override, re-applied every re-parse
+  setDeepInParsedConfig: (entries: Array<[PathNames<DeepOptional<C>>, unknown]>) => void  // Path-based writes into the same accumulated override
 }
+// updateFlatConfig/updateParsedConfig throw if override is not a non-null object.
+// Overrides from updateParsedConfig/setDeepInParsedConfig survive later updateFlatConfig + re-parse
+// (layering: flat parse first, then accumulated parsed override on top).
 
 const castValuesToTypes: (
   obj: object,
@@ -874,16 +879,19 @@ type AppConfig = {
   debug: boolean;
 }
 
-const { allConfigs, getConfig } = makeNestedConfig<AppConfig>(process.env, {
+const config = makeNestedConfig<AppConfig>(process.env, {
   filter: (key) => key.startsWith('APP_'),
   stripPrefix: 'APP_',
   forceAllCapToLower: true
 })
 
-allConfigs()                   // { db: { host: 'localhost', port: 5432 }, debug: true }
-getConfig('db.host')           // 'localhost'
-getConfig('db.port')           // 5432
-getConfig('api.timeout', 5000) // 5000 (default for missing path)
+config.allConfigs()                   // { db: { host: 'localhost', port: 5432 }, debug: true }
+config.getConfig('db.host')           // 'localhost'
+config.getConfig('db.port')           // 5432
+config.getConfig('api.timeout', 5000) // 5000 (default for missing path)
+
+config.updateParsedConfig({ db: { host: 'db.internal' } })
+config.allConfigs().db.host           // 'db.internal' (override wins, survives re-parse)
 ```
 
 ### Type Coercion Table
