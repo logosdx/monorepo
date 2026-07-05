@@ -72,6 +72,21 @@ export type DeepOptional<T> = {
 };
 
 /**
+ * Makes all properties in a nested object required recursively.
+ *
+ * @example
+ * interface Config { api: { url: string; timeout: number; }; ui: { theme: string; }; }
+ * function updateConfig(partial: DeepNotOptional<Config>): void
+ * updateConfig({ api: { url: 'https://example.com' } }); // Both url and timeout are required
+ */
+export type DeepNotOptional<T> = {
+    [K in keyof T]-?: T[K] extends object
+        ? DeepNotOptional<T[K]>
+        : T[K];
+};
+
+
+/**
  * Makes all properties in an object nullable.
  *
  * Essential for database result types and API responses where fields
