@@ -25,6 +25,9 @@ live in the JSDoc on `NestedConfig`.
 
 - 2026-07-05 — created post-implementation as the durable record of the loop (no prior
   spec to amend).
+- 2026-07-05 (later) — deferred-items updated: F-1 closed (user chose clone-on-return in
+  `ddc51f6`; parse-path gap, tests, and docs reconciled in `2361b9b`), F-5 closed (user
+  committed the cast as-is in `afc3e29`). F-2/F-6 remain open.
 
 
 ## Implementation log
@@ -56,9 +59,10 @@ Built across 2 iterations of /subagent-implementation. Commits (chronological):
 
 **Deferred items still open:**
 
-- F-1: cached `allConfigs()` returns a shared mutable reference (document read-only vs
-  clone-on-return) — pending user triage.
-- F-2/F-6: `DeepNotOptional` in types.ts unused + its JSDoc example doesn't compile
-  (user's own uncommitted edit) — pending user triage.
-- F-5: `setDeepMany` gained `value as PathValue<T, typeof path>` cast (user's own
-  uncommitted edit) — pending user triage.
+- F-2/F-6: `DeepNotOptional` in types.ts has no consumers, and its JSDoc example doesn't
+  compile (tsc: `timeout` missing, top-level `ui` missing) — committed as-is in `afc3e29`;
+  pending decision (fix example, find a consumer, or drop the type).
+
+Closed post-loop: F-1 — `allConfigs()` reads are now detached copies (user's `ddc51f6`
+cloned warm reads; `2361b9b` detached the parse path and reconciled tests/docs). F-5 —
+`setDeepMany` cast accepted by user in `afc3e29`.
