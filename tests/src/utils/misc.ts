@@ -1552,5 +1552,314 @@ describe('@logosdx/utils', () => {
             expect(apiKey).to.equal('12345');  // Skipped conversion, stays as string
             expect(port).to.equal(3000);  // Converted to number
         });
+
+        it('should cache allConfigs() result and not re-parse on repeated calls', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const first = config.allConfigs();
+            const second = config.allConfigs();
+
+            // Same reference proves the second call hit the cache instead of re-parsing
+            expect(second).to.equal(first);
+        });
+
+        it('updateFlatConfig should invalidate the cache and mutate the original flat object', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const before = config.allConfigs();
+
+            config.updateFlatConfig({ APP_DB_HOST: 'remotehost' });
+
+            const after: any = config.allConfigs();
+
+            expect(after).to.not.equal(before);
+            expect(after.db.host).to.equal('remotehost');
+            expect(after.db.port).to.equal(5432); // Untouched sibling survives
+
+            // The original flat object passed in is mutated in place
+            expect(flatConfig.APP_DB_HOST).to.equal('remotehost');
+        });
+
+        it('updateParsedConfig should deep-merge an override into the parsed config', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            config.updateParsedConfig({ db: { host: 'overridden' } });
+
+            const result = config.allConfigs();
+
+            expect(result.db.host).to.equal('overridden');
+            expect(result.db.port).to.equal(5432); // Sibling key survives the deep merge
+            expect(config.getConfig('debug')).to.equal(true);
+        });
+
+        it('updateParsedConfig should accumulate overrides across multiple calls', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            config.updateParsedConfig({ db: { host: 'first-override' } });
+            config.updateParsedConfig({ debug: false });
+
+            const result = config.allConfigs();
+
+            expect(result.db.host).to.equal('first-override'); // Earlier override survives
+            expect(result.db.port).to.equal(5432);
+            expect(result.debug).to.equal(false);
+        });
+
+        it('updateParsedConfig overrides should survive a later updateFlatConfig + re-parse', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            config.updateParsedConfig({ db: { host: 'parsed-override' } });
+            config.updateFlatConfig({ APP_DB_PORT: '9999' });
+
+            const result = config.allConfigs();
+
+            // Parsed-level override wins over the freshly re-parsed flat value
+            expect(result.db.host).to.equal('parsed-override');
+            expect(result.db.port).to.equal(9999);
+        });
+
+        it('setDeepInParsedConfig should write path-based entries deep into the parsed config', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+                debug: boolean;
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+                APP_DEBUG: 'true',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            config.setDeepInParsedConfig([
+                ['db.host', 'deep-override'],
+                ['debug', false],
+            ]);
+
+            const result = config.allConfigs();
+
+            expect(result.db.host).to.equal('deep-override');
+            expect(result.db.port).to.equal(5432); // Untouched sibling survives
+            expect(result.debug).to.equal(false);
+        });
+
+        it('setDeepInParsedConfig should be a no-op that does not invalidate the cache when given an empty array', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            const before = config.allConfigs();
+
+            config.setDeepInParsedConfig([]);
+
+            const after = config.allConfigs();
+
+            // Same reference proves no re-parse happened
+            expect(after).to.equal(before);
+        });
+
+        it('setDeepInParsedConfig should apply multiple entries in one call', () => {
+
+            type ExpectedConfig = {
+                server: {
+                    host: string;
+                    port: number;
+                };
+            }
+
+            const flatConfig = {
+                APP_SERVER_HOST: 'localhost',
+                APP_SERVER_PORT: '3000',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            config.setDeepInParsedConfig([
+                ['server.host', 'overridden-host'],
+                ['server.port', 4000],
+            ]);
+
+            const result = config.allConfigs();
+
+            expect(result.server.host).to.equal('overridden-host');
+            expect(result.server.port).to.equal(4000);
+        });
+
+        it('should apply layering in order: flat parse, then updateParsedConfig, then setDeepInParsedConfig', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                };
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'from-flat',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            expect(config.allConfigs().db.host).to.equal('from-flat');
+
+            config.updateParsedConfig({ db: { host: 'from-updateParsedConfig' } });
+
+            expect(config.allConfigs().db.host).to.equal('from-updateParsedConfig');
+
+            config.setDeepInParsedConfig([['db.host', 'from-setDeepInParsedConfig']]);
+
+            // setDeepInParsedConfig writes into the same accumulated updatedConfig,
+            // so its entries apply last, alongside (not replacing) prior overrides
+            expect(config.allConfigs().db.host).to.equal('from-setDeepInParsedConfig');
+        });
+
+        it('should allow update functions to be called before the first allConfigs() call', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                    port: number;
+                };
+            }
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+                APP_DB_PORT: '5432',
+            };
+
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            config.updateParsedConfig({ db: { host: 'pre-parse-override' } });
+            config.setDeepInParsedConfig([['db.port', 1111]]);
+
+            const result = config.allConfigs();
+
+            expect(result.db.host).to.equal('pre-parse-override');
+            expect(result.db.port).to.equal(1111);
+        });
+
+        it('setDeepInParsedConfig should throw when entries is not an array', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            expect(() => config.setDeepInParsedConfig(null as any)).to.throw('entries must be an array');
+            expect(() => config.setDeepInParsedConfig(undefined as any)).to.throw('entries must be an array');
+            expect(() => config.setDeepInParsedConfig('nope' as any)).to.throw('entries must be an array');
+        });
+
+        it('updateFlatConfig and updateParsedConfig should not throw on a non-object override', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            // The module has no validation posture for these overrides today (merge()
+            // silently no-ops on non-object sources); this documents that it doesn't crash.
+            expect(() => config.updateFlatConfig(null as any)).to.not.throw();
+            expect(() => config.updateParsedConfig(null as any)).to.not.throw();
+        });
     });
 });
