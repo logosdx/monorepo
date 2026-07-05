@@ -1845,21 +1845,38 @@ describe('@logosdx/utils', () => {
             expect(() => config.setDeepInParsedConfig('nope' as any)).to.throw('entries must be an array');
         });
 
-        it('updateFlatConfig and updateParsedConfig should not throw on a non-object override', () => {
+        it('updateFlatConfig and updateParsedConfig should throw on a non-object override and leave prior overrides intact', () => {
+
+            type ExpectedConfig = {
+                db: {
+                    host: string;
+                };
+            }
 
             const flatConfig = {
                 APP_DB_HOST: 'localhost',
             };
 
-            const config = makeNestedConfig(flatConfig, {
+            const config = makeNestedConfig<ExpectedConfig>(flatConfig, {
                 filter: (key) => key.startsWith('APP_'),
                 stripPrefix: 'APP_',
             });
 
-            // The module has no validation posture for these overrides today (merge()
-            // silently no-ops on non-object sources); this documents that it doesn't crash.
-            expect(() => config.updateFlatConfig(null as any)).to.not.throw();
-            expect(() => config.updateParsedConfig(null as any)).to.not.throw();
+            config.updateParsedConfig({ db: { host: 'accumulated-override' } });
+
+            expect(() => config.updateFlatConfig(null as any)).to.throw('override must be a non-null object');
+            expect(() => config.updateFlatConfig(undefined as any)).to.throw('override must be a non-null object');
+            expect(() => config.updateFlatConfig('nope' as any)).to.throw('override must be a non-null object');
+
+            expect(() => config.updateParsedConfig(null as any)).to.throw('override must be a non-null object');
+            expect(() => config.updateParsedConfig(undefined as any)).to.throw('override must be a non-null object');
+            expect(() => config.updateParsedConfig('nope' as any)).to.throw('override must be a non-null object');
+
+            // A rejected call must not wipe the previously accumulated override
+            // (updateParsedConfig used to assign merge()'s primitive-source short-circuit
+            // straight into state.updatedConfig, discarding everything accumulated so far).
+            expect(config.getConfig('db.host')).to.equal('accumulated-override');
+            expect(config.allConfigs().db.host).to.equal('accumulated-override');
         });
     });
 });

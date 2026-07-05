@@ -203,6 +203,7 @@ export type NestedConfig<
     /**
      * Update the flatmap configuration with a partial override.
      * @param override The partial override object to apply.
+     * @throws If `override` is not a non-null object.
      *
      * @example
      * config.updateFlatConfig({ 'APP_DATABASE_HOST': 'localhost' });
@@ -211,8 +212,10 @@ export type NestedConfig<
 
     /**
      * Update the parsed configuration with a partial override. The override is
-     * deep-merged, so nested objects only need the keys being changed.
+     * deep-merged, so nested objects only need the keys being changed. Accumulates
+     * across calls and survives re-parses triggered by `updateFlatConfig`.
      * @param override The partial override object to apply.
+     * @throws If `override` is not a non-null object.
      *
      * @example
      * config.updateParsedConfig({ database: { host: 'localhost' } });
@@ -579,11 +582,17 @@ export const makeNestedConfig = <
     }
 
     function updateFlatConfig(override: Partial<F>) {
+
+        assert(typeof override === 'object' && override !== null, 'override must be a non-null object');
+
         merge(_flatConfig, override);
         state.wasParsed = false;
     }
 
     function updateParsedConfig(override: DeepOptional<C>) {
+
+        assert(typeof override === 'object' && override !== null, 'override must be a non-null object');
+
         state.updatedConfig = merge(state.updatedConfig ?? {}, override);
         state.wasParsed = false;
     }
