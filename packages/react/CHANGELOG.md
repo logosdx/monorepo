@@ -1,5 +1,17 @@
 # @logosdx/react
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [154b5b1]
+  - @logosdx/utils@7.0.1
+  - @logosdx/fetch@8.1.2
+  - @logosdx/localize@2.0.3
+  - @logosdx/observer@2.5.2
+  - @logosdx/state-machine@2.0.3
+  - @logosdx/storage@2.0.3
+
 ## 4.0.1
 
 ### Patch Changes
