@@ -497,7 +497,7 @@ export const makeNestedConfig = <
 
     function allConfigs(): C {
 
-        if (state.wasParsed) return state.parsedConfig as C;
+        if (state.wasParsed) return clone(state.parsedConfig) as C;
 
 
         const flatConfig = clone(_flatConfig);
