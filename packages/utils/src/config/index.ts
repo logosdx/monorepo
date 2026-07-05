@@ -1,7 +1,7 @@
 import { clone } from '../data-structures/clone.ts';
+import { merge } from '../data-structures/merge.ts';
 import { attemptSync } from '../async/attempt.ts';
-import { MemoizeOptions, memoizeSync } from '../flow-control/index.ts';
-import type { PathLeaves, PathNames, PathValue } from '../types.ts';
+import type { DeepOptional, PathLeaves, PathNames, PathValue } from '../types.ts';
 import { parseTimeDuration, parseByteSize } from '../units/index.ts';
 import { assert, isEnabledValue, isDisabledValue } from '../validation/index.ts';
 import { reach, setDeepMany } from '../object-utils/index.ts';
@@ -152,6 +152,15 @@ export const castValuesToTypes = (
     }
 }
 
+
+type MakeNestedConfigState<
+    C extends object,
+> = {
+    parsedConfig: C | null;
+    updatedConfig: DeepOptional<C> | null;
+    wasParsed: boolean;
+}
+
 export type MakeNestedConfigOpts = {
 
     filter?: (key: string, value: string) => boolean,
@@ -160,7 +169,64 @@ export type MakeNestedConfigOpts = {
     stripPrefix?: string | number,
     forceAllCapToLower?: boolean
     parseUnits?: boolean,
-    memoizeOpts?: false | MemoizeOptions<any>
+}
+
+export type NestedConfig<
+    C extends object,
+    F extends object,
+> = {
+
+    /**
+     * Get the entire parsed config object.
+     * @returns The parsed config object.
+     */
+    allConfigs: () => C;
+
+    /**
+     * Get a specific config value by path.
+     * @param path The path to the config value.
+     * @param defaultValue Optional default value to return if the path is not found.
+     * @returns The config value at the specified path.
+     *
+     * @example
+     * const value = config.getConfig('database.host');
+     *
+     */
+    getConfig: <
+        P extends PathLeaves<C>,
+        D extends PathValue<C, P>
+    >(
+        path: P,
+        defaultValue?: D
+    ) => PathValue<C, P>;
+
+    /**
+     * Update the flatmap configuration with a partial override.
+     * @param override The partial override object to apply.
+     *
+     * @example
+     * config.updateFlatConfig({ 'APP_DATABASE_HOST': 'localhost' });
+     */
+    updateFlatConfig: (override: Partial<F>) => void;
+
+    /**
+     * Update the parsed configuration with a partial override. The override is
+     * deep-merged, so nested objects only need the keys being changed.
+     * @param override The partial override object to apply.
+     *
+     * @example
+     * config.updateParsedConfig({ database: { host: 'localhost' } });
+     */
+    updateParsedConfig: (override: DeepOptional<C>) => void;
+
+    /**
+     * Set the parsed configuration to a deep override.
+     * @param override The deep override object to apply.
+     *
+     * @example
+     * config.setDeepInParsedConfig([['database.host', 'localhost']]);
+     */
+    setDeepInParsedConfig: (override: Array<[PathNames<DeepOptional<C>>, unknown]>) => void;
 }
 
 /**
@@ -178,7 +244,6 @@ export type MakeNestedConfigOpts = {
  * @param opts.stripPrefix Optional prefix to strip from keys. Can be a string (e.g., "APP_") or number of characters (e.g., 4). Default is undefined (no stripping).
  * @param opts.parseUnits Optional flag to parse unit values like '5m', '10mb'. Default is false.
  * @param opts.skipConversion Optional function to skip conversion for specific keys. Default is to convert all keys.
- * @param opts.memoizeOpts Optional memoization options for caching the config. Default is false (no memoization).
  *
  * @returns The full configuration object.
  *
@@ -198,10 +263,9 @@ export type MakeNestedConfigOpts = {
  *     stripPrefix: 'APP_',  // Strip the APP_ prefix from all keys
  *     forceAllCapToLower: true,
  *     separator: '_',
- *     memoizeOpts: { ttl: 60000 } // Cache for 60 seconds
  * });
  *
- * console.log(config());
+ * console.log(config.allConfigs());
  * // {
  * //     db: {
  * //         host: 'localhost',
@@ -239,7 +303,7 @@ export type MakeNestedConfigOpts = {
  *     separator: '__'
  * });
  *
- * console.log(config());
+ * console.log(config.allConfigs());
  * // {
  * //     db: {
  * //         host: 'localhost',
@@ -277,7 +341,7 @@ export type MakeNestedConfigOpts = {
  *     separator: '_'
  * });
  *
- * console.log(config());
+ * console.log(config.allConfigs());
  * // {
  * //     DB: {
  * //         HOST: 'localhost',
@@ -311,7 +375,7 @@ export type MakeNestedConfigOpts = {
  *     parseUnits: true  // Enable unit parsing
  * });
  *
- * console.log(config());
+ * console.log(config.allConfigs());
  * // {
  * //     session: {
  * //         timeout: 900000  // 15 minutes in milliseconds
@@ -345,7 +409,7 @@ export type MakeNestedConfigOpts = {
  *     skipConversion: (key) => key.toLowerCase().includes('key') || key.toLowerCase().includes('token')
  * });
  *
- * console.log(config());
+ * console.log(config.allConfigs());
  * // {
  * //     api: {
  * //         key: '12345'  // Kept as string
@@ -359,18 +423,12 @@ export type MakeNestedConfigOpts = {
  *
  */
 export const makeNestedConfig = <
-    C extends object = Record<string, any>,
-    F = Record<string, string>
+    C extends object = Record<string, unknown>,
+    F extends Record<string, string> = Record<string, string>
 >(
     _flatConfig: F,
     opts: MakeNestedConfigOpts = {}
-): {
-    allConfigs: () => C;
-    getConfig: <P extends PathLeaves<C>, D extends PathValue<C, P>>(
-        path: P,
-        defaultValue?: D
-    ) => PathValue<C, P>;
-} => {
+): NestedConfig<C, F> => {
 
     assert(typeof _flatConfig === 'object' && _flatConfig !== null, 'flatConfig must be a non-null object');
     assert(typeof opts === 'object' && opts !== null, 'opts must be a non-null object');
@@ -380,7 +438,6 @@ export const makeNestedConfig = <
     assert(opts.stripPrefix === undefined || typeof opts.stripPrefix === 'string' || typeof opts.stripPrefix === 'number', 'stripPrefix must be a string or number');
     assert(opts.parseUnits === undefined || typeof opts.parseUnits === 'boolean', 'parseUnits must be a boolean');
     assert(opts.skipConversion === undefined || typeof opts.skipConversion === 'function', 'skipConversion must be a function');
-    assert(opts.memoizeOpts === undefined || typeof opts.memoizeOpts === 'object' || opts.memoizeOpts === false, 'memoizeOpts must be an object or false');
 
     const {
         filter,
@@ -389,8 +446,13 @@ export const makeNestedConfig = <
         stripPrefix,
         parseUnits = false,
         skipConversion,
-        memoizeOpts = false
     } = opts;
+
+    const state: MakeNestedConfigState<C> = {
+        parsedConfig: null,
+        updatedConfig: null,
+        wasParsed: false
+    };
 
     const isAllCaps = (str: string) => /^[A-Z0-9_]+$/.test(str);
 
@@ -432,6 +494,9 @@ export const makeNestedConfig = <
 
     function allConfigs(): C {
 
+        if (state.wasParsed) return state.parsedConfig as C;
+
+
         const flatConfig = clone(_flatConfig);
         const config = {} as C;
 
@@ -449,7 +514,7 @@ export const makeNestedConfig = <
             );
 
             castValuesToTypes(
-                config as Record<string, string>,
+                config,
                 {
                     parseUnits,
                     skipConversion
@@ -487,6 +552,13 @@ export const makeNestedConfig = <
 
         if (err) throw err;
 
+        if (state.updatedConfig) {
+            merge(config, state.updatedConfig);
+        }
+
+        state.parsedConfig = config;
+        state.wasParsed = true;
+
         return config;
     }
 
@@ -506,13 +578,36 @@ export const makeNestedConfig = <
         return value as PathValue<C, P>;
     }
 
-    if (!memoizeOpts) return {
-        allConfigs,
-        getConfig
-    };
+    function updateFlatConfig(override: Partial<F>) {
+        merge(_flatConfig, override);
+        state.wasParsed = false;
+    }
+
+    function updateParsedConfig(override: DeepOptional<C>) {
+        state.updatedConfig = merge(state.updatedConfig ?? {}, override);
+        state.wasParsed = false;
+    }
+
+    function setDeepInParsedConfig(
+        entries: Array<[PathNames<DeepOptional<C>>, unknown]>
+    ) {
+
+        assert(Array.isArray(entries), 'entries must be an array');
+
+        if (!entries.length) return;
+        if (!state.updatedConfig) {
+            state.updatedConfig = {};
+        }
+
+        setDeepMany(state.updatedConfig, entries);
+        state.wasParsed = false;
+    }
 
     return {
-        allConfigs: memoizeSync(allConfigs, memoizeOpts),
-        getConfig: memoizeSync(getConfig, memoizeOpts) as typeof getConfig
-    }
+        allConfigs,
+        getConfig,
+        updateFlatConfig,
+        updateParsedConfig,
+        setDeepInParsedConfig
+    };
 }
