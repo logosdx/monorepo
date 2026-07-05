@@ -1,5 +1,11 @@
 # @logosdx/utils
 
+## 7.0.1
+
+### Patch Changes
+
+- 154b5b1: Make `makeNestedConfig` generic's only expects an object type, and not a specific object type.
+
 ## 7.0.0
 
 ### Major Changes
