@@ -1,5 +1,14 @@
 # @logosdx/fetch
 
+## 8.1.1
+
+### Patch Changes
+
+- Updated dependencies [789a406]
+  - @logosdx/utils@7.0.0
+  - @logosdx/hooks@1.0.1
+  - @logosdx/observer@2.5.1
+
 ## 8.1.0
 
 ### Minor Changes
