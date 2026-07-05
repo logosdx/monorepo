@@ -28,7 +28,7 @@ The [`tests/`](../../tests) workspace runs the full validation suite for all pac
 - [`tests/src/localize.ts`](../../tests/src/localize.ts) — unit tests for `@logosdx/localize` (835 LOC)
 - [`tests/src/localize-extractor.ts`](../../tests/src/localize-extractor.ts) — unit tests for the localize type extractor (426 LOC)
 - [`tests/src/state-machine.ts`](../../tests/src/state-machine.ts) — unit tests for `@logosdx/state-machine` (1499 LOC)
-- [`tests/src/smoke/`](../../tests/src/smoke) — browser smoke tests run against Chromium (dom, fetch, hooks, kit, localize, observer, state-machine, storage, utils)
+- [`tests/src/smoke/`](../../tests/src/smoke) — browser smoke tests run against Chromium (dom, fetch, hooks, localize, observer, state-machine, storage, utils)
 - [`tests/src/_memory-tests/`](../../tests/src/_memory-tests) — memory leak detection harness with scenarios and UI; run via `pnpm memory`
 - [`tests/benchmark/`](../../tests/benchmark) — performance benchmarks (priority-queue, queue)
 
@@ -39,7 +39,6 @@ The [`tests/`](../../tests) workspace runs the full validation suite for all pac
 ## Coupling
 
 - All test files import packages via relative paths (e.g., `../../../../packages/utils/src/index.ts`) — not package names. Any source restructuring breaks test imports.
-- [`tests/src/smoke/kit.test.ts`](../../tests/src/smoke/kit.test.ts) implies `@logosdx/kit` still has a smoke test even though kit is being discontinued (per project memory).
 - Memory tests use `--expose-gc` and the custom harness in [`tests/src/_memory-tests/harness.ts`](../../tests/src/_memory-tests/harness.ts).
 
 ## Conventions worth knowing

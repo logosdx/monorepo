@@ -5,17 +5,16 @@ This file provides comprehensive context about the LogosDX monorepo package arch
 ## Package Architecture Overview
 
 
-**10 Packages in Layered Architecture:**
+**9 Packages in Layered Architecture:**
 
 ```
-@logosdx/kit (orchestrator - depends on all)
-    ├── @logosdx/fetch ──────────┐
-    ├── @logosdx/hooks ──────────┤
-    ├── @logosdx/localize ───────┤
-    ├── @logosdx/observer ───────┤──── @logosdx/utils (foundation)
-    ├── @logosdx/state-machine ──┤
-    ├── @logosdx/storage ────────┤
-    └── @logosdx/dom ────────────┘
+@logosdx/fetch ──────────┐
+@logosdx/hooks ──────────┤
+@logosdx/localize ───────┤
+@logosdx/observer ───────┤──── @logosdx/utils (foundation)
+@logosdx/state-machine ──┤
+@logosdx/storage ────────┤
+@logosdx/dom ────────────┘
 
 @logosdx/react (React bindings - optional peer deps on observer, fetch, storage, localize, state-machine)
 ```
@@ -266,21 +265,6 @@ const element = createElWith('div', {
 - Locale switching with fallbacks
 - Template string formatting
 - Event notifications for locale changes
-
-### @logosdx/kit (Orchestration Layer)
-
-**Purpose**: Unified package that combines all components
-
-**Key Feature:**
-
-```typescript
-// appKit factory with complete type inference
-const kit = appKit<MyKitType>({
-    observer: { /* typed options */ },
-    stateMachine: { /* typed options */ }
-});
-// kit.observer, kit.stateMachine are fully typed
-```
 
 ## Import/Export Strategies
 

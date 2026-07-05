@@ -67,7 +67,6 @@ jobs:
 
             Package dependency hierarchy (utils is foundation):
             ```
-            @logosdx/kit → all packages
             @logosdx/fetch, dom, observer, localize, state-machine, storage → @logosdx/utils
             ```
 
