@@ -1,5 +1,12 @@
 # @logosdx/hooks
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [789a406]
+  - @logosdx/utils@7.0.0
+
 ## 1.0.0
 
 ### Major Changes
