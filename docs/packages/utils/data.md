@@ -459,10 +459,14 @@ const configWithUnits = makeNestedConfig(process.env, {
 
 **Caching and invalidation:**
 
-The first call to `allConfigs()` (or `getConfig()`, which calls it internally) parses the flatmap and caches the result. Subsequent calls return the same cached object — repeated lookups don't re-run the coercion pass on every access.
+The first call to `allConfigs()` (or `getConfig()`, which calls it internally) parses the flatmap and caches the result. Subsequent calls skip the parse and coercion pass, but every call returns a detached copy — mutating a returned object never affects the cache or later reads.
 
 ```ts
-config.allConfigs() === config.allConfigs()  // true — same reference, no re-parse
+const a = config.allConfigs()
+const b = config.allConfigs()  // no re-parse, but a !== b — each read is a detached copy
+
+a.db.host = 'mutated'          // safe: does not corrupt the cached config
+config.getConfig('db.host')    // still the parsed value
 ```
 
 `updateFlatConfig()`, `updateParsedConfig()`, and `setDeepInParsedConfig()` (when given a non-empty `entries` array) invalidate the cache, so the next `allConfigs()`/`getConfig()` call re-parses.

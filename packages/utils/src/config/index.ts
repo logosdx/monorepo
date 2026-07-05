@@ -178,6 +178,10 @@ export type NestedConfig<
 
     /**
      * Get the entire parsed config object.
+     *
+     * Every call returns a detached copy — mutating the returned object
+     * never affects the cached config or later reads.
+     *
      * @returns The parsed config object.
      */
     allConfigs: () => C;
@@ -562,7 +566,9 @@ export const makeNestedConfig = <
         state.parsedConfig = config;
         state.wasParsed = true;
 
-        return config;
+        // Return a detached copy — handing out the cache itself would let
+        // callers mutate it, which the warm-read path above already prevents.
+        return clone(config);
     }
 
     function getConfig<P extends PathLeaves<C>, D extends PathValue<C, P>>(
