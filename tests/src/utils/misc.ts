@@ -1559,16 +1559,49 @@ describe('@logosdx/utils', () => {
                 APP_DB_HOST: 'localhost',
             };
 
+            let filterCalls = 0;
+
             const config = makeNestedConfig(flatConfig, {
-                filter: (key) => key.startsWith('APP_'),
+                filter: (key) => {
+
+                    filterCalls++;
+
+                    return key.startsWith('APP_');
+                },
                 stripPrefix: 'APP_',
             });
 
             const first = config.allConfigs();
+            const callsAfterFirstParse = filterCalls;
             const second = config.allConfigs();
 
-            // Same reference proves the second call hit the cache instead of re-parsing
-            expect(second).to.equal(first);
+            // No new filter invocations proves the second call hit the
+            // cache instead of re-parsing
+            expect(filterCalls).to.equal(callsAfterFirstParse);
+
+            // Reads are detached copies: equal in content, never shared
+            expect(second).to.not.equal(first);
+            expect(second).to.deep.equal(first);
+        });
+
+        it('allConfigs() reads should be immune to mutation of prior reads', () => {
+
+            const flatConfig = {
+                APP_DB_HOST: 'localhost',
+            };
+
+            const config = makeNestedConfig<{ db: { host: string } }>(flatConfig, {
+                filter: (key) => key.startsWith('APP_'),
+                stripPrefix: 'APP_',
+            });
+
+            // Mutating the very first read exercises the parse path,
+            // which used to hand back the cache object itself
+            const first = config.allConfigs();
+            first.db.host = 'corrupted';
+
+            expect(config.allConfigs().db.host).to.equal('localhost');
+            expect(config.getConfig('db.host')).to.equal('localhost');
         });
 
         it('updateFlatConfig should invalidate the cache and mutate the original flat object', () => {
@@ -1726,19 +1759,28 @@ describe('@logosdx/utils', () => {
                 APP_DB_HOST: 'localhost',
             };
 
+            let filterCalls = 0;
+
             const config = makeNestedConfig(flatConfig, {
-                filter: (key) => key.startsWith('APP_'),
+                filter: (key) => {
+
+                    filterCalls++;
+
+                    return key.startsWith('APP_');
+                },
                 stripPrefix: 'APP_',
             });
 
             const before = config.allConfigs();
+            const callsAfterFirstParse = filterCalls;
 
             config.setDeepInParsedConfig([]);
 
             const after = config.allConfigs();
 
-            // Same reference proves no re-parse happened
-            expect(after).to.equal(before);
+            // No new filter invocations proves no re-parse happened
+            expect(filterCalls).to.equal(callsAfterFirstParse);
+            expect(after).to.deep.equal(before);
         });
 
         it('setDeepInParsedConfig should apply multiple entries in one call', () => {
