@@ -431,7 +431,7 @@ export type NestedConfig<
  */
 export const makeNestedConfig = <
     C extends object = Record<string, unknown>,
-    F extends Record<string, string> = Record<string, string>
+    F extends object = Record<string, string>
 >(
     _flatConfig: F,
     opts: MakeNestedConfigOpts = {}
@@ -483,7 +483,7 @@ export const makeNestedConfig = <
                 processedStr = str.startsWith(stripPrefix)
                     ? str.slice(stripPrefix.length)
                     : str
-                ;
+                    ;
             }
         }
 
@@ -511,7 +511,7 @@ export const makeNestedConfig = <
             .filter(([key, val]) => filter?.(key, val!) ?? true)
             .map(([key]) => key)
             .sort()
-        ;
+            ;
 
         const [, err] = attemptSync(() => {
 
