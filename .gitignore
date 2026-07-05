@@ -26,3 +26,6 @@ tessl.json
 .vscode/mcp.json
 skills/**/evals/
 skills/**/tile.json
+.claude/.scratchpad/
+.claude/project/.deterministic-signals.prev.md
+.claude/.atomic-index/

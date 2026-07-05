@@ -362,7 +362,7 @@ export const setDeep = <T extends object, P extends PathNames<T>>(
  */
 export const setDeepMany = <T extends object>(
     obj: T,
-    entries: Array<[PathNames<T>, any]>
+    entries: Array<[PathNames<T>, unknown]>
 ): void => {
 
     assert(typeof obj === 'object' && obj !== null, 'obj must be a non-null object');
@@ -384,6 +384,6 @@ export const setDeepMany = <T extends object>(
             `entry ${i} must have a non-empty string path (received: ${typeof path})`
         );
 
-        setDeep(obj, path, value);
+        setDeep(obj, path, value as PathValue<T, typeof path>);
     }
 };
