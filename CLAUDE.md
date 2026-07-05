@@ -357,3 +357,12 @@ When updating API surfaces or behavior, **both** locations must be updated:
 | `skills/logosdx/` | **Canonical local skill references** — NOT `~/.claude/skills/` |
 
 **`skills/logosdx/` is the monorepo's own skill folder.** It contains reference files that Claude Code skills load for pattern guidance. This is distinct from the user's personal `~/.claude/skills/` directory. When updating documentation, `skills/logosdx/references/` is the authoritative source — the user's `~/.claude/skills/` may contain a copy but it is not the canonical location.
+
+<atomic-signals>
+
+## Project signals (auto-loaded)
+
+
+@docs/wiki/index.md
+
+</atomic-signals>
