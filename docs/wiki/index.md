@@ -75,7 +75,7 @@ CI gate: `main.yml` runs build → lint → `pnpm test:ci` on all PRs and master
 - **Test layout**: [`tests/src/`](../../tests/src) mirrors package names. All test imports use relative paths to `packages/*/src/index.ts` — never package names. Smoke tests in [`tests/src/smoke/`](../../tests/src/smoke) run in Chromium; unit tests run in jsdom.
 - **Skills location**: [`skills/logosdx/`](../../skills/logosdx) is the monorepo's canonical skill folder. Not `~/.claude/skills/`. The `SKILL.md` routes by task to individual `references/*.md` files.
 - **Dependency direction**: All packages depend on `utils`. `react` optionally depends on all others. No circular dependencies.
-- **`@logosdx/kit`**: The orchestrator package is being discontinued per project memory. [`tests/src/smoke/kit.test.ts`](../../tests/src/smoke/kit.test.ts) still exists.
+- **`@logosdx/kit`**: The orchestrator package was discontinued and removed from the repo (2026-07-05); untracked remnants sit in `tmp/remove/`.
 - **Implementation specs**: `docs/spec/<topic>.md` holds post-implementation contracts/logs (e.g. [`docs/spec/config-update-fns.md`](../spec/config-update-fns.md) for the utils config rework); [`docs/design/`](../design) holds pre-implementation conceptual docs.
 - **Deterministic substrate**: `.claude/project/deterministic-signals.md`
 - **Domain partitioning basis**: Domains map to npm packages (vertical slices). `testing` and `tooling` group the cross-cutting test suite and infrastructure respectively.
