@@ -67,26 +67,23 @@ When changes are pushed to `master`, CI automatically:
 
 **Review the PR** to ensure versions and changelogs are correct.
 
-### 3. Merge to Release Branch
+### 3. Merge the "Version Packages" PR
 
-Once the "Version Packages" PR looks good:
-
-    ```bash
-    # Merge the Version Packages PR to master first
-    # Then merge master to release branch
-    git checkout release
-    git merge master
-    git push origin release
-    ```
+Once the "Version Packages" PR looks good, merge it to `master`. Merging bumps
+the package versions on `master`, and that version change is what triggers a
+publish. There is no separate `release` branch to sync.
 
 ### 4. Publish (Automated)
 
-Pushing to the `release` branch triggers CI to:
+Merging the "Version Packages" PR changes package versions on `master`, which
+triggers CI to:
 
 1. **Build** all packages
-2. **Run full test suite**
-3. **Publish** to npm (via changesets)
-4. **Update documentation** (TypeDoc + VitePress)
+2. **Publish** to npm (via changesets)
+3. **Update documentation** (TypeDoc + VitePress)
+
+Tests gate the "Version Packages" PR before it merges, so the published tree is
+already green.
 
 **This is fully automated** - no manual npm publish needed.
 
@@ -103,9 +100,7 @@ Pushing to the `release` branch triggers CI to:
           ↓
     Review & Merge PR to master
           ↓
-    Merge master to release branch
-          ↓
-    CI: Test → Publish → Docs
+    Version bump on master triggers CI: Publish → Docs
     ```
 
 ## Manual Release Override
@@ -169,7 +164,7 @@ See [tests/CLAUDE.md](./tests/CLAUDE.md) for comprehensive testing guidelines.
     pnpm build:docs
     ```
 
-Documentation is automatically updated when packages are published to the `release` branch.
+Documentation is automatically updated when packages are published from `master`.
 
 ## Creating New Packages
 

@@ -6,12 +6,12 @@ type: Domain
 
 ## What it does
 
-Covers the build system, CI pipelines, release workflow, documentation infrastructure, and developer skills for the monorepo. Packages build independently via SWC to ESM/CJS/UMD/types; docs deploy to GitHub Pages via VitePress; releases use Changesets on a `release` branch.
+Covers the build system, CI pipelines, release workflow, documentation infrastructure, and developer skills for the monorepo. Packages build independently via SWC to ESM/CJS/UMD/types; docs deploy to GitHub Pages via VitePress; releases use Changesets, publishing from `master` when a package version bump lands.
 
 ## Artifacts
 
 - [`.claude/skills/release-workflow/SKILL.md`](../../.claude/skills/release-workflow/SKILL.md) — skill for automating the npm release cycle (changesets, PR flow, publish)
-- [`.claude/skills/release-workflow/release.mjs`](../../.claude/skills/release-workflow/release.mjs) — automated release script (244 LOC): pushes branch, creates PR to master, waits for CI, merges, waits for Version Packages PR, merges to release
+- [`.claude/skills/release-workflow/release.mjs`](../../.claude/skills/release-workflow/release.mjs) — automated release script (247 LOC): pushes branch, creates PR to master, waits for CI, merges, waits for Version Packages PR, merges it, then waits for the `publish.yml` run on `master` (no release branch)
 
 ## CLI code
 
@@ -29,13 +29,13 @@ Covers the build system, CI pipelines, release workflow, documentation infrastru
 
 ## Docs
 
-- [`CONTRIBUTING.md`](../../CONTRIBUTING.md) — release documentation and workflow (192 LOC)
+- [`CONTRIBUTING.md`](../../CONTRIBUTING.md) — release documentation and workflow (187 LOC)
 - [`docs/CLAUDE.md`](../CLAUDE.md) — docs folder guidance (315 LOC)
 - [`docs/documentation-guideline.md`](../documentation-guideline.md) — documentation standards (747 LOC)
 - [`docs/.vitepress/config.mts`](../.vitepress/config.mts) — VitePress site config (208 LOC)
 - [`docs/.vitepress/theme/`](../.vitepress/theme) — custom VitePress theme (index.ts, style.css, components/)
 - [`.github/workflows/main.yml`](../../.github/workflows/main.yml) — CI: build, lint, test on PR/push to master; creates Version Packages PR on master push via `changesets/action`
-- [`.github/workflows/publish.yml`](../../.github/workflows/publish.yml) — Publish: triggers on `release` branch push; runs tests, publishes to npm via OIDC (no auth token), then triggers docs workflow
+- [`.github/workflows/publish.yml`](../../.github/workflows/publish.yml) — Publish: on `master` push, a `detect` job checks whether any `packages/*/package.json` `"version"` field changed; if so it builds and publishes to npm via OIDC (no auth token), then triggers docs workflow. Also handles `beta` pre-release publishes and manual `workflow_dispatch`
 - [`.github/workflows/docs.yml`](../../.github/workflows/docs.yml) — Docs deploy workflow
 - [`.github/workflows/claude-ci-failure.yml`](../../.github/workflows/claude-ci-failure.yml) — Claude AI failure notification workflow (195 LOC)
 - [`.github/workflows/claude-comment.yml`](../../.github/workflows/claude-comment.yml) — Claude AI PR comment workflow
@@ -50,7 +50,7 @@ Covers the build system, CI pipelines, release workflow, documentation infrastru
 
 ## Conventions worth knowing
 
-- Release branch: features land on `master` → Changesets bot opens "Version Packages" PR → merge to `master` → merge `master` to `release` → CI publishes.
+- Release flow: features land on `master` → Changesets bot opens "Version Packages" PR → merge to `master` → the version bump on `master` triggers CI to publish. No `release` branch.
 - All packages share a single `.swcrc` configuration (identical SHA across packages: `c358238`).
 - Package tsconfigs all extend from [`tsconfig.json`](../../tsconfig.json) at the root.
 - Build outputs: `.mjs` (ESM), `.js` (CJS), `.d.ts` (types), UMD browser globals named `LogosDx.[PackageName]`.

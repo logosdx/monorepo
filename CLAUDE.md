@@ -26,7 +26,10 @@ pnpm tdd                   # Watch specific tests
 ## 📦 Release Cycle
 
 
-**We use [Changesets](https://github.com/changesets/changesets) with a `release` branch workflow.**
+**We use [Changesets](https://github.com/changesets/changesets), publishing straight from `master`.**
+
+Publishing is triggered by a package version change on `master` — merging the
+"Version Packages" PR is the signal. No separate `release` branch.
 
 ### Quick Reference
 
@@ -39,10 +42,8 @@ pnpm tdd                   # Watch specific tests
 
     # 3. CI creates "Version Packages" PR - review and merge to master
 
-    # 4. Merge master to release branch
-    git checkout release && git merge master && git push origin release
-
-    # 5. CI automatically: Tests → Publishes → Updates docs
+    # 4. Merging the PR bumps versions on master, which triggers CI to
+    #    automatically: Publish → Update docs
     ```
 
 ### Detailed Flow
@@ -50,8 +51,8 @@ pnpm tdd                   # Watch specific tests
 1. **Create Changeset**: `pnpm changeset` - describes changes and version bump
 2. **Push to Master**: CI runs tests and creates "Version Packages" PR
 3. **Review PR**: Verify versions and changelogs are correct
-4. **Merge to Release**: `release` branch triggers automated publish workflow
-5. **Automated CI**: Runs tests, publishes to npm, updates documentation
+4. **Merge PR**: version bump on `master` triggers the publish workflow
+5. **Automated CI**: publishes to npm, updates documentation
 
 **See [CONTRIBUTING.md](./CONTRIBUTING.md) for complete release documentation.**
 

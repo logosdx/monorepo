@@ -2,7 +2,7 @@ name: Publish
 on:
   push:
     branches:
-      - "release"
+      - "master"
       - "beta"
   workflow_dispatch:
 
@@ -17,29 +17,60 @@ permissions:
 
 
 jobs:
-  check-prerelease:
-    if: github.ref == 'refs/heads/beta'
+  detect:
     runs-on: ubuntu-latest
     outputs:
-      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+      should_publish: ${{ steps.decide.outputs.should_publish }}
     steps:
 
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-      - name: Check if pre-release mode is enabled
-        id: check
+      - name: Decide whether to publish
+        id: decide
         run: |
-          if [ -f ".changeset/pre.json" ]; then
-            echo "Pre-release mode is enabled"
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          # Manual runs always publish.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch -> publish"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Beta publishes only while changesets pre-release mode is active.
+          if [ "${{ github.ref }}" = "refs/heads/beta" ]; then
+            if [ -f ".changeset/pre.json" ]; then
+              echo "Beta pre-release mode -> publish"
+              echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Beta without pre-release mode -> skip"
+              echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
+          # master: publish only when a package's "version" field changed in
+          # this push, i.e. the "Version Packages" PR just merged. A -G filter
+          # on '"version":' ignores dependency-range edits and other churn.
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          ZERO="0000000000000000000000000000000000000000"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "$ZERO" ]; then
+            BEFORE="${AFTER}^"
+          fi
+
+          if git diff --quiet -G'"version":' "$BEFORE" "$AFTER" -- 'packages/*/package.json'; then
+            echo "No package version change since $BEFORE -> skip"
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Pre-release mode is not enabled, skipping publish"
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "Package version change detected:"
+            git diff --name-only -G'"version":' "$BEFORE" "$AFTER" -- 'packages/*/package.json'
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
 
   publish:
-    needs: check-prerelease
-    if: always() && (github.ref == 'refs/heads/release' || needs.check-prerelease.outputs.is_prerelease == 'true')
+    needs: detect
+    if: needs.detect.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -74,7 +105,7 @@ jobs:
           NODE_AUTH_TOKEN: ""
 
   docs:
-    if: github.ref == 'refs/heads/release'
+    if: github.ref == 'refs/heads/master'
     needs: publish
     uses: ./.github/workflows/docs.yml
     secrets:

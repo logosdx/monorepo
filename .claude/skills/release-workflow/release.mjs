@@ -32,11 +32,19 @@ const isProtectedBranch = (branch) => {
 };
 
 /**
- * Get the latest CI run ID for a branch
+ * Get the latest CI run ID for a branch. Pass a workflow (name, filename, or
+ * ID) to disambiguate when several workflows fire on the same push.
  */
-const getLatestRunId = async (branch) => {
+const getLatestRunId = async (branch, workflow) => {
 
-    const { stdout } = await $`gh run list --branch ${branch} --limit 1 --json databaseId -q '.[0].databaseId'`;
+    const args = ['run', 'list', '--branch', branch, '--limit', '1', '--json', 'databaseId', '-q', '.[0].databaseId'];
+
+    if (workflow) {
+
+        args.push('--workflow', workflow);
+    }
+
+    const { stdout } = await $`gh ${args}`;
     return stdout.trim();
 };
 
@@ -205,19 +213,13 @@ const main = async () => {
     await $`git pull origin master`;
     log.success('Pulled version changes');
 
-    // Step 8: Merge to release branch
-    log.step(8, 'Merging master to release branch');
-
-    await $`git checkout release`;
-    await $`git merge master`;
-    await $`git push origin release`;
-    log.success('Pushed to release branch');
-
-    // Step 9: Wait for publish
-    log.step(9, 'Waiting for publish workflow');
+    // Step 8: Wait for publish
+    // Merging the Version Packages PR bumps versions on master, which triggers
+    // the Publish workflow directly. No release branch to sync.
+    log.step(8, 'Waiting for publish workflow on master');
     await sleep(5000);
 
-    const publishRunId = await getLatestRunId('release');
+    const publishRunId = await getLatestRunId('master', 'publish.yml');
 
     if (publishRunId) {
 
@@ -229,9 +231,10 @@ const main = async () => {
             process.exit(1);
         }
     }
+    else {
 
-    // Switch back to master
-    await $`git checkout master`;
+        log.warn('Could not find a publish run; check GitHub Actions manually.');
+    }
 
     console.log(chalk.bold.green('\n✅ Release workflow complete!\n'));
     log.info('Packages have been published to npm');

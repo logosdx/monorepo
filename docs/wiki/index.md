@@ -3,7 +3,7 @@ type: Index
 ---
 
 <wiki-type>repo</wiki-type>
-<scan-sha>a566c4bbff85f71f4f00bfd03631e06791ed732f</scan-sha>
+<scan-sha>5b416c12a022f6e7fa33992d8d992d4d3259bcf0</scan-sha>
 <wiki-schema>1</wiki-schema>
 
 # Project signals
@@ -14,7 +14,7 @@ type: Index
 - Build: SWC (via `@swc/cli`/`@swc/core`); outputs ESM (`.mjs`), CJS (`.js`), UMD, `.d.ts`
 - Test: Vitest (dual project: jsdom unit + Playwright/Chromium browser)
 - Docs: VitePress 2.0.0-alpha.16 + TypeDoc; deployed to `logosdx.dev`
-- Release: Changesets (`@changesets/cli`) with `release` branch publish flow
+- Release: Changesets (`@changesets/cli`), published from `master` on package version bumps
 
 ## Build / test / lint
 
@@ -38,18 +38,20 @@ CI gate: `main.yml` runs build → lint → `pnpm test:ci` on all PRs and master
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 84,774 | 311 | 65% |
-| Markdown | 31,211 | 88 | 24% |
-| YAML | 8,251 | 8 | 6% |
-| JavaScript | 1,540 | 7 | 1% |
+| TypeScript | 84,715 | 310 | 65% |
+| Markdown | 31,386 | 88 | 24% |
+| YAML | 8,281 | 8 | 6% |
+| JavaScript | 1,543 | 7 | 1% |
 | HTML | 1,167 | 3 | 0% |
 | JSON | 972 | 41 | 8% |
 | CSS | 328 | 2 | 0% |
+| Shell | 327 | 1 | 0% |
+| Vue | 110 | 1 | 0% |
 
 ## DevOps & CI
 
-- CI provider: GitHub Actions. Two primary workflows: `main.yml` (CI on PR/push) and `publish.yml` (npm publish on `release` branch push).
-- Release flow: merge feature → master → Changesets bot opens "Version Packages" PR → merge → merge master to `release` branch → `publish.yml` runs tests + `changeset publish` via OIDC → triggers `docs.yml`.
+- CI provider: GitHub Actions. Two primary workflows: `main.yml` (CI on PR/push) and `publish.yml` (npm publish on a `master` package version bump).
+- Release flow: merge feature → master → Changesets bot opens "Version Packages" PR → merge → version bump on `master` → `publish.yml` detects the changed `"version"` field and runs `changeset publish` via OIDC → triggers `docs.yml`.
 - Docs deploy: GitHub Pages with legacy Jekyll build type; `_config.yml` injected at deploy time to expose `.well-known/` directory.
 - Claude AI integration: `claude-ci-failure.yml`, `claude-comment.yml`, `claude-pr.yml` handle automated AI review and failure notification.
 
