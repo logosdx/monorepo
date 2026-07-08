@@ -23,35 +23,35 @@ body, client-side rate-limit reject).
 ## Success criteria
 
 
-- [ ] A `FetchError` is thrown/rejected **iff** no usable response exists (abort, timeout,
+- [x] A `FetchError` is thrown/rejected **iff** no usable response exists (abort, timeout,
     connection lost, parse failure on `ok: true`, client-side rate-limit reject). Every
     other completed exchange resolves.
-- [ ] `FetchResponse` is a discriminated union on `ok`: `{ ok: true, data: T, ... }` vs
+- [x] `FetchResponse` is a discriminated union on `ok`: `{ ok: true, data: T, ... }` vs
     `{ ok: false, data: unknown, ... }`, so a consumer must narrow before reading `data` as
     `T`.
-- [ ] Non-2xx responses resolve with the real `status`, `headers` (response headers, not
+- [x] Non-2xx responses resolve with the real `status`, `headers` (response headers, not
     request headers), and `data` — nothing is lost or re-derived onto an error object.
-- [ ] Parse failure on `ok: false` falls back to raw text in `data` (status is never
+- [x] Parse failure on `ok: false` falls back to raw text in `data` (status is never
     masked by a body-format failure). Parse failure on `ok: true` still raises a
     `FetchError` with `step: 'parse'`.
-- [ ] `shouldRetry` is invoked with `FetchResponse | FetchError`; `retryableStatusCodes`
+- [x] `shouldRetry` is invoked with `FetchResponse | FetchError`; `retryableStatusCodes`
     remains the zero-config default trigger for HTTP-status retries.
-- [ ] `ok: false` responses are never cached — neither in the `afterRequest` store write
+- [x] `ok: false` responses are never cached — neither in the `afterRequest` store write
     nor via SWR background revalidation overwriting good stale data.
-- [ ] Set-Cookie response headers are captured into the cookie jar regardless of status.
-- [ ] `response` fires for every completed exchange (any status); `response-4xx` /
+- [x] Set-Cookie response headers are captured into the cookie jar regardless of status.
+- [x] `response` fires for every completed exchange (any status); `response-4xx` /
     `response-5xx` fire additionally for their status ranges; `error` fires only for
     transport failures, parse-on-`ok:true`, and rate-limit reject; all fire per attempt.
-- [ ] Every diagnostic event emitted for the same request — across all of its attempts —
+- [x] Every diagnostic event emitted for the same request — across all of its attempts —
     carries the same `requestId`, so a retried request's attempts are traceable as one
     exchange.
-- [ ] Dedupe joiners receive `ok: false` responses identically to `ok: true` responses —
+- [x] Dedupe joiners receive `ok: false` responses identically to `ok: true` responses —
     verified, no plugin code change.
-- [ ] `useQuery` / `useMutation` / `createFetchContext` expose one discriminated failure
+- [x] `useQuery` / `useMutation` / `createFetchContext` expose one discriminated failure
     signal (transport vs HTTP) in place of the current `FetchError`-only error state.
-- [ ] Every fetch and react test asserting a throw/rejection on non-2xx status is rewritten
+- [x] Every fetch and react test asserting a throw/rejection on non-2xx status is rewritten
     to assert a resolved `{ ok: false }` response instead; full suites (`pnpm test`) pass.
-- [ ] Release ships as a major version bump via changeset (breaking change, no migration
+- [x] Release ships as a major version bump via changeset (breaking change, no migration
     shim).
 
 
@@ -298,3 +298,63 @@ the pre-existing `docs/wiki/CLAUDE.md` VitePress parse failure present on the ba
 mismatch; docs must match the shipped contract on every AI-consumed surface.
 
 **Superseded:** CP-8 file list without the react reference; `pnpm build:docs` as the gate.
+
+
+## Implementation log
+
+
+### shipped — 2026-07-08
+
+Built across 9 checkpoints of the autopilot implement→review loop, one commit per green
+checkpoint (branch `fetch-resolve-on-response`, base `9bdd7ce`):
+
+- `4c3fda9` — feat(fetch)!: resolve non-2xx as FetchResponse (CP-1)
+- `b25f6b1` — feat(fetch)!: retry triggers on ok:false responses (CP-2)
+- `7ef06ff` — feat(fetch): never cache ok:false responses (CP-3)
+- `37e6c53` — test(fetch): pin dedupe sharing and cookie capture on ok:false (CP-4)
+- `fd534c0` — test(fetch): conform remaining suite to resolve-on-response (CP-5)
+- `f341e4a` — feat(react)!: discriminated failure union in hooks (CP-6)
+- `a0a650f` — test(react): conform hooks suite to failure union (CP-7)
+- `dc7c23d` — docs: resolve-on-response contract across all surfaces (CP-8)
+- `02d286d` — chore: changeset for fetch/react resolve-on-response major (CP-9)
+- `7573bd8` — chore(signals): refresh after fetch-resolve-on-response
+
+Final verification: full build clean; 93 test files / 2362 tests green (baseline 2339);
+tsc clean on both packages; changeset reports both packages at major.
+
+**Out-of-scope work performed during this build:**
+
+- `packages/react/src/api/create-{query,mutation,api-hooks}.ts` — type-only RH-threading
+  ripple from consolidating `FetchFailure<T, RH>`.
+- `tests/src/fetch/cookies/integration.test.ts` — 11 pre-existing union-narrowing type
+  errors fixed (in-scope suite, pre-dated checkpoint).
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- Restoring default HTTP retries in CP-2 regressed CP-1's event-classification tests
+  (written in the window where HTTP retries were inert); fixed with `retry: false` on the
+  classification fixtures.
+- `cache-revalidate-error` needed a typed `outcome` field (`FetchResponse | FetchError`)
+  — stuffing the resolved response into `error` was a type lie only compiling via cast.
+- react had a second hook system (`createFetchContext`) beyond the `api/` folder; both
+  converted. `ResponseLike`'s exported type omitted the `request` discriminator its
+  runtime guard requires; aligned in CP-7.
+- `mutate()` (both variants) now never rejects — `Promise<T | undefined>` — eliminating
+  non-Error rejections and two `undefined as any` holes.
+- Spec amended mid-run (see Change log): `skills/logosdx/references/react.md` added to
+  CP-8; docs gate corrected to `pnpm docs:build`.
+
+**Deferred items still open:**
+
+- none (all reviewer findings addressed in-iteration)
+
+**Pre-existing issues surfaced, not addressed (outside scope):**
+
+- `docs/wiki/CLAUDE.md` is a stray steering-fixture describing a NestJS/billing repo; its
+  raw `<...>` line breaks `pnpm docs:build` (VitePress Vue parser) independent of this
+  branch.
+- `tests/src/utils/flow-control/{retry,rate-limit}.ts` have machine-load-dependent timing
+  flakes.
+- Test-suite import convention diverged from CLAUDE.md long before this branch: 26/27
+  fetch test files import `@logosdx/fetch` (dist via workspace symlink) rather than
+  relative `src/` paths.
