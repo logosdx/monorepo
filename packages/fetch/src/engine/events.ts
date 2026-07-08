@@ -79,6 +79,13 @@ export interface CacheEventData<S = unknown, H = unknown, P = unknown> extends E
 
     /** Time until expiration (ms) */
     expiresIn?: number | undefined;
+
+    /**
+     * The cause of a `cache-revalidate-error`: either a transport `FetchError`
+     * or a resolved `ok: false` `FetchResponse` (a non-2xx revalidation never
+     * throws under resolve-on-response, so the cause isn't always an `Error`).
+     */
+    outcome?: FetchResponse<unknown, DictAndT<H>, DictAndT<P>> | FetchError<DictAndT<H>> | undefined;
 }
 
 
