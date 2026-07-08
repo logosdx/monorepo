@@ -55,7 +55,14 @@ const api = new FetchEngine({
 // Make requests with error handling
 const [response, err] = await attempt(() => api.get<User[]>('/users'));
 if (err) {
+    // Transport only — no response exists (abort, timeout, connection lost)
     console.error('Failed to fetch users:', err.message);
+    return;
+}
+
+if (!response.ok) {
+    // Exchange completed; the server said no — status/headers/data are real
+    console.error('Request failed:', response.status);
     return;
 }
 
@@ -78,7 +85,7 @@ import fetch from '@logosdx/fetch';
 import { attempt } from '@logosdx/utils';
 
 const [response, err] = await attempt(() => fetch.get<User[]>('/api/users'));
-if (!err) {
+if (!err && response.ok) {
     console.log('Users:', response.data);
 }
 

@@ -11,6 +11,34 @@ FetchEngine provides robust resilience features including intelligent retry logi
 [[toc]]
 
 
+## The Resolve-on-Response Model
+
+
+Every completed HTTP exchange resolves — a 404 or a 500 is not an exception, it's an answer. A `FetchError` is thrown/rejected **only** when no usable response exists at all: abort, timeout, connection lost, or a parse failure on a 2xx body.
+
+```typescript
+const [res, err] = await attempt(() => api.get<User>('/users/123'));
+
+if (err) {
+    // Transport only — no response exists
+    if (err.isCancelled())      return;
+    if (err.isTimeout())        return retryLater();
+    if (err.isConnectionLost()) return goOffline();
+    return badPayload(err);    // parse contract broken on a 2xx
+}
+
+if (!res.ok) {
+    // Exchange succeeded; the answer was "no" — full response available
+    res.headers['retry-after'];    // present — these are RESPONSE headers
+    if (res.status === 400) return showValidation(res.data);
+    if (res.status >= 500)  return alertOps(res.headers['x-request-id']);
+    return;
+}
+
+res.data;    // narrowed to User by the ok check
+```
+
+
 ## Retry Configuration
 
 
@@ -55,7 +83,7 @@ interface RetryConfig {
 ### Custom Retry Logic
 
 
-The `shouldRetry` function will be awaited and can return:
+`shouldRetry` receives `outcome: FetchResponse | FetchError` — a resolved `ok: false` response for an HTTP-status retry, or a rejected transport `FetchError` for a transport retry. Narrow with `isFetchError(outcome)`. The function is awaited and can return:
 
 - `true` - Retry with default exponential backoff (uses `baseDelay`)
 - `false` - Don't retry
@@ -82,26 +110,84 @@ const api = new FetchEngine({
     retry: {
         maxAttempts: 5,
         baseDelay: 1000, // Used for exponential backoff when shouldRetry returns true
-        shouldRetry: (error, attempt) => {
-            // Custom delay for rate limits (overrides exponential backoff)
-            if (error.status === 429) {
-                const retryAfter = error.headers?.['retry-after'];
+        shouldRetry: (outcome, attempt) => {
+
+            // Transport failure — retry only on a dropped connection
+            if (isFetchError(outcome)) return outcome.isConnectionLost();
+
+            // Custom delay for rate limits (overrides exponential backoff).
+            // `outcome.headers` are the RESPONSE headers, so `retry-after`
+            // is the real value the server sent — not the request headers.
+            if (outcome.status === 429) {
+                const retryAfter = outcome.headers['retry-after'];
                 return retryAfter ? parseInt(retryAfter) * 1000 : 5000;
             }
 
             // Don't retry client errors
-            if (error.status >= 400 && error.status < 500) {
+            if (outcome.status >= 400 && outcome.status < 500) {
                 return false;
             }
 
             // Custom delay for server errors (overrides exponential backoff)
-            if (error.status >= 500) {
+            if (outcome.status >= 500) {
                 return Math.min(1000 * Math.pow(2, attempt - 1), 30000);
             }
 
             return true; // Use default exponential backoff with baseDelay
         }
     }
+});
+```
+
+
+### Exhausted Retries Resolve
+
+
+When `shouldRetry` keeps returning `true` for an HTTP-status outcome but `maxAttempts` is reached, the retry loop stops and the **last response resolves** — it is never converted into a throw. The same request-scoped `requestId` ties every attempt's diagnostic events together, so a caller (or a log aggregator) can reconstruct the full retry sequence for one logical exchange.
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    retry: { maxAttempts: 3, baseDelay: 500 }
+});
+
+const [res, err] = await attempt(() => api.get('/flaky-endpoint'));
+
+// err is null here — even after 3 failed attempts against a 500,
+// the exchange completed. The caller narrows on `res.ok` as usual.
+if (!err && !res.ok) {
+    console.error(`Gave up after retries: ${res.status}`);
+}
+```
+
+Only a transport failure (the connection drops on every attempt, or a timeout fires) still rejects as a `FetchError` — because in that case no response ever exists to resolve.
+
+
+## Cache & Non-2xx Responses
+
+
+An `ok: false` response is never cached — a transient 500 must not evict good data or get served back as if it were a success. This applies at both write sites:
+
+- The `afterRequest` cache store skips the write entirely when `response.ok` is `false`.
+- SWR background revalidation checks the revalidation fetch's `ok` before overwriting: `ok: false` leaves the existing stale entry untouched and fires `cache-revalidate-error` instead of `cache-set`.
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    cachePolicy: { ttl: 60000, staleIn: 30000 }
+});
+
+api.on('cache-revalidate-error', (event) => {
+
+    // `outcome` is a resolved `ok: false` FetchResponse OR a rejected
+    // FetchError — a non-2xx revalidation never throws under
+    // resolve-on-response, so the cause isn't always an Error.
+    if (isFetchError(event.outcome)) {
+        console.error('Revalidation transport failure:', event.outcome.message);
+        return;
+    }
+
+    console.warn(`Revalidation got ${event.outcome.status} — keeping stale cache for`, event.key);
 });
 ```
 
@@ -249,9 +335,16 @@ The default `shouldRetry` function returns `true` for status code `499`, which i
     maxAttempts: 3,
     baseDelay: 1000,
     retryableStatusCodes: [408, 429, 499, 500, 502, 503, 504],
-    shouldRetry(error) {
-        if (error.status === 499) return true; // Includes attemptTimeout
-        return this.retryableStatusCodes?.includes(error.status) ?? false;
+    shouldRetry(outcome) {
+
+        if (isFetchError(outcome)) {
+            if (!outcome.status) return false;
+            if (outcome.status === 499) return true; // Includes attemptTimeout
+        }
+
+        // retryableStatusCodes is the zero-config trigger for both a
+        // transport FetchError and an HTTP-status FetchResponse alike.
+        return this.retryableStatusCodes?.includes(outcome.status) ?? false;
     }
 }
 ```
@@ -310,9 +403,10 @@ const api = new FetchEngine({
     attemptTimeout: 3000,   // Quick feedback per attempt
     retry: {
         maxAttempts: 3,
-        shouldRetry: (error) => {
-            // Only retry on timeout, not on 4xx errors
-            return error.timedOut || error.status >= 500;
+        shouldRetry: (outcome) => {
+            // Only retry on timeout (transport) or server errors — not on 4xx
+            if (isFetchError(outcome)) return outcome.timedOut === true;
+            return outcome.status >= 500;
         }
     }
 });
@@ -340,19 +434,20 @@ const syncApi = new FetchEngine({
 ### FetchError
 
 
-```typescript
-interface FetchError<T = {}, H = Record<string, string>> extends Error {
+`FetchError` is transport-only — thrown/rejected **iff** no usable response exists (abort, timeout, connection lost, or a parse failure on an `ok: true` body). Every other completed exchange, including every non-2xx status, resolves as a `FetchResponse` instead; it never carries a response body.
 
-    data: T | null;            // Response body (if parseable)
-    status: number;            // HTTP status code
+```typescript
+interface FetchError<H = Record<string, string>> extends Error {
+
+    status: number;            // 499 for aborts/connection-loss, 999 for parse errors without a status
     method: HttpMethods;       // HTTP method used
     path: string;              // Request path
     aborted?: boolean;         // Whether request was cancelled (any cause)
     timedOut?: boolean;        // Whether abort was caused by timeout
     attempt?: number;          // Retry attempt number
-    step?: 'fetch' | 'parse' | 'response'; // Where error occurred
+    step?: 'fetch' | 'parse'; // Where the failure occurred
     url?: string;              // Full request URL
-    headers?: H;               // Response headers
+    headers?: H;               // REQUEST headers — not response headers
 
     // Helper methods for distinguishing 499 error types
     isCancelled(): boolean;    // Manual abort (user/app initiated)
@@ -365,6 +460,7 @@ interface FetchError<T = {}, H = Record<string, string>> extends Error {
 
 - Server-aborted responses receive status code `499` (following Nginx convention)
 - Parse errors without status codes receive status code `999`
+- A non-2xx response never lands here — narrow on `!res.ok` after a resolved response instead (see [The Resolve-on-Response Model](#the-resolve-on-response-model))
 
 
 ### The `timedOut` Flag
@@ -373,7 +469,7 @@ interface FetchError<T = {}, H = Record<string, string>> extends Error {
 The `FetchError` object includes a `timedOut` flag that distinguishes timeout aborts from other abort causes:
 
 ```typescript
-interface FetchError<T = {}, H = Record<string, string>> extends Error {
+interface FetchError<H = Record<string, string>> extends Error {
 
     // ... other properties
 
@@ -396,11 +492,12 @@ interface FetchError<T = {}, H = Record<string, string>> extends Error {
 **Usage:**
 
 ```typescript
-const [response, err] = await attempt(() =>
+const [res, err] = await attempt(() =>
     api.get('/endpoint', { totalTimeout: 5000 })
 );
 
 if (err) {
+    // Transport only — a non-2xx response resolves instead of landing here
     if (err.aborted && err.timedOut) {
         // Timed out - show user-friendly message
         console.log('Request took too long');
@@ -410,7 +507,7 @@ if (err) {
         console.log('Request was cancelled');
     }
     else {
-        // Other error (network, HTTP error, etc.)
+        // Other transport error (network down, connection reset, etc.)
         console.log('Request failed:', err.message);
     }
 }
@@ -435,7 +532,7 @@ All helper methods return `false` for non-499 errors. They only apply to connect
 **Example:**
 
 ```typescript
-const [response, err] = await attempt(() => api.get('/data'));
+const [res, err] = await attempt(() => api.get('/data'));
 
 if (err) {
     if (err.isCancelled()) {
@@ -450,9 +547,17 @@ if (err) {
         toast.error('Connection lost. Check your internet.');
     }
     else {
-        // HTTP error (4xx, 5xx) - check err.status directly
+        // Other transport failure (e.g. parse error on a 2xx body)
         toast.error(`Request failed: ${err.message}`);
     }
+
+    return;
+}
+
+if (!res.ok) {
+    // HTTP error (4xx, 5xx) — check res.status directly, res is a
+    // full FetchResponse, not an error
+    toast.error(`Request failed: ${res.status}`);
 }
 ```
 
@@ -482,17 +587,22 @@ isFetchError(error: unknown): error is FetchError
 **Example:**
 
 ```typescript
-const [response, err] = await attempt(() => api.get('/users'));
+const [res, err] = await attempt(() => api.get('/users'));
 
 if (err) {
     if (isFetchError(err)) {
-        // Types are available
-        console.log('HTTP Error:', err.status, err.message);
-        console.log('Failed at step:', err.step);
-        console.log('Response data:', err.data);
+        // Types are available — transport failure, never a non-2xx status
+        console.log('Transport failure:', err.status, err.message);
+        console.log('Failed at step:', err.step); // 'fetch' | 'parse'
     }
     else {
-        console.log('Network or other error:', err.message);
+        console.log('Non-FetchError rejection:', err.message);
     }
+
+    return;
+}
+
+if (!res.ok) {
+    console.log('HTTP error:', res.status, res.data);
 }
 ```

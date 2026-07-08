@@ -100,27 +100,70 @@ const logout = emitFactory('user.logout')
 
 ## Fetch Hook
 
+`get`/`post`/`put`/`del`/`patch` expose one `failure` signal instead of separate `error`/`response` fields — narrow on `failure.kind` to see which channel:
+
+- `kind: 'transport'` — no response exists at all (abort, timeout, connection lost). `failure.error` is a `FetchError` (`.isCancelled()`, `.isTimeout()`, `.isConnectionLost()`).
+- `kind: 'http'` — the server answered outside 2xx. `failure.response` is the resolved, `ok: false` `FetchResponse` (status, headers, data).
+
 ```typescript
 const { get, post, put, del, patch, instance } = useApiFetch()
 
 // Query — auto-fetches on mount, re-fetches when path/options change
-// Returns { data, loading, error, response, refetch, cancel }
-const { data, loading, error, response, refetch, cancel } = get<User[]>('/users')
-const { response: res2 } = get<Post, { 'x-total': string }>('/posts')  // typed response headers
+// Returns { data, loading, failure, refetch, cancel }
+const { data, loading, failure, refetch, cancel } = get<User[]>('/users')
+if (failure?.kind === 'transport') console.error(failure.error.message)
+if (failure?.kind === 'http')      console.error(failure.response.status)
+
+const { failure: f2 } = get<Post, { 'x-total': string }>('/posts')  // typed response headers
+if (f2?.kind === 'http') f2.response.headers['x-total']  // typed as string
 
 // Mutation — starts idle, fires when mutate() is called
-// Returns { data, loading, error, response, mutate, reset, cancel, called }
-const { mutate: submit, loading: isSubmitting, data: result, error: submitErr } = post<Comment>('/comments')
-const { mutate: remove, loading: isRemoving, error: removeErr } = del<void>('/items/123')
+// Returns { data, loading, failure, mutate, reset, cancel, called }
+const { mutate: submit, loading: isSubmitting, data: result, failure: submitFailure } = post<Comment>('/comments')
+const { mutate: remove, loading: isRemoving, failure: removeFailure } = del<void>('/items/123')
 
-// mutate() returns Promise<T> — await in handlers
+// mutate() NEVER rejects — resolves Promise<T | undefined>: the parsed
+// body on success, undefined on any failure (transport or HTTP). Read
+// `failure` for why.
 const comment = await submit({ text: 'Hello' })
+if (!comment && submitFailure?.kind === 'http') console.error(submitFailure.response.status)
 remove()
 
 // Escape hatch for imperative use
 const { instance } = useApiFetch()
 const handleExport = async () => {
     const [res, err] = await attempt(() => instance.get('/export'))
+    if (err) return console.error(err)
+    if (!res.ok) return console.error('Export failed:', res.status)
+    downloadBlob(res.data)
+}
+```
+
+### Exported Failure Types
+
+`FetchFailure<T, RH>` backs `createFetchContext`'s query/mutation results and `useQuery`/`useMutation`/`createQuery`/`createMutation` from `@logosdx/react/api`. `AsyncFailure`/`AsyncResult`/`ResponseLike` back `useAsync` only (it wraps arbitrary functions, not just `FetchEngine` calls). All are exported from `@logosdx/react` and `@logosdx/react/api`.
+
+```typescript
+import type { FetchFailure, AsyncFailure, AsyncResult, ResponseLike } from '@logosdx/react/api'
+
+type FetchFailure<T, RH = Record<string, string>> =
+    | { kind: 'transport'; error: FetchError }
+    | { kind: 'http'; response: Extract<FetchResponse<T, unknown, unknown, RH>, { ok: false }> }
+
+// Structural shape used by useAsync to detect a FetchResponse without
+// importing @logosdx/fetch (an optional peer dependency)
+type ResponseLike = { ok: boolean; status: number; data: unknown; request: unknown }
+
+type AsyncFailure =
+    | { kind: 'rejected'; error: unknown }
+    | { kind: 'http'; response: ResponseLike }
+
+type AsyncResult<T> = {
+    data: T | null
+    loading: boolean
+    failure: AsyncFailure | null
+    refetch: () => void
+    cancel: () => void
 }
 ```
 
@@ -185,7 +228,7 @@ const { context: score } = useStateMachine(machine, (ctx) => ctx.score)
 ## API Hooks (Apollo-Style)
 
 
-Higher-level hooks for API interactions. Return `{ data, loading, error }` objects. Auto-refetch on reactive config changes. ObserverEngine integration for event-driven invalidation.
+Higher-level hooks for API interactions. Return `{ data, loading, failure }` objects — same `FetchFailure` union as the Fetch Hook above. Auto-refetch on reactive config changes. ObserverEngine integration for event-driven invalidation.
 
 ### Setup
 
@@ -208,25 +251,30 @@ const { useQuery, useMutation, useAsync, createQuery, createMutation } = createA
 ### useQuery — Auto-Fetch with Reactive Config
 
 ```typescript
-const { data, loading, error, refetch, cancel } = useQuery<Loan[]>('/loans', {
+const { data, loading, failure, refetch, cancel } = useQuery<Loan[]>('/loans', {
     defaults: { headers: { 'X-Api-Version': '2' } },    // Fixed — no re-fetch
     reactive: { params: { page, limit: 20 } },           // Watched — changes trigger re-fetch
     skip: !isReady,                                       // Conditional execution
     pollInterval: 30000,                                  // Re-fetch every 30s
     invalidateOn: ['loan.created', 'loan.deleted'],       // Re-fetch on observer event
 })
+
+if (failure?.kind === 'transport') console.error(failure.error.message)
+if (failure?.kind === 'http')      console.error(failure.response.status)
 ```
 
 ### useMutation — Fire on Demand
 
 ```typescript
-const { mutate, loading, error, data, called, reset, cancel } = useMutation<Loan>('post', '/loans', {
+const { mutate, loading, failure, data, called, reset, cancel } = useMutation<Loan>('post', '/loans', {
     defaults: { headers: { 'Content-Type': 'application/json' } },
     emitOnSuccess: 'loan.created',                        // Emit observer event on success
 })
 
-// mutate() returns Promise<T> — await in handlers
+// mutate() NEVER rejects — resolves Promise<T | undefined>: parsed body
+// on success, undefined on any failure (transport or HTTP)
 const loan = await mutate({ amount: 50000, borrower: 'Alice' })
+if (!loan && failure?.kind === 'http') console.error(failure.response.status)
 
 // emitOnSuccess supports: string | { event, payload? } | array of either
 emitOnSuccess: [
@@ -237,17 +285,30 @@ emitOnSuccess: [
 
 ### useAsync — Wrap Any Async Function
 
+`useAsync` wraps an arbitrary function, not just FetchEngine calls, so it can't promise a `FetchError` on rejection — its failure union is `AsyncFailure`, distinct from `FetchFailure`:
+
+```typescript
+type AsyncFailure =
+    | { kind: 'rejected'; error: unknown }   // the wrapped promise rejected — any thrown value
+    | { kind: 'http'; response: ResponseLike }; // resolved value structurally looked like an ok:false FetchResponse
+```
+
 ```typescript
 class LoanApi extends FetchEngine {
     getLoans(page: number) { return this.get<Loan[]>('/loans', { params: { page } }) }
 }
 
-const { data, loading, error } = useAsync<Loan[]>(
+const { data, loading, failure } = useAsync<Loan[]>(
     () => loanApi.getLoans(page),
     [page],                                                // React deps — re-executes on change
     { invalidateOn: ['loan.created'] },
 )
-// Auto-unwraps FetchResponse — data is Loan[], not FetchResponse<Loan[]>
+// Auto-unwraps FetchResponse — data is Loan[], not FetchResponse<Loan[]>.
+// An ok:false response sets failure: { kind: 'http', response } instead
+// of being treated as success.
+
+if (failure?.kind === 'rejected') console.error(failure.error);
+if (failure?.kind === 'http')     console.error(failure.response.status);
 ```
 
 ### Factory Functions — Reusable Hooks
@@ -303,7 +364,8 @@ const { instance } = useApiFetch()
 instance.headers.set('X-Custom', 'value') // typed
 
 // Per-call generics for response body and headers
-const { data } = get<User[]>('/users')                         // data is User[] | null
-const { response } = get<Post, { 'x-total': string }>('/posts')  // response?.headers['x-total'] typed
+const { data } = get<User[]>('/users')                          // data is User[] | null
+const { failure } = get<Post, { 'x-total': string }>('/posts')  // failure.kind === 'http' narrows
+                                                                  // failure.response.headers['x-total'] to string
 ```
 

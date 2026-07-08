@@ -69,6 +69,33 @@ const api = new FetchEngine({
 ```
 
 
+### Retry Configuration
+
+
+`retryableStatusCodes` (default `[408, 429, 499, 500, 502, 503, 504]`) is the zero-config trigger for retrying a **resolved** `ok: false` response — not just a thrown error. A completed non-2xx exchange never throws, so this list is what decides whether the retry plugin schedules another attempt against it.
+
+```typescript
+interface RetryConfig {
+
+    maxAttempts?: number;              // default: 3
+    baseDelay?: number;                // default: 1000 (ms)
+    maxDelay?: number;                 // default: 10000
+    useExponentialBackoff?: boolean;   // default: true
+    retryableStatusCodes?: number[];   // default: [408, 429, 499, 500, 502, 503, 504]
+
+    // Receives a resolved `ok: false` FetchResponse for an HTTP-status
+    // retry, or a rejected transport FetchError for a transport retry —
+    // narrow with isFetchError(). A number return overrides the delay.
+    shouldRetry?: (
+        outcome: FetchResponse<unknown> | FetchError,
+        attempt: number
+    ) => boolean | number | Promise<boolean | number>;
+}
+```
+
+See [Resilience](./resilience) for full `shouldRetry` examples, including reading `Retry-After` from `outcome.headers`, and the exhausted-retries-resolve semantics.
+
+
 ### Distributed Tracing
 
 

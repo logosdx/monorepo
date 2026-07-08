@@ -233,9 +233,16 @@ api.on('cache-revalidate', (event) => {
     console.log('Background revalidation:', event.key);
 });
 
-// SWR background revalidation failed
+// SWR background revalidation failed — the existing stale entry is kept,
+// never overwritten. `outcome` is a resolved `ok: false` FetchResponse or a
+// rejected FetchError (a non-2xx revalidation never throws, so the cause
+// isn't always an Error) — narrow with isFetchError(outcome).
 api.on('cache-revalidate-error', (event) => {
-    console.error('Revalidation failed:', event.key, event.error);
+    if (isFetchError(event.outcome)) {
+        console.error('Revalidation transport failure:', event.key, event.outcome.message);
+        return;
+    }
+    console.warn('Revalidation got a non-2xx status:', event.key, event.outcome?.status);
 });
 ```
 

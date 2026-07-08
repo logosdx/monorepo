@@ -226,17 +226,22 @@ export const [ApiFetch, useApiFetch] = createFetchContext(api);
 
 ### Queries — `get(path, options?)`
 
-Auto-fetches on mount. Returns `{ data, loading, error, response, refetch, cancel }`. `data` is the unwrapped `T`. `response` provides full `FetchResponse` access (status, headers).
+Auto-fetches on mount. Returns `{ data, loading, failure, refetch, cancel }`. `data` is the unwrapped `T`. `failure` is one signal for "did it fail" — narrow on `kind` to see which channel:
+
+- `kind: 'transport'` — no response exists at all (abort, timeout, connection lost). `failure.error` is a `FetchError` with `.isCancelled()`, `.isTimeout()`, `.isConnectionLost()`.
+- `kind: 'http'` — the server answered outside 2xx. `failure.response` is the resolved, `ok: false` `FetchResponse` (status, headers, data).
 
 ```typescript
 function UserList() {
 
     const { get } = useApiFetch();
 
-    const { data, loading, error, refetch } = get<User[]>('/users');
+    const { data, loading, failure, refetch } = get<User[]>('/users');
 
     if (loading) return <Spinner />;
-    if (error) return <Error status={error.status} message={error.message} />;
+
+    if (failure?.kind === 'transport') return <Error message={failure.error.message} />;
+    if (failure?.kind === 'http') return <Error status={failure.response.status} />;
 
     return (
         <ul>
@@ -246,26 +251,26 @@ function UserList() {
 }
 ```
 
-With typed response headers via the `response` field:
+With typed response headers:
 
 ```typescript
-const { response } = get<Post[], { 'x-total': string }>('/posts');
-// response?.headers['x-total'] is typed as string
+const { failure } = get<Post[], { 'x-total': string }>('/posts');
+// failure?.kind === 'http' narrows failure.response.headers['x-total'] to string
 ```
 
 ### Mutations — `post`, `put`, `del`, `patch`
 
-Start idle. Returns `{ data, loading, error, response, mutate, reset, cancel, called }`. `mutate()` returns `Promise<T>` so you can await the result in handlers.
+Start idle. Returns `{ data, loading, failure, mutate, reset, cancel, called }`. `mutate()` **never rejects** — it resolves `Promise<T | undefined>`: the parsed body on success, `undefined` on any failure (transport or HTTP). Read `failure` for why.
 
 ```typescript
 function CreateComment() {
 
     const { post, del } = useApiFetch();
 
-    const { mutate: submit, loading: isSubmitting, data: result, error: submitErr } =
+    const { mutate: submit, loading: isSubmitting, data: result, failure: submitFailure } =
         post<Comment>('/comments');
 
-    const { mutate: remove, loading: isRemoving, error: removeErr } =
+    const { mutate: remove, loading: isRemoving, failure: removeFailure } =
         del<void>('/comments/123');
 
     return (
@@ -277,7 +282,8 @@ function CreateComment() {
                 {isSubmitting ? 'Sending...' : 'Submit'}
             </button>
             {result && <p>Created: {result.id}</p>}
-            {submitErr && <p>Failed: {submitErr.message}</p>}
+            {submitFailure?.kind === 'http' && <p>Failed ({submitFailure.response.status})</p>}
+            {submitFailure?.kind === 'transport' && <p>Failed: {submitFailure.error.message}</p>}
         </form>
     );
 }
@@ -297,6 +303,7 @@ function ExportButton() {
     const handleExport = async () => {
         const [res, err] = await attempt(() => instance.get('/export'));
         if (err) return console.error(err);
+        if (!res.ok) return console.error('Export failed:', res.status);
         downloadBlob(res.data);
     };
 
@@ -307,7 +314,7 @@ function ExportButton() {
 ## API Hooks
 
 
-Apollo-style hooks for API interactions. Like `createFetchContext`, these return `{ data, loading, error }` objects — familiar to anyone who's used Apollo Client or TanStack Query. Auto-refetch on reactive config changes, polling, and ObserverEngine-driven cache invalidation built in.
+Apollo-style hooks for API interactions. Like `createFetchContext`, these return `{ data, loading, failure }` objects — familiar to anyone who's used Apollo Client or TanStack Query. Auto-refetch on reactive config changes, polling, and ObserverEngine-driven cache invalidation built in.
 
 ```typescript
 import { FetchEngine } from '@logosdx/fetch';
@@ -340,7 +347,7 @@ Fires on mount and re-fetches when reactive options change. `data` is the parsed
 ```typescript
 function LoanList({ page }: { page: number }) {
 
-    const { data, loading, error, refetch, cancel } = useQuery<Loan[]>('/loans', {
+    const { data, loading, failure, refetch, cancel } = useQuery<Loan[]>('/loans', {
         defaults: { headers: { 'X-Api-Version': '2' } },     // Fixed — won't trigger re-fetch
         reactive: { params: { page, limit: 20 } },            // Watched — changes trigger re-fetch
         skip: !isAuthenticated,                                // Conditional execution
@@ -349,7 +356,8 @@ function LoanList({ page }: { page: number }) {
     });
 
     if (loading) return <Spinner />;
-    if (error) return <Error status={error.status} />;
+    if (failure?.kind === 'http') return <Error status={failure.response.status} />;
+    if (failure?.kind === 'transport') return <Error message={failure.error.message} />;
 
     return (
         <ul>
@@ -361,12 +369,12 @@ function LoanList({ page }: { page: number }) {
 
 ### `useMutation` — Fire on Demand
 
-Stays idle until `mutate()` is called. Returns a promise so you can `await` the result in handlers.
+Stays idle until `mutate()` is called. `mutate()` **never rejects** — it resolves `Promise<T | undefined>`, so `await` it directly and check the result.
 
 ```typescript
 function CreateLoan() {
 
-    const { mutate, loading, error, data, called, reset, cancel } =
+    const { mutate, loading, failure, data, called, reset, cancel } =
         useMutation<Loan>('post', '/loans', {
             defaults: { headers: { 'Content-Type': 'application/json' } },
             emitOnSuccess: 'loan.created',   // Emit event on observer after success
@@ -381,7 +389,8 @@ function CreateLoan() {
     return (
         <form onSubmit={handleSubmit}>
             <button disabled={loading}>{loading ? 'Creating...' : 'Create Loan'}</button>
-            {error && <p>Failed: {error.message}</p>}
+            {failure?.kind === 'http' && <p>Failed: {failure.response.status}</p>}
+            {failure?.kind === 'transport' && <p>Failed: {failure.error.message}</p>}
         </form>
     );
 }
@@ -405,7 +414,9 @@ emitOnSuccess: [
 
 ### `useAsync` — Wrap Any Async Function
 
-For when you need more than simple GET/POST — wrap any async function with loading/error/data state. If the function returns a `FetchResponse` (from FetchEngine methods), `data` is automatically unwrapped.
+For when you need more than simple GET/POST — wrap any async function with loading/failure/data state. If the function returns a `FetchResponse` (from FetchEngine methods), `data` is automatically unwrapped, and an `ok: false` response sets `failure: { kind: 'http', response }` instead of being treated as success.
+
+`useAsync` wraps an arbitrary function, so a rejection can't be promised as a `FetchError` the way `useQuery`/`useMutation` can — it sets `failure: { kind: 'rejected', error }` with the thrown value as-is (`kind: 'rejected'`, not `'transport'`, since there's no guarantee the wrapped function even made an HTTP call).
 
 ```typescript
 class LoanApi extends FetchEngine {
@@ -417,13 +428,15 @@ class LoanApi extends FetchEngine {
 
 function LoanDashboard({ page }: { page: number }) {
 
-    const { data, loading, error, refetch } = useAsync<Loan[]>(
+    const { data, loading, failure, refetch } = useAsync<Loan[]>(
         () => loanApi.getLoans(page),
         [page],                                                // React deps — re-executes on change
         { invalidateOn: ['loan.created'] },                    // Observer-driven invalidation
     );
 
     if (loading) return <Spinner />;
+    if (failure?.kind === 'http') return <Error status={failure.response.status} />;
+    if (failure?.kind === 'rejected') return <Error message={String(failure.error)} />;
 
     return <LoanTable loans={data ?? []} onRefresh={refetch} />;
 }
@@ -464,8 +477,8 @@ Both `createFetchContext` and `createApiHooks` wrap the same `FetchEngine`. Choo
 
 | | `createFetchContext` | `createApiHooks` |
 |---|---|---|
-| Return shape | `{ data, loading, error, response, ... }` objects | `{ data, loading, error, ... }` objects |
-| Response | Both `data` (unwrapped `T`) and `response` (`FetchResponse<T>`) | Unwrapped `T` (just the data) |
+| Return shape | `{ data, loading, failure, ... }` objects | `{ data, loading, failure, ... }` objects |
+| Failure access | `failure.kind === 'http'` narrows to the full `FetchResponse<T>` | Same — `failure` is the same discriminated union |
 | Requires Provider | Yes | No |
 | Observer integration | Manual | Built-in (`invalidateOn`, `emitOnSuccess`) |
 | Polling | Manual | Built-in (`pollInterval`) |
@@ -475,14 +488,23 @@ Use `createFetchContext` when you need Provider-scoped sharing and full response
 
 ### Type Definitions
 
+**The `failure` union** — shared by every hook and factory below:
+
+```typescript
+type FetchFailure<T, RH = Record<string, string>> =
+    | { kind: 'transport'; error: FetchError }
+    | { kind: 'http'; response: Extract<FetchResponse<T, unknown, unknown, RH>, { ok: false }> };
+```
+
+`kind: 'transport'` means no response exists at all (abort, timeout, connection lost) — `error` is the `FetchError`, with its `.isCancelled()` / `.isTimeout()` / `.isConnectionLost()` helpers. `kind: 'http'` means the server answered with a non-2xx status — `response` is the resolved, `ok: false` `FetchResponse`.
+
 **Fetch Context return types** (from `createFetchContext`):
 
 ```typescript
 type FetchContextQueryResult<T, RH> = {
     data: T | null;
     loading: boolean;
-    error: FetchError | null;
-    response: FetchResponse<T, any, any, RH> | null;
+    failure: FetchFailure<T, RH> | null;
     refetch: () => void;
     cancel: () => void;
 };
@@ -490,9 +512,9 @@ type FetchContextQueryResult<T, RH> = {
 type FetchContextMutationResult<T, RH> = {
     data: T | null;
     loading: boolean;
-    error: FetchError | null;
-    response: FetchResponse<T, any, any, RH> | null;
-    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
+    failure: FetchFailure<T, RH> | null;
+    // Never rejects — resolves undefined on any failure; read `failure` for why
+    mutate: <Payload = unknown>(payload?: Payload) => Promise<T | undefined>;
     reset: () => void;
     cancel: () => void;
     called: boolean;
@@ -502,22 +524,39 @@ type FetchContextMutationResult<T, RH> = {
 **API Hooks return types** (from `createApiHooks`):
 
 ```typescript
-type QueryResult<T> = {
+type QueryResult<T, RH> = {
     data: T | null;
     loading: boolean;
-    error: FetchError | null;
+    failure: FetchFailure<T, RH> | null;
     refetch: () => void;
     cancel: () => void;
 };
 
-type MutationResult<T> = {
+type MutationResult<T, RH> = {
     data: T | null;
     loading: boolean;
-    error: FetchError | null;
-    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
+    failure: FetchFailure<T, RH> | null;
+    // Never rejects — resolves undefined on any failure; read `failure` for why
+    mutate: <Payload = unknown>(payload?: Payload) => Promise<T | undefined>;
     reset: () => void;
     cancel: () => void;
     called: boolean;
+};
+
+// `useAsync` wraps an arbitrary function, so it can't promise a FetchError
+// on rejection — `kind: 'rejected'` names only what's true for any wrapped
+// promise: it rejected. `kind: 'http'` still narrows precisely when the
+// resolved value structurally looks like a non-2xx response.
+type AsyncFailure =
+    | { kind: 'rejected'; error: unknown }
+    | { kind: 'http'; response: { ok: boolean; status: number; data: unknown; request: unknown } };
+
+type AsyncResult<T> = {
+    data: T | null;
+    loading: boolean;
+    failure: AsyncFailure | null;
+    refetch: () => void;
+    cancel: () => void;
 };
 
 type QueryOptions<H, P, E> = {

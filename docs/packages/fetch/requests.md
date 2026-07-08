@@ -154,17 +154,12 @@ const { data } = await api.request<User>('PATCH', '/users/123', {
 ## FetchResponse
 
 
-Every HTTP method returns a `FetchResponse` object:
+Every HTTP method returns a `FetchResponse` — a discriminated union on `ok`. Every completed exchange resolves this way, including non-2xx status; only a transport failure (abort, timeout, connection lost, parse failure on an `ok: true` body) rejects instead as a `FetchError`.
 
 ```typescript
-interface FetchResponse<T, H, P, RH> {
-
-    data: T;                  // Parsed response body
-    headers: Partial<RH>;     // Response headers
-    status: number;           // HTTP status code
-    request: Request;         // Original request object
-    config: FetchConfig<H, P>; // Configuration used for request
-}
+type FetchResponse<T, H, P, RH> =
+    | { ok: true; data: T; headers: Partial<RH>; status: number; request: Request; config: FetchConfig<H, P> }
+    | { ok: false; data: unknown; headers: Partial<RH>; status: number; request: Request; config: FetchConfig<H, P> };
 ```
 
 **Example:**
@@ -172,13 +167,15 @@ interface FetchResponse<T, H, P, RH> {
 ```typescript
 const response = await api.get<User[]>('/users');
 
-console.log(response.data);      // User[]
-console.log(response.status);    // 200
-console.log(response.headers);   // { 'content-type': 'application/json', ... }
-console.log(response.config);    // { baseUrl: '...', headers: {...}, ... }
-
-// Destructure just the data
-const { data: users } = await api.get<User[]>('/users');
+if (!response.ok) {
+    console.error('Request failed:', response.status, response.data);
+}
+else {
+    console.log(response.data);      // User[] — narrowed by the ok check
+    console.log(response.status);    // 200
+    console.log(response.headers);   // { 'content-type': 'application/json', ... }
+    console.log(response.config);    // { baseUrl: '...', headers: {...}, ... }
+}
 ```
 
 

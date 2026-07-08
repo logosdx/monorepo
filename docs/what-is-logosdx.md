@@ -21,7 +21,7 @@ The rational principles that create order from development complexity.
 
 **Why is this different?**
 
-1. **Explicit error handling control flow**: Utilities like `attempt`/`attemptSync` return `[value, error]` tuples, which eliminates the need for try/catch— no more invisible error paths due to nested logic. This makes tests, retries, and fallbacks straightforward and more legible.
+1. **Explicit error handling control flow**: Utilities like `attempt`/`attemptSync` return `[value, error]` tuples, which eliminates the need for try/catch— no more invisible error paths due to nested logic. This makes tests, retries, and fallbacks straightforward and more legible. `FetchEngine` takes this further: a non-2xx response is not an exception either — it resolves as a value (`{ ok: false, status, data }`) you narrow with a single `if`, alongside the `err` tuple slot reserved for transport failure (abort, timeout, connection lost).
 
 2. **Resilience is a primary concern**: `retry`, `withTimeout`, `circuitBreaker`, and `rateLimit` are available as primitives. `FetchEngine` adds timeouts, retries, backoff, and gives you abstractions to handle common patterns (e.g., honor `Retry-After`) on top of the standard Fetch API.
 
@@ -84,8 +84,16 @@ api.state.set({ userId: '123' });
 
 const [orders, ordersErr] = await attempt(() => api.get('/orders'))
 
-if (isFetchError(ordersErr)) {
-    // Handle error appropriately
+if (ordersErr) {
+    // Transport failure — no response exists (abort, timeout, connection lost)
+    if (isFetchError(ordersErr)) {
+        // .isCancelled() / .isTimeout() / .isConnectionLost() available here
+    }
+    return;
+}
+
+if (!orders.ok) {
+    // Exchange completed; the server said no — status, headers, and data are all here
 }
 
 // Or use the global instance

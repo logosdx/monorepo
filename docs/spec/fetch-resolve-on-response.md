@@ -125,6 +125,7 @@ see `docs/design/fetch-resolve-on-response.md`.
         wiki/fetch.md                          M
 
     skills/logosdx/references/fetch.md         M
+    skills/logosdx/references/react.md         M (hooks failure-union contract)
 
     .changeset/fetch-resolve-on-response.md    A (major: @logosdx/fetch, @logosdx/react)
 
@@ -267,7 +268,7 @@ above via `scripts/build-docs.mjs` — not hand-edited.
 | CP-5 | Remaining fetch test conformance + full package suite gate | `tests/src/fetch/engine/{integration,lifecycle,request-id,streaming,fetch-promise}.test.ts`, `tests/src/fetch/executor/timeout.test.ts` | atomic-implementer (mode: feature) | 6 | `pnpm --filter @logosdx/fetch run build`; full `pnpm test` (fetch project, all files) green |
 | CP-6 | React failure-union hooks: `useQuery`, `useMutation`, `useAsync`, `createFetchContext` | `packages/react/src/types.ts`, `fetch.ts`, `api/types.ts`, `api/use-query.ts`, `api/use-mutation.ts`, `api/use-async.ts` | atomic-implementer (mode: feature) | 6 | `pnpm --filter @logosdx/fetch run build`; `pnpm --filter @logosdx/react run build` |
 | CP-7 | React test conformance + full react suite gate | `tests/src/react/api/{use-query,use-mutation,use-async}.test.ts`, `tests/src/react/fetch.test.ts`, `tests/src/react/fetch-integration.test.ts`, `tests/src/react/fetch-renders.test.ts` | atomic-implementer (mode: feature) | 6 | full `pnpm test` (react project) green |
-| CP-8 | Docs surfaces: resilience/configuration/events, wiki, skill reference, react package doc, philosophy page | `skills/logosdx/references/fetch.md`, `docs/packages/fetch/{resilience,configuration,events}.md`, `docs/packages/react.md`, `docs/what-is-logosdx.md`, `docs/wiki/fetch.md` | atomic-implementer (mode: feature) | 7 | `pnpm build:docs` succeeds; examples match the shipped contract |
+| CP-8 | Docs surfaces: resilience/configuration/events, wiki, skill references (fetch + react), react package doc, philosophy page | `skills/logosdx/references/{fetch,react}.md`, `docs/packages/fetch/{resilience,configuration,events}.md`, `docs/packages/react.md`, `docs/what-is-logosdx.md`, `docs/wiki/fetch.md` | atomic-implementer (mode: feature) | 8 | `pnpm docs:build` succeeds (modulo pre-existing `docs/wiki/` VitePress breakage present on base); examples match the shipped contract |
 | CP-9 | Changeset: major bump for `@logosdx/fetch` and `@logosdx/react` | `.changeset/fetch-resolve-on-response.md` | atomic-implementer (mode: surgical) | 1 | `pnpm changeset status` recognizes the entry |
 
 
@@ -283,3 +284,17 @@ above via `scripts/build-docs.mjs` — not hand-edited.
 
 
 ## Change log
+
+
+### 2026-07-08 — CP-8 scope: react skills reference added; docs gate corrected
+
+**What changed:** `skills/logosdx/references/react.md` added to the Change tree and CP-8
+(the react hooks' AI reference documents the failure-union contract and was missed by the
+original tree). CP-8's Verifies gate corrected from `pnpm build:docs` (a deploy script
+that no-ops without flags) to `pnpm docs:build` (the actual VitePress build), qualified by
+the pre-existing `docs/wiki/CLAUDE.md` VitePress parse failure present on the base commit.
+
+**Why:** CP-8 implementation sweep found the stale react reference and the gate-command
+mismatch; docs must match the shipped contract on every AI-consumed surface.
+
+**Superseded:** CP-8 file list without the react reference; `pnpm build:docs` as the gate.

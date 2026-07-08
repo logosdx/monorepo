@@ -49,5 +49,6 @@ type: Domain
 - `FetchEngine` constructor takes a `baseUrl`; all methods (`get`, `post`, `put`, `patch`, `delete`, `head`, `options`) are bound on the default export instance.
 - `cookiePlugin` implements RFC 6265-compliant cookie handling added in recent work.
 - Resilience policies (`DedupePolicy`, `CachePolicy`, `RateLimitPolicy`) are composable plugins added via `engine.use(plugin)`.
-- `FetchResponse<T>` wraps raw response — consumers get the typed wrapper, not the raw `Response` object.
+- `FetchResponse<T>` is a discriminated union on `ok` — every completed HTTP exchange resolves this way, including non-2xx status (`ok: false`, `data: unknown`). `FetchError` is transport-only: thrown/rejected iff no usable response exists (abort, timeout, connection lost, parse failure on an `ok: true` body).
+- Errors-as-values extends to HTTP outcomes: a non-2xx response is a resolved value, not an exception — callers narrow with `res.ok`, same as they narrow `err` from `attempt()`.
 - The `ResiliencePolicy` base class is exported for building custom policies.

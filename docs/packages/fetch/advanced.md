@@ -207,8 +207,8 @@ api.state.set('authToken', 'token');     // Typed - knows authToken exists
 
 // Response includes your typed headers
 const [response] = await attempt(() => api.get<User>('/api/data'));
-if (response) {
-    response.data;    // User
+if (response?.ok) {
+    response.data;    // User — narrowed by the ok check
     response.status;  // number
     response.headers; // Partial<InstanceResponseHeaders>
     response.headers['x-rate-limit-remaining']; // string | undefined
@@ -305,28 +305,33 @@ const api = new FetchEngine({
         ]
     },
 
-    // Intelligent retry logic
+    // Intelligent retry logic. `outcome` is a resolved `ok: false`
+    // FetchResponse for an HTTP-status retry, or a rejected transport
+    // FetchError for a transport retry — narrow with isFetchError().
     retry: {
         maxAttempts: 3,
         baseDelay: 1000,
         useExponentialBackoff: true,
-        shouldRetry: (error, attempt) => {
-            // Don't retry if user aborted
-            if (error.aborted) return false;
+        shouldRetry: (outcome, attempt) => {
+
+            if (isFetchError(outcome)) {
+                // Don't retry if user aborted; retry any other transport failure
+                return !outcome.isCancelled();
+            }
 
             // Don't retry client errors except rate limits
-            if (error.status >= 400 && error.status < 500 && error.status !== 429) {
+            if (outcome.status >= 400 && outcome.status < 500 && outcome.status !== 429) {
                 return false;
             }
 
-            // Respect rate limit headers
-            if (error.status === 429) {
-                const retryAfter = error.headers?.['retry-after'];
+            // Respect rate limit headers — these are RESPONSE headers
+            if (outcome.status === 429) {
+                const retryAfter = outcome.headers['retry-after'];
                 return retryAfter ? parseInt(retryAfter) * 1000 : 5000;
             }
 
-            // Retry server errors and network failures
-            return error.status >= 500 || !error.status;
+            // Retry server errors
+            return outcome.status >= 500;
         }
     },
 
@@ -355,18 +360,26 @@ const api = new FetchEngine({
     }
 });
 
-// Production monitoring
+// Production monitoring — `error` is transport-only (abort, timeout,
+// connection lost, parse-on-ok); a non-2xx status resolves instead
 api.on('error', (event) => {
     errorReporting.captureException(event.error, {
         tags: {
             endpoint: event.path,
             method: event.method,
-            status: event.error?.status
+            step: event.step
         },
         extra: {
             attempt: event.attempt,
             userId: api.state.get().userId
         }
+    });
+});
+
+// Server errors resolve — report them off `response-5xx`, not `error`
+api.on('response-5xx', (event) => {
+    errorReporting.captureMessage(`${event.status} ${event.path}`, {
+        tags: { endpoint: event.path, method: event.method, status: event.status }
     });
 });
 
@@ -506,7 +519,7 @@ function UserProfile({ userId }: { userId: string }) {
             const [response, err] = await attempt(() =>
                 api.get<User>(`/users/${userId}`)
             );
-            if (!err) setUser(response.data);
+            if (!err && response.ok) setUser(response.data);
         };
 
         fetchUser();
@@ -542,14 +555,16 @@ class ApiService {
         const [response, err] = await attempt(() =>
             this.#api.get<User>(`/users/${id}`)
         );
-        return err ? null : response.data;
+        if (err || !response.ok) return null;
+        return response.data;
     }
 
     async createUser(data: CreateUserData): Promise<User | null> {
         const [response, err] = await attempt(() =>
             this.#api.post<User, CreateUserData>('/users', data)
         );
-        return err ? null : response.data;
+        if (err || !response.ok) return null;
+        return response.data;
     }
 
     async updateUser(id: string, data: UpdateUserData): Promise<User | null> {
@@ -557,12 +572,12 @@ class ApiService {
             this.#api.patch<User, UpdateUserData>(`/users/${id}`, data)
         );
 
-        // Invalidate cache on successful update
-        if (!err) {
-            await this.#api.invalidatePath(`/users/${id}`);
-        }
+        if (err || !response.ok) return null;
 
-        return err ? null : response.data;
+        // Invalidate cache on successful update
+        await this.#api.invalidatePath(`/users/${id}`);
+
+        return response.data;
     }
 
     setAuthToken(token: string) {
@@ -630,7 +645,8 @@ async function query<T>(
         })
     );
 
-    return err ? null : response.data.data;
+    if (err || !response.ok) return null;
+    return response.data.data;
 }
 
 // Usage
@@ -666,7 +682,8 @@ async function uploadFile(file: File, onProgress?: (percent: number) => void) {
         })
     );
 
-    return err ? null : response.data.url;
+    if (err || !response.ok) return null;
+    return response.data.url;
 }
 ```
 
@@ -688,7 +705,7 @@ async function batchFetch<T>(
         const batch = paths.slice(i, i + concurrency);
         const promises = batch.map(async (path) => {
             const [response, err] = await attempt(() => api.get<T>(path));
-            results.set(path, err ? null : response.data);
+            results.set(path, (err || !response.ok) ? null : response.data);
         });
         await Promise.all(promises);
     }

@@ -163,7 +163,7 @@ api.hooks.add('execute', async (next, opts, ctx) => {
 ## afterRequest
 
 
-Linear hooks that run after a successful response. Use these for response transformation, caching, or logging.
+Linear hooks that run after every completed exchange — any status, including non-2xx (a non-2xx exchange resolves, it never throws). Use these for response transformation, caching, or logging; check `response.ok` when the hook should only act on success.
 
 **Signature:**
 
