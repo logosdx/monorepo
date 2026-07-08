@@ -7,13 +7,17 @@ import {
 
 import type { DependencyList } from 'react';
 import type { ObserverEngine } from '@logosdx/observer';
-import type { QueryResult, AsyncOptions } from './types.ts';
+import type { AsyncResult, AsyncFailure, AsyncOptions, ResponseLike } from './types.ts';
 
 /**
- * Checks whether a value looks like a FetchResponse (has `.data` and `.status`
- * and `.request`). Used to auto-unwrap FetchResponse from FetchEngine methods.
+ * Checks whether a value looks like a FetchResponse (has `.ok`, `.data`,
+ * `.status`, `.request`). Used to auto-unwrap FetchResponse from FetchEngine
+ * methods and to detect a resolved-but-failed (`ok: false`) exchange.
+ * Checked structurally, without importing `@logosdx/fetch` — `useAsync`
+ * wraps arbitrary async functions, and `@logosdx/fetch` is an optional
+ * peer dependency this generic hook shouldn't require.
  */
-function isFetchResponse(value: unknown): value is { data: unknown } {
+function isResponseLike(value: unknown): value is ResponseLike {
 
     return (
         typeof value === 'object'
@@ -21,17 +25,22 @@ function isFetchResponse(value: unknown): value is { data: unknown } {
         && 'data' in value
         && 'status' in value
         && 'request' in value
+        && 'ok' in value
     );
 }
 
 /**
- * Generic async hook — wraps any async function with loading/error/data state.
- * Auto-executes on mount and when deps change.
+ * Generic async hook — wraps any async function with loading/failure/data
+ * state. Auto-executes on mount and when deps change.
  *
- * If the function returns a FetchResponse (from FetchEngine methods),
- * the `.data` property is automatically unwrapped.
+ * If the function returns a FetchResponse (from FetchEngine methods), the
+ * `.data` property is automatically unwrapped, and an `ok: false` response
+ * sets `failure: { kind: 'http', response }` instead of being treated as
+ * success. `useAsync` wraps an arbitrary function, so it can't promise a
+ * `FetchError` the way `useQuery` does — a rejection sets
+ * `failure: { kind: 'rejected', error }` with the thrown value as-is.
  *
- *     const { data, loading, error } = useAsync(
+ *     const { data, loading, failure } = useAsync(
  *         () => myApi.getUsers(page),
  *         [page],
  *     );
@@ -45,11 +54,11 @@ export function useAsync<
     T = unknown,
     E extends Record<string, any> = Record<string, any>,
 >(
-    fn: () => Promise<any>,
+    fn: () => Promise<unknown>,
     deps: DependencyList,
     options?: AsyncOptions<E>,
     observer?: ObserverEngine<E>,
-): QueryResult<T> {
+): AsyncResult<T> {
 
     const skip = options?.skip ?? false;
     const pollInterval = options?.pollInterval;
@@ -57,7 +66,7 @@ export function useAsync<
 
     const [loading, setLoading] = useState(!skip);
     const [data, setData] = useState<T | null>(null);
-    const [error, setError] = useState<any>(null);
+    const [failure, setFailure] = useState<AsyncFailure | null>(null);
     const [refetchCount, setRefetchCount] = useState(0);
 
     const mountedRef = useRef(true);
@@ -81,19 +90,30 @@ export function useAsync<
 
                 if (cancelled || !mountedRef.current) return;
 
-                const unwrapped = isFetchResponse(result) ? result.data : result;
+                if (isResponseLike(result) && !result.ok) {
+
+                    setLoading(false);
+                    setData(null);
+                    setFailure({ kind: 'http', response: result });
+                    return;
+                }
+
+                const unwrapped = isResponseLike(result) ? result.data : result;
 
                 setLoading(false);
+                // `fn` is caller-typed as returning `T` (or a FetchResponse
+                // wrapping `T`) — nothing at this generic boundary can prove
+                // the unwrapped value's runtime shape matches `T`.
                 setData(unwrapped as T);
-                setError(null);
+                setFailure(null);
             },
-            (err) => {
+            (error: unknown) => {
 
                 if (cancelled || !mountedRef.current) return;
 
                 setLoading(false);
                 setData(null);
-                setError(err);
+                setFailure({ kind: 'rejected', error });
             },
         );
 
@@ -135,5 +155,5 @@ export function useAsync<
 
     const cancel = useCallback(() => {}, []);
 
-    return { data, loading, error, refetch, cancel };
+    return { data, loading, failure, refetch, cancel };
 }

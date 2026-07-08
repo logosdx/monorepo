@@ -8,17 +8,23 @@ import {
 import { attempt } from '@logosdx/utils';
 import type { FetchEngine, FetchError } from '@logosdx/fetch';
 import type { ObserverEngine } from '@logosdx/observer';
-import type { QueryResult, QueryOptions } from './types.ts';
+import type { QueryResult, QueryOptions, FetchFailure } from './types.ts';
 
 /**
  * Apollo-style query hook — auto-fetches on mount, re-fetches when reactive
- * config changes. Returns `{ data, loading, error, refetch, cancel }`.
+ * config changes. Returns `{ data, loading, failure, refetch, cancel }`.
  *
- * `data` is the parsed response body (not the full FetchResponse).
+ * `data` is the parsed response body (not the full FetchResponse). `failure`
+ * narrows on `kind`: `'transport'` (no response exists — abort, timeout,
+ * connection lost) carries `error: FetchError`; `'http'` (server answered
+ * outside 2xx) carries `response`, the resolved ok-false `FetchResponse`.
  *
- *     const { data, loading, error } = useQuery<User[]>(api, '/users', {
+ *     const { data, loading, failure } = useQuery<User[]>(api, '/users', {
  *         reactive: { params: { page: 1 } },
  *     });
+ *
+ *     if (failure?.kind === 'transport') return <Error message={failure.error.message} />;
+ *     if (failure?.kind === 'http') return <Error status={failure.response.status} />;
  *
  * @param engine - FetchEngine instance
  * @param path - Request path (appended to engine's baseUrl)
@@ -37,7 +43,7 @@ export function useQuery<
     path: string,
     options?: QueryOptions<H, P, E>,
     observer?: ObserverEngine<E>,
-): QueryResult<T> {
+): QueryResult<T, RH> {
 
     const defaults = options?.defaults;
     const reactive = options?.reactive;
@@ -50,7 +56,7 @@ export function useQuery<
 
     const [loading, setLoading] = useState(!skip);
     const [data, setData] = useState<T | null>(null);
-    const [error, setError] = useState<FetchError | null>(null);
+    const [failure, setFailure] = useState<FetchFailure<T, RH> | null>(null);
     const [refetchCount, setRefetchCount] = useState(0);
 
     const abortRef = useRef<AbortController | null>(null);
@@ -91,13 +97,23 @@ export function useQuery<
 
                 setLoading(false);
                 setData(null);
-                setError(err as FetchError);
+                // attempt()'s tuple types the rejection as a generic Error;
+                // FetchEngine only ever rejects with FetchError.
+                setFailure({ kind: 'transport', error: err as FetchError });
+                return;
+            }
+
+            if (!res.ok) {
+
+                setLoading(false);
+                setData(null);
+                setFailure({ kind: 'http', response: res });
                 return;
             }
 
             setLoading(false);
-            setData(res!.data);
-            setError(null);
+            setData(res.data);
+            setFailure(null);
         });
 
         return () => controller.abort();
@@ -141,5 +157,5 @@ export function useQuery<
         abortRef.current?.abort();
     }, []);
 
-    return { data, loading, error, refetch, cancel };
+    return { data, loading, failure, refetch, cancel };
 }

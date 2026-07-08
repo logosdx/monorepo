@@ -70,11 +70,30 @@ export type UseStateMachineReturn<
     instance: StateMachine<Context, Events, States>;
 };
 
+/**
+ * One `failure` signal for a request outcome, replacing a bare `error` +
+ * `response` pair. `kind: 'transport'` means no response exists at all
+ * (abort, timeout, connection lost) — `error` is the `FetchError`, with its
+ * `.isCancelled()` / `.isTimeout()` / `.isConnectionLost()` helpers.
+ * `kind: 'http'` means the server answered with a non-2xx status — the
+ * `response` is the resolved, ok-false `FetchResponse`. Callers check one
+ * field to know "did it fail", then narrow `kind` to see which channel.
+ */
+export type FetchFailure<T, RH = Record<string, string>> =
+    | { kind: 'transport'; error: FetchError }
+    | {
+        kind: 'http';
+        // `H`/`P` are left `unknown`: the engine's internal request-header/
+        // param types don't line up 1:1 with the caller-facing generics
+        // here, and nothing about a failure needs `response.config` typed
+        // precisely — `data`, `status`, and `headers` are what matters.
+        response: Extract<FetchResponse<T, unknown, unknown, RH>, { ok: false }>;
+    };
+
 export type FetchContextQueryResult<T, RH = Record<string, string>> = {
     data: T | null;
     loading: boolean;
-    error: FetchError | null;
-    response: FetchResponse<T, any, any, RH> | null;
+    failure: FetchFailure<T, RH> | null;
     refetch: () => void;
     cancel: () => void;
 };
@@ -82,9 +101,10 @@ export type FetchContextQueryResult<T, RH = Record<string, string>> = {
 export type FetchContextMutationResult<T, RH = Record<string, string>> = {
     data: T | null;
     loading: boolean;
-    error: FetchError | null;
-    response: FetchResponse<T, any, any, RH> | null;
-    mutate: <Payload = unknown>(payload?: Payload) => Promise<T>;
+    failure: FetchFailure<T, RH> | null;
+    // Never rejects — a non-2xx or transport failure resolves `undefined`;
+    // callers read `failure` for why, or just check the returned value.
+    mutate: <Payload = unknown>(payload?: Payload) => Promise<T | undefined>;
     reset: () => void;
     cancel: () => void;
     called: boolean;
