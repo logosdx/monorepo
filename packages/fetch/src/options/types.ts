@@ -171,7 +171,7 @@ export interface EngineRequestConfig<H = InstanceHeaders, P = InstanceParams>
  */
 export interface EngineLifecycle<H = InstanceHeaders, P = InstanceParams> {
 
-    onError?: ((err: FetchError<any, any>) => void | Promise<void>) | undefined;
+    onError?: ((err: FetchError<any>) => void | Promise<void>) | undefined;
     onBeforeReq?: ((opts: EngineRequestConfig<H, P>) => void | Promise<void>) | undefined;
     onAfterReq?: ((response: Response, opts: EngineRequestConfig<H, P>) => void | Promise<void>) | undefined;
 }

@@ -434,7 +434,7 @@ export class RequestExecutor<
         normalizedOpts: InternalReqOptions<H, P, S>,
         errorOpts: {
             error: FetchError | Error,
-            step: 'fetch' | 'parse' | 'response',
+            step: 'fetch' | 'parse',
             status?: number,
             data?: unknown
         }
@@ -458,11 +458,11 @@ export class RequestExecutor<
 
         const aborted = controller.signal.aborted;
 
-        let err = error as FetchError<{}, DictAndT<H>>;
+        let err = error as FetchError<DictAndT<H>>;
 
         if (step === 'fetch') {
 
-            err = new FetchError(err.message) as FetchError<{}, DictAndT<H>>;
+            err = new FetchError(err.message) as FetchError<DictAndT<H>>;
 
             err.status = 499;
             err.message = err.message || 'Fetch error';
@@ -470,41 +470,10 @@ export class RequestExecutor<
 
         if (step === 'parse') {
 
-            err = new FetchError(err.message) as FetchError<{}, DictAndT<H>>;
+            err = new FetchError(err.message) as FetchError<DictAndT<H>>;
 
             err.status = status || 999;
             err.message = err.message || 'Parse error';
-        }
-
-        if (step === 'response') {
-
-            const asAgg = error as AggregateError;
-            let errors = asAgg.errors as Error[];
-            let errCode = '';
-
-            if (
-                !errors ||
-                errors.length === 0 &&
-                error.cause instanceof AggregateError
-            ) {
-
-                errors = (error.cause as AggregateError)?.errors as Error[];
-            }
-
-            if ((error as any)?.code) {
-                errCode = (error as any).code;
-            }
-
-            if (errors && errors.length > 0) {
-
-                const msgs = errors.map((e) => e.message).join('; ');
-
-                err = new FetchError(`${errCode}: ${msgs}`) as FetchError<{}, DictAndT<H>>;
-            }
-            else {
-
-                err = new FetchError(error.message) as FetchError<{}, DictAndT<H>>;
-            }
         }
 
         err.requestId = normalizedOpts.requestId;
@@ -513,7 +482,6 @@ export class RequestExecutor<
         err.method = err.method || method!;
         err.path = err.path || path!;
         err.aborted = err.aborted || aborted;
-        err.data = err.data || data as null;
         err.step = err.step || step;
         err.headers = err.headers || headers;
 
@@ -539,6 +507,110 @@ export class RequestExecutor<
         onError && onError(err);
 
         throw err;
+    }
+
+    /**
+     * Extracts response headers into a plain object.
+     *
+     * Set-Cookie is treated specially so multi-value headers survive: the
+     * default `Headers#forEach` path overwrites on each iteration for
+     * duplicate keys, and `Headers#get` joins duplicates with ", " which is
+     * ambiguous (Expires dates contain commas).
+     */
+    #extractResponseHeaders<ResHdr>(response: Response): Partial<ResHdr> {
+
+        const responseHeaders: Record<string, unknown> = {};
+        const setCookies: string[] = [];
+
+        response.headers.forEach((value, key) => {
+
+            if (key.toLowerCase() === 'set-cookie') {
+
+                setCookies.push(value);
+                return;
+            }
+
+            responseHeaders[key] = value;
+        });
+
+        // Prefer the native getter when available — on runtimes that support it
+        // (Node 18.14.1+, Chrome 113+, Firefox 112+, Safari 17+), it is the only
+        // lossless way to read multiple Set-Cookie values because `headers.get`
+        // joins them with ", " which is ambiguous (Expires dates contain commas).
+        //
+        // Runtime detection via Reflect.get avoids a type assertion: if the DOM
+        // typings on the target lib do not yet declare `getSetCookie`, the
+        // assertion would lie; instead we ask at runtime and narrow by typeof.
+        const nativeGetter = Reflect.get(response.headers, 'getSetCookie');
+
+        const cookies = typeof nativeGetter === 'function'
+            ? nativeGetter.call(response.headers)
+            : setCookies;
+
+        if (Array.isArray(cookies) && cookies.length > 0) {
+
+            responseHeaders['set-cookie'] = cookies.filter(
+                (v): v is string => typeof v === 'string'
+            );
+        }
+
+        // Boundary cast: HTTP responses are an untyped external source and
+        // `ResHdr` is a user-provided generic. This is the single sanctioned
+        // assertion in this function.
+        return responseHeaders as unknown as Partial<ResHdr>;
+    }
+
+    /**
+     * Builds the `ok`-discriminated {@link FetchResponse} for a completed
+     * exchange. `ok` is a literal boolean branch (not the `boolean` from
+     * `Response#ok`) so the two return statements — not a ternary — are what
+     * let TypeScript narrow `data` correctly on each side of the union.
+     */
+    #buildResponse<Res, ResHdr>(
+        ok: boolean,
+        data: unknown,
+        headers: Partial<ResHdr>,
+        status: number,
+        request: Request,
+        config: FetchConfig<DictAndT<H>, DictAndT<P>>
+    ): FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr> {
+
+        if (ok) {
+
+            return { ok: true, data: data as Res, headers, status, request, config };
+        }
+
+        return { ok: false, data, headers, status, request, config };
+    }
+
+    /**
+     * Emits `response` for every completed exchange, plus `response-4xx` /
+     * `response-5xx` for their status ranges. Called once per attempt.
+     */
+    #emitResponseEvents(
+        normalizedOpts: InternalReqOptions<H, P, S>,
+        response: Response,
+        data: unknown
+    ): void {
+
+        const eventData = {
+            ...normalizedOpts,
+            response,
+            data,
+            status: response.status,
+            requestEnd: Date.now()
+        };
+
+        this.engine.emit('response', eventData);
+
+        if (response.status >= 400 && response.status < 500) {
+
+            this.engine.emit('response-4xx', eventData);
+        }
+        else if (response.status >= 500 && response.status < 600) {
+
+            this.engine.emit('response-5xx', eventData);
+        }
     }
 
     /**
@@ -617,57 +689,9 @@ export class RequestExecutor<
 
         if (directive === 'stream' || directive === 'raw') {
 
+            const responseHeaders = this.#extractResponseHeaders<ResHdr>(response);
 
-            // Build the plain headers object. Treat `set-cookie` specially so
-            // multi-value Set-Cookie headers survive (the default `forEach`
-            // path overwrites on each iteration for duplicate keys).
-            const responseHeaders: Record<string, unknown> = {};
-            const setCookies: string[] = [];
-
-            response.headers.forEach((value, key) => {
-
-                if (key.toLowerCase() === 'set-cookie') {
-
-                    setCookies.push(value);
-                    return;
-                }
-
-                responseHeaders[key] = value;
-            });
-
-            // Prefer the native getter when available — on runtimes that support it
-            // (Node 18.14.1+, Chrome 113+, Firefox 112+, Safari 17+), it is the only
-            // lossless way to read multiple Set-Cookie values because `headers.get`
-            // joins them with ", " which is ambiguous (Expires dates contain commas).
-            //
-            // Runtime detection via Reflect.get avoids a type assertion: if the DOM
-            // typings on the target lib do not yet declare `getSetCookie`, the
-            // assertion would lie; instead we ask at runtime and narrow by typeof.
-            const nativeGetter = Reflect.get(response.headers, 'getSetCookie');
-
-            const cookies = typeof nativeGetter === 'function'
-                ? nativeGetter.call(response.headers)
-                : setCookies;
-
-            if (Array.isArray(cookies) && cookies.length > 0) {
-
-                responseHeaders['set-cookie'] = cookies.filter(
-                    (v): v is string => typeof v === 'string'
-                );
-            }
-
-            // Boundary cast: HTTP responses are an untyped external source and
-            // `ResHdr` is a user-provided generic. This is the single sanctioned
-            // assertion in this function.
-            const typedResponseHeaders = responseHeaders as unknown as Partial<ResHdr>;
-
-            this.engine.emit('response', {
-                ...options,
-                response,
-                data: response,
-                status: response.status,
-                requestEnd: Date.now()
-            });
+            this.#emitResponseEvents(options, response, response);
 
             const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
                 baseUrl: this.baseUrl.toString(),
@@ -679,18 +703,37 @@ export class RequestExecutor<
                 determineType,
             };
 
-            return {
-                data: response as unknown as Res,
-                headers: typedResponseHeaders,
-                status: response.status,
-                request: new Request(url, fetchOpts),
+            return this.#buildResponse<Res, ResHdr>(
+                response.ok,
+                response,
+                responseHeaders,
+                response.status,
+                new Request(url, fetchOpts),
                 config
-            };
+            );
         }
 
-        if (directive && directive !== 'json') {
+        const responseHeaders = this.#extractResponseHeaders<ResHdr>(response);
 
-            const [data, parseErr] = await attempt(async () => {
+        // The body can only be cloned before it is read. Status is known
+        // synchronously (no need to wait on the parse attempt), so clone
+        // up front — but only for a non-2xx response, where a parse
+        // failure falls back to raw text instead of raising a FetchError.
+        const fallbackClone = response.ok ? undefined : response.clone();
+        const request = new Request(url, fetchOpts);
+
+        const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
+            baseUrl: this.baseUrl.toString(),
+            attemptTimeout: options.attemptTimeout,
+            method,
+            headers: reqHeaders,
+            params,
+            retry: this.retryConfig,
+            determineType,
+        };
+
+        const [data, parseErr] = directive && directive !== 'json'
+            ? await attempt(async () => {
 
                 if (response.status === 204) {
 
@@ -698,150 +741,75 @@ export class RequestExecutor<
                 }
 
                 return await response[directive]() as Res;
-            });
+            })
+            : await attempt(async () => {
 
-            if (parseErr) {
+                const typeResult = determineType
+                    ? determineType(response)
+                    : this.determineType(response);
 
-                this.#handleError(options, {
-                    error: parseErr,
-                    step: 'parse',
-                    status: response.status,
-                    data
-                });
+                const { type, isJson } = typeResult;
 
-                throw parseErr;
-            }
+                const isRecognized = 'isRecognized' in typeResult ? (typeResult as any).isRecognized : true;
 
-            if (response.ok === false) {
+                if (response.status === 204) {
 
-                this.#handleError(options, {
-                    error: new FetchError(response.statusText),
-                    step: 'response',
-                    status: response.status,
-                    data
-                });
-
-                throw new FetchError(response.statusText);
-            }
-
-            this.engine.emit('response', {
-                ...options,
-                response,
-                data,
-                requestEnd: Date.now()
-            });
-
-            const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
-                baseUrl: this.baseUrl.toString(),
-                attemptTimeout: options.attemptTimeout,
-                method,
-                headers: reqHeaders,
-                params,
-                retry: this.retryConfig,
-                determineType,
-            };
-
-            // Build the plain headers object. Treat `set-cookie` specially so
-            // multi-value Set-Cookie headers survive (the default `forEach`
-            // path overwrites on each iteration for duplicate keys).
-            const responseHeaders: Record<string, unknown> = {};
-            const setCookies: string[] = [];
-
-            response.headers.forEach((value, key) => {
-
-                if (key.toLowerCase() === 'set-cookie') {
-
-                    setCookies.push(value);
-                    return;
+                    return null;
                 }
 
-                responseHeaders[key] = value;
-            });
+                if (isJson) {
 
-            // Prefer the native getter when available — on runtimes that support it
-            // (Node 18.14.1+, Chrome 113+, Firefox 112+, Safari 17+), it is the only
-            // lossless way to read multiple Set-Cookie values because `headers.get`
-            // joins them with ", " which is ambiguous (Expires dates contain commas).
-            //
-            // Runtime detection via Reflect.get avoids a type assertion: if the DOM
-            // typings on the target lib do not yet declare `getSetCookie`, the
-            // assertion would lie; instead we ask at runtime and narrow by typeof.
-            const nativeGetter = Reflect.get(response.headers, 'getSetCookie');
+                    const text = await response.text();
 
-            const cookies = typeof nativeGetter === 'function'
-                ? nativeGetter.call(response.headers)
-                : setCookies;
-
-            if (Array.isArray(cookies) && cookies.length > 0) {
-
-                responseHeaders['set-cookie'] = cookies.filter(
-                    (v): v is string => typeof v === 'string'
-                );
-            }
-
-            // Boundary cast: HTTP responses are an untyped external source and
-            // `ResHdr` is a user-provided generic. This is the single sanctioned
-            // assertion in this function.
-            const typedResponseHeaders = responseHeaders as unknown as Partial<ResHdr>;
-
-            return {
-                data: data!,
-                headers: typedResponseHeaders,
-                status: response.status,
-                request: new Request(url, fetchOpts),
-                config
-            };
-        }
-
-        const [data, parseErr] = await attempt(async () => {
-
-            const typeResult = determineType
-                ? determineType(response)
-                : this.determineType(response);
-
-            const { type, isJson } = typeResult;
-
-            const isRecognized = 'isRecognized' in typeResult ? (typeResult as any).isRecognized : true;
-
-            if (response.status === 204) {
-
-                return null;
-            }
-
-            if (isJson) {
-
-                const text = await response.text();
-
-                if (text) {
-
-                    return JSON.parse(text) as Res;
-                }
-
-                return null;
-            }
-            else if (isRecognized) {
-
-                return await response[type]() as Res;
-            }
-            else {
-
-                const text = await response.text();
-
-                if (text) {
-
-                    if (type === 'json') {
+                    if (text) {
 
                         return JSON.parse(text) as Res;
                     }
 
-                    return text as Res;
+                    return null;
                 }
+                else if (isRecognized) {
 
-                throw new Error(`Unknown content-type: ${response.headers.get('content-type')}`);
-            }
-        });
+                    return await response[type]() as Res;
+                }
+                else {
+
+                    const text = await response.text();
+
+                    if (text) {
+
+                        if (type === 'json') {
+
+                            return JSON.parse(text) as Res;
+                        }
+
+                        return text as Res;
+                    }
+
+                    throw new Error(`Unknown content-type: ${response.headers.get('content-type')}`);
+                }
+            });
 
         if (parseErr) {
+
+            // The status is never masked by a body-format failure: a non-2xx
+            // response still resolves, falling back to the raw text body.
+            if (!response.ok) {
+
+                const [fallbackText] = await attempt(() => fallbackClone!.text());
+                const fallbackData = fallbackText ?? null;
+
+                this.#emitResponseEvents(options, response, fallbackData);
+
+                return this.#buildResponse<Res, ResHdr>(
+                    false,
+                    fallbackData,
+                    responseHeaders,
+                    response.status,
+                    request,
+                    config
+                );
+            }
 
             this.#handleError(options, {
                 error: parseErr,
@@ -853,87 +821,16 @@ export class RequestExecutor<
             throw parseErr;
         }
 
-        if (response.ok === false) {
+        this.#emitResponseEvents(options, response, data);
 
-            this.#handleError(options, {
-                error: new FetchError(response.statusText),
-                step: 'response',
-                status: response.status,
-                data
-            });
-
-            throw new FetchError(response.statusText);
-        }
-
-        this.engine.emit('response', {
-            ...options,
-            response,
+        return this.#buildResponse<Res, ResHdr>(
+            response.ok,
             data,
-            requestEnd: Date.now()
-        });
-
-        const config: FetchConfig<DictAndT<H>, DictAndT<P>> = {
-            baseUrl: this.baseUrl.toString(),
-            attemptTimeout: options.attemptTimeout,
-            method,
-            headers: reqHeaders,
-            params: params,
-            retry: this.retryConfig,
-            determineType: determineType,
-        };
-
-        const request = new Request(url, fetchOpts);
-
-        // Build the plain headers object. Treat `set-cookie` specially so
-        // multi-value Set-Cookie headers survive (the default `forEach`
-        // path overwrites on each iteration for duplicate keys).
-        const responseHeaders: Record<string, unknown> = {};
-        const setCookies: string[] = [];
-
-        response.headers.forEach((value, key) => {
-
-            if (key.toLowerCase() === 'set-cookie') {
-
-                setCookies.push(value);
-                return;
-            }
-
-            responseHeaders[key] = value;
-        });
-
-        // Prefer the native getter when available — on runtimes that support it
-        // (Node 18.14.1+, Chrome 113+, Firefox 112+, Safari 17+), it is the only
-        // lossless way to read multiple Set-Cookie values because `headers.get`
-        // joins them with ", " which is ambiguous (Expires dates contain commas).
-        //
-        // Runtime detection via Reflect.get avoids a type assertion: if the DOM
-        // typings on the target lib do not yet declare `getSetCookie`, the
-        // assertion would lie; instead we ask at runtime and narrow by typeof.
-        const nativeGetter = Reflect.get(response.headers, 'getSetCookie');
-
-        const cookies = typeof nativeGetter === 'function'
-            ? nativeGetter.call(response.headers)
-            : setCookies;
-
-        if (Array.isArray(cookies) && cookies.length > 0) {
-
-            responseHeaders['set-cookie'] = cookies.filter(
-                (v): v is string => typeof v === 'string'
-            );
-        }
-
-        // Boundary cast: HTTP responses are an untyped external source and
-        // `ResHdr` is a user-provided generic. This is the single sanctioned
-        // assertion in this function.
-        const typedResponseHeaders = responseHeaders as unknown as Partial<ResHdr>;
-
-        return {
-            data: data!,
-            headers: typedResponseHeaders,
-            status: response.status,
+            responseHeaders,
+            response.status,
             request,
             config
-        };
+        );
     }
 
     /**

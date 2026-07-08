@@ -18,14 +18,14 @@ export interface EventData<S = unknown, H = unknown, P = unknown> {
     method?: HttpMethods | undefined;
     headers?: DictAndT<H> | undefined;
     params?: DictAndT<P> | undefined;
-    error?: Error | FetchError<{}, DictAndT<H>> | undefined;
+    error?: Error | FetchError<DictAndT<H>> | undefined;
     response?: Response | undefined;
     data?: unknown;
     payload?: unknown;
     attempt?: number | undefined;
     nextAttempt?: number | undefined;
     delay?: number | undefined;
-    step?: 'fetch' | 'parse' | 'response' | undefined;
+    step?: 'fetch' | 'parse' | undefined;
     status?: number | undefined;
     path?: string | undefined;
     aborted?: boolean | undefined;
@@ -186,8 +186,19 @@ export interface EventMap<S = unknown, H = unknown, P = unknown> {
     'before-request': EventData<S, H, P>;
     'after-request': EventData<S, H, P>;
     'abort': EventData<S, H, P>;
+
+    /** Transport failure or a parse failure on an `ok: true` body. Never non-2xx. */
     'error': EventData<S, H, P>;
+
+    /** Fires for every completed exchange, any status. */
     'response': EventData<S, H, P>;
+
+    /** Fires alongside `response` when `status` is 400-499. */
+    'response-4xx': EventData<S, H, P>;
+
+    /** Fires alongside `response` when `status` is 500-599. */
+    'response-5xx': EventData<S, H, P>;
+
     'retry': EventData<S, H, P>;
 
     // Property mutation events
