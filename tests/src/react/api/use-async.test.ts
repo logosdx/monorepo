@@ -3,6 +3,7 @@ import { act } from 'react';
 
 import { FetchEngine } from '../../../../packages/fetch/src/index.ts';
 import { useAsync } from '../../../../packages/react/src/api/use-async.ts';
+import type { AsyncFailure, ResponseLike } from '../../../../packages/react/src/api/types.ts';
 import { renderHook, flush } from '../_helpers.ts';
 
 const jsonResponse = (data: unknown, status = 200) => new Response(
@@ -33,7 +34,7 @@ describe('@logosdx/react api: useAsync', () => {
 
         expect(result.current.loading).to.be.false;
         expect(result.current.data).to.deep.equal({ users: ['alice'] });
-        expect(result.current.error).to.be.null;
+        expect(result.current.failure).to.be.null;
 
         unmount();
     });
@@ -80,7 +81,7 @@ describe('@logosdx/react api: useAsync', () => {
         unmount();
     });
 
-    it('sets error state on rejection', async () => {
+    it('sets failure with kind "rejected" when fn throws', async () => {
 
         const err = new Error('boom');
         const fn = vi.fn().mockRejectedValue(err);
@@ -93,7 +94,50 @@ describe('@logosdx/react api: useAsync', () => {
 
         expect(result.current.loading).to.be.false;
         expect(result.current.data).to.be.null;
-        expect(result.current.error).to.equal(err);
+
+        const failure: AsyncFailure | null = result.current.failure;
+
+        expect(failure).to.not.be.null;
+        expect(failure!.kind).to.equal('rejected');
+
+        if (failure!.kind === 'rejected') {
+
+            expect(failure!.error).to.equal(err);
+        }
+
+        unmount();
+    });
+
+    it('sets failure with kind "http" when fn resolves an ok:false response-like value', async () => {
+
+        const responseLike: ResponseLike = {
+            ok: false,
+            status: 404,
+            data: { message: 'Not found' },
+            request: {},
+        };
+
+        const fn = vi.fn().mockResolvedValue(responseLike);
+
+        const { result, unmount } = renderHook(() =>
+            useAsync(fn, [])
+        );
+
+        await flush();
+
+        expect(result.current.loading).to.be.false;
+        expect(result.current.data).to.be.null;
+
+        const failure: AsyncFailure | null = result.current.failure;
+
+        expect(failure).to.not.be.null;
+        expect(failure!.kind).to.equal('http');
+
+        if (failure!.kind === 'http') {
+
+            expect(failure!.response.status).to.equal(404);
+            expect(failure!.response.data).to.deep.equal({ message: 'Not found' });
+        }
 
         unmount();
     });
@@ -116,6 +160,41 @@ describe('@logosdx/react api: useAsync', () => {
         await flush();
 
         expect(result.current.data).to.deep.equal({ name: 'Alice' });
+        expect(result.current.failure).to.be.null;
+
+        unmount();
+        engine.destroy();
+    });
+
+    it('an ok:false FetchResponse lands in failure, not data (latent-bug pin)', async () => {
+
+        globalThis.fetch = vi.fn().mockResolvedValue(
+            jsonResponse({ message: 'Not found' }, 404)
+        );
+
+        const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
+
+        const { result, unmount } = renderHook(() =>
+            useAsync<{ name: string }>(
+                () => engine.get<{ name: string }>('/user'),
+                [],
+            )
+        );
+
+        await flush();
+
+        // The ok:false response's parsed body must not be mistaken for `data`.
+        expect(result.current.data).to.be.null;
+
+        const failure: AsyncFailure | null = result.current.failure;
+
+        expect(failure).to.not.be.null;
+        expect(failure!.kind).to.equal('http');
+
+        if (failure!.kind === 'http') {
+
+            expect(failure!.response.status).to.equal(404);
+        }
 
         unmount();
         engine.destroy();

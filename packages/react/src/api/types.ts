@@ -38,6 +38,8 @@ export type ResponseLike = {
     ok: boolean;
     status: number;
     data: unknown;
+    /** Discriminator distinguishing response-like objects from arbitrary `{ ok, status, data }` domain shapes. */
+    request: unknown;
 };
 
 /**

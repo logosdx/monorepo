@@ -3,6 +3,7 @@ import { act } from 'react';
 
 import { FetchEngine } from '../../../packages/fetch/src/index.ts';
 import { createFetchContext } from '../../../packages/react/src/index.ts';
+import type { FetchFailure } from '../../../packages/react/src/index.ts';
 import { renderHook, flush } from './_helpers.ts';
 
 
@@ -52,7 +53,7 @@ describe('@logosdx/react: fetch', () => {
 
     describe('get() queries', () => {
 
-        it('auto-fetches on mount and resolves with data and response', async () => {
+        it('auto-fetches on mount and resolves with data', async () => {
 
             globalThis.fetch = vi.fn().mockResolvedValue(
                 jsonResponse({ users: ['alice', 'bob'] })
@@ -70,23 +71,20 @@ describe('@logosdx/react: fetch', () => {
             // Initially loading
             expect(result.current.loading).to.be.true;
             expect(result.current.data).to.be.null;
-            expect(result.current.response).to.be.null;
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
 
             await flush();
 
-            // Resolved — data is unwrapped T, response is full FetchResponse
+            // Resolved — data is unwrapped T, failure stays null on success
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.deep.equal({ users: ['alice', 'bob'] });
-            expect(result.current.response).to.not.be.null;
-            expect(result.current.response!.data).to.deep.equal({ users: ['alice', 'bob'] });
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
 
             unmount();
             engine.destroy();
         });
 
-        it('sets error state on failed request', async () => {
+        it('sets failure with kind "http" on a non-2xx response', async () => {
 
             globalThis.fetch = vi.fn().mockResolvedValue(
                 jsonResponse({ message: 'Not found' }, 404)
@@ -103,11 +101,49 @@ describe('@logosdx/react: fetch', () => {
 
             await flush();
 
+            const failure: FetchFailure<unknown> | null = result.current.failure;
+
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.be.null;
-            expect(result.current.response).to.be.null;
-            expect(result.current.error).to.not.be.null;
-            expect(result.current.error!.status).to.equal(404);
+            expect(failure).to.not.be.null;
+            expect(failure!.kind).to.equal('http');
+
+            if (failure!.kind === 'http') {
+
+                expect(failure!.response.status).to.equal(404);
+                expect(failure!.response.data).to.deep.equal({ message: 'Not found' });
+            }
+
+            unmount();
+            engine.destroy();
+        });
+
+        it('sets failure with kind "transport" when the request cannot reach the server', async () => {
+
+            globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+            const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
+            const [, useFetch] = createFetchContext(engine);
+
+            const { result, unmount } = renderHook(() => {
+
+                const { get } = useFetch();
+                return get('/missing');
+            });
+
+            await flush();
+
+            const failure: FetchFailure<unknown> | null = result.current.failure;
+
+            expect(result.current.loading).to.be.false;
+            expect(result.current.data).to.be.null;
+            expect(failure).to.not.be.null;
+            expect(failure!.kind).to.equal('transport');
+
+            if (failure!.kind === 'transport') {
+
+                expect(failure!.error.isConnectionLost()).to.be.true;
+            }
 
             unmount();
             engine.destroy();
@@ -200,30 +236,6 @@ describe('@logosdx/react: fetch', () => {
             engine.destroy();
         });
 
-        it('response field contains the full FetchResponse', async () => {
-
-            globalThis.fetch = vi.fn().mockResolvedValue(
-                jsonResponse({ id: 1 })
-            );
-
-            const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
-            const [, useFetch] = createFetchContext(engine);
-
-            const { result, unmount } = renderHook(() => {
-
-                const { get } = useFetch();
-                return get<{ id: number }>('/item');
-            });
-
-            await flush();
-
-            expect(result.current.response).to.not.be.null;
-            expect(result.current.response!.status).to.equal(200);
-            expect(result.current.response!.data).to.deep.equal({ id: 1 });
-
-            unmount();
-            engine.destroy();
-        });
     });
 
     describe('mutation hooks', () => {
@@ -246,8 +258,7 @@ describe('@logosdx/react: fetch', () => {
             expect(result.current.reset).to.be.a('function');
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.be.null;
-            expect(result.current.response).to.be.null;
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
             expect(result.current.called).to.be.false;
 
             // fetch should NOT have been called
@@ -278,9 +289,7 @@ describe('@logosdx/react: fetch', () => {
 
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.deep.equal({ id: 1, text: 'Hello' });
-            expect(result.current.response).to.not.be.null;
-            expect(result.current.response!.data).to.deep.equal({ id: 1, text: 'Hello' });
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
             expect(result.current.called).to.be.true;
 
             unmount();
@@ -315,8 +324,11 @@ describe('@logosdx/react: fetch', () => {
             engine.destroy();
         });
 
-        it('mutate() returns Promise that rejects on error', async () => {
+        it('mutate() resolves undefined on a non-2xx response — failure surfaces via the failure state', async () => {
 
+            // Preserves the original intent (server error surfaces to the
+            // caller): mutate() never rejects now, so the proof moves from a
+            // caught exception to the resolved value + `failure` state.
             globalThis.fetch = vi.fn().mockResolvedValue(
                 jsonResponse({ message: 'Bad request' }, 400)
             );
@@ -324,35 +336,40 @@ describe('@logosdx/react: fetch', () => {
             const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
             const [, useFetch] = createFetchContext(engine);
 
-            let caughtError: unknown;
-
             const { result, unmount } = renderHook(() => {
 
                 const { post } = useFetch();
                 return post('/items');
             });
 
+            let mutateResult: unknown;
+
             await act(async () => {
 
-                try {
-
-                    await result.current.mutate({ invalid: true });
-                }
-                catch (err) {
-
-                    caughtError = err;
-                }
+                mutateResult = await result.current.mutate({ invalid: true });
             });
 
-            expect(caughtError).to.not.be.undefined;
-            expect((caughtError as any).status).to.equal(400);
+            expect(mutateResult).to.be.undefined;
+
+            const failure: FetchFailure<unknown> | null = result.current.failure;
+
+            expect(failure).to.not.be.null;
+            expect(failure!.kind).to.equal('http');
+
+            if (failure!.kind === 'http') {
+
+                expect(failure!.response.status).to.equal(400);
+            }
 
             unmount();
             engine.destroy();
         });
 
-        it('mutation sets error state on failure', async () => {
+        it('mutation sets failure state on failure', async () => {
 
+            // Preserves the original intent (server error surfaces to the
+            // caller, hook state reflects it): mutate() never rejects, so
+            // there is nothing to catch — await it directly.
             globalThis.fetch = vi.fn().mockResolvedValue(
                 jsonResponse({ message: 'Validation failed' }, 422)
             );
@@ -366,16 +383,18 @@ describe('@logosdx/react: fetch', () => {
                 return post('/comments');
             });
 
-            await act(async () => {
-
-                try { await result.current.mutate({ text: '' }); }
-                catch { /* expected */ }
-            });
+            await act(async () => { await result.current.mutate({ text: '' }); });
 
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.be.null;
-            expect(result.current.error).to.not.be.null;
-            expect(result.current.error!.status).to.equal(422);
+            expect(result.current.failure).to.not.be.null;
+            expect(result.current.failure!.kind).to.equal('http');
+
+            if (result.current.failure!.kind === 'http') {
+
+                expect(result.current.failure!.response.status).to.equal(422);
+            }
+
             expect(result.current.called).to.be.true;
 
             unmount();
@@ -437,8 +456,7 @@ describe('@logosdx/react: fetch', () => {
             act(() => { result.current.reset(); });
 
             expect(result.current.data).to.be.null;
-            expect(result.current.response).to.be.null;
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
             expect(result.current.loading).to.be.false;
             expect(result.current.called).to.be.false;
 
@@ -466,7 +484,7 @@ describe('@logosdx/react: fetch', () => {
             await flush();
 
             expect(result.current.loading).to.be.false;
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
 
             unmount();
             engine.destroy();
@@ -524,11 +542,9 @@ describe('@logosdx/react: fetch', () => {
             engine.destroy();
         });
 
-        it('response field contains full FetchResponse for mutations', async () => {
+        it('mutate() sets failure with kind "transport" when the request cannot reach the server', async () => {
 
-            globalThis.fetch = vi.fn().mockResolvedValue(
-                jsonResponse({ id: 5 }, 201)
-            );
+            globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
             const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
             const [, useFetch] = createFetchContext(engine);
@@ -539,13 +555,24 @@ describe('@logosdx/react: fetch', () => {
                 return post<{ id: number }>('/items');
             });
 
-            act(() => { result.current.mutate({ name: 'new' }); });
+            let mutateResult: unknown;
 
-            await flush();
+            await act(async () => {
 
-            expect(result.current.response).to.not.be.null;
-            expect(result.current.response!.status).to.equal(201);
-            expect(result.current.response!.data).to.deep.equal({ id: 5 });
+                mutateResult = await result.current.mutate({ name: 'new' });
+            });
+
+            expect(mutateResult).to.be.undefined;
+
+            const failure: FetchFailure<{ id: number }> | null = result.current.failure;
+
+            expect(failure).to.not.be.null;
+            expect(failure!.kind).to.equal('transport');
+
+            if (failure!.kind === 'transport') {
+
+                expect(failure!.error.isConnectionLost()).to.be.true;
+            }
 
             unmount();
             engine.destroy();
