@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { cookiePlugin } from '../../../../packages/fetch/src/plugins/cookies/plugin.ts';
 import { CookieJar } from '../../../../packages/fetch/src/plugins/cookies/jar.ts';
 import type { Cookie, CookieAdapter } from '../../../../packages/fetch/src/plugins/cookies/types.ts';
+import { FetchEngine } from '../../../../packages/fetch/src/index.ts';
+import { attempt } from '../../../../packages/utils/src/index.ts';
+import { makeCookieTestServer } from './_helpers.ts';
 
 function makeCookie(overrides: Partial<Cookie> = {}): Cookie {
 
@@ -215,6 +218,46 @@ describe('cookies: cookiePlugin', () => {
             plugin.jar.set(makeCookie({ name: 'a' }));
 
             await expect(plugin.flush()).rejects.toThrow('persist failed');
+        });
+    });
+
+    describe('Set-Cookie capture on non-2xx responses (resolve-on-response pinning)', async () => {
+
+        // Non-2xx responses resolve instead of throwing under the new contract —
+        // the cookie jar must still capture Set-Cookie headers regardless of
+        // status. This was starved by the old throw-on-status behavior.
+        const { testUrl } = await makeCookieTestServer(4802);
+
+        it('captures Set-Cookie from a 401 response into the jar', async () => {
+
+            const cookies = cookiePlugin();
+            const api = new FetchEngine({ baseUrl: testUrl, plugins: [cookies], retry: false });
+
+            const [res, err] = await attempt(() => api.get('/set-cookie-401'));
+
+            expect(err).toBeNull();
+            expect(res?.ok).toBe(false);
+            expect(res?.status).toBe(401);
+
+            expect(cookies.jar.all().some(c => c.name === 'session' && c.value === 'abc123')).toBe(true);
+
+            api.destroy();
+        });
+
+        it('captures Set-Cookie from a 500 response into the jar', async () => {
+
+            const cookies = cookiePlugin();
+            const api = new FetchEngine({ baseUrl: testUrl, plugins: [cookies], retry: false });
+
+            const [res, err] = await attempt(() => api.get('/set-cookie-500'));
+
+            expect(err).toBeNull();
+            expect(res?.ok).toBe(false);
+            expect(res?.status).toBe(500);
+
+            expect(cookies.jar.all().some(c => c.name === 'session' && c.value === 'abc123')).toBe(true);
+
+            api.destroy();
         });
     });
 });

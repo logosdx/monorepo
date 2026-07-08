@@ -470,24 +470,44 @@ describe('@logosdx/fetch: deduplication',  async () => {
         api.destroy();
     });
 
-    it('should propagate errors to all waiting callers', async () => {
+    it('should share the same ok:false response identically among all waiting callers', async () => {
 
+        // Pinning test: non-2xx responses resolve (not reject) under the new
+        // contract, and dedupe joiners must receive the identical resolved
+        // response as the initiator — same status/data, one network call.
         const api = new FetchEngine({
             baseUrl: testUrl,
             dedupePolicy: true
         });
 
-        // Make 3 concurrent requests to a failing endpoint
-        const results = await Promise.allSettled([
+        const startEvents: string[] = [];
+        const joinEvents: string[] = [];
+
+        api.on('dedupe-start', (data) => startEvents.push(data.path!));
+        api.on('dedupe-join', (data) => joinEvents.push(data.path!));
+
+        // Make 3 concurrent requests to a non-2xx endpoint
+        const [r1, r2, r3] = await Promise.all([
             api.get('/fail'),
             api.get('/fail'),
             api.get('/fail')
         ]);
 
-        // All should reject
-        expect(results[0].status).to.equal('rejected');
-        expect(results[1].status).to.equal('rejected');
-        expect(results[2].status).to.equal('rejected');
+        // One network call (initiator), two joiners
+        expect(startEvents.length).to.equal(1);
+        expect(joinEvents.length).to.equal(2);
+
+        // All callers resolve (none reject) with the identical ok:false response
+        expect(r1.ok).to.be.false;
+        expect(r2.ok).to.be.false;
+        expect(r3.ok).to.be.false;
+
+        expect(r1.status).to.equal(400);
+        expect(r2.status).to.equal(r1.status);
+        expect(r3.status).to.equal(r1.status);
+
+        expect(r2.data).to.deep.equal(r1.data);
+        expect(r3.data).to.deep.equal(r1.data);
 
         api.destroy();
     });
@@ -702,7 +722,7 @@ describe('@logosdx/fetch: deduplication',  async () => {
             dedupePolicy: true
         });
 
-        // Request that will fail
+        // Request that resolves ok:false
         await attempt(() => api.get('/fail'));
 
         // Stats should show 0 in-flight
@@ -1225,12 +1245,12 @@ describe('@logosdx/fetch: deduplication',  async () => {
             dedupePolicy: true
         });
 
-        // Make several failed requests
+        // Make several requests that resolve ok:false
         for (let i = 0; i < 5; i++) {
 
             await attempt(() => api.get('/fail'));
 
-            // In-flight should be cleaned up even after errors
+            // In-flight should be cleaned up even after a non-2xx response
             expect(api.cacheStats().inflightCount).to.equal(0);
         }
 
@@ -2352,19 +2372,21 @@ describe('@logosdx/fetch: deduplication',  async () => {
 
     describe('state and sequence', () => {
 
-        it('should NOT join failed request when new request starts after error completes', async () => {
+        it('should NOT join a completed ok:false request when a new request starts after it resolves', async () => {
 
             const api = new FetchEngine({
                 baseUrl: testUrl,
                 dedupePolicy: { enabled: true },
-                retry: false // Disable retry to avoid async leakage from retryable 503 errors
+                retry: false // Disable retry to avoid async leakage from retryable 503 responses
             });
 
-            // First request fails (using /fail-once which fails first call)
-            const [, err1] = await attempt(() => api.get('/fail-once'));
-            expect(err1).to.be.instanceOf(FetchError);
+            // First request resolves ok:false (using /fail-once which fails first call)
+            const [result1, err1] = await attempt(() => api.get('/fail-once'));
+            expect(err1).to.be.null;
+            expect(result1?.ok).to.be.false;
+            expect(result1?.status).to.equal(503);
 
-            // Second request should NOT join the failed request (it's completed)
+            // Second request should NOT join the completed request (it's already settled)
             // /fail-once succeeds on subsequent calls
             const [result2, err2] = await attempt(() => api.get('/fail-once'));
             expect(err2).to.be.null;
@@ -3141,7 +3163,7 @@ describe('@logosdx/fetch: deduplication',  async () => {
 
     describe('error recovery', () => {
 
-        it('should propagate network errors to all joiners', async () => {
+        it('should propagate the same ok:false response to all joiners', async () => {
 
             const api = new FetchEngine({
                 baseUrl: testUrl,
@@ -3150,18 +3172,19 @@ describe('@logosdx/fetch: deduplication',  async () => {
 
             const path = '/fail';
 
-            // Launch multiple concurrent requests to failing endpoint
+            // Launch multiple concurrent requests to a non-2xx endpoint
             const requests = Array.from({ length: 5 }, () =>
                 attempt(() => api.get(path))
             );
 
             const results = await Promise.all(requests);
 
-            // All should receive the same error
-            results.forEach(([_, err]) => {
+            // All should resolve (not reject) with the same ok:false response
+            results.forEach(([result, err]) => {
 
-                expect(err).to.not.be.null;
-                expect(err).to.be.instanceOf(FetchError);
+                expect(err).to.be.null;
+                expect(result?.ok).to.be.false;
+                expect(result?.status).to.equal(400);
             });
 
             // No inflight leaks
@@ -3171,7 +3194,7 @@ describe('@logosdx/fetch: deduplication',  async () => {
             api.destroy();
         });
 
-        it('should recover from network errors during deduplication', async () => {
+        it('should recover from ok:false responses during deduplication', async () => {
 
             const api = new FetchEngine({
                 baseUrl: testUrl,
@@ -3180,17 +3203,18 @@ describe('@logosdx/fetch: deduplication',  async () => {
 
             const failPath = '/fail';
 
-            // First batch: concurrent requests that will fail
+            // First batch: concurrent requests to a non-2xx endpoint
             const failingRequests = Array.from({ length: 3 }, () =>
                 attempt(() => api.get(failPath))
             );
 
             const failResults = await Promise.all(failingRequests);
 
-            // All should fail
-            failResults.forEach(([_, err]) => {
+            // All should resolve ok:false (not reject)
+            failResults.forEach(([result, err]) => {
 
-                expect(err).to.not.be.null;
+                expect(err).to.be.null;
+                expect(result?.ok).to.be.false;
             });
 
             // Now verify system can recover with successful requests

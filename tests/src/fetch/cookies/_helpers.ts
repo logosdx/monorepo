@@ -50,6 +50,8 @@ const getNextPort = (basePort = 4800) => {
  *   GET /set-scoped       h.state('scoped', 'yes')              — Path=/api (scoped)
  *   GET /echo-cookies     returns { cookie: req.headers.cookie } (no state set)
  *   GET /api/resource     echoes cookie at Path=/api            (no state set)
+ *   GET /set-cookie-401   h.state('session', 'abc123') + 401     — non-2xx pinning
+ *   GET /set-cookie-500   h.state('session', 'abc123') + 500     — non-2xx pinning
  */
 export const makeCookieTestServer = async (port?: number) => {
 
@@ -168,6 +170,26 @@ export const makeCookieTestServer = async (port?: number) => {
                 // server.state('scoped', { path: '/api' }) scopes the cookie.
                 // Emits Set-Cookie: scoped=yes; SameSite=Strict; Path=/api
                 return h.response({ ok: true }).state('scoped', 'yes');
+            },
+        },
+
+        {
+            method: 'GET',
+            path: '/set-cookie-401',
+            handler: (_req, h) => {
+
+                // Non-2xx response that still sets a cookie — under the
+                // resolve-on-response contract this must still populate the jar.
+                return h.response({ message: 'unauthorized' }).code(401).state('session', 'abc123');
+            },
+        },
+
+        {
+            method: 'GET',
+            path: '/set-cookie-500',
+            handler: (_req, h) => {
+
+                return h.response({ message: 'server error' }).code(500).state('session', 'abc123');
             },
         },
 

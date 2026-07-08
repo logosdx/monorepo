@@ -22,7 +22,9 @@ describe('cookies: FetchEngine integration', async () => {
         // Second request to echo endpoint: cookie should now be attached
         const [res] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
-        expect(res!.data.cookie).toContain('session=abc123');
+        if (!res?.ok) throw new Error('expected a successful response');
+
+        expect(res.data.cookie).toContain('session=abc123');
 
         api.destroy();
     });
@@ -37,8 +39,11 @@ describe('cookies: FetchEngine integration', async () => {
         const [r1] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
         const [r2] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
-        expect(r1!.data.cookie).toContain('session=abc123');
-        expect(r2!.data.cookie).toContain('session=abc123');
+        if (!r1?.ok) throw new Error('expected a successful response');
+        if (!r2?.ok) throw new Error('expected a successful response');
+
+        expect(r1.data.cookie).toContain('session=abc123');
+        expect(r2.data.cookie).toContain('session=abc123');
 
         api.destroy();
     });
@@ -53,7 +58,9 @@ describe('cookies: FetchEngine integration', async () => {
 
         const [res] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
-        expect(res!.data.cookie).toBe('');
+        if (!res?.ok) throw new Error('expected a successful response');
+
+        expect(res.data.cookie).toBe('');
 
         api.destroy();
     });
@@ -67,8 +74,10 @@ describe('cookies: FetchEngine integration', async () => {
 
         const [res] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
-        expect(res!.data.cookie).toContain('token=xyz');
-        expect(res!.data.cookie).toContain('user=danilo');
+        if (!res?.ok) throw new Error('expected a successful response');
+
+        expect(res.data.cookie).toContain('token=xyz');
+        expect(res.data.cookie).toContain('user=danilo');
 
         api.destroy();
     });
@@ -84,7 +93,9 @@ describe('cookies: FetchEngine integration', async () => {
         // /echo-cookies is at /, which does NOT match Path=/api
         const [res] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
-        expect(res!.data.cookie).toBe('');
+        if (!res?.ok) throw new Error('expected a successful response');
+
+        expect(res.data.cookie).toBe('');
 
         api.destroy();
     });
@@ -99,7 +110,9 @@ describe('cookies: FetchEngine integration', async () => {
         // /api/resource matches Path=/api
         const [res] = await attempt(() => api.get<{ cookie: string }>('/api/resource'));
 
-        expect(res!.data.cookie).toContain('scoped=yes');
+        if (!res?.ok) throw new Error('expected a successful response');
+
+        expect(res.data.cookie).toContain('scoped=yes');
 
         api.destroy();
     });
@@ -158,7 +171,9 @@ describe('cookies: FetchEngine integration', async () => {
 
         const [res] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
-        expect(res!.data.cookie).toContain('preloaded=fromAdapter');
+        if (!res?.ok) throw new Error('expected a successful response');
+
+        expect(res.data.cookie).toContain('preloaded=fromAdapter');
 
         api.destroy();
     });
@@ -254,7 +269,9 @@ describe('cookies: FetchEngine integration', async () => {
             await api.get('/set-cookie');
             const [res] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
-            expect(res!.data.cookie).toContain('session=abc123');
+            if (!res?.ok) throw new Error('expected a successful response');
+
+            expect(res.data.cookie).toContain('session=abc123');
 
             api.destroy();
         });
@@ -269,8 +286,10 @@ describe('cookies: FetchEngine integration', async () => {
             await api.get('/set-cookie');
             const [res] = await attempt(() => api.get<{ cookie: string }>('/echo-cookies'));
 
+            if (!res?.ok) throw new Error('expected a successful response');
+
             // Cookies are excluded for localhost, so nothing should be sent
-            expect(res!.data.cookie).toBe('');
+            expect(res.data.cookie).toBe('');
 
             api.destroy();
         });
