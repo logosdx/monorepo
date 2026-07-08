@@ -101,8 +101,11 @@ describe('@logosdx/fetch: request ID', async () => {
         const beforeIds: string[] = [];
         const errorIds: string[] = [];
 
+        // 'error' only fires for a transport failure — no response ever
+        // exists — so an unreachable port is needed to reach this event
+        // (a resolved non-2xx status no longer throws/errors).
         const api = new FetchEngine({
-            baseUrl: testUrl,
+            baseUrl: testUrl + 1,
             retry: false
         });
 
@@ -131,11 +134,14 @@ describe('@logosdx/fetch: request ID', async () => {
 
         api.on('before-request', (data: any) => ids.add(data.requestId));
         api.on('retry', (data: any) => ids.add(data.requestId));
-        api.on('error', (data: any) => ids.add(data.requestId));
+        api.on('response', (data: any) => ids.add(data.requestId));
 
-        const [, err] = await attempt(() => api.get('/fail'));
+        // /fail-once resolves ok:false (503, retryable) on the first attempt,
+        // triggering a retry; the second attempt resolves ok:true.
+        const [result, err] = await attempt(() => api.get('/fail-once'));
 
-        expect(err).to.be.instanceOf(FetchError);
+        expect(err).to.be.null;
+        expect(result?.data).to.have.property('ok', true);
         expect(ids.size).to.equal(1);
 
         api.destroy();
@@ -203,8 +209,10 @@ describe('@logosdx/fetch: request ID', async () => {
 
     it('sets requestId on FetchError instances', async () => {
 
+        // Transport failure (unreachable port) is the only path that still
+        // produces a FetchError for FetchEngine.get() to reject with.
         const api = new FetchEngine({
-            baseUrl: testUrl,
+            baseUrl: testUrl + 1,
             retry: false
         });
 

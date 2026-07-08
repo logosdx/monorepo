@@ -390,6 +390,8 @@ describe('@logosdx/fetch: base', async () => {
         // === Test basic generic typing ===
         const basicResponse = await api.get<TestApiResponse>('/json');
 
+        if (!basicResponse.ok) throw new Error('expected a successful response');
+
         expect(basicResponse.data).to.exist;
         expect(basicResponse.data).to.be.an('object');
         expect(basicResponse.data).to.have.property('ok');
@@ -475,7 +477,11 @@ describe('@logosdx/fetch: base', async () => {
         expect(headers).to.be.an('object');
 
         // === Test destructuring with generics ===
-        const { data: typedData, status: typedStatus } = await api.get<{ ok: boolean }>('/json');
+        const typedResponse = await api.get<{ ok: boolean }>('/json');
+
+        if (!typedResponse.ok) throw new Error('expected a successful response');
+
+        const { data: typedData, status: typedStatus } = typedResponse;
 
         expect(typedData).to.exist;
         expect(typedData).to.have.property('ok');
@@ -1519,6 +1525,8 @@ describe('@logosdx/fetch: base', async () => {
                     }
                 }
             );
+
+            if (!res.ok) throw new Error('expected a successful response');
 
             res.data.ok === true;
         }

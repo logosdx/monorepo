@@ -5,7 +5,6 @@ import {
 } from 'vitest'
 
 import {
-    FetchError,
     FetchEngine,
 } from '@logosdx/fetch';
 
@@ -81,9 +80,11 @@ describe('FetchEngine: lifecycle and state management', async () => {
         expect(err1).to.be.null;
         expect(result1?.data).to.have.property('ok', true);
 
-        // Second request fails (flaky fails after first)
-        const [, err2] = await attempt(() => api.get('/flaky'));
-        expect(err2).to.be.instanceOf(FetchError);
+        // Second request resolves ok:false (flaky fails after first, retry disabled)
+        const [result2, err2] = await attempt(() => api.get('/flaky'));
+        expect(err2).to.be.null;
+        expect(result2?.ok).to.be.false;
+        expect(result2?.status).to.equal(503);
 
         api.destroy();
         await wait(10); // Let microtasks settle before test ends
@@ -96,9 +97,11 @@ describe('FetchEngine: lifecycle and state management', async () => {
             retry: false
         });
 
-        // First request fails
-        const [, err1] = await attempt(() => api.get('/fail-once'));
-        expect(err1).to.be.instanceOf(FetchError);
+        // First request resolves ok:false (fail-once fails on the first call)
+        const [result1, err1] = await attempt(() => api.get('/fail-once'));
+        expect(err1).to.be.null;
+        expect(result1?.ok).to.be.false;
+        expect(result1?.status).to.equal(503);
 
         // Second request succeeds
         const [result2, err2] = await attempt(() => api.get('/fail-once'));

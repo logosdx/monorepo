@@ -35,6 +35,9 @@ describe('@logosdx/fetch: streaming', async () => {
         const api = new FetchEngine({ baseUrl: testUrl });
 
         const result = await api.get('/sse').raw();
+
+        if (!result.ok) throw new Error('expected a successful response');
+
         const response = result.data;
 
         expect(response.body).to.not.be.null;
@@ -205,6 +208,9 @@ describe('@logosdx/fetch: streaming', async () => {
         const api = new FetchEngine({ baseUrl: testUrl });
 
         const result = await api.get('/sse/events?count=3').raw();
+
+        if (!result.ok) throw new Error('expected a successful response');
+
         const response = result.data;
 
         const reader = response.body!.getReader();
