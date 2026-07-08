@@ -136,7 +136,48 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
 
                     attemptTimeoutPromise?.clear();
 
-                    if (err === null) return result;
+                    if (err === null) {
+
+                        if (result.ok) return result;
+
+                        // Second retry trigger: a resolved `ok: false` response,
+                        // checked against `retryableStatusCodes` (or a custom
+                        // `shouldRetry`). Exhausted attempts resolve — the
+                        // response is never converted to a throw.
+                        const shouldRetryResponse = await mergedRetry.shouldRetry(result, attemptNum);
+
+                        if (shouldRetryResponse && attemptNum < mergedRetry.maxAttempts!) {
+
+                            const delay = (
+                                typeof shouldRetryResponse === 'number'
+                                    ? shouldRetryResponse
+                                    : calculateRetryDelay(attemptNum, mergedRetry)
+                            );
+
+                            engine.emit('retry' as any, {
+                                ...normalizedOpts,
+                                outcome: result,
+                                attempt: attemptNum,
+                                nextAttempt: attemptNum + 1,
+                                delay
+                            } as any);
+
+                            await wait(delay);
+
+                            if (normalizedOpts.controller.signal.aborted) {
+
+                                // Total timeout fired mid-delay; no transport
+                                // error exists, so resolve with the last
+                                // known response instead of throwing.
+                                return result;
+                            }
+
+                            attemptNum++;
+                            continue;
+                        }
+
+                        return result;
+                    }
 
                     lastError = err as FetchError;
 
@@ -167,7 +208,7 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
 
                         engine.emit('retry' as any, {
                             ...normalizedOpts,
-                            error: lastError,
+                            outcome: lastError,
                             attempt: attemptNum,
                             nextAttempt: attemptNum + 1,
                             delay

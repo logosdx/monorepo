@@ -82,6 +82,7 @@ export type {
     DedupeEventData,
     CacheEventData,
     RateLimitEventData,
+    RetryEventData,
     StateEventData,
     PropertyEventData,
     OptionsEventData

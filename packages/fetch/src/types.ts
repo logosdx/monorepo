@@ -508,12 +508,25 @@ export interface RetryConfig {
 
     /**
      * Custom function to determine if a request should be retried.
-     * If the function returns a number, it will be used as the delay
-     * in milliseconds before the next retry.
+     * Receives a resolved `ok: false` response for an HTTP-status retry, or
+     * a rejected transport `FetchError` for a transport retry — narrow with
+     * `isFetchError()`. If the function returns a number, it will be used
+     * as the delay in milliseconds before the next retry.
      *
-     * @default (error, attempt) => attempt < maxAttempts
+     * @default (outcome, attempt) => attempt < maxAttempts
+     *
+     * @example
+     * shouldRetry(outcome, attempt) {
+     *
+     *     if (isFetchError(outcome)) return outcome.isConnectionLost();
+     *
+     *     return outcome.status >= 500;
+     * }
      */
-    shouldRetry?: (error: FetchError, attempt: number) => MaybePromise<boolean | number> | undefined;
+    shouldRetry?: (
+        outcome: FetchResponse<unknown> | FetchError,
+        attempt: number
+    ) => MaybePromise<boolean | number> | undefined;
 }
 
 // Note: The FetchEngine namespace is now defined via declaration merging

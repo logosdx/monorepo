@@ -1,4 +1,4 @@
-import type { HttpMethods, DictAndT } from '../types.ts';
+import type { HttpMethods, DictAndT, FetchResponse } from '../types.ts';
 import type { FetchError } from '../helpers/fetch-error.ts';
 
 
@@ -111,6 +111,25 @@ export interface RateLimitEventData<S = unknown, H = unknown, P = unknown> exten
 
 
 /**
+ * Event data for retry events.
+ *
+ * Extends base event data with the outcome that triggered the retry — a
+ * resolved `ok: false` response for an HTTP-status retry, or a rejected
+ * transport `FetchError` for a transport retry. Mirrors the union
+ * `shouldRetry` is invoked with.
+ *
+ * @template S - Instance state type
+ * @template H - Instance headers type
+ * @template P - Instance params type
+ */
+export interface RetryEventData<S = unknown, H = unknown, P = unknown> extends EventData<S, H, P> {
+
+    /** The response or error that triggered this retry attempt. */
+    outcome: FetchResponse<unknown, DictAndT<H>, DictAndT<P>> | FetchError<DictAndT<H>>;
+}
+
+
+/**
  * Event data for state mutation events.
  *
  * @template S - Instance state type
@@ -199,7 +218,7 @@ export interface EventMap<S = unknown, H = unknown, P = unknown> {
     /** Fires alongside `response` when `status` is 500-599. */
     'response-5xx': EventData<S, H, P>;
 
-    'retry': EventData<S, H, P>;
+    'retry': RetryEventData<S, H, P>;
 
     // Property mutation events
     'header-add': PropertyEventData<DictAndT<H>>;

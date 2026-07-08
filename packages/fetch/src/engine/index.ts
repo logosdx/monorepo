@@ -13,6 +13,7 @@ import type {
     DedupeEventData as EventsDedupeEventData,
     CacheEventData as EventsCacheEventData,
     RateLimitEventData as EventsRateLimitEventData,
+    RetryEventData as EventsRetryEventData,
     StateEventData as EventsStateEventData,
     PropertyEventData as EventsPropertyEventData,
     OptionsEventData as EventsOptionsEventData
@@ -579,6 +580,9 @@ export namespace FetchEngine {
 
     /** Event data for rate limit events */
     export type RateLimitEventData<S = InstanceState, H = InstanceHeaders, P = InstanceParams> = EventsRateLimitEventData<S, H, P>;
+
+    /** Event data for retry events */
+    export type RetryEventData<S = InstanceState, H = InstanceHeaders, P = InstanceParams> = EventsRetryEventData<S, H, P>;
 
     /** Event data for state mutation events */
     export type StateEventData<S = InstanceState> = EventsStateEventData<S>;

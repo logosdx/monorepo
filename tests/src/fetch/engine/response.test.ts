@@ -363,7 +363,10 @@ describe('FetchEngine: resolve-on-response contract', () => {
 
     it('emits "response" + "response-4xx"/"response-5xx" and never "error" for a resolved non-2xx response', async () => {
 
-        const api = new FetchEngine({ baseUrl });
+        // retry: false — this pins event CLASSIFICATION, not retry behavior;
+        // 500 is in the default retryableStatusCodes and would otherwise
+        // re-fire these events once per attempt.
+        const api = new FetchEngine({ baseUrl, retry: false });
 
         const events: string[] = [];
 
@@ -382,7 +385,9 @@ describe('FetchEngine: resolve-on-response contract', () => {
 
     it('classifies status range boundaries: 399 fires neither range event, 400/499/500/599 fire their range, 600 fires neither', async () => {
 
-        const api = new FetchEngine({ baseUrl });
+        // retry: false — same reasoning: 499/500/599 are in the default
+        // retryableStatusCodes and would otherwise retry instead of resolving once.
+        const api = new FetchEngine({ baseUrl, retry: false });
 
         const boundaries: Array<{ status: number, range: 'response-4xx' | 'response-5xx' | null }> = [
             { status: 399, range: null },
