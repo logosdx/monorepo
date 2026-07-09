@@ -5,7 +5,7 @@ import {
     vi
 } from 'vitest'
 
-import { FetchEngine } from '@logosdx/fetch';
+import { FetchEngine, isFetchError } from '@logosdx/fetch';
 
 import {
     attempt,
@@ -613,7 +613,102 @@ describe('@logosdx/fetch: caching', async () => {
         // Should have emitted a revalidation error event
         expect(errorEvents.length).to.equal(1);
         expect(errorEvents[0].path).to.equal('/flaky');
-        expect(errorEvents[0].error).to.exist;
+        expect(errorEvents[0].outcome).to.exist;
+
+        api.destroy();
+    });
+
+     it('should not cache a non-2xx response', async () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            cachePolicy: true,
+            retry: false
+        });
+
+        const hitEvents: string[] = [];
+        const missEvents: string[] = [];
+        const setEvents: string[] = [];
+
+        api.on('cache-hit', () => hitEvents.push('hit'));
+        api.on('cache-miss', () => missEvents.push('miss'));
+        api.on('cache-set', () => setEvents.push('set'));
+
+        // /fail always resolves 400 - never thrown under resolve-on-response
+        const r1 = await api.get('/fail');
+        expect(r1.ok).to.equal(false);
+        expect(r1.status).to.equal(400);
+
+        expect(missEvents.length).to.equal(1);
+        expect(setEvents.length).to.equal(0);
+
+        // Identical request hits the network again - an ok:false response
+        // is never stored, so there is nothing to serve from cache
+        const r2 = await api.get('/fail');
+        expect(r2.ok).to.equal(false);
+
+        expect(missEvents.length).to.equal(2);
+        expect(hitEvents.length).to.equal(0);
+        expect(setEvents.length).to.equal(0);
+
+        api.destroy();
+    });
+
+     it('should leave the stale entry untouched when SWR revalidation resolves ok:false', async () => {
+
+        // Note: flaky counter is automatically reset by beforeEach in _helpers.ts
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            cachePolicy: {
+                enabled: true,
+                ttl: 5000,
+                staleIn: 10
+            },
+            retry: false
+        });
+
+        const setEvents: any[] = [];
+        const revalidateErrorEvents: any[] = [];
+
+        api.on('cache-set', (data) => setEvents.push(data));
+        api.on('cache-revalidate-error', (data) => revalidateErrorEvents.push(data));
+
+        const path = '/flaky';
+
+        // Prime the cache - /flaky succeeds on the first call
+        const r1 = await api.get(path);
+        expect(r1.data).to.deep.equal({ ok: true, callCount: 1 });
+        expect(setEvents.length).to.equal(1);
+
+        // Let the entry go stale
+        await new Promise(res => setTimeout(res, 20));
+
+        // Stale read serves the cached value and triggers background
+        // revalidation - /flaky resolves 503 on the 2nd call
+        const r2 = await api.get(path);
+        expect(r2.data).to.deep.equal({ ok: true, callCount: 1 });
+
+        // Wait for the background revalidation to settle
+        await new Promise(res => setTimeout(res, 200));
+
+        // The failed revalidation must surface as cache-revalidate-error and
+        // must not have written a new (bad) cache entry over the good stale one
+        expect(revalidateErrorEvents.length).to.equal(1);
+
+        // A non-2xx revalidation is a resolved response, not a thrown error -
+        // narrow the outcome union before trusting it as a FetchResponse
+        const { outcome } = revalidateErrorEvents[0];
+        expect(isFetchError(outcome), 'outcome should not be a FetchError').to.equal(false);
+
+        if (isFetchError(outcome)) throw new Error('unreachable: outcome narrowed to FetchError');
+
+        expect(outcome.ok).to.equal(false);
+        expect(outcome.status).to.equal(503);
+        expect(setEvents.length).to.equal(1);
+
+        // The original stale entry is still served, unchanged
+        const r3 = await api.get(path);
+        expect(r3.data).to.deep.equal({ ok: true, callCount: 1 });
 
         api.destroy();
     });
@@ -3113,8 +3208,17 @@ describe('@logosdx/fetch: caching', async () => {
 
             expect(eventData.key, 'key should exist').to.exist;
             expect(eventData.path, 'path should exist').to.exist;
-            expect(eventData.error, 'error should exist').to.exist;
-            expect(eventData.error, 'error should be Error instance').to.be.instanceOf(Error);
+            expect(eventData.outcome, 'outcome should exist').to.exist;
+
+            // /flaky resolves ok:false (503) on the 2nd call - resolve-on-response
+            // means revalidation failure is a resolved response, not a thrown error,
+            // so it's carried on `outcome`, not `error`.
+            expect(isFetchError(eventData.outcome), 'outcome should not be a FetchError').to.equal(false);
+
+            if (isFetchError(eventData.outcome)) throw new Error('unreachable: outcome narrowed to FetchError');
+
+            expect(eventData.outcome.ok, 'outcome should be a resolved ok:false response').to.equal(false);
+            expect(eventData.outcome.status, 'outcome response should carry the real status').to.equal(503);
 
             api.destroy();
         });

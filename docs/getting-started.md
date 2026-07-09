@@ -143,12 +143,27 @@ export const signIn = async (user: string, password: string) => {
 
     if (err) {
 
+        // Transport failure — the exchange never completed
         observer.emit('user:login-failed', {
             userId: user,
             error: err
         });
 
         throw err;
+    }
+
+    if (!response.ok) {
+
+        // The server answered "no" — a 401 is an answer, not an exception.
+        // Status and body are right here, nothing to dig out of an error.
+        const rejected = new Error(`Sign-in rejected: ${response.status}`);
+
+        observer.emit('user:login-failed', {
+            userId: user,
+            error: rejected
+        });
+
+        throw rejected;
     }
 
     const { userId, token } = response.data;
@@ -183,10 +198,11 @@ const painPal = new FetchEngine({
 
 const _makePayment = async (paymentToken: string, amount: number) => {
 
-    const [response, err] = await attempt(() => api.post('/payments', { paymentToken, amount }));
+    const [response, err] = await attempt(() => painPal.post('/payments', { paymentToken, amount }));
 
     if (err) {
 
+        // Transport failure — the exchange never completed
         observer.emit('payment:failed', {
             paymentToken,
             amount,
@@ -194,6 +210,23 @@ const _makePayment = async (paymentToken: string, amount: number) => {
         });
 
         throw err;
+    }
+
+    if (!response.ok) {
+
+        // A declined payment resolves — it only counts as a failure if
+        // you say so. The throw below is also what feeds the circuit
+        // breaker wrapping this function: breakers count throws, and a
+        // non-2xx response no longer throws on its own.
+        const declined = new Error(`PainPal said no: ${response.status}`);
+
+        observer.emit('payment:failed', {
+            paymentToken,
+            amount,
+            error: declined
+        });
+
+        throw declined;
     }
 
     observer.emit('payment:success', {

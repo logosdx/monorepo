@@ -4,6 +4,7 @@ import { act } from 'react';
 import { FetchEngine } from '../../../../packages/fetch/src/index.ts';
 import { ObserverEngine } from '../../../../packages/observer/src/index.ts';
 import { useMutation } from '../../../../packages/react/src/api/use-mutation.ts';
+import type { FetchFailure } from '../../../../packages/react/src/api/types.ts';
 import { renderHook, flush } from '../_helpers.ts';
 
 const jsonResponse = (data: unknown, status = 200) => new Response(
@@ -32,7 +33,7 @@ describe('@logosdx/react api: useMutation', () => {
 
         expect(result.current.loading).to.be.false;
         expect(result.current.data).to.be.null;
-        expect(result.current.error).to.be.null;
+        expect(result.current.failure).to.be.null;
         expect(result.current.called).to.be.false;
         expect(result.current.mutate).to.be.a('function');
         expect(result.current.reset).to.be.a('function');
@@ -68,14 +69,14 @@ describe('@logosdx/react api: useMutation', () => {
 
         expect(result.current.loading).to.be.false;
         expect(result.current.data).to.deep.equal({ id: 1, name: 'Alice' });
-        expect(result.current.error).to.be.null;
+        expect(result.current.failure).to.be.null;
         expect(result.current.called).to.be.true;
 
         unmount();
         engine.destroy();
     });
 
-    it('sets error state on failure', async () => {
+    it('sets failure with kind "http" on a non-2xx response', async () => {
 
         globalThis.fetch = vi.fn().mockResolvedValue(
             jsonResponse({ message: 'Validation failed' }, 422)
@@ -93,9 +94,83 @@ describe('@logosdx/react api: useMutation', () => {
 
         expect(result.current.loading).to.be.false;
         expect(result.current.data).to.be.null;
-        expect(result.current.error).to.not.be.null;
-        expect(result.current.error!.status).to.equal(422);
+        expect(result.current.failure).to.not.be.null;
+        expect(result.current.failure!.kind).to.equal('http');
+
+        if (result.current.failure!.kind === 'http') {
+
+            expect(result.current.failure!.response.status).to.equal(422);
+        }
+
         expect(result.current.called).to.be.true;
+
+        unmount();
+        engine.destroy();
+    });
+
+    it('mutate() resolves undefined (never rejects) on a non-2xx response', async () => {
+
+        // Preserves the intent that a server error surfaces to the caller:
+        // mutate() never rejects, so the proof is the resolved value plus
+        // the `failure` state, not a caught exception.
+        globalThis.fetch = vi.fn().mockResolvedValue(
+            jsonResponse({ message: 'Validation failed' }, 422)
+        );
+
+        const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
+
+        const { result, unmount } = renderHook(() =>
+            useMutation(engine, 'post', '/users')
+        );
+
+        let mutateResult: unknown;
+
+        await act(async () => {
+
+            mutateResult = await result.current.mutate({ name: '' });
+        });
+
+        expect(mutateResult).to.be.undefined;
+        expect(result.current.failure).to.not.be.null;
+        expect(result.current.failure!.kind).to.equal('http');
+
+        if (result.current.failure!.kind === 'http') {
+
+            expect(result.current.failure!.response.status).to.equal(422);
+        }
+
+        unmount();
+        engine.destroy();
+    });
+
+    it('sets failure with kind "transport" when the request cannot reach the server', async () => {
+
+        globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+        const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
+
+        const { result, unmount } = renderHook(() =>
+            useMutation(engine, 'post', '/users')
+        );
+
+        let mutateResult: unknown;
+
+        await act(async () => {
+
+            mutateResult = await result.current.mutate({ name: 'Alice' });
+        });
+
+        expect(mutateResult).to.be.undefined;
+
+        const failure: FetchFailure<unknown> | null = result.current.failure;
+
+        expect(failure).to.not.be.null;
+        expect(failure!.kind).to.equal('transport');
+
+        if (failure!.kind === 'transport') {
+
+            expect(failure!.error.isConnectionLost()).to.be.true;
+        }
 
         unmount();
         engine.destroy();
@@ -122,7 +197,7 @@ describe('@logosdx/react api: useMutation', () => {
         act(() => { result.current.reset(); });
 
         expect(result.current.data).to.be.null;
-        expect(result.current.error).to.be.null;
+        expect(result.current.failure).to.be.null;
         expect(result.current.called).to.be.false;
         expect(result.current.loading).to.be.false;
 
@@ -250,7 +325,7 @@ describe('@logosdx/react api: useMutation', () => {
         await flush();
 
         expect(result.current.loading).to.be.false;
-        expect(result.current.error).to.be.null;
+        expect(result.current.failure).to.be.null;
         expect(result.current.called).to.be.true;
 
         unmount();

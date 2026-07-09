@@ -8,6 +8,10 @@ export { createApiHooks } from './create-api-hooks.ts';
 export type {
     QueryResult,
     MutationResult,
+    FetchFailure,
+    AsyncFailure,
+    AsyncResult,
+    ResponseLike,
     QueryOptions,
     MutationOptions,
     AsyncOptions,

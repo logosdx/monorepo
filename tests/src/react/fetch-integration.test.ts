@@ -3,6 +3,7 @@ import { act } from 'react';
 
 import { FetchEngine } from '../../../packages/fetch/src/index.ts';
 import { createFetchContext } from '../../../packages/react/src/index.ts';
+import type { FetchFailure } from '../../../packages/react/src/index.ts';
 import { attempt } from '../../../packages/utils/src/index.ts';
 import { renderHook } from './_helpers.ts';
 import { makeTestStubs } from '../fetch/_helpers.ts';
@@ -46,7 +47,7 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             // data is unwrapped T — not the full FetchResponse
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.deep.equal({ ok: true });
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
 
             // Server was actually hit
             expect(callStub.callCount).to.be.greaterThanOrEqual(1);
@@ -55,53 +56,7 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             engine.destroy();
         });
 
-        it('response field contains full FetchResponse with status', async () => {
-
-            const engine = new FetchEngine({ baseUrl: testUrl, retry: false });
-            const [, useFetch] = createFetchContext(engine);
-
-            const { result, unmount } = renderHook(() => {
-
-                const { get } = useFetch();
-                return get<{ ok: boolean }>('/json');
-            });
-
-            await flushReal();
-
-            expect(result.current.response).to.not.be.null;
-            expect(result.current.response!.status).to.equal(200);
-            expect(result.current.response!.data).to.deep.equal({ ok: true });
-
-            // data and response.data are the same value
-            expect(result.current.data).to.deep.equal(result.current.response!.data);
-
-            unmount();
-            engine.destroy();
-        });
-
-        it('typed response headers are accessible via response.headers', async () => {
-
-            const engine = new FetchEngine({ baseUrl: testUrl, retry: false });
-            const [, useFetch] = createFetchContext(engine);
-
-            const { result, unmount } = renderHook(() => {
-
-                const { get } = useFetch();
-                return get<{ ok: boolean }>('/custom-headers');
-            });
-
-            await flushReal();
-
-            expect(result.current.response).to.not.be.null;
-            expect(result.current.response!.headers['x-custom-response-header']).to.equal('test-value');
-            expect(result.current.response!.headers['x-rate-limit-remaining']).to.equal('100');
-            expect(result.current.response!.headers['x-request-id']).to.equal('req-12345');
-
-            unmount();
-            engine.destroy();
-        });
-
-        it('sets error state on server error response', async () => {
+        it('sets failure with kind "http" on server error response, carrying the full FetchResponse', async () => {
 
             const engine = new FetchEngine({ baseUrl: testUrl, retry: false });
             const [, useFetch] = createFetchContext(engine);
@@ -114,11 +69,51 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
 
             await flushReal();
 
+            const failure: FetchFailure<unknown> | null = result.current.failure;
+
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.be.null;
-            expect(result.current.response).to.be.null;
-            expect(result.current.error).to.not.be.null;
-            expect(result.current.error!.status).to.equal(400);
+            expect(failure).to.not.be.null;
+            expect(failure!.kind).to.equal('http');
+
+            if (failure!.kind === 'http') {
+
+                expect(failure!.response.status).to.equal(400);
+                // Response headers stay accessible through the failure channel —
+                // the capability moved here, it did not disappear.
+                expect(failure!.response.headers['content-type']).to.include('application/json');
+            }
+
+            unmount();
+            engine.destroy();
+        });
+
+        it('sets failure with kind "transport" when the server is unreachable', async () => {
+
+            // Unreachable-port idiom: appending a digit to a bound test port
+            // yields an address nothing is listening on.
+            const engine = new FetchEngine({ baseUrl: testUrl + 1, retry: false });
+            const [, useFetch] = createFetchContext(engine);
+
+            const { result, unmount } = renderHook(() => {
+
+                const { get } = useFetch();
+                return get('/json');
+            });
+
+            await flushReal();
+
+            const failure: FetchFailure<unknown> | null = result.current.failure;
+
+            expect(result.current.loading).to.be.false;
+            expect(result.current.data).to.be.null;
+            expect(failure).to.not.be.null;
+            expect(failure!.kind).to.equal('transport');
+
+            if (failure!.kind === 'transport') {
+
+                expect(failure!.error.isConnectionLost()).to.be.true;
+            }
 
             unmount();
             engine.destroy();
@@ -268,24 +263,35 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             engine.destroy();
         });
 
-        it('response field has full FetchResponse for mutations', async () => {
+        it('mutate() sets failure with kind "transport" when the server is unreachable', async () => {
 
-            const engine = new FetchEngine({ baseUrl: testUrl, retry: false });
+            const engine = new FetchEngine({ baseUrl: testUrl + 1, retry: false });
             const [, useFetch] = createFetchContext(engine);
 
             const { result, unmount } = renderHook(() => {
 
                 const { post } = useFetch();
-                return post<{ ok: boolean }>('/custom-headers');
+                return post<{ ok: boolean }>('/json');
             });
 
-            act(() => { result.current.mutate({}); });
+            let mutateResult: unknown;
 
-            await flushReal();
+            await act(async () => {
 
-            expect(result.current.response).to.not.be.null;
-            expect(result.current.response!.status).to.equal(200);
-            expect(result.current.response!.headers['x-custom-response-header']).to.equal('test-value');
+                mutateResult = await result.current.mutate({});
+            });
+
+            expect(mutateResult).to.be.undefined;
+
+            const failure: FetchFailure<{ ok: boolean }> | null = result.current.failure;
+
+            expect(failure).to.not.be.null;
+            expect(failure!.kind).to.equal('transport');
+
+            if (failure!.kind === 'transport') {
+
+                expect(failure!.error.isConnectionLost()).to.be.true;
+            }
 
             unmount();
             engine.destroy();
@@ -340,8 +346,7 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             act(() => { result.current.reset(); });
 
             expect(result.current.data).to.be.null;
-            expect(result.current.response).to.be.null;
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
             expect(result.current.loading).to.be.false;
             expect(result.current.called).to.be.false;
 
@@ -380,8 +385,11 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             engine.destroy();
         });
 
-        it('sets error state on failed mutation', async () => {
+        it('sets failure state on failed mutation', async () => {
 
+            // Preserves the original intent (server error surfaces to the
+            // caller, hook state reflects it): mutate() never rejects, so
+            // there is nothing to catch — await it directly.
             const engine = new FetchEngine({ baseUrl: testUrl, retry: false });
             const [, useFetch] = createFetchContext(engine);
 
@@ -391,28 +399,31 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
                 return post('/fail');
             });
 
-            await act(async () => {
-
-                try { await result.current.mutate(); }
-                catch { /* expected — promise rejects on error */ }
-            });
+            await act(async () => { await result.current.mutate(); });
 
             expect(result.current.loading).to.be.false;
             expect(result.current.data).to.be.null;
-            expect(result.current.error).to.not.be.null;
-            expect(result.current.error!.status).to.equal(400);
+            expect(result.current.failure).to.not.be.null;
+            expect(result.current.failure!.kind).to.equal('http');
+
+            if (result.current.failure!.kind === 'http') {
+
+                expect(result.current.failure!.response.status).to.equal(400);
+            }
+
             expect(result.current.called).to.be.true;
 
             unmount();
             engine.destroy();
         });
 
-        it('mutate() Promise rejects with FetchError on server error', async () => {
+        it('mutate() resolves undefined on server error — failure surfaces via the failure state', async () => {
 
+            // Preserves the original intent (server error surfaces to the
+            // caller): mutate() never rejects now, so the proof moves from a
+            // caught exception to the resolved value + `failure` state.
             const engine = new FetchEngine({ baseUrl: testUrl, retry: false });
             const [, useFetch] = createFetchContext(engine);
-
-            let caughtError: unknown;
 
             const { result, unmount } = renderHook(() => {
 
@@ -420,20 +431,21 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
                 return post('/fail');
             });
 
+            let mutateResult: unknown;
+
             await act(async () => {
 
-                try {
-
-                    await result.current.mutate();
-                }
-                catch (err) {
-
-                    caughtError = err;
-                }
+                mutateResult = await result.current.mutate();
             });
 
-            expect(caughtError).to.not.be.undefined;
-            expect((caughtError as any).status).to.equal(400);
+            expect(mutateResult).to.be.undefined;
+            expect(result.current.failure).to.not.be.null;
+            expect(result.current.failure!.kind).to.equal('http');
+
+            if (result.current.failure!.kind === 'http') {
+
+                expect(result.current.failure!.response.status).to.equal(400);
+            }
 
             unmount();
             engine.destroy();
@@ -455,7 +467,7 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             await flushReal();
 
             expect(result.current.data).to.deep.equal({ ok: true });
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
 
             unmount();
             engine.destroy();
@@ -477,7 +489,7 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             await flushReal();
 
             expect(result.current.data).to.deep.equal({ ok: true });
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
 
             unmount();
             engine.destroy();
@@ -499,7 +511,7 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
             await flushReal();
 
             expect(result.current.data).to.deep.equal({ ok: true });
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
 
             unmount();
             engine.destroy();
@@ -518,12 +530,12 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
                 const { post } = useFetch();
 
                 // Matches the docs example:
-                // const { mutate: submit, loading: isSubmitting, data: result, error: submitErr } =
+                // const { mutate: submit, loading: isSubmitting, data: result, failure: submitFailure } =
                 //     post<Comment>('/comments');
-                const { mutate: submit, loading: isSubmitting, data: comment, error: submitErr } =
+                const { mutate: submit, loading: isSubmitting, data: comment, failure: submitFailure } =
                     post<{ ok: boolean }>('/json');
 
-                return { submit, isSubmitting, comment, submitErr };
+                return { submit, isSubmitting, comment, submitFailure };
             });
 
             expect(result.current.isSubmitting).to.be.false;
@@ -535,7 +547,7 @@ describe('@logosdx/react: fetch integration (real server)', async () => {
 
             expect(result.current.isSubmitting).to.be.false;
             expect(result.current.comment).to.deep.equal({ ok: true });
-            expect(result.current.submitErr).to.be.null;
+            expect(result.current.submitFailure).to.be.null;
 
             unmount();
             engine.destroy();

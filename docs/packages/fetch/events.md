@@ -18,11 +18,28 @@ Events are organized into categories:
 
 **Request Lifecycle:**
 - `before-request` - Before each request attempt
-- `after-request` - After response is parsed and ready (includes `data`)
-- `response` - When raw response is received (before parsing)
-- `error` - On request failure
-- `retry` - Before retry attempt
+- `after-request` - After the raw response is received, for every completed exchange (any status)
+- `response` - Fires for every completed exchange, any status — parsed `data` is attached
+- `response-4xx` - Fires alongside `response` when `status` is 400-499
+- `response-5xx` - Fires alongside `response` when `status` is 500-599
+- `error` - Transport failure, parse failure on an `ok: true` body, or client-side rate-limit reject. **Never** a non-2xx status — that resolves instead.
+- `retry` - Before a retried attempt; carries the `outcome` (`FetchResponse | FetchError`) that triggered it
 - `abort` - When request is aborted
+
+All of these fire **per attempt**. Every event for the same logical request — across every retry attempt — carries the same `requestId`, so a retried request's attempts are traceable as one exchange.
+
+### Event Taxonomy
+
+| Event | Fires when |
+|-------|------------|
+| `response` | Every completed exchange resolves, any status (2xx, 4xx, 5xx, etc.) |
+| `response-4xx` | Alongside `response`, when `status` is in `[400, 500)` |
+| `response-5xx` | Alongside `response`, when `status` is in `[500, 600)` |
+| `error` | Transport failure (abort, timeout, connection lost), a parse failure on an `ok: true` body, or a client-side rate-limit reject |
+| `retry` | Scheduled before a retried attempt — `outcome` is whichever `FetchResponse \| FetchError` triggered it |
+| `before-request` / `after-request` | Every attempt, regardless of outcome |
+
+A non-2xx response is not an error under this model — it's a completed exchange. `error` and `response`/`response-4xx`/`response-5xx` are mutually exclusive per attempt: a request either fails to produce a response at all (`error`), or it resolves (`response`, plus the matching status-range event).
 
 **Property Changes:**
 - `header-add` - When header is added
@@ -128,20 +145,27 @@ interface EventData<S, H, P> {
     method?: HttpMethods;
     headers?: DictAndT<H>;
     params?: DictAndT<P>;
-    error?: Error | FetchError;
+    error?: Error | FetchError;  // Only set on `error`/`abort` — transport only
     response?: Response;
     data?: unknown;
     payload?: unknown;
     attempt?: number;
     nextAttempt?: number;
     delay?: number;
-    step?: 'fetch' | 'parse' | 'response';
+    step?: 'fetch' | 'parse';
     status?: number;
     path?: string;
     aborted?: boolean;
     requestId?: string;     // Unique ID for this request (consistent across retries)
     requestStart?: number;  // Timestamp (ms) when request entered pipeline
     requestEnd?: number;    // Timestamp (ms) when request resolved
+}
+
+// `retry` events extend EventData with the outcome that triggered them
+interface RetryEventData<S, H, P> extends EventData<S, H, P> {
+
+    /** The response or error that triggered this retry attempt. */
+    outcome: FetchResponse<unknown, DictAndT<H>, DictAndT<P>> | FetchError<DictAndT<H>>;
 }
 ```
 
@@ -150,9 +174,9 @@ interface EventData<S, H, P> {
 | Field | Present in | Description |
 |-------|-----------|-------------|
 | `requestStart` | All request events | `Date.now()` when the request entered the execution pipeline |
-| `requestEnd` | `response`, `error`, `abort` | `Date.now()` when the request resolved (success, error, or abort) |
+| `requestEnd` | `response`, `response-4xx`, `response-5xx`, `error`, `abort` | `Date.now()` when the request resolved (success, failure, or abort) |
 
-`requestStart` is set once at the beginning of execution and flows through all events via the normalized options. `requestEnd` is only added to terminal events where the request has completed.
+`requestStart` is set once at the beginning of execution and flows through all events via the normalized options. `requestEnd` is only added to terminal events where the request has completed. Every event for a given `requestId` — across every retry attempt of that request — shares the same ID, so log aggregation can reconstruct the full attempt sequence.
 
 
 ### State Events
@@ -215,6 +239,14 @@ interface CacheEventData<S, H, P> extends EventData<S, H, P> {
     key: string;        // Cache key
     isStale?: boolean;  // Whether entry is stale (SWR)
     expiresIn?: number; // Time until expiration (ms)
+
+    /**
+     * The cause of a `cache-revalidate-error`: either a transport
+     * `FetchError` or a resolved `ok: false` `FetchResponse` — a non-2xx
+     * revalidation never throws under resolve-on-response, so the cause
+     * isn't always an `Error`. Narrow with `isFetchError(outcome)`.
+     */
+    outcome?: FetchResponse<unknown, DictAndT<H>, DictAndT<P>> | FetchError<DictAndT<H>>;
 }
 ```
 
@@ -245,13 +277,19 @@ api.on('before-request', (data) => {
     console.log(`→ ${data.method} ${data.path}`);
 });
 
-api.on('after-request', (data) => {
+// `response` fires for every completed exchange, any status
+api.on('response', (data) => {
     console.log(`← ${data.status} ${data.path}`);
 });
 
+// `error` is transport only — no status to log, the exchange never completed
 api.on('error', (data) => {
-    console.error(`✗ ${data.status} ${data.path}: ${data.error?.message}`);
+    console.error(`✗ ${data.path}: ${data.error?.message}`);
 });
+
+// Split diagnostics for client vs server errors
+api.on('response-4xx', (data) => console.warn(`Client error: ${data.status} ${data.path}`));
+api.on('response-5xx', (data) => console.error(`Server error: ${data.status} ${data.path}`));
 ```
 
 
@@ -294,6 +332,14 @@ api.on('retry', (data) => {
     console.log(`Retrying ${data.path}`);
     console.log(`Attempt ${data.attempt} of ${data.nextAttempt}`);
     console.log(`Waiting ${data.delay}ms`);
+
+    // `outcome` is whichever FetchResponse | FetchError triggered this retry
+    if (isFetchError(data.outcome)) {
+        console.log('Triggered by transport failure:', data.outcome.message);
+    }
+    else {
+        console.log('Triggered by status:', data.outcome.status);
+    }
 });
 ```
 
@@ -326,6 +372,16 @@ api.on('cache-miss', (data) => {
 
 api.on('cache-stale', (data) => {
     console.log('Stale cache, revalidating:', data.key);
+});
+
+// SWR revalidation resolved `ok: false` (or the fetch itself failed) —
+// the existing stale entry is kept, never overwritten
+api.on('cache-revalidate-error', (data) => {
+    if (isFetchError(data.outcome)) {
+        console.error('Revalidation transport failure:', data.key, data.outcome.message);
+        return;
+    }
+    console.warn('Revalidation got a non-2xx status:', data.key, data.outcome?.status);
 });
 ```
 
@@ -431,18 +487,26 @@ const api = new FetchEngine({
     baseUrl: 'https://api.example.com'
 });
 
-// Error reporting
+// Transport failure reporting — abort, timeout, connection lost, parse-on-ok
 api.on('error', (data) => {
     errorReporting.captureException(data.error, {
         tags: {
             endpoint: data.path,
             method: data.method,
-            status: data.status,
+            step: data.step,
             requestId: data.requestId
         },
         extra: {
             attempt: data.attempt
         }
+    });
+});
+
+// Server-error reporting — a resolved 5xx is not a thrown error, so it's
+// reported off `response-5xx`, not `error`
+api.on('response-5xx', (data) => {
+    errorReporting.captureMessage(`Server error: ${data.status} ${data.path}`, {
+        tags: { endpoint: data.path, method: data.method, status: data.status, requestId: data.requestId }
     });
 });
 

@@ -3,6 +3,7 @@ import { act } from 'react';
 
 import { FetchEngine } from '../../../../packages/fetch/src/index.ts';
 import { useQuery } from '../../../../packages/react/src/api/use-query.ts';
+import type { FetchFailure } from '../../../../packages/react/src/api/types.ts';
 import { renderHook, flush } from '../_helpers.ts';
 
 const jsonResponse = (data: unknown, status = 200) => new Response(
@@ -33,19 +34,19 @@ describe('@logosdx/react api: useQuery', () => {
 
         expect(result.current.loading).to.be.true;
         expect(result.current.data).to.be.null;
-        expect(result.current.error).to.be.null;
+        expect(result.current.failure).to.be.null;
 
         await flush();
 
         expect(result.current.loading).to.be.false;
         expect(result.current.data).to.deep.equal({ users: ['alice', 'bob'] });
-        expect(result.current.error).to.be.null;
+        expect(result.current.failure).to.be.null;
 
         unmount();
         engine.destroy();
     });
 
-    it('sets error state on failed request', async () => {
+    it('sets failure with kind "http" on a non-2xx response', async () => {
 
         globalThis.fetch = vi.fn().mockResolvedValue(
             jsonResponse({ message: 'Not found' }, 404)
@@ -59,10 +60,45 @@ describe('@logosdx/react api: useQuery', () => {
 
         await flush();
 
+        const failure: FetchFailure<unknown> | null = result.current.failure;
+
         expect(result.current.loading).to.be.false;
         expect(result.current.data).to.be.null;
-        expect(result.current.error).to.not.be.null;
-        expect(result.current.error!.status).to.equal(404);
+        expect(failure).to.not.be.null;
+        expect(failure!.kind).to.equal('http');
+
+        if (failure!.kind === 'http') {
+
+            expect(failure!.response.status).to.equal(404);
+        }
+
+        unmount();
+        engine.destroy();
+    });
+
+    it('sets failure with kind "transport" when the request cannot reach the server', async () => {
+
+        globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+        const engine = new FetchEngine({ baseUrl: 'https://api.test', retry: false });
+
+        const { result, unmount } = renderHook(() =>
+            useQuery(engine, '/missing')
+        );
+
+        await flush();
+
+        const failure: FetchFailure<unknown> | null = result.current.failure;
+
+        expect(result.current.loading).to.be.false;
+        expect(result.current.data).to.be.null;
+        expect(failure).to.not.be.null;
+        expect(failure!.kind).to.equal('transport');
+
+        if (failure!.kind === 'transport') {
+
+            expect(failure!.error.isConnectionLost()).to.be.true;
+        }
 
         unmount();
         engine.destroy();

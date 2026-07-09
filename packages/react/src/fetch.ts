@@ -10,7 +10,7 @@ import {
 
 import { attempt } from '@logosdx/utils';
 import type { FetchEngine, CallConfig, FetchResponse, FetchError } from '@logosdx/fetch';
-import type { ProviderProps, FetchContextQueryResult, FetchContextMutationResult } from './types.ts';
+import type { ProviderProps, FetchContextQueryResult, FetchContextMutationResult, FetchFailure } from './types.ts';
 
 /**
  * Creates a React context + hook pair bound to a specific FetchEngine instance.
@@ -33,49 +33,62 @@ import type { ProviderProps, FetchContextQueryResult, FetchContextMutationResult
  *
  * **Queries — auto-fetch on mount, re-fetch when path/options change:**
  *
- * Returns `{ data, loading, error, response, refetch, cancel }`.
- * `data` is the unwrapped `T`. `response` provides full `FetchResponse`
- * access (status, headers). `error` is a `FetchError` with `.status`,
- * `.isCancelled()`, `.isTimeout()`, etc.
+ * Returns `{ data, loading, failure, refetch, cancel }`.
+ * `data` is the unwrapped `T`. `failure` is one signal for "did it fail":
+ * `kind: 'transport'` means no response exists (abort, timeout, connection
+ * lost) — `failure.error` is a `FetchError` with `.isCancelled()`,
+ * `.isTimeout()`, etc. `kind: 'http'` means the server answered outside 2xx
+ * — `failure.response` is the resolved response (status, headers, data).
  *
  *     function UserList() {
  *
  *         const { get } = useApiFetch();
  *
- *         const { data, loading, error, refetch } = get<User[]>('/users');
- *
- *         // Full response access for headers/status
- *         const { response } = get<Post, { 'x-total': string }>('/posts');
- *         // response?.headers['x-total'] is typed
+ *         const { data, loading, failure, refetch } = get<User[]>('/users');
  *
  *         if (loading) return <Spinner />;
- *         if (error) return <Error message={error.message} status={error.status} />;
+ *
+ *         if (failure?.kind === 'transport') return <Error message={failure.error.message} />;
+ *         if (failure?.kind === 'http') return <Error status={failure.response.status} />;
  *
  *         return <ul>{data?.map(u => <li key={u.id}>{u.name}</li>)}</ul>;
  *     }
  *
- * **Mutations — fire on demand, track loading/result/error:**
+ * **Mutations — fire on demand, track loading/result/failure:**
  *
- * Returns `{ data, loading, error, response, mutate, reset, cancel, called }`.
+ * Returns `{ data, loading, failure, mutate, reset, cancel, called }`.
  * Starts idle (`loading: false`, `called: false`) until `mutate()` is called.
- * `mutate()` returns `Promise<T>` so you can await the result.
+ * `mutate()` never rejects — it resolves `Promise<T>` on success, or
+ * `undefined` on any failure (transport or HTTP); read `failure` for why.
  *
  *     function CreateComment() {
  *
  *         const { post, del } = useApiFetch();
  *
- *         const { mutate: submit, loading: isSubmitting, data: result, error: submitErr } =
+ *         const { mutate: submit, loading: isSubmitting, data: result, failure: submitFailure } =
  *             post<Comment>('/comments');
- *         const { mutate: remove, loading: isRemoving, error: removeErr } =
+ *         const { mutate: remove, loading: isRemoving, failure: removeFailure } =
  *             del<void>('/comments/123');
  *
+ *         const onSubmit = async () => {
+ *
+ *             const comment = await submit({ text: 'Hello' });
+ *
+ *             if (!comment) {
+ *                 if (submitFailure?.kind === 'http') console.error(submitFailure.response.status);
+ *                 if (submitFailure?.kind === 'transport') console.error(submitFailure.error.message);
+ *                 return;
+ *             }
+ *         };
+ *
  *         return (
- *             <form onSubmit={() => submit({ text: 'Hello' })}>
+ *             <form onSubmit={onSubmit}>
  *                 <button disabled={isSubmitting}>
  *                     {isSubmitting ? 'Sending...' : 'Submit'}
  *                 </button>
  *                 {result && <p>Comment created: {result.id}</p>}
- *                 {submitErr && <p>Failed ({submitErr.status}): {submitErr.message}</p>}
+ *                 {submitFailure?.kind === 'http' &&
+ *                     <p>Failed ({submitFailure.response.status})</p>}
  *             </form>
  *         );
  *     }
@@ -123,8 +136,7 @@ export function createFetchContext<
 
             const [loading, setLoading] = useState(true);
             const [data, setData] = useState<Res | null>(null);
-            const [response, setResponse] = useState<FetchResponse<Res, any, any, RH> | null>(null);
-            const [error, setError] = useState<FetchError | null>(null);
+            const [failure, setFailure] = useState<FetchFailure<Res, RH> | null>(null);
             const [refetchCount, setRefetchCount] = useState(0);
             const abortController = useRef<AbortController | null>(null);
 
@@ -149,17 +161,29 @@ export function createFetchContext<
 
                         setLoading(false);
                         setData(null);
-                        setResponse(null);
-                        setError(err as FetchError);
+                        setFailure({ kind: 'transport', error: err as FetchError });
                         return;
                     }
 
-                    const fetchRes = res as unknown as FetchResponse<Res, any, any, RH>;
+                    // `RH` is a per-call override the caller declares (e.g.
+                    // `get<Post, { 'x-total': string }>(...)`), independent of
+                    // the engine's configured response-header type — runtime
+                    // headers can't be checked against that override, so the
+                    // caller's declared shape is trusted here.
+                    const fetchRes = res as unknown as
+                        FetchResponse<Res, unknown, unknown, RH>;
+
+                    if (!fetchRes.ok) {
+
+                        setLoading(false);
+                        setData(null);
+                        setFailure({ kind: 'http', response: fetchRes });
+                        return;
+                    }
 
                     setLoading(false);
                     setData(fetchRes.data);
-                    setResponse(fetchRes);
-                    setError(null);
+                    setFailure(null);
                 });
 
                 return () => abortController.current?.abort();
@@ -173,7 +197,7 @@ export function createFetchContext<
                 setRefetchCount(c => c + 1);
             }, []);
 
-            return { data, loading, error, response, refetch, cancel };
+            return { data, loading, failure, refetch, cancel };
         }
 
         function makeMutation<Res = unknown, RH = FetchEngine.InstanceResponseHeaders>(
@@ -184,29 +208,25 @@ export function createFetchContext<
 
             const [loading, setLoading] = useState(false);
             const [data, setData] = useState<Res | null>(null);
-            const [response, setResponse] = useState<FetchResponse<Res, any, any, RH> | null>(null);
-            const [error, setError] = useState<FetchError | null>(null);
+            const [failure, setFailure] = useState<FetchFailure<Res, RH> | null>(null);
             const [called, setCalled] = useState(false);
             const abortController = useRef<AbortController | null>(null);
-            const resolveRef = useRef<((value: Res) => void) | null>(null);
-            const rejectRef = useRef<((reason: FetchError) => void) | null>(null);
+            const resolveRef = useRef<((value: Res | undefined) => void) | null>(null);
 
-            const mutate = useCallback(<Payload>(payload?: Payload): Promise<Res> => {
+            const mutate = useCallback(<Payload>(payload?: Payload): Promise<Res | undefined> => {
 
                 abortController.current = new AbortController();
 
                 setCalled(true);
                 setLoading(true);
                 setData(null);
-                setResponse(null);
-                setError(null);
+                setFailure(null);
 
                 const engineMethod = engine[method].bind(engine);
 
-                const resultPromise = new Promise<Res>((resolve, reject) => {
+                const resultPromise = new Promise<Res | undefined>((resolve) => {
 
                     resolveRef.current = resolve;
-                    rejectRef.current = reject;
                 });
 
                 const promise = attempt(
@@ -222,18 +242,29 @@ export function createFetchContext<
 
                         setLoading(false);
                         setData(null);
-                        setResponse(null);
-                        setError(err as FetchError);
-                        rejectRef.current?.(err as FetchError);
+                        setFailure({ kind: 'transport', error: err as FetchError });
+                        resolveRef.current?.(undefined);
                         return;
                     }
 
-                    const fetchRes = res as unknown as FetchResponse<Res, any, any, RH>;
+                    // See `get()` above: `RH` is a per-call override the
+                    // caller declares, trusted since runtime headers can't
+                    // be checked against it.
+                    const fetchRes = res as unknown as
+                        FetchResponse<Res, unknown, unknown, RH>;
+
+                    if (!fetchRes.ok) {
+
+                        setLoading(false);
+                        setData(null);
+                        setFailure({ kind: 'http', response: fetchRes });
+                        resolveRef.current?.(undefined);
+                        return;
+                    }
 
                     setLoading(false);
                     setData(fetchRes.data);
-                    setResponse(fetchRes);
-                    setError(null);
+                    setFailure(null);
                     resolveRef.current?.(fetchRes.data);
                 });
 
@@ -246,13 +277,12 @@ export function createFetchContext<
 
             const reset = useCallback(() => {
                 setData(null);
-                setResponse(null);
-                setError(null);
+                setFailure(null);
                 setLoading(false);
                 setCalled(false);
             }, []);
 
-            return { data, loading, error, response, mutate, reset, cancel, called };
+            return { data, loading, failure, mutate, reset, cancel, called };
         }
 
         function post<Res = unknown, RH = FetchEngine.InstanceResponseHeaders>(

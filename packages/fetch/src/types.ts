@@ -362,58 +362,13 @@ export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.In
 }
 
 /**
- * Enhanced response object that provides comprehensive information about
- * a fetch request and its result.
+ * Fields shared by both branches of the {@link FetchResponse} union.
  *
- * Replaces the previous pattern of returning just parsed data with a rich
- * response object containing the data, metadata, and request context.
- * Designed to be easily destructurable while providing full access to
- * HTTP response details.
- *
- * @template T - Type of the parsed response data
  * @template H - Type of request headers used in the config
  * @template P - Type of request params used in the config
  * @template RH - Type of response headers received from the server
- *
- * @example
- * // Destructure just the data (backward compatibility pattern)
- * const { data: user } = await api.get<User>('/users/123');
- *
- * @example
- * // Access full response details
- * const response = await api.get<User[]>('/users');
- * console.log('Status:', response.status);
- * console.log('Headers:', response.headers.get('content-type'));
- * console.log('Data:', response.data);
- * console.log('Request config:', response.config);
- *
- * @example
- * // Use with error handling
- * const [response, err] = await attempt(() => api.get('/users'));
- * if (err) {
- *     console.error('Request failed:', err);
- *     return;
- * }
- *
- * if (response.status === 200) {
- *     console.log('Success:', response.data);
- * }
  */
-export interface FetchResponse<
-    T = any,
-    H = FetchEngine.InstanceHeaders,
-    P = FetchEngine.InstanceParams,
-    RH = FetchEngine.InstanceResponseHeaders
-> {
-    /**
-     * Parsed response body data.
-     *
-     * The response content parsed according to the content-type header
-     * or the configured determineType function. For JSON responses,
-     * this will be the parsed JavaScript object. For text responses,
-     * this will be a string.
-     */
-    data: T;
+interface FetchResponseBase<H, P, RH> {
 
     /**
      * HTTP response headers received from the server.
@@ -444,8 +399,8 @@ export interface FetchResponse<
      * HTTP status code.
      *
      * The numeric HTTP status code (200, 404, 500, etc.) returned
-     * by the server. Useful for conditional logic based on response
-     * status without needing to catch errors.
+     * by the server. Every completed exchange resolves — status alone
+     * decides `ok`, not a thrown error.
      */
     status: number;
 
@@ -467,6 +422,52 @@ export interface FetchResponse<
      */
     config: FetchConfig<H, P>;
 }
+
+/**
+ * Enhanced response object that provides comprehensive information about
+ * a fetch request and its result.
+ *
+ * A discriminated union on `ok`: a 2xx exchange narrows `data` to `T`, while
+ * a non-2xx exchange narrows `data` to `unknown` — the compiler forces the
+ * `res.ok` check before `data` can be trusted as `T`. Every completed HTTP
+ * exchange resolves this way; only a transport failure (abort, timeout,
+ * connection lost, parse failure on `ok: true`) rejects as a `FetchError`.
+ *
+ * @template T - Type of the parsed response data (only on the `ok: true` branch)
+ * @template H - Type of request headers used in the config
+ * @template P - Type of request params used in the config
+ * @template RH - Type of response headers received from the server
+ *
+ * @example
+ * // Narrow on `ok` before destructuring `data`
+ * const response = await api.get<User>('/users/123');
+ * if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+ *
+ * const { data: user } = response;
+ *
+ * @example
+ * // Narrow on `ok` before trusting `data` as `T`
+ * const [response, err] = await attempt(() => api.get<User[]>('/users'));
+ * if (err) {
+ *     console.error('Transport failure:', err);
+ *     return;
+ * }
+ *
+ * if (!response.ok) {
+ *     console.warn('Non-2xx response:', response.status, response.data);
+ *     return;
+ * }
+ *
+ * console.log('Success:', response.data);
+ */
+export type FetchResponse<
+    T = any,
+    H = FetchEngine.InstanceHeaders,
+    P = FetchEngine.InstanceParams,
+    RH = FetchEngine.InstanceResponseHeaders
+> =
+    | (FetchResponseBase<H, P, RH> & { ok: true; data: T })
+    | (FetchResponseBase<H, P, RH> & { ok: false; data: unknown });
 
 export interface RetryConfig {
 
@@ -507,12 +508,25 @@ export interface RetryConfig {
 
     /**
      * Custom function to determine if a request should be retried.
-     * If the function returns a number, it will be used as the delay
-     * in milliseconds before the next retry.
+     * Receives a resolved `ok: false` response for an HTTP-status retry, or
+     * a rejected transport `FetchError` for a transport retry — narrow with
+     * `isFetchError()`. If the function returns a number, it will be used
+     * as the delay in milliseconds before the next retry.
      *
-     * @default (error, attempt) => attempt < maxAttempts
+     * @default (outcome, attempt) => attempt < maxAttempts
+     *
+     * @example
+     * shouldRetry(outcome, attempt) {
+     *
+     *     if (isFetchError(outcome)) return outcome.isConnectionLost();
+     *
+     *     return outcome.status >= 500;
+     * }
      */
-    shouldRetry?: (error: FetchError, attempt: number) => MaybePromise<boolean | number> | undefined;
+    shouldRetry?: (
+        outcome: FetchResponse<unknown> | FetchError,
+        attempt: number
+    ) => MaybePromise<boolean | number> | undefined;
 }
 
 // Note: The FetchEngine namespace is now defined via declaration merging

@@ -64,13 +64,18 @@ description: Brief package description
 
 #### Code Examples (4-space indentation per CLAUDE.md)
 ```typescript
-// Always show error handling with attempt()
-const [users, err] = await attempt(() => api.get<User[]>('/users'));
+// Always show the three-channel pattern: err = transport,
+// !res.ok = server said no, res.ok = data
+const [res, err] = await attempt(() => api.get<User[]>('/users'));
 if (err) {
-    console.error('Failed to fetch users:', err.message);
+    console.error('Transport failure:', err.message);
     return;
 }
-console.log('Users:', users);
+if (!res.ok) {
+    console.error('Request failed:', res.status);
+    return;
+}
+console.log('Users:', res.data);
 ```
 
 #### Multi-Package Manager Support
@@ -194,19 +199,25 @@ const [result, err] = await attempt(() =>
 // Authentication flow example
 const authenticateUser = async (credentials: LoginCredentials) => {
     const [response, err] = await attempt(() =>
-        retry(() =>
-            api.post<AuthResponse>('/auth/login', credentials)
-        )
+        api.post<AuthResponse>('/auth/login', credentials)
     );
 
     if (err) {
+        // Transport failure — the exchange never completed
         observer.emit('auth.failed', { error: err });
         return [null, err];
     }
 
-    storage.assign('user', response.user);
-    observer.emit('auth.success', response.user);
-    return [response, null];
+    if (!response.ok) {
+        // The server rejected the login — a 401 resolves, it doesn't throw
+        const rejected = new Error(`Login rejected: ${response.status}`);
+        observer.emit('auth.failed', { error: rejected });
+        return [null, rejected];
+    }
+
+    storage.assign('user', response.data.user);
+    observer.emit('auth.success', response.data.user);
+    return [response.data, null];
 };
 ```
 

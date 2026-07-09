@@ -8,7 +8,7 @@ import {
 import { attempt } from '@logosdx/utils';
 import type { FetchEngine, FetchError } from '@logosdx/fetch';
 import type { ObserverEngine } from '@logosdx/observer';
-import type { MutationResult, MutationOptions, EmitConfig, EmitEntry } from './types.ts';
+import type { MutationResult, MutationOptions, EmitConfig, EmitEntry, FetchFailure } from './types.ts';
 
 function emitEvents<E extends Record<string, any>>(
     observer: ObserverEngine<E>,
@@ -35,15 +35,25 @@ function emitEvents<E extends Record<string, any>>(
 
 /**
  * Apollo-style mutation hook — idle until `mutate()` is called.
- * Returns `{ data, loading, error, mutate, reset, cancel, called }`.
+ * Returns `{ data, loading, failure, mutate, reset, cancel, called }`.
  *
- * `mutate()` returns a Promise that resolves with the parsed response body.
+ * `mutate()` never rejects — it resolves with the parsed response body on
+ * success, or `undefined` on any failure. `failure` narrows on `kind`:
+ * `'transport'` (no response exists — abort, timeout, connection lost)
+ * carries `error: FetchError`; `'http'` (server answered outside 2xx)
+ * carries `response`, the resolved ok-false `FetchResponse`.
  *
- *     const { mutate, loading, error } = useMutation<User>(api, 'post', '/users', {
+ *     const { mutate, loading, failure } = useMutation<User>(api, 'post', '/users', {
  *         emitOnSuccess: 'users.created',
  *     }, observer);
  *
  *     const user = await mutate({ name: 'Alice' });
+ *
+ *     if (!user) {
+ *         if (failure?.kind === 'http') console.error(failure.response.status);
+ *         if (failure?.kind === 'transport') console.error(failure.error.message);
+ *         return;
+ *     }
  *
  * @param engine - FetchEngine instance
  * @param method - HTTP method (post, put, delete, patch)
@@ -64,14 +74,14 @@ export function useMutation<
     path: string,
     options?: MutationOptions<H, P, E>,
     observer?: ObserverEngine<E>,
-): MutationResult<T> {
+): MutationResult<T, RH> {
 
     const defaults = options?.defaults;
     const emitOnSuccess = options?.emitOnSuccess;
 
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<T | null>(null);
-    const [error, setError] = useState<FetchError | null>(null);
+    const [failure, setFailure] = useState<FetchFailure<T, RH> | null>(null);
     const [called, setCalled] = useState(false);
 
     const abortRef = useRef<AbortController | null>(null);
@@ -82,7 +92,7 @@ export function useMutation<
     const mutate = useCallback(<Payload = unknown>(
         payload?: Payload,
         overrides?: Record<string, unknown>,
-    ): Promise<T> => {
+    ): Promise<T | undefined> => {
 
         abortRef.current?.abort();
         abortRef.current = new AbortController();
@@ -91,7 +101,7 @@ export function useMutation<
 
         setLoading(true);
         setData(null);
-        setError(null);
+        setFailure(null);
 
         const config = {
             ...defaults,
@@ -105,22 +115,33 @@ export function useMutation<
             () => engineMethod<T>(path, payload, config as any)
         ).then(([res, err]) => {
 
-            if (!mountedRef.current) return undefined as any;
+            if (!mountedRef.current) return undefined;
 
             if (err) {
 
                 setLoading(false);
                 setData(null);
-                setError(err as FetchError);
+                // attempt()'s tuple types the rejection as a generic Error;
+                // FetchEngine only ever rejects with FetchError.
+                setFailure({ kind: 'transport', error: err as FetchError });
                 setCalled(true);
-                return undefined as any;
+                return undefined;
             }
 
-            const responseData = res!.data;
+            if (!res.ok) {
+
+                setLoading(false);
+                setData(null);
+                setFailure({ kind: 'http', response: res });
+                setCalled(true);
+                return undefined;
+            }
+
+            const responseData = res.data;
 
             setLoading(false);
             setData(responseData);
-            setError(null);
+            setFailure(null);
             setCalled(true);
 
             if (observer && emitOnSuccess) {
@@ -137,7 +158,7 @@ export function useMutation<
 
         setLoading(false);
         setData(null);
-        setError(null);
+        setFailure(null);
         setCalled(false);
     }, []);
 
@@ -146,5 +167,5 @@ export function useMutation<
         abortRef.current?.abort();
     }, []);
 
-    return { data, loading, error, mutate, reset, cancel, called };
+    return { data, loading, failure, mutate, reset, cancel, called };
 }

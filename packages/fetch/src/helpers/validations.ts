@@ -7,6 +7,7 @@ import {
 } from '@logosdx/utils';
 import type { FetchEngine } from '../engine/index.ts';
 import type { RetryConfig } from '../types.ts';
+import { isFetchError } from './fetch-error.ts';
 
 
 export const fetchTypes = [
@@ -184,15 +185,19 @@ export const DEFAULT_RETRY_CONFIG: Required<RetryConfig> = {
     maxDelay: 10000,
     useExponentialBackoff: true,
     retryableStatusCodes: [408, 429, 499, 500, 502, 503, 504],
-    shouldRetry(error) {
+    shouldRetry(outcome) {
 
         // Note: Parent controller abort (totalTimeout) is checked in the retry loop,
         // not here. This allows attemptTimeout aborts to still be retried.
 
-        if (!error.status) return false; // No status means it failed in a way that was not handled by the engine
-        if (error.status === 499) return true; // We set 499 for requests that were reset, dropped, etc.
+        if (isFetchError(outcome)) {
 
-        // Retry on configured status codes
-        return this.retryableStatusCodes?.includes(error.status) ?? false;
+            if (!outcome.status) return false; // No status means it failed in a way that was not handled by the engine
+            if (outcome.status === 499) return true; // We set 499 for requests that were reset, dropped, etc.
+        }
+
+        // `retryableStatusCodes` is the zero-config trigger for both branches -
+        // a transport FetchError and an HTTP-status FetchResponse alike.
+        return this.retryableStatusCodes?.includes(outcome.status) ?? false;
     }
 };

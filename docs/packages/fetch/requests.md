@@ -27,11 +27,13 @@ api.get<Res, ResHdr>(path: string, options?: CallConfig): FetchPromise<Res>
 Retrieve data from the server.
 
 ```typescript
-const { data: users } = await api.get<User[]>('/users');
+const users = await api.get<User[]>('/users');
+if (users.ok) console.log(users.data); // User[]
 
-const { data: user } = await api.get<User>('/users/123', {
+const user = await api.get<User>('/users/123', {
     params: { include: 'profile' }
 });
+if (user.ok) console.log(user.data); // User
 ```
 
 
@@ -45,10 +47,11 @@ api.post<Res, Data, ResHdr>(path: string, payload?: Data, options?: CallConfig):
 Create a new resource.
 
 ```typescript
-const { data: user } = await api.post<User, CreateUserData>('/users', {
+const created = await api.post<User, CreateUserData>('/users', {
     name: 'John Doe',
     email: 'john@example.com'
 });
+if (created.ok) console.log(created.data); // User
 ```
 
 
@@ -62,10 +65,11 @@ api.put<Res, Data, ResHdr>(path: string, payload?: Data, options?: CallConfig): 
 Replace a resource.
 
 ```typescript
-const { data: user } = await api.put<User, UpdateUserData>('/users/123', {
+const replaced = await api.put<User, UpdateUserData>('/users/123', {
     name: 'Jane Doe',
     email: 'jane@example.com'
 });
+if (replaced.ok) console.log(replaced.data); // User
 ```
 
 
@@ -79,9 +83,10 @@ api.patch<Res, Data, ResHdr>(path: string, payload?: Data, options?: CallConfig)
 Partially update a resource.
 
 ```typescript
-const { data: user } = await api.patch<User, Partial<User>>('/users/123', {
+const updated = await api.patch<User, Partial<User>>('/users/123', {
     email: 'new@example.com'
 });
+if (updated.ok) console.log(updated.data); // User
 ```
 
 
@@ -144,27 +149,23 @@ api.request<Res, Data, ResHdr>(
 Make a request with any HTTP method.
 
 ```typescript
-const { data } = await api.request<User>('PATCH', '/users/123', {
+const res = await api.request<User>('PATCH', '/users/123', {
     payload: { name: 'Updated' },
     headers: { 'X-Custom': 'value' }
 });
+if (res.ok) console.log(res.data); // User
 ```
 
 
 ## FetchResponse
 
 
-Every HTTP method returns a `FetchResponse` object:
+Every HTTP method returns a `FetchResponse` — a discriminated union on `ok`. Every completed exchange resolves this way, including non-2xx status; only a transport failure (abort, timeout, connection lost, parse failure on an `ok: true` body) rejects instead as a `FetchError`.
 
 ```typescript
-interface FetchResponse<T, H, P, RH> {
-
-    data: T;                  // Parsed response body
-    headers: Partial<RH>;     // Response headers
-    status: number;           // HTTP status code
-    request: Request;         // Original request object
-    config: FetchConfig<H, P>; // Configuration used for request
-}
+type FetchResponse<T, H, P, RH> =
+    | { ok: true; data: T; headers: Partial<RH>; status: number; request: Request; config: FetchConfig<H, P> }
+    | { ok: false; data: unknown; headers: Partial<RH>; status: number; request: Request; config: FetchConfig<H, P> };
 ```
 
 **Example:**
@@ -172,13 +173,15 @@ interface FetchResponse<T, H, P, RH> {
 ```typescript
 const response = await api.get<User[]>('/users');
 
-console.log(response.data);      // User[]
-console.log(response.status);    // 200
-console.log(response.headers);   // { 'content-type': 'application/json', ... }
-console.log(response.config);    // { baseUrl: '...', headers: {...}, ... }
-
-// Destructure just the data
-const { data: users } = await api.get<User[]>('/users');
+if (!response.ok) {
+    console.error('Request failed:', response.status, response.data);
+}
+else {
+    console.log(response.data);      // User[] — narrowed by the ok check
+    console.log(response.status);    // 200
+    console.log(response.headers);   // { 'content-type': 'application/json', ... }
+    console.log(response.config);    // { baseUrl: '...', headers: {...}, ... }
+}
 ```
 
 
@@ -203,12 +206,13 @@ Override instance configuration for individual requests using `CallConfig`:
 **Example:**
 
 ```typescript
-const { data } = await api.get<User>('/users/123', {
+const res = await api.get<User>('/users/123', {
     headers: { 'X-Include': 'profile' },
     params: { version: 'v2' },
     totalTimeout: 60000,
     retry: { maxAttempts: 5 }
 });
+if (res.ok) console.log(res.data); // User
 ```
 
 
@@ -219,15 +223,18 @@ Declare how the response body should be parsed by chaining a directive method be
 
 ```typescript
 // Explicit response type via chaining
-const { data: user } = await api.get<User>('/users/123').json();
-const { data: html } = await api.get('/page').text();
-const { data: file } = await api.get('/file').blob();
-const { data: buf } = await api.get('/binary').arrayBuffer();
-const { data: form } = await api.get('/form').formData();
-const { data: res } = await api.get('/endpoint').raw();
+const user = await api.get<User>('/users/123').json();   // FetchResponse<User>
+const html = await api.get('/page').text();              // FetchResponse<string>
+const file = await api.get('/file').blob();              // FetchResponse<Blob>
+const buf  = await api.get('/binary').arrayBuffer();     // FetchResponse<ArrayBuffer>
+const form = await api.get('/form').formData();          // FetchResponse<FormData>
+const raw  = await api.get('/endpoint').raw();           // FetchResponse<Response>
 
-// No directive — auto-parse based on content-type (backwards compatible)
-const { data } = await api.get<User>('/users/123');
+// The directive declares the parse type; `data` still narrows on `ok`
+if (user.ok) render(user.data); // User
+
+// No directive — auto-parse based on content-type
+const auto = await api.get<User>('/users/123');
 ```
 
 **Available directives:**
@@ -349,7 +356,7 @@ Absolute URLs bypass the base URL:
 
 ```typescript
 // Uses external URL directly
-const { data } = await api.get('https://other-api.com/data');
+const res = await api.get('https://other-api.com/data');
 ```
 
 
@@ -378,7 +385,7 @@ await api.get('/users?active=true', {
 Add per-request callbacks:
 
 ```typescript
-const { data } = await api.post('/users', userData, {
+const res = await api.post('/users', userData, {
     onBeforeReq: (opts) => {
         console.log('Starting request:', opts.method, opts.url);
     },
@@ -411,14 +418,19 @@ interface CreateUserData {
     email: string;
 }
 
-// Response type is inferred
-const { data } = await api.get<User>('/users/123');
-// data: User
+// Response type flows through the union — narrow on `ok` to read it
+const res = await api.get<User>('/users/123');
+if (res.ok) {
+    res.data; // User
+}
 
 // Payload type is validated
-const { data: newUser } = await api.post<User, CreateUserData>('/users', {
+const newUser = await api.post<User, CreateUserData>('/users', {
     name: 'John',
     email: 'john@example.com'
     // TypeScript error if payload doesn't match CreateUserData
 });
+if (newUser.ok) {
+    newUser.data; // User
+}
 ```

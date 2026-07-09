@@ -9,6 +9,7 @@ import {
 import {
     FetchError,
     FetchEngine,
+    isFetchError,
 } from '@logosdx/fetch';
 
 import { attempt } from '@logosdx/utils';
@@ -137,7 +138,9 @@ describe('@logosdx/fetch: retry', async () => {
         expect(end - start).to.be.lessThan(calc);
     });
 
-    it('retries on specific status codes', async () => {
+    it('retries on specific status codes then resolves ok:false after exhausting attempts', async () => {
+
+        const retryEvents: FetchEngine.RetryEventData[] = [];
 
         const api = new FetchEngine({
             baseUrl: testUrl,
@@ -149,47 +152,50 @@ describe('@logosdx/fetch: retry', async () => {
             },
         });
 
-        const onError = sandbox.stub();
+        api.on('retry', (data) => retryEvents.push(data));
 
-        api.on('error', onError);
+        const [result, err] = await attempt(() => api.get('/validate?name=&age=17'));
 
-        await attempt(() => api.get('/validate?name=&age=17'))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
+        expect(err).to.be.null;
+        expect(result?.ok).to.be.false;
+        expect(result?.status).to.eq(400);
+        expect(retryEvents).to.have.length(2); // 2 retries between 3 attempts
     })
 
     it('retries with custom shouldRetry', async () => {
 
-        const onError = sandbox.stub();
+        const retryEvents: FetchEngine.RetryEventData[] = [];
+
         const api = new FetchEngine({
             baseUrl: testUrl,
             retry: {
                 maxAttempts: 3,
                 baseDelay: 10,
                 useExponentialBackoff: false,
-                shouldRetry: (error) => error.status === 400,
+                shouldRetry: (outcome) => !isFetchError(outcome) && outcome.status === 400,
             },
         });
 
-        api.on('error', onError);
+        api.on('retry', (data) => retryEvents.push(data));
 
-        // First request fails with 400 (validation error) - should retry 3 times
-        await attempt(() => api.get('/validate?name=&age=17'))
+        // First request resolves 400 (validation error) - should retry twice then exhaust
+        const [firstResult] = await attempt(() => api.get('/validate?name=&age=17'));
 
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
+        expect(firstResult?.ok).to.be.false;
+        expect(firstResult?.status).to.eq(400);
+        expect(retryEvents).to.have.length(2);
 
-        // Reset the flaky endpoint state for this test
+        retryEvents.length = 0;
         resetFlaky();
 
-        // Second request uses /flaky which fails with 503 - should NOT retry (not 400)
-        // Skip first call to make it fail
+        // /flaky succeeds first call (bumps state), fails 503 on the second -
+        // 503 should NOT retry since shouldRetry only allows 400
         await attempt(() => api.get('/flaky'));
-        await attempt(() => api.get('/flaky'));
+        const [secondResult] = await attempt(() => api.get('/flaky'));
 
-        // Should have one more error event (503 is not retried)
-        expect(onError.callCount).to.eq(4);
+        expect(secondResult?.ok).to.be.false;
+        expect(secondResult?.status).to.eq(503);
+        expect(retryEvents).to.have.length(0);
     });
 
     it('retries with custom shouldRetry that returns a number', async () => {
@@ -200,9 +206,9 @@ describe('@logosdx/fetch: retry', async () => {
                 maxAttempts: 3,
                 baseDelay: 10,
                 useExponentialBackoff: false,
-                shouldRetry: (error) => {
+                shouldRetry: (outcome) => {
 
-                    if (error.status === 400) {
+                    if (!isFetchError(outcome) && outcome.status === 400) {
 
                         return 50;
                     }
@@ -212,16 +218,13 @@ describe('@logosdx/fetch: retry', async () => {
             },
         });
 
-        const onError = sandbox.stub();
-
-        api.on('error', onError);
-
         const start = Date.now();
 
-        await attempt(() => api.get('/validate?name=&age=17'))
+        const [result, err] = await attempt(() => api.get('/validate?name=&age=17'));
 
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
+        expect(err).to.be.null;
+        expect(result?.ok).to.be.false;
+        expect(result?.status).to.eq(400);
 
         const end = Date.now();
 
@@ -229,7 +232,29 @@ describe('@logosdx/fetch: retry', async () => {
         expect(end - start).to.be.greaterThan(99);
     });
 
-    it('throws the actual error after exhausting retries when shouldRetry always returns true', async () => {
+    it('throws the actual transport error after exhausting retries when shouldRetry always returns true', async () => {
+
+        const shouldRetrySpy = vi.fn().mockReturnValue(true);
+
+        const api = new FetchEngine({
+            baseUrl: testUrl + 1, // unreachable port - transport failure, not a resolved response
+            retry: {
+                maxAttempts: 3,
+                baseDelay: 10,
+                shouldRetry: shouldRetrySpy,
+            },
+        });
+
+        const [, err] = await attempt(() => api.get('/'));
+
+        // Should throw the actual transport error, not "Unexpected end of retry logic"
+        expect(err).to.be.instanceOf(FetchError);
+        expect((err as FetchError).message).to.not.include('Unexpected end of retry logic');
+        expect((err as FetchError).status).to.eq(499);
+        expect(shouldRetrySpy).toHaveBeenCalledTimes(3);
+    });
+
+    it('resolves ok:false (never throws) after exhausting HTTP-status retries when shouldRetry always returns true', async () => {
 
         const shouldRetrySpy = vi.fn().mockReturnValue(true);
 
@@ -242,12 +267,12 @@ describe('@logosdx/fetch: retry', async () => {
             },
         });
 
-        const [, err] = await attempt(() => api.get('/validate?name=&age=17'));
+        const [result, err] = await attempt(() => api.get('/validate?name=&age=17'));
 
-        // Should throw the actual validation error, not "Unexpected end of retry logic"
-        expect(err).to.be.instanceOf(FetchError);
-        expect((err as FetchError).message).to.not.include('Unexpected end of retry logic');
-        expect((err as FetchError).status).to.eq(400);
+        // Exhausted attempts on ok:false resolve - they are never converted to a throw.
+        expect(err).to.be.null;
+        expect(result?.ok).to.be.false;
+        expect(result?.status).to.eq(400);
         expect(shouldRetrySpy).toHaveBeenCalledTimes(3);
     });
 
@@ -262,7 +287,8 @@ describe('@logosdx/fetch: retry', async () => {
             },
         });
 
-        const onError = sandbox.stub();
+        const retryEvents: FetchEngine.RetryEventData[] = [];
+        api.on('retry', (data) => retryEvents.push(data));
 
         const reqConfig: FetchEngine.CallConfig = {
             retry: {
@@ -271,42 +297,48 @@ describe('@logosdx/fetch: retry', async () => {
                 useExponentialBackoff: false,
                 retryableStatusCodes: [400],
             },
-            onError,
         }
 
         const start = Date.now();
 
-        await attempt(() => api.get('/validate?name=&age=17', reqConfig))
+        const [result] = await attempt(() => api.get('/validate?name=&age=17', reqConfig));
 
         const end = Date.now();
 
         const calc = (10 * 2) + 20; // Give some buffer
 
         expect(end - start).to.be.lessThan(calc);
+        expect(result?.ok).to.be.false;
+        expect(retryEvents).to.have.length(1); // 1 retry between 2 attempts (per-request override)
 
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(2);
+        retryEvents.length = 0;
 
-        await attempt(() => api.get('/validate?name=&age=17', { onError }))
+        // Without the per-request override, the instance default applies - 400 isn't
+        // in the default retryableStatusCodes, so it resolves after a single attempt.
+        const [result2] = await attempt(() => api.get('/validate?name=&age=17'));
 
-        expect(onError.callCount).to.eq(3);
+        expect(result2?.ok).to.be.false;
+        expect(retryEvents).to.have.length(0);
     });
 
     it('configures default retry', async () => {
+
+        const retryEvents: FetchEngine.RetryEventData[] = [];
 
         const api = new FetchEngine({
             baseUrl: testUrl,
             retry: true
         });
 
-        const onError = sandbox.stub();
+        api.on('retry', (data) => retryEvents.push(data));
 
-        api.on('error', onError);
+        const [result, err] = await attempt(() => api.get('/rate-limit'));
 
-        await attempt(() => api.get('/rate-limit'))
-
-        expect(onError.called).to.be.true;
-        expect(onError.callCount).to.eq(3);
+        // 429 is in the default retryableStatusCodes - retried to exhaustion, then resolves.
+        expect(err).to.be.null;
+        expect(result?.ok).to.be.false;
+        expect(result?.status).to.eq(429);
+        expect(retryEvents).to.have.length(2); // default maxAttempts: 3 -> 2 retries
     });
 
     describe('retry with deduplication', () => {
@@ -454,7 +486,7 @@ describe('@logosdx/fetch: retry', async () => {
 
         it('emits retry event for timed out requests when using attemptTimeout', async () => {
 
-            const retryEvents: any[] = [];
+            const retryEvents: FetchEngine.RetryEventData[] = [];
 
             const api = new FetchEngine({
                 baseUrl: testUrl,
@@ -472,10 +504,10 @@ describe('@logosdx/fetch: retry', async () => {
 
             // With maxAttempts: 2, we get 1 retry event (between attempt 1 and 2)
             expect(retryEvents).to.have.length(1);
-            expect(retryEvents[0].attempt).to.eq(1);
-            expect(retryEvents[0].nextAttempt).to.eq(2);
-            expect(retryEvents[0].requestStart).to.be.a('number');
-            expect(retryEvents[0].requestEnd).to.not.exist;
+            expect(retryEvents[0]!.attempt).to.eq(1);
+            expect(retryEvents[0]!.nextAttempt).to.eq(2);
+            expect(retryEvents[0]!.requestStart).to.be.a('number');
+            expect(retryEvents[0]!.requestEnd).to.not.exist;
 
             api.destroy();
         });
@@ -775,7 +807,7 @@ describe('@logosdx/fetch: retry', async () => {
         it('attemptTimeout allows retry when totalTimeout has budget', async () => {
 
             let attemptCount = 0;
-            const retryEvents: any[] = [];
+            const retryEvents: FetchEngine.RetryEventData[] = [];
 
             const api = new FetchEngine({
                 baseUrl: testUrl,
@@ -868,6 +900,254 @@ describe('@logosdx/fetch: retry', async () => {
             // Helper method tests
             expect((err as FetchError).isTimeout()).to.be.true;
             expect((err as FetchError).isCancelled()).to.be.false;
+
+            api.destroy();
+        });
+    });
+
+    describe('retry on resolved ok:false responses (HTTP-status retries)', () => {
+
+        it('retries a 503 and resolves ok:true once the endpoint recovers', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 10,
+                },
+            });
+
+            // /fail-once resolves 503 on the first attempt, 200 on the next
+            const [result, err] = await attempt(() => api.get<{ ok: boolean }>('/fail-once'));
+
+            expect(err).to.be.null;
+
+            if (!result?.ok) throw new Error('expected a successful response');
+
+            expect(result.data.ok).to.be.true;
+
+            api.destroy();
+        });
+
+        it('resolves ok:false after exhausting retries against an endpoint that never recovers', async () => {
+
+            // Prime the flaky endpoint via a direct call (bypassing the engine)
+            // so every subsequent call resolves 503.
+            await fetch(testUrl + '/flaky');
+
+            let attemptCount = 0;
+            const retryEvents: FetchEngine.RetryEventData[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 5,
+                    useExponentialBackoff: false,
+                },
+            });
+
+            api.on('before-request', () => attemptCount++);
+            api.on('retry', (data) => retryEvents.push(data));
+
+            const [result, err] = await attempt(() => api.get('/flaky'));
+
+            expect(err).to.be.null;
+            expect(result?.ok).to.be.false;
+            expect(result?.status).to.eq(503);
+            expect(attemptCount).to.eq(3);
+            expect(retryEvents).to.have.length(2);
+
+            api.destroy();
+        });
+
+        it('does NOT retry a 4xx by default (not in retryableStatusCodes)', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: { maxAttempts: 3, baseDelay: 5 },
+            });
+
+            api.on('before-request', () => attemptCount++);
+
+            const [result, err] = await attempt(() => api.get('/fail'));
+
+            expect(err).to.be.null;
+            expect(result?.ok).to.be.false;
+            expect(result?.status).to.eq(400);
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('honors the numeric delay returned by a custom shouldRetry (Retry-After pattern)', async () => {
+
+            const retryEvents: FetchEngine.RetryEventData[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 2,
+                    baseDelay: 1000, // large on purpose - proves the override, not backoff, is used
+                    shouldRetry: (outcome) => {
+
+                        if (isFetchError(outcome)) return false;
+                        if (outcome.status !== 429) return false;
+
+                        const after = outcome.headers['retry-after'];
+                        return after ? Number(after) : 20;
+                    },
+                },
+            });
+
+            api.on('retry', (data) => retryEvents.push(data));
+
+            const start = Date.now();
+            const [result, err] = await attempt(() => api.get('/rate-limit'));
+            const end = Date.now();
+
+            expect(err).to.be.null;
+            expect(result?.ok).to.be.false;
+            expect(result?.status).to.eq(429);
+            expect(retryEvents).to.have.length(1);
+            expect(retryEvents[0]!.delay).to.eq(20);
+            expect(end - start).to.be.lessThan(1000);
+
+            api.destroy();
+        });
+
+        it('invokes shouldRetry with a FetchResponse for an HTTP trigger and a FetchError for a transport trigger', async () => {
+
+            const httpOutcomes: unknown[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 1, // observe without actually retrying
+                    shouldRetry: (outcome) => {
+
+                        httpOutcomes.push(outcome);
+                        return false;
+                    },
+                },
+            });
+
+            await attempt(() => api.get('/fail'));
+
+            expect(httpOutcomes).to.have.length(1);
+            expect(isFetchError(httpOutcomes[0])).to.be.false;
+            expect((httpOutcomes[0] as { ok: boolean; status: number }).ok).to.be.false;
+            expect((httpOutcomes[0] as { ok: boolean; status: number }).status).to.eq(400);
+
+            api.destroy();
+
+            const transportOutcomes: unknown[] = [];
+
+            const badApi = new FetchEngine({
+                baseUrl: testUrl + 1, // unreachable port - transport failure
+                retry: {
+                    maxAttempts: 1,
+                    shouldRetry: (outcome) => {
+
+                        transportOutcomes.push(outcome);
+                        return false;
+                    },
+                },
+            });
+
+            await attempt(() => badApi.get('/'));
+
+            expect(transportOutcomes).to.have.length(1);
+            expect(isFetchError(transportOutcomes[0])).to.be.true;
+
+            badApi.destroy();
+        });
+
+        it('carries the triggering outcome on the retry event payload', async () => {
+
+            const retryEvents: FetchEngine.RetryEventData[] = [];
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: { maxAttempts: 2, baseDelay: 5 },
+            });
+
+            api.on('retry', (data) => retryEvents.push(data));
+
+            // HTTP-status trigger: 429 is retryable by default
+            await attempt(() => api.get('/rate-limit'));
+
+            expect(retryEvents).to.have.length(1);
+
+            const httpOutcome = retryEvents[0]!.outcome;
+
+            if (isFetchError(httpOutcome)) throw new Error('expected a response outcome');
+
+            expect(httpOutcome.ok).to.be.false;
+            expect(httpOutcome.status).to.eq(429);
+
+            retryEvents.length = 0;
+
+            // Transport trigger: unreachable port
+            const badApi = new FetchEngine({
+                baseUrl: testUrl + 1,
+                retry: { maxAttempts: 2, baseDelay: 5 },
+            });
+
+            badApi.on('retry', (data) => retryEvents.push(data));
+
+            await attempt(() => badApi.get('/'));
+
+            expect(retryEvents).to.have.length(1);
+
+            const transportOutcome = retryEvents[0]!.outcome;
+
+            if (!isFetchError(transportOutcome)) throw new Error('expected an error outcome');
+
+            expect(transportOutcome.status).to.eq(499);
+
+            api.destroy();
+            badApi.destroy();
+        });
+
+        it('boundary: maxAttempts 1 never retries a retryable status, resolves on the first attempt', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: { maxAttempts: 1 },
+            });
+
+            api.on('before-request', () => attemptCount++);
+
+            const [result, err] = await attempt(() => api.get('/rate-limit'));
+
+            expect(err).to.be.null;
+            expect(result?.ok).to.be.false;
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('bad input: an empty retryableStatusCodes array disables the default HTTP-status trigger', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: { maxAttempts: 3, baseDelay: 5, retryableStatusCodes: [] },
+            });
+
+            api.on('before-request', () => attemptCount++);
+
+            const [result, err] = await attempt(() => api.get('/flaky'));
+
+            expect(err).to.be.null;
+            expect(result?.ok).to.be.true; // /flaky succeeds on the first call
+            expect(attemptCount).to.eq(1);
 
             api.destroy();
         });

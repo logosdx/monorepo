@@ -80,7 +80,8 @@ describe('@logosdx/react: fetch render efficiency', () => {
             await flush();
 
             expect(renderCount).to.equal(2);
-            expect(result.current.error).to.not.be.null;
+            expect(result.current.failure).to.not.be.null;
+            expect(result.current.failure!.kind).to.equal('http');
 
             unmount();
             engine.destroy();
@@ -301,16 +302,14 @@ describe('@logosdx/react: fetch render efficiency', () => {
 
             const afterMount = renderCount; // 1
 
-            await act(async () => {
-
-                try { await result.current.mutate(); }
-                catch { /* expected */ }
-            });
+            // mutate() never rejects — nothing to catch.
+            await act(async () => { await result.current.mutate(); });
 
             // async act may batch firing + error resolution into 1 render
             const mutateRenders = renderCount - afterMount;
             expect(mutateRenders).to.be.lessThanOrEqual(2);
             expect(mutateRenders).to.be.greaterThanOrEqual(1);
+            expect(result.current.failure).to.not.be.null;
 
             unmount();
             engine.destroy();
@@ -490,11 +489,8 @@ describe('@logosdx/react: fetch render efficiency', () => {
                 return post('/items');
             });
 
-            await act(async () => {
-
-                try { await result.current.mutate(); }
-                catch { /* expected */ }
-            });
+            // mutate() never rejects — nothing to catch.
+            await act(async () => { await result.current.mutate(); });
 
             const afterError = renderCount;
 
@@ -502,7 +498,7 @@ describe('@logosdx/react: fetch render efficiency', () => {
             act(() => { result.current.reset(); });
 
             expect(renderCount - afterError).to.equal(1);
-            expect(result.current.error).to.be.null;
+            expect(result.current.failure).to.be.null;
             expect(result.current.called).to.be.false;
 
             unmount();

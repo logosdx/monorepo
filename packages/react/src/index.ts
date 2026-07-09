@@ -12,6 +12,7 @@ export type {
     UseStateMachineReturn,
     FetchContextQueryResult,
     FetchContextMutationResult,
+    FetchFailure,
 } from './types.ts';
 export {
     useQuery,
@@ -24,6 +25,9 @@ export {
 export type {
     QueryResult,
     MutationResult,
+    AsyncFailure,
+    AsyncResult,
+    ResponseLike,
     QueryOptions,
     MutationOptions,
     AsyncOptions,

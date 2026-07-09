@@ -264,7 +264,8 @@ describe('@logosdx/fetch: base', async () => {
 
         // Ensure all expected properties exist and have correct types
         const responseKeys = Object.keys(response).sort();
-        expect(responseKeys).to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+        expect(responseKeys).to.deep.equal(['config', 'data', 'headers', 'ok', 'request', 'status']);
+        expect(response.ok).to.be.true;
     });
 
     it('returns FetchResponse objects for all HTTP methods', async () => {
@@ -312,7 +313,8 @@ describe('@logosdx/fetch: base', async () => {
 
             // Validate structure consistency
             const responseKeys = Object.keys(response).sort();
-            expect(responseKeys, `${name}: should have all FetchResponse properties`).to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+            expect(responseKeys, `${name}: should have all FetchResponse properties`).to.deep.equal(['config', 'data', 'headers', 'ok', 'request', 'status']);
+            expect(response.ok, `${name}: ok should be true`).to.be.true;
         }
     });
 
@@ -323,15 +325,14 @@ describe('@logosdx/fetch: base', async () => {
             defaultType: 'json'
         });
 
-        // === Test error responses still return proper structure ===
-        const [, error] = await attempt(() => api.get('/fail'));
+        // === Non-2xx resolves with the full FetchResponse structure, not a throw ===
+        const [failResponse, error] = await attempt(() => api.get('/fail'));
 
-        expect(error).to.exist;
-        expect(error).to.be.instanceOf(FetchError);
-
-        // Even on error, we should have gotten a response object before the error was thrown
-        const errorResponse = (error as FetchError).data;
-        expect(errorResponse).to.exist;
+        expect(error).to.not.exist;
+        expect(failResponse).to.exist;
+        expect(failResponse!.ok).to.be.false;
+        expect(failResponse!.status).to.eq(400);
+        expect(failResponse!.data).to.exist;
 
         // === Test empty responses maintain structure ===
         const emptyResponse = await api.get('/empty');
@@ -364,7 +365,7 @@ describe('@logosdx/fetch: base', async () => {
         for (const response of responses) {
 
             const responseKeys = Object.keys(response).sort();
-            expect(responseKeys, 'All responses should have consistent FetchResponse structure').to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+            expect(responseKeys, 'All responses should have consistent FetchResponse structure').to.deep.equal(['config', 'data', 'headers', 'ok', 'request', 'status']);
         }
     });
 
@@ -388,6 +389,8 @@ describe('@logosdx/fetch: base', async () => {
 
         // === Test basic generic typing ===
         const basicResponse = await api.get<TestApiResponse>('/json');
+
+        if (!basicResponse.ok) throw new Error('expected a successful response');
 
         expect(basicResponse.data).to.exist;
         expect(basicResponse.data).to.be.an('object');
@@ -426,7 +429,7 @@ describe('@logosdx/fetch: base', async () => {
         for (const response of responses) {
 
             const responseKeys = Object.keys(response).sort();
-            expect(responseKeys, 'Generic responses should maintain FetchResponse structure').to.deep.equal(['config', 'data', 'headers', 'request', 'status']);
+            expect(responseKeys, 'Generic responses should maintain FetchResponse structure').to.deep.equal(['config', 'data', 'headers', 'ok', 'request', 'status']);
             expect(response.data).to.exist;
             expect(response.headers).to.be.an('object');
             expect(response.status).to.be.a('number');
@@ -474,7 +477,11 @@ describe('@logosdx/fetch: base', async () => {
         expect(headers).to.be.an('object');
 
         // === Test destructuring with generics ===
-        const { data: typedData, status: typedStatus } = await api.get<{ ok: boolean }>('/json');
+        const typedResponse = await api.get<{ ok: boolean }>('/json');
+
+        if (!typedResponse.ok) throw new Error('expected a successful response');
+
+        const { data: typedData, status: typedStatus } = typedResponse;
 
         expect(typedData).to.exist;
         expect(typedData).to.have.property('ok');
@@ -1008,27 +1015,25 @@ describe('@logosdx/fetch: base', async () => {
             statusCode: 400
         };
 
-        await attempt(
-            () => api.get('/fail', {
-                onAfterReq: didAfter,
-                onBeforeReq: didBefore,
-                onError: didError
-            })
-        );
+        // Non-2xx resolves: onBeforeReq/onAfterReq fire (they run before any
+        // ok-check); onError does not (no transport failure occurred).
+        const response = await api.get('/fail', {
+            onAfterReq: didAfter,
+            onBeforeReq: didBefore,
+            onError: didError
+        });
 
-        expect(didError.calledOnce).to.eq(true);
-        expect(didBefore.calledOnce).to.eq(true);
-        expect(didAfter.calledOnce).to.eq(true);
-
-        const [[errArgs]] = didError.args as [[FetchError<any>]];
-
-        expect(errArgs.data).to.contain({
+        expect(response.ok).to.eq(false);
+        expect(response.status).to.eq(errRes.statusCode);
+        expect(response.data).to.contain({
             statusCode: errRes.statusCode,
             error: errRes.message,
             message: 'message',
         });
 
-        expect(errArgs.status).to.eq(errRes.statusCode);
+        expect(didError.called).to.eq(false);
+        expect(didBefore.calledOnce).to.eq(true);
+        expect(didAfter.calledOnce).to.eq(true);
 
         const [[beforeArgs]] = didBefore.args as [[RequestInit]];
         expect(beforeArgs.method).to.eq('GET');
@@ -1041,6 +1046,19 @@ describe('@logosdx/fetch: base', async () => {
         expect(opts.method).to.eq('GET');
         expect(opts.signal).to.exist;
         expect(opts.headers).to.exist;
+
+        // onError only fires for a transport failure — no response exists.
+        const unreachableApi = new FetchEngine({ baseUrl: testUrl + 1, retry: false });
+        const didTransportError = sandbox.stub();
+
+        await attempt(() => unreachableApi.get('/fail', { onError: didTransportError }));
+
+        expect(didTransportError.calledOnce).to.eq(true);
+
+        const [[transportErrArgs]] = didTransportError.args as [[FetchError<any>]];
+
+        expect(transportErrArgs.status).to.eq(499);
+        expect(transportErrArgs.isConnectionLost()).to.be.true;
     });
 
     it('should preserve original status code in FetchError on content-type parsing errors', async () => {
@@ -1222,34 +1240,41 @@ describe('@logosdx/fetch: base', async () => {
         }
 
         /**
-         * Test Error events
+         * Test non-2xx resolve events (no throw; 'error' does not fire)
          */
 
-        try { await api.get('/fail'); }
-        catch (e) {}
+        await api.get('/fail');
 
-        expect(listener.calledThrice).to.be.true
+        expect(listener.callCount).to.eq(4);
 
-        const [args1, args2, args3] = listener.args as [[RegexCallbackArg], [RegexCallbackArg], [RegexCallbackArg]];
+        const [args1, args2, args3, args4] = listener.args as [
+            [RegexCallbackArg], [RegexCallbackArg], [RegexCallbackArg], [RegexCallbackArg]
+        ];
 
         expect(getEventName(args1)).to.eq('before-request');
         expect(getEventName(args2)).to.eq('after-request');
-        expect(getEventName(args3)).to.eq('error');
+        expect(getEventName(args3)).to.eq('response');
+        expect(getEventName(args4)).to.eq('response-4xx');
 
-        for (const args of [args1, args2, args3]) {
+        for (const args of [args1, args2, args3, args4]) {
 
             assertRemoteEv('/fail', 'GET', getData(args), getEventName(args));
         }
 
+        expect(getData(args3).status, 'response status').to.eq(400);
+        expect(getData(args4).status, 'response-4xx status').to.eq(400);
+
         // requestStart present on all request events
         expect(getData(args1).requestStart, 'before-request requestStart').to.be.a('number');
         expect(getData(args2).requestStart, 'after-request requestStart').to.be.a('number');
-        expect(getData(args3).requestStart, 'error requestStart').to.be.a('number');
+        expect(getData(args3).requestStart, 'response requestStart').to.be.a('number');
+        expect(getData(args4).requestStart, 'response-4xx requestStart').to.be.a('number');
 
         // requestEnd only on terminal events
         expect(getData(args1).requestEnd, 'before-request requestEnd').to.not.exist;
         expect(getData(args2).requestEnd, 'after-request requestEnd').to.not.exist;
-        expect(getData(args3).requestEnd, 'error requestEnd').to.be.a('number');
+        expect(getData(args3).requestEnd, 'response requestEnd').to.be.a('number');
+        expect(getData(args4).requestEnd, 'response-4xx requestEnd').to.be.a('number');
 
         /**
          * Test Abort events
@@ -1387,8 +1412,7 @@ describe('@logosdx/fetch: base', async () => {
 
         await api2.post('/json', payload);
 
-        try { await api2.get('/fail'); }
-        catch (e) {}
+        await api2.get('/fail');
 
         try { await api2.get('/wait', { timeout: 1 }); }
         catch (e) {}
@@ -1501,6 +1525,8 @@ describe('@logosdx/fetch: base', async () => {
                     }
                 }
             );
+
+            if (!res.ok) throw new Error('expected a successful response');
 
             res.data.ok === true;
         }
@@ -1751,28 +1777,21 @@ describe('@logosdx/fetch: base', async () => {
         expect(fn.calledTwice).to.be.true;
     });
 
-    it('captures payload on error', async () => {
+    it('captures payload on non-2xx response', async () => {
 
         const api = new FetchEngine({
             baseUrl: testUrl,
         });
 
-        try {
-            await api.get('/validate?name=&age=17')
-            throw new Error('Should have thrown');
-        }
-        catch (e) {
+        const response = await api.get('/validate?name=&age=17');
 
-            expect(e).to.be.an.instanceOf(FetchError);
-
-            const err = e as FetchError;
-
-            expect(err.data).to.contain({
-                statusCode: 400,
-                error: 'Bad Request',
-                message: `"name" is not allowed to be empty`,
-            });
-        }
+        expect(response.ok).to.be.false;
+        expect(response.status).to.eq(400);
+        expect(response.data).to.contain({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: `"name" is not allowed to be empty`,
+        });
     });
 
     it('can use a custom abort controller', async () => {

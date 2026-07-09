@@ -30,7 +30,7 @@ export function createQuery<
     path: string,
     defaults?: QueryOptions<H, P, E>,
     observer?: ObserverEngine<E>,
-): (overrides?: Partial<QueryOptions<H, P, E>>) => QueryResult<T> {
+): (overrides?: Partial<QueryOptions<H, P, E>>) => QueryResult<T, RH> {
 
     return (overrides?: Partial<QueryOptions<H, P, E>>) => {
 

@@ -1,9 +1,10 @@
 ---
 type: Index
+description: LogosDX — pnpm monorepo of 9 @logosdx TypeScript packages (utils foundation + fetch/dom/observer/state-machine/storage/localize/hooks/react), Vitest tests, VitePress docs, Changesets release.
 ---
 
 <wiki-type>repo</wiki-type>
-<scan-sha>5b416c12a022f6e7fa33992d8d992d4d3259bcf0</scan-sha>
+<scan-sha>2fbe0a51c0388850376fb3329941075c84237c93</scan-sha>
 <wiki-schema>1</wiki-schema>
 
 # Project signals
@@ -38,8 +39,8 @@ CI gate: `main.yml` runs build → lint → `pnpm test:ci` on all PRs and master
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 84,715 | 310 | 65% |
-| Markdown | 31,386 | 88 | 24% |
+| TypeScript | 85,845 | 310 | 65% |
+| Markdown | 32,392 | 91 | 24% |
 | YAML | 8,281 | 8 | 6% |
 | JavaScript | 1,543 | 7 | 1% |
 | HTML | 1,167 | 3 | 0% |

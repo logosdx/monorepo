@@ -2,8 +2,7 @@ import type { FetchEngine } from '../engine/index.ts';
 import type { HttpMethods } from '../types.ts';
 
 
-export interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
-    data: T | null;
+export interface FetchError<H = FetchEngine.Headers> extends Error {
     status: number;
     method: HttpMethods;
     path: string;
@@ -22,12 +21,18 @@ export interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
 
     requestId?: string | undefined;
     attempt?: number | undefined;
-    step?: 'fetch' | 'parse' | 'response' | undefined;
+    step?: 'fetch' | 'parse' | undefined;
     url?: string | undefined;
     headers?: H | undefined;
 }
 
-export class FetchError<T = {}> extends Error {
+/**
+ * Transport-only failure: thrown/rejected iff no usable response exists
+ * (abort, timeout, connection lost, parse failure on an `ok: true` body).
+ * Every other completed HTTP exchange — including non-2xx — resolves as a
+ * {@link FetchResponse} instead; it never lands here.
+ */
+export class FetchError extends Error {
 
     /**
      * Returns true if the request was intentionally cancelled by the client
@@ -99,7 +104,7 @@ export class FetchError<T = {}> extends Error {
     }
 }
 
-export const isFetchError = (error: unknown): error is FetchError<any, any> => {
+export const isFetchError = (error: unknown): error is FetchError<any> => {
 
     return error instanceof FetchError;
 };

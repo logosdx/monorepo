@@ -4,6 +4,7 @@ import type { ObserverEngine } from '@logosdx/observer';
 import type {
     QueryResult,
     MutationResult,
+    AsyncResult,
     QueryOptions,
     MutationOptions,
     AsyncOptions,
@@ -45,7 +46,7 @@ export function createApiHooks<
     function useQuery<T = unknown>(
         path: string,
         options?: QueryOptions<H, P, E>,
-    ): QueryResult<T> {
+    ): QueryResult<T, RH> {
 
         return useQueryBase<T, H, P, S, RH, E>(engine, path, options, observer);
     }
@@ -54,16 +55,16 @@ export function createApiHooks<
         method: 'post' | 'put' | 'delete' | 'patch',
         path: string,
         options?: MutationOptions<H, P, E>,
-    ): MutationResult<T> {
+    ): MutationResult<T, RH> {
 
         return useMutationBase<T, H, P, S, RH, E>(engine, method, path, options, observer);
     }
 
     function useAsync<T = unknown>(
-        fn: () => Promise<any>,
+        fn: () => Promise<unknown>,
         deps: DependencyList,
         options?: AsyncOptions<E>,
-    ): QueryResult<T> {
+    ): AsyncResult<T> {
 
         return useAsyncBase<T, E>(fn, deps, options, observer);
     }

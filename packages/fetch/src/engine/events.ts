@@ -1,4 +1,4 @@
-import type { HttpMethods, DictAndT } from '../types.ts';
+import type { HttpMethods, DictAndT, FetchResponse } from '../types.ts';
 import type { FetchError } from '../helpers/fetch-error.ts';
 
 
@@ -18,14 +18,14 @@ export interface EventData<S = unknown, H = unknown, P = unknown> {
     method?: HttpMethods | undefined;
     headers?: DictAndT<H> | undefined;
     params?: DictAndT<P> | undefined;
-    error?: Error | FetchError<{}, DictAndT<H>> | undefined;
+    error?: Error | FetchError<DictAndT<H>> | undefined;
     response?: Response | undefined;
     data?: unknown;
     payload?: unknown;
     attempt?: number | undefined;
     nextAttempt?: number | undefined;
     delay?: number | undefined;
-    step?: 'fetch' | 'parse' | 'response' | undefined;
+    step?: 'fetch' | 'parse' | undefined;
     status?: number | undefined;
     path?: string | undefined;
     aborted?: boolean | undefined;
@@ -79,6 +79,13 @@ export interface CacheEventData<S = unknown, H = unknown, P = unknown> extends E
 
     /** Time until expiration (ms) */
     expiresIn?: number | undefined;
+
+    /**
+     * The cause of a `cache-revalidate-error`: either a transport `FetchError`
+     * or a resolved `ok: false` `FetchResponse` (a non-2xx revalidation never
+     * throws under resolve-on-response, so the cause isn't always an `Error`).
+     */
+    outcome?: FetchResponse<unknown, DictAndT<H>, DictAndT<P>> | FetchError<DictAndT<H>> | undefined;
 }
 
 
@@ -107,6 +114,25 @@ export interface RateLimitEventData<S = unknown, H = unknown, P = unknown> exten
 
     /** When the next token will be available */
     nextAvailable: Date;
+}
+
+
+/**
+ * Event data for retry events.
+ *
+ * Extends base event data with the outcome that triggered the retry — a
+ * resolved `ok: false` response for an HTTP-status retry, or a rejected
+ * transport `FetchError` for a transport retry. Mirrors the union
+ * `shouldRetry` is invoked with.
+ *
+ * @template S - Instance state type
+ * @template H - Instance headers type
+ * @template P - Instance params type
+ */
+export interface RetryEventData<S = unknown, H = unknown, P = unknown> extends EventData<S, H, P> {
+
+    /** The response or error that triggered this retry attempt. */
+    outcome: FetchResponse<unknown, DictAndT<H>, DictAndT<P>> | FetchError<DictAndT<H>>;
 }
 
 
@@ -186,9 +212,20 @@ export interface EventMap<S = unknown, H = unknown, P = unknown> {
     'before-request': EventData<S, H, P>;
     'after-request': EventData<S, H, P>;
     'abort': EventData<S, H, P>;
+
+    /** Transport failure or a parse failure on an `ok: true` body. Never non-2xx. */
     'error': EventData<S, H, P>;
+
+    /** Fires for every completed exchange, any status. */
     'response': EventData<S, H, P>;
-    'retry': EventData<S, H, P>;
+
+    /** Fires alongside `response` when `status` is 400-499. */
+    'response-4xx': EventData<S, H, P>;
+
+    /** Fires alongside `response` when `status` is 500-599. */
+    'response-5xx': EventData<S, H, P>;
+
+    'retry': RetryEventData<S, H, P>;
 
     // Property mutation events
     'header-add': PropertyEventData<DictAndT<H>>;

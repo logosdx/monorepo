@@ -32,7 +32,7 @@ export function createMutation<
     path: string,
     defaults?: MutationOptions<H, P, E>,
     observer?: ObserverEngine<E>,
-): (overrides?: Partial<MutationOptions<H, P, E>>) => MutationResult<T> {
+): (overrides?: Partial<MutationOptions<H, P, E>>) => MutationResult<T, RH> {
 
     return (overrides?: Partial<MutationOptions<H, P, E>>) => {
 

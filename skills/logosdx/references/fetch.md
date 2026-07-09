@@ -44,42 +44,47 @@ const api = new FetchEngine({
     attemptTimeout: 2000 // Per-attempt timeout (allows retries on timeout)
 });
 
-// Error handling pattern — always narrow with isFetchError
-const [response, err] = await attempt(() => api.get('/users/123'));
+// Three-channel error handling — every completed exchange (any status)
+// resolves. `err` means no response exists at all.
+const [res, err] = await attempt(() => api.get<User>('/users/123'));
+
 if (err) {
+    // Transport only — attempt()'s tuple types the rejection as a generic
+    // Error; FetchEngine only ever rejects with FetchError.
     if (isFetchError(err)) {
-        console.error('Request failed:', err.status, err.message);
-        if (err.isTimeout()) console.warn('Timed out on attempt', err.attempt);
+        if (err.isCancelled())      return;              // user/app aborted
+        if (err.isTimeout())        return retryLater();  // attemptTimeout/totalTimeout
+        if (err.isConnectionLost()) return goOffline();    // network/server dropped us
     }
+    return badPayload(err); // parse failure on an ok:true body
+}
+
+if (!res.ok) {
+    // Exchange completed; the server said no. Full response available —
+    // status, headers, and data are never destroyed on a non-2xx answer.
+    if (res.status === 404) return notFound();
+    if (res.status >= 500)  return serverError(res.headers['x-request-id']);
     return;
 }
 
-const { data: user } = response;
-console.log('User:', user);
-console.log('Rate limit:', response.headers['x-rate-limit-remaining']);
+console.log('User:', res.data);  // narrowed to User by the ok check
+console.log('Rate limit:', res.headers['x-rate-limit-remaining']);
 
 // Global instance (simplified usage)
 import fetch, { get, post, headers, params, state, config, on, off } from '@logosdx/fetch';
 
 // Global instance auto-uses current domain as base URL
-const [{ data: users }, usersErr] = await attempt(() => fetch.get('/api/users'));
-if (usersErr) {
-    if (isFetchError(usersErr)) {
-        console.error('Status:', usersErr.status, 'Step:', usersErr.step);
-    }
-    return;
-}
+const [usersRes, usersErr] = await attempt(() => fetch.get<User[]>('/api/users'));
+if (usersErr) return; // transport only
+if (!usersRes.ok) { console.error('Status:', usersRes.status); return; }
+console.log('Users:', usersRes.data);
 
 // Or use destructured methods
 headers.set('Authorization', 'Bearer token');
 state.set('userId', '123');
-const [{ data: user }, userErr] = await attempt(() => get('/api/users/123'));
-if (userErr) {
-    if (isFetchError(userErr)) {
-        if (userErr.status === 404) console.warn('User not found');
-    }
-    return;
-}
+const [userRes, userErr] = await attempt(() => get<User>('/api/users/123'));
+if (userErr) return;
+if (!userRes.ok) { if (userRes.status === 404) console.warn('User not found'); return; }
 ```
 
 ## HTTP Methods
@@ -105,14 +110,12 @@ interface FetchPromise<T, H, P, RH> extends Promise<FetchResponse<T, H, P, RH>> 
 interface FetchStreamPromise<H, P, RH>
     extends FetchPromise<Response, H, P, RH>, AsyncIterable<Uint8Array> {}
 
-// Enhanced response object with typed headers, params, and response headers
-interface FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams, RH = FetchEngine.InstanceResponseHeaders> {
-    data: T;                // Parsed response body
-    headers: Partial<RH>;   // Response headers as typed plain object
-    status: number;         // HTTP status code
-    request: Request;       // Original request object
-    config: FetchConfig<H, P>;  // Typed configuration used for request
-}
+// Discriminated union on `ok` — every completed exchange resolves this way,
+// including non-2xx. `data` only types as `T` on the `ok: true` branch; the
+// compiler forces a `res.ok` check before `data` can be trusted as `T`.
+type FetchResponse<T = any, H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams, RH = FetchEngine.InstanceResponseHeaders> =
+    | { ok: true; data: T; headers: Partial<RH>; status: number; request: Request; config: FetchConfig<H, P> }
+    | { ok: false; data: unknown; headers: Partial<RH>; status: number; request: Request; config: FetchConfig<H, P> };
 
 // Configuration object with typed headers and params
 interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.InstanceParams> {
@@ -173,8 +176,11 @@ interface FetchEngine.Config<H, P, S> {
         baseDelay?: number; // default: 1000 (in milliseconds)
         maxDelay?: number; // default: 10000
         useExponentialBackoff?: boolean; // default: true
-        retryableStatusCodes?: number[]; // default: [408, 429, 500, 502, 503, 504]
-        shouldRetry?: (error: FetchError, attempt: number) => boolean | number;
+        retryableStatusCodes?: number[]; // default: [408, 429, 499, 500, 502, 503, 504]
+        // Receives a resolved `ok: false` FetchResponse for an HTTP-status
+        // retry, or a rejected FetchError for a transport retry — narrow
+        // with isFetchError(). Exhausted attempts resolve, never throw.
+        shouldRetry?: (outcome: FetchResponse<unknown> | FetchError, attempt: number) => boolean | number;
     } | false;
 
     // Validation
@@ -208,21 +214,22 @@ interface FetchEngine.Config<H, P, S> {
 
 ## Error Handling
 
-> **Every error from FetchEngine should be narrowed with `isFetchError(err)`.** This gives access to `.status`, `.isCancelled()`, `.isTimeout()`, `.isConnectionLost()`, `.attempt`, `.step`, and `.requestId`. Without narrowing, these properties are inaccessible.
+> **A `FetchError` is thrown/rejected iff no usable response exists** — abort, timeout, connection lost, or a parse failure on an `ok: true` body. Every other completed exchange, including every non-2xx status, **resolves** as a `FetchResponse` with `ok: false`. Narrow transport errors with `isFetchError(err)`; narrow HTTP outcomes with `res.ok`.
 
 ```typescript
-interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
-    data: T | null;
-    status: number;
+// Transport-only — no `data`/`T` generic. A completed non-2xx exchange
+// never lands here; it resolves as a FetchResponse instead.
+interface FetchError<H = FetchEngine.Headers> extends Error {
+    status: number;       // 499 for aborts/connection-loss, 999 for parse errors without a status
     method: HttpMethods;
     path: string;
     aborted?: boolean;    // True if request was aborted (any cause)
     timedOut?: boolean;   // True if aborted due to timeout (attemptTimeout or totalTimeout)
     requestId?: string;   // Unique request ID for tracing (consistent across retries)
     attempt?: number;
-    step?: 'fetch' | 'parse' | 'response';
+    step?: 'fetch' | 'parse';
     url?: string;
-    headers?: H;
+    headers?: H;          // REQUEST headers, not response headers
 
     // Convenience methods for distinguishing 499 errors
     isCancelled(): boolean;     // status === 499 && aborted && !timedOut
@@ -230,45 +237,69 @@ interface FetchError<T = {}, H = FetchEngine.Headers> extends Error {
     isConnectionLost(): boolean; // status === 499 && step === 'fetch' && !aborted
 }
 
-// Always inspect errors with isFetchError — never use generic Error checks
-const [response, err] = await attempt(() => api.get('/products').json<Products>());
+// Three honest channels — err (transport), !res.ok (server said no), res.ok (data)
+const [res, err] = await attempt(() => api.get<Products>('/products').json());
 
-if (isFetchError(err)) {
-    if (err.isCancelled())      return; // request was aborted
-    if (err.isTimeout())        return retry(); // timed out
-    if (err.isConnectionLost()) return offline(); // network down
-    if (err.status === 401)     return refreshToken();
-    if (err.status === 404)     return notFound();
-    if (err.status >= 500)      return serverError(err.requestId, err.attempt);
-    // err.step tells you where it failed: 'request' | 'response' | 'parse'
+if (err) {
+    // Transport only — no response exists
+    if (isFetchError(err)) {
+        if (err.isCancelled())      return; // request was aborted
+        if (err.isTimeout())        return retry(); // timed out
+        if (err.isConnectionLost()) return offline(); // network down
+    }
+    return badPayload(err); // parse contract broken on a 2xx
 }
 
-// Wrapper function pattern — log all error properties for diagnostics
+if (!res.ok) {
+    // Exchange succeeded; the answer was "no" — full response available
+    res.headers['retry-after'];    // present — these are RESPONSE headers
+    if (res.status === 401) return refreshToken();
+    if (res.status === 404) return notFound();
+    if (res.status >= 500)  return serverError(res.headers['x-request-id'], res.status);
+    return;
+}
+
+res.data; // narrowed to Products by the ok check
+
+// Wrapper function pattern — log the outcome for diagnostics either way
 async function safeGet<T>(path: string): Promise<T | null> {
 
-    const [response, err] = await attempt(() => api.get(path).json<T>());
-    if (isFetchError(err)) {
-        console.error(`[${err.method}] ${err.path} failed (attempt ${err.attempt}):`, {
-            status: err.status,
-            timedOut: err.isTimeout(),
-            cancelled: err.isCancelled(),
-            step: err.step,
-            requestId: err.requestId
+    const [res, err] = await attempt(() => api.get(path).json<T>());
+
+    if (err) {
+        console.error(`Transport failure on ${path}:`, {
+            timedOut: isFetchError(err) && err.isTimeout(),
+            cancelled: isFetchError(err) && err.isCancelled(),
+            step: isFetchError(err) ? err.step : undefined,
         });
         return null;
     }
-    return response.data;
+
+    if (!res.ok) {
+        console.error(`[${res.status}] ${path} failed:`, res.data);
+        return null;
+    }
+
+    return res.data;
 }
 
-// Lifecycle events
+// Lifecycle events — `error` is transport-only; `response`/`response-4xx`/
+// `response-5xx` fire for every completed exchange (see Event System)
 api.on('error', (event: FetchEvent) => {
-    console.error('Request failed:', event.error);
+    console.error('Transport failure:', event.error);
+});
+
+api.on('response-5xx', (event: FetchEvent) => {
+    console.error('Server error:', event.status, event.path);
 });
 
 api.on('retry', (event: FetchEvent) => {
+    // event.outcome is the FetchResponse or FetchError that triggered this retry
     console.log(`Retrying attempt ${event.nextAttempt} after ${event.delay}ms`);
 });
 ```
+
+> **React consumers:** `@logosdx/react`'s `createFetchContext`/`useQuery`/`useMutation`/`useAsync` re-merge these two channels into one `failure: { kind: 'transport', error } | { kind: 'http', response } | null` field — see `skills/logosdx/references/react.md` and `docs/packages/react.md`.
 
 ## Headers & Parameters Management
 
@@ -334,9 +365,9 @@ api.on('before-request', (event) => {
 // To update the token (e.g., after refresh):
 api.state.set('authToken', 'refreshed-jwt-token');
 
-// Access response metadata with typed config
+// Access response metadata with typed config — narrow on `ok` first
 const response = await api.get('/users');
-if (response.status === 200) {
+if (response.ok) {
     console.log('Success! Users:', response.data);
     console.log('Request URL:', response.request.url);
     console.log('Config used:', response.config);
@@ -355,8 +386,10 @@ enum FetchEventNames {
     'before-request' = 'before-request',
     'after-request' = 'after-request',
     'abort' = 'abort',
-    'error' = 'error',
-    'response' = 'response',
+    'error' = 'error',              // Transport failure or parse-on-ok:true. Never non-2xx.
+    'response' = 'response',        // Every completed exchange, any status
+    'response-4xx' = 'response-4xx', // Fires alongside `response` for 400-499
+    'response-5xx' = 'response-5xx', // Fires alongside `response` for 500-599
     'retry' = 'retry',
 
     // Configuration changes
@@ -390,7 +423,9 @@ enum FetchEventNames {
 // Event listeners (use regex to match all events)
 api.on(/./, ({ event, data }) => console.log('Event:', event, data));
 api.on('before-request', (event) => console.log('Request starting:', event.url));
-api.on('error', (event) => console.error('Request failed:', event.error));
+api.on('error', (event) => console.error('Transport failure:', event.error));
+api.on('response-4xx', (event) => console.warn('Client error:', event.status, event.path));
+api.on('response-5xx', (event) => console.error('Server error:', event.status, event.path));
 api.off('error', errorHandler); // remove listener
 
 // Event timing — terminal events include requestStart/requestEnd
@@ -399,6 +434,19 @@ api.on('response', (event) => {
     console.log(`[${event.requestId}] ${event.method} ${event.path} completed in ${duration}ms`);
 });
 ```
+
+### Event Taxonomy
+
+| Event | Fires when |
+|-------|------------|
+| `response` | Every completed exchange, any status |
+| `response-4xx` | Alongside `response`, status 400-499 |
+| `response-5xx` | Alongside `response`, status 500-599 |
+| `error` | Transport failure, parse failure on `ok: true`, or client-side rate-limit reject. Never non-2xx. |
+| `retry` | Before a retried attempt — `outcome` carries whichever `FetchResponse \| FetchError` triggered it |
+| `before-request` / `after-request` | Per attempt, regardless of outcome |
+
+All diagnostic events for a request — across every attempt — carry the same `requestId`, so a retried request's attempts are traceable as one exchange.
 
 ### Event Data Fields
 
@@ -411,20 +459,25 @@ interface EventData<S, H, P> {
     method?: HttpMethods;
     headers?: DictAndT<H>;
     params?: DictAndT<P>;
-    error?: Error | FetchError;
+    error?: Error | FetchError;   // Only set on `error`/`abort` (transport)
     response?: Response;
     data?: unknown;
     payload?: unknown;
     attempt?: number;
     nextAttempt?: number;
     delay?: number;
-    step?: 'fetch' | 'parse' | 'response';
+    step?: 'fetch' | 'parse';
     status?: number;
     path?: string;
     aborted?: boolean;
     requestId?: string;      // Unique ID for this request (consistent across retries)
     requestStart?: number;   // Date.now() when request entered pipeline (all request events)
     requestEnd?: number;     // Date.now() when request resolved (response, error, abort only)
+}
+
+// `retry` events extend EventData with the outcome that triggered them
+interface RetryEventData<S, H, P> extends EventData<S, H, P> {
+    outcome: FetchResponse<unknown, DictAndT<H>, DictAndT<P>> | FetchError<DictAndT<H>>;
 }
 ```
 
@@ -674,7 +727,7 @@ const api = new FetchEngine({
 
     retry: {
         maxAttempts: 3,
-        shouldRetry: (error) => error.status === 499 // Retry on timeout
+        shouldRetry: (outcome) => isFetchError(outcome) && outcome.status === 499 // Retry on timeout
     }
 });
 
@@ -744,29 +797,33 @@ Declare how the response body should be parsed by chaining a directive method be
 
 ```typescript
 // Explicit response type via chaining
-const { data: user } = await api.get<User>('/users/123').json();
-const { data: html } = await api.get('/page').text();
-const { data: file } = await api.get('/file').blob();
-const { data: buf } = await api.get('/binary').arrayBuffer();
-const { data: form } = await api.get('/form').formData();
-const { data: res } = await api.get('/endpoint').raw();
+const user = await api.get<User>('/users/123').json();   // FetchResponse<User>
+const html = await api.get('/page').text();              // FetchResponse<string>
+const file = await api.get('/file').blob();              // FetchResponse<Blob>
+const buf  = await api.get('/binary').arrayBuffer();     // FetchResponse<ArrayBuffer>
+const form = await api.get('/form').formData();          // FetchResponse<FormData>
+const raw  = await api.get('/endpoint').raw();           // FetchResponse<Response>
 
-// No directive — auto-parse based on content-type (backwards compatible)
-const { data: auto } = await api.get<User>('/users/123');
+// The directive declares the parse type; `data` still narrows on `ok`
+if (user.ok) render(user.data); // User
+
+// No directive — auto-parse based on content-type
+const auto = await api.get<User>('/users/123');
 
 // Override guard — setting directive twice throws
 api.get('/users').json().text(); // throws: 'Response type already set'
 
-// Works with error handling — always narrow with isFetchError
-const [response, err] = await attempt(() => api.get<User>('/users/123').json());
+// Works with the three-channel pattern — err (transport), !res.ok (server said no)
+const [res, err] = await attempt(() => api.get<User>('/users/123').json());
 if (err) {
-    if (isFetchError(err)) {
-        if (err.isTimeout()) return showRetryPrompt();
-        if (err.status === 404) return showNotFound();
-    }
+    if (isFetchError(err) && err.isTimeout()) return showRetryPrompt();
     return;
 }
-console.log(response.data); // typed as User
+if (!res.ok) {
+    if (res.status === 404) return showNotFound();
+    return;
+}
+console.log(res.data); // typed as User
 
 // Works with abort
 const request = api.get('/slow').json();
@@ -797,26 +854,32 @@ const noRetryApi = new FetchEngine({
     retry: false  // No retries at all
 });
 
-// Custom retry logic with shouldRetry controlling delays
+// Custom retry logic with shouldRetry controlling delays. `outcome` is a
+// resolved `ok: false` FetchResponse for an HTTP-status retry, or a
+// rejected FetchError for a transport retry — narrow with isFetchError().
 const customRetryApi = new FetchEngine({
     baseUrl: 'https://api.example.com',
     retry: {
         maxAttempts: 5,
         baseDelay: 1000,  // Base delay for exponential backoff
-        shouldRetry: (error, attempt) => {
-            // Return custom delay in milliseconds for rate limits
-            if (error.status === 429) {
-                const retryAfter = error.headers?.['retry-after'];
+        shouldRetry: (outcome, attempt) => {
+
+            if (isFetchError(outcome)) return outcome.isConnectionLost();
+
+            // `outcome.headers` are the RESPONSE headers, so retry-after
+            // is readable here.
+            if (outcome.status === 429) {
+                const retryAfter = outcome.headers['retry-after'];
                 return retryAfter ? parseInt(retryAfter) * 1000 : 5000;
             }
 
             // Don't retry client errors
-            if (error.status >= 400 && error.status < 500) {
+            if (outcome.status >= 400 && outcome.status < 500) {
                 return false;
             }
 
             // Return custom delay for server errors
-            if (error.status >= 500) {
+            if (outcome.status >= 500) {
                 // Custom delay calculation overrides exponential backoff
                 return Math.min(2000 * attempt, 10000);
             }
@@ -898,9 +961,10 @@ const api = new FetchEngine<
 import { state, get, put, post, patch, del, options } from '@logosdx/fetch';
 state.set('authToken', 'token123'); // Typed
 
-// Response is properly typed with FetchResponse including typed config
+// Response is properly typed with FetchResponse including typed config.
+// status/headers/request/config exist on BOTH branches; `data` types as
+// `User` only after narrowing on `ok`.
 const response = await get<User>('/api/user');
-response.data; // ✅ Typed as User
 response.status; // ✅ Typed as number
 response.headers; // ✅ Typed as Partial<InstanceResponseHeaders>
 response.headers['x-rate-limit-remaining']; // ✅ Typed access to response headers
@@ -908,13 +972,17 @@ response.request; // ✅ Typed as Request
 response.config.headers; // ✅ Typed as InstanceHeaders
 response.config.params; // ✅ Typed as InstanceParams
 
+if (response.ok) {
+    response.data; // ✅ Typed as User — narrowed by the ok check
+}
+
 // Per-request response header typing
 interface CustomHeaders {
     'x-custom-header': string;
 }
 
 const customResponse = await get<User, CustomHeaders>('/api/user');
-customResponse.headers['x-custom-header']; // ✅ Typed
+customResponse.headers['x-custom-header']; // ✅ Typed — headers exist on both branches
 ```
 
 ## Lifecycle Management

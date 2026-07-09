@@ -466,6 +466,10 @@ export function cachePlugin<H = unknown, P = unknown, S = unknown>(
 
                 if (!key || !ruleConfig) return;
 
+                // A non-2xx response is never cached - a transient error must not
+                // evict good data or get served back as if it were a success.
+                if (!response.ok) return;
+
                 // Skip if another concurrent request is already writing this key
                 if (pendingCacheWrites.has(key)) return;
 
@@ -562,7 +566,23 @@ async function triggerBackgroundRevalidation<H, P, S>(
         engine.emit('cache-revalidate-error' as any, {
             ...bgOptions,
             key: cacheKey,
-            error: fetchErr
+            error: fetchErr,
+            outcome: fetchErr
+        } as any);
+
+        return;
+    }
+
+    // A non-2xx revalidation must not overwrite the existing stale entry -
+    // leave the good stale data in place and surface the failure instead.
+    // `outcome` (not `error`) carries the cause here: a resolved ok:false
+    // FetchResponse is not an Error under resolve-on-response.
+    if (!res.ok) {
+
+        engine.emit('cache-revalidate-error' as any, {
+            ...bgOptions,
+            key: cacheKey,
+            outcome: res
         } as any);
 
         return;
