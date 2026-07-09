@@ -28,6 +28,10 @@ if (!res.ok) return handleHttpError(res.status, res.data);
 console.log(res.data.name);
 ```
 
+Anything that counts thrown errors — `composeFlow`'s `circuitBreaker`, external retry
+wrappers, `catch`-based failure counters — no longer sees HTTP failures. Throw on
+`!res.ok` inside the wrapped function if a non-2xx should count as a failure.
+
 ### `FetchError` is transport-only
 
 `FetchError` drops its `data` field and `T` generic — it's never an HTTP status error

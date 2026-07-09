@@ -223,13 +223,27 @@ function timingPlugin(onComplete: (ms: number, path: string) => void): FetchPlug
 
 ### Execute Middleware Plugin
 
-Wrap the core `fetch()` call using the `execute` pipe hook:
+Wrap the core `fetch()` call using the `execute` pipe hook.
+
+A non-2xx exchange **resolves** — it never reaches a `catch`. A breaker that only counts throws would see transport failures but treat every 500 as a success, so count both channels explicitly:
 
 ```typescript
+import { attempt } from '@logosdx/utils';
+
 function circuitBreakerPlugin(threshold: number): FetchPlugin {
 
     let failures = 0;
     let circuitOpen = false;
+
+    const recordFailure = () => {
+
+        failures++;
+
+        if (failures >= threshold) {
+            circuitOpen = true;
+            setTimeout(() => { circuitOpen = false; failures = 0; }, 30000);
+        }
+    };
 
     return {
         name: 'circuit-breaker',
@@ -241,21 +255,23 @@ function circuitBreakerPlugin(threshold: number): FetchPlugin {
                     throw new Error('Circuit breaker is open');
                 }
 
-                try {
-                    const response = await next();
-                    failures = 0;
-                    return response;
-                }
-                catch (err) {
-                    failures++;
+                const [response, err] = await attempt(() => next());
 
-                    if (failures >= threshold) {
-                        circuitOpen = true;
-                        setTimeout(() => { circuitOpen = false; failures = 0; }, 30000);
-                    }
-
+                if (err) {
+                    // Transport failure — dropped connection, timeout
+                    recordFailure();
                     throw err;
                 }
+
+                if (!response.ok) {
+                    // Server said no — counts against the breaker, but the
+                    // response still resolves to the caller unchanged
+                    recordFailure();
+                    return response;
+                }
+
+                failures = 0;
+                return response;
             }, { priority: -40 });
         }
     };
@@ -323,7 +339,8 @@ const api = new FetchEngine({
 // FetchEngine now automatically captures Set-Cookie response headers
 // and sends Cookie request headers on subsequent requests.
 await api.post('/auth/login', { email, password });
-const { data: profile } = await api.get('/me'); // Cookie header included
+const profile = await api.get('/me'); // Cookie header included
+if (profile.ok) console.log(profile.data);
 ```
 
 When you need adapter lifecycle control (`init()`, `flush()`) or direct jar access, use the explicit plugin form:

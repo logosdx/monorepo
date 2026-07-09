@@ -117,12 +117,20 @@ see `docs/design/fetch-resolve-on-response.md`.
         fetch-renders.test.ts                  M
 
     docs/
-        packages/fetch/resilience.md           M
+        packages/fetch/resilience.md           M (incl. circuit-breakers-count-throws caveat)
         packages/fetch/configuration.md        M
         packages/fetch/events.md               M
+        packages/fetch/advanced.md             M (sweep + stray-fence removal)
+        packages/fetch/hooks.md                M (sweep)
+        packages/fetch/index.md                M (sweep + ok-narrowing examples)
+        packages/fetch/plugins.md              M (sweep + ok-aware circuit-breaker example)
+        packages/fetch/policies.md             M (sweep)
+        packages/fetch/requests.md             M (sweep + ok-narrowing examples)
         packages/react.md                      M
+        getting-started.md                     M (three-channel examples; breaker-feeding throw)
         what-is-logosdx.md                     M
         wiki/fetch.md                          M
+        CLAUDE.md                              M (meta examples to three-channel pattern)
 
     skills/logosdx/references/fetch.md         M
     skills/logosdx/references/react.md         M (hooks failure-union contract)
@@ -298,6 +306,25 @@ the pre-existing `docs/wiki/CLAUDE.md` VitePress parse failure present on the ba
 mismatch; docs must match the shipped contract on every AI-consumed surface.
 
 **Superseded:** CP-8 file list without the react reference; `pnpm build:docs` as the gate.
+
+
+### 2026-07-08 — CP-8b: full direct-read doc audit findings fixed
+
+**What changed:** A line-by-line read of every doc surface (user-requested) found defects
+the grep-based sweep missed. Fixed: `getting-started.md`'s examples emitted success events
+on failed logins/payments and its circuit breaker never tripped on HTTP failures (all
+rewritten to the three-channel pattern with an explicit breaker-feeding throw);
+`plugins.md`'s `circuitBreakerPlugin` reset its failure count on resolving 500s (now
+counts both channels); ~30 destructure-without-narrow examples across `requests.md`,
+`packages/fetch/index.md`, `plugins.md`, `skills/logosdx/references/fetch.md`, and
+`docs/CLAUDE.md` claimed `data: T` without an `ok` check (all narrowed); a pre-existing
+stray code fence at `advanced.md:250` (odd fence parity) mangled rendering from Production
+Setup onward (removed); the throw-counting-wrapper migration hazard added to
+`resilience.md` and the changeset. Change tree updated with the full doc file list.
+
+**Why:** the doc list was built from `FetchError`/`isFetchError` symbol greps — pages
+exercising the old semantics without naming the symbols were invisible; reviewers read raw
+markdown, so the fence-parity rendering break never surfaced.
 
 
 ## Implementation log

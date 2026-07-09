@@ -163,6 +163,37 @@ if (!err && !res.ok) {
 Only a transport failure (the connection drops on every attempt, or a timeout fires) still rejects as a `FetchError` — because in that case no response ever exists to resolve.
 
 
+### Circuit Breakers Count Throws
+
+
+Anything that counts thrown errors — `composeFlow`'s `circuitBreaker` from `@logosdx/utils`, an external retry wrapper, your own `catch`-based failure counter — never sees a non-2xx response, because it resolves. A wrapped API call that keeps returning 500s looks like a healthy stream of successes to a throw-counting breaker.
+
+If a non-2xx answer should count as a failure, convert it to a throw inside the wrapped function:
+
+```typescript
+import { attempt, composeFlow } from '@logosdx/utils';
+
+const _chargeCard = async (token: string, amount: number) => {
+
+    const [res, err] = await attempt(() => api.post('/payments', { token, amount }));
+
+    if (err) throw err;                 // transport — already a throw
+
+    if (!res.ok) {
+        // A declined payment resolves; the breaker only counts it
+        // if you make it a throw
+        throw new Error(`Payment rejected: ${res.status}`);
+    }
+
+    return res.data;
+};
+
+const chargeCard = composeFlow(_chargeCard, {
+    circuitBreaker: { maxFailures: 3, resetAfter: 1000 }
+});
+```
+
+
 ## Cache & Non-2xx Responses
 
 

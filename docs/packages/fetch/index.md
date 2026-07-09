@@ -115,15 +115,16 @@ on('error', (event) => console.error('Request failed:', event.error));
 FetchEngine returns a `FetchResponse<T>` object containing parsed data, response metadata, and request context. All HTTP methods return a `FetchPromise` that supports abort, response chaining (`.json()`, `.text()`, `.stream()`, etc.), and cancellation.
 
 ```typescript
-// Destructure just the data
-const { data: users } = await api.get<User[]>('/users');
-
-// Or access full response
 const response = await api.get<User[]>('/users');
-console.log(response.data);      // Parsed data
-console.log(response.status);    // HTTP status
+
+console.log(response.status);    // HTTP status — any completed exchange
 console.log(response.headers);   // Response headers
 console.log(response.config);    // Request configuration
+
+// `data` narrows on `ok`: User[] when true, unknown when false
+if (response.ok) {
+    console.log(response.data);  // User[]
+}
 ```
 
 
@@ -208,16 +209,17 @@ All request methods return a `FetchPromise<T>` that resolves to `FetchResponse<T
 
 ```typescript
 // GET - retrieve data
-const { data } = await api.get<User>('/users/123');
+const user = await api.get<User>('/users/123');
+if (user.ok) console.log(user.data); // User
 
 // POST - create resource
-const { data } = await api.post<User>('/users', { name: 'John' });
+const created = await api.post<User>('/users', { name: 'John' });
 
 // PUT - replace resource
-const { data } = await api.put<User>('/users/123', { name: 'Jane' });
+const replaced = await api.put<User>('/users/123', { name: 'Jane' });
 
 // PATCH - partial update
-const { data } = await api.patch<User>('/users/123', { email: 'new@example.com' });
+const patched = await api.patch<User>('/users/123', { email: 'new@example.com' });
 
 // DELETE - remove resource
 await api.delete('/users/123');
@@ -229,7 +231,7 @@ const { headers } = await api.options('/users');
 const { headers } = await api.head('/users/123');
 
 // Generic request method
-const { data } = await api.request<User>('PATCH', '/users/123', {
+const res = await api.request<User>('PATCH', '/users/123', {
     payload: { name: 'Updated' }
 });
 ```

@@ -797,15 +797,18 @@ Declare how the response body should be parsed by chaining a directive method be
 
 ```typescript
 // Explicit response type via chaining
-const { data: user } = await api.get<User>('/users/123').json();
-const { data: html } = await api.get('/page').text();
-const { data: file } = await api.get('/file').blob();
-const { data: buf } = await api.get('/binary').arrayBuffer();
-const { data: form } = await api.get('/form').formData();
-const { data: res } = await api.get('/endpoint').raw();
+const user = await api.get<User>('/users/123').json();   // FetchResponse<User>
+const html = await api.get('/page').text();              // FetchResponse<string>
+const file = await api.get('/file').blob();              // FetchResponse<Blob>
+const buf  = await api.get('/binary').arrayBuffer();     // FetchResponse<ArrayBuffer>
+const form = await api.get('/form').formData();          // FetchResponse<FormData>
+const raw  = await api.get('/endpoint').raw();           // FetchResponse<Response>
+
+// The directive declares the parse type; `data` still narrows on `ok`
+if (user.ok) render(user.data); // User
 
 // No directive — auto-parse based on content-type
-const { data: auto } = await api.get<User>('/users/123');
+const auto = await api.get<User>('/users/123');
 
 // Override guard — setting directive twice throws
 api.get('/users').json().text(); // throws: 'Response type already set'
@@ -958,9 +961,10 @@ const api = new FetchEngine<
 import { state, get, put, post, patch, del, options } from '@logosdx/fetch';
 state.set('authToken', 'token123'); // Typed
 
-// Response is properly typed with FetchResponse including typed config
+// Response is properly typed with FetchResponse including typed config.
+// status/headers/request/config exist on BOTH branches; `data` types as
+// `User` only after narrowing on `ok`.
 const response = await get<User>('/api/user');
-response.data; // ✅ Typed as User
 response.status; // ✅ Typed as number
 response.headers; // ✅ Typed as Partial<InstanceResponseHeaders>
 response.headers['x-rate-limit-remaining']; // ✅ Typed access to response headers
@@ -968,13 +972,17 @@ response.request; // ✅ Typed as Request
 response.config.headers; // ✅ Typed as InstanceHeaders
 response.config.params; // ✅ Typed as InstanceParams
 
+if (response.ok) {
+    response.data; // ✅ Typed as User — narrowed by the ok check
+}
+
 // Per-request response header typing
 interface CustomHeaders {
     'x-custom-header': string;
 }
 
 const customResponse = await get<User, CustomHeaders>('/api/user');
-customResponse.headers['x-custom-header']; // ✅ Typed
+customResponse.headers['x-custom-header']; // ✅ Typed — headers exist on both branches
 ```
 
 ## Lifecycle Management

@@ -247,7 +247,6 @@ serviceApi.state.set('serviceToken', 'token');   // Typed
 |----------|----------|
 | Module Augmentation | Single API, consistent types across app |
 | Generic Parameters | Multiple APIs with different type requirements |
-```
 
 
 ## Production Setup
