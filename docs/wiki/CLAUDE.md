@@ -7,16 +7,23 @@ description: Authoritative steering for the signals/wiki inferrer when operating
  the inferrer reads this and treats it as authoritative>
 
 ## Framework
-# NestJS monorepo (not plain Express)
+
+- TypeScript pnpm-workspace monorepo publishing the `@logosdx/*` packages. No NestJS, no turbo, no top-level `src/`.
 
 ## Domains
-# - src/billing/ and src/payments/ are one domain ("payments")
-# - src/internal-tools/ is scratch code — not a real domain
+
+- Domains map 1:1 to `packages/<name>/` (vertical slices).
+- `tests/` is the cross-cutting `testing` domain.
+- `scripts/`, `.github/workflows/`, `.changeset/`, `internals/`, `skills/` group as the `tooling` domain.
 
 ## Build
-# - Build: pnpm turbo build
-# - Test: pnpm test:ci (not pnpm test — that runs watch mode)
+
+- Build: `pnpm build` from the repo root (builds every package via `scripts/build.mjs`).
+- Test: `pnpm test:ci` from `tests/` (`pnpm test` also runs once; `pnpm tdd` is watch mode).
+- Tests resolve built `dist/`, not `src/` — a touched package must be rebuilt before a test run proves anything.
 
 ## Ignore for domains
-# - vendor/
-# - generated/
+
+- tmp/
+- typedoc/ (generated)
+- .worktrees/
