@@ -33,7 +33,7 @@ pnpm add @logosdx/observer
 **CDN:**
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@logosdx/observer@latest/dist/browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/observer@latest/dist/browser/bundle.min.js"></script>
 <script>
   const { ObserverEngine } = LogosDx.Observer;
 </script>

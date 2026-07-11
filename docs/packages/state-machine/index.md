@@ -33,7 +33,7 @@ pnpm add @logosdx/state-machine
 **CDN:**
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@logosdx/state-machine@latest/dist/browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/state-machine@latest/dist/browser/bundle.min.js"></script>
 <script>
     const { StateMachine, StateHub } = LogosDx.StateMachine;
 </script>

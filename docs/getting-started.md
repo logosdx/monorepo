@@ -25,9 +25,9 @@ pnpm add @logosdx/observer @logosdx/utils @logosdx/fetch # ...etc.
 Or in your browser, use the CDN:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@logosdx/observer@latest/dist/browser/bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@logosdx/utils@latest/dist/browser/bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@logosdx/fetch@latest/dist/browser/bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/observer@latest/dist/browser/bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/utils@latest/dist/browser/bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/fetch@latest/dist/browser/bundle.min.js"></script>
 <!-- ...etc. -->
 
 <script>

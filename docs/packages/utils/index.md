@@ -28,7 +28,7 @@ pnpm add @logosdx/utils
 
 **CDN:**
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@logosdx/utils@latest/dist/browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@logosdx/utils@latest/dist/browser/bundle.min.js"></script>
 <script>
   const { attempt, retry, clone } = LogosDx.Utils;
 </script>
