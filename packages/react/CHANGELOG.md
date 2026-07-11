@@ -1,5 +1,20 @@
 # @logosdx/react
 
+## 6.0.0
+
+### Patch Changes
+
+- Updated dependencies [a95d015]
+- Updated dependencies [daaa5c4]
+- Updated dependencies [c419f53]
+- Updated dependencies [e907e59]
+  - @logosdx/fetch@9.1.0
+  - @logosdx/utils@7.1.0
+  - @logosdx/localize@2.0.4
+  - @logosdx/observer@2.5.3
+  - @logosdx/state-machine@2.0.4
+  - @logosdx/storage@2.0.4
+
 ## 5.0.0
 
 ### Major Changes

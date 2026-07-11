@@ -1,5 +1,63 @@
 # @logosdx/fetch
 
+## 9.1.0
+
+### Minor Changes
+
+- a95d015: Per-call retry config now wins in both directions, and `skipCache` is a typed call option
+
+  - A per-call `retry` config now overrides an engine-level `retry: false` (previously the engine-level `false` silently vetoed it). Per-call `retry: false` continues to disable retries for a single request.
+  - `skipCache: true` is now a typed, documented `CallConfig` option: bypass the response cache for one request — no lookup, no store. It previously worked but was absent from the types.
+
+- daaa5c4: Config keys and `plugins` now compose instead of silently replacing each other
+
+  Previously, passing any `plugins: [...]` array silently dropped ALL policy config keys — `retry`, `dedupePolicy`, `cachePolicy`, `rateLimitPolicy`, `cookies` — including the default retry plugin that owns `attemptTimeout` firing and the `FetchError.timedOut` stamp. A custom `plugins: [authPlugin()]` alongside `rateLimitPolicy: {...}` left the engine with no rate limiting and no retries, with no warning.
+
+  Now:
+
+  - Config-key policies always install; the `plugins` array is additive.
+  - A policy may only exist once: passing both a policy's config key and its plugin, or the same policy plugin twice, throws at construction with a message naming the collision.
+  - A `retryPlugin(...)` in the array with no explicit `retry` key replaces the auto-installed default (customization, not a conflict).
+
+  Behavior change to note: `plugins: []` no longer uninstalls the default retry plugin — it is now a no-op, same as omitting it. To disable retries, use `retry: false` (keeps `attemptTimeout`/`timedOut` machinery, performs no retries).
+
+- c419f53: Policy config coherence: every config surface now drives the behavior it reports
+
+  `@logosdx/fetch`:
+
+  - Runtime `engine.config.set()` on a policy key (`retry`, `dedupePolicy`, `cachePolicy`, `rateLimitPolicy`, `cookies`) now actually reconfigures the running policy — previously it updated `config.get()` and response metadata while behavior kept the construction-time values. Validation runs before the store mutates: setting a key owned by a `plugins:`-array plugin throws, changing the cache adapter throws (the adapter is construction-only), and a rejected `set()` — single-key or multi-key merge — commits nothing.
+  - `attemptTimeout` now fires when retrying is disabled (`retry: false` / `maxAttempts: 0`); previously the zero-attempts path never armed the per-attempt timer, so such requests ran to the endpoint's full latency.
+  - `clearCache`, `clearCacheKey`, `deleteCache`, `invalidateCache`, `invalidatePath`, and `cacheStats` now work when the cache/dedupe plugin is installed via the `plugins:` array or `engine.use()` — previously they silently no-oped unless the config key was used.
+  - `res.config.retry` now reports the retry config the request actually ran with (per-call overrides included) instead of the engine-level default, and is typed `Required<RetryConfig>`.
+  - A falsy explicit policy key (`dedupePolicy: false`) plus the same-name plugin now warns and installs the plugin instead of throwing; truthy key + same-name plugin still throws.
+
+  `@logosdx/utils`:
+
+  - `PathValue` now distributes over union types, so dotted paths into keys typed like `RetryConfig | false` resolve to the object member's value type instead of `never` — `config.set('retry.maxAttempts', 5)` typechecks again.
+
+- e907e59: Rate-limit token waits now observe the request's abort signal (#145)
+
+  `@logosdx/utils`:
+
+  - New `waitWithAbort()` flow-control helper: a `wait()` whose sleep races an `AbortSignal`, with guaranteed timer/listener cleanup on both outcomes.
+  - `RateLimitTokenBucket.waitForToken` and `waitAndConsume` settle promptly when the caller's `abortController` fires — before, during, or after the wait — and an aborted caller never consumes a token (including the tokens-available fast path).
+  - `waitForToken` now resolves `boolean` instead of `void`: `true` = token available, `false` = aborted (do not consume). Existing callers that ignore the return value are unaffected.
+  - Aborted waits record their elapsed time in bucket stats so `averageWaitTime` stays accurate.
+
+  `@logosdx/fetch`:
+
+  - A request whose `totalTimeout`/`timeout` fires (or that is manually aborted) while parked in a `rateLimitPolicy` token wait now rejects within milliseconds instead of waiting out the full window, and no longer consumes a token for the dead request.
+  - The abort path now throws a proper `FetchError` (`status: 499`, `aborted: true`, `timedOut` reflecting whether `totalTimeout` caused it) instead of a bare `Error`.
+  - New `ratelimit-abort` engine event — the terminal pair of `ratelimit-wait` for aborted waits, carrying the actual waited milliseconds.
+
+### Patch Changes
+
+- Updated dependencies [c419f53]
+- Updated dependencies [e907e59]
+  - @logosdx/utils@7.1.0
+  - @logosdx/hooks@1.0.3
+  - @logosdx/observer@2.5.3
+
 ## 9.0.0
 
 ### Major Changes

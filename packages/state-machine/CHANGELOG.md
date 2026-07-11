@@ -1,5 +1,14 @@
 # @logosdx/state-machine
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [c419f53]
+- Updated dependencies [e907e59]
+  - @logosdx/utils@7.1.0
+  - @logosdx/observer@2.5.3
+
 ## 2.0.3
 
 ### Patch Changes
