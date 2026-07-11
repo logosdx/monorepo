@@ -58,6 +58,18 @@ export interface FetchPlugin<H = unknown, P = unknown, S = unknown> {
     name: string;
     hooks?: HookEngine<any>;
     install(engine: FetchEnginePublic<H, P, S>): () => void;
+
+    /**
+     * Re-applies the plugin's owned policy config after a runtime
+     * `engine.config.set()` on the matching key (`retry`, `dedupePolicy`,
+     * `cachePolicy`, `rateLimitPolicy`, or `cookies`).
+     *
+     * Optional — a plugin that doesn't implement it is left untouched by
+     * runtime config changes; the engine only invokes it when present.
+     *
+     * @param value - The full, up-to-date value of the plugin's config key
+     */
+    reconfigure?(value: unknown): void;
 }
 
 

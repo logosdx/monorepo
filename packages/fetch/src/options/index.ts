@@ -45,6 +45,9 @@ export class ConfigStore<
     #engine: FetchEngineCore<H, P, S>;
     #config: EngineConfig<H, P, S>;
 
+    /** Validators run against a pending `set()` before it mutates the store. */
+    #preSetValidators: ((data: OptionsEventData) => void)[] = [];
+
     constructor(engine: FetchEngineCore<H, P, S>, initialConfig: EngineConfig<H, P, S>) {
 
         validateOptions(initialConfig as any);
@@ -84,8 +87,11 @@ export class ConfigStore<
     /**
      * Set options by path-value or by partial object merge.
      *
-     * Emits 'options-change' event after successful update.
-     * All values are type-checked against EngineConfig.
+     * Runs registered pre-set validators against the pending change before
+     * anything mutates — a validator that throws rejects the whole `set()`
+     * call, so a rejected change never partially applies. Emits
+     * 'config-change' after a successful update. All values are
+     * type-checked against EngineConfig.
      *
      * @example
      * ```typescript
@@ -113,19 +119,60 @@ export class ConfigStore<
             'set requires a path string or config object'
         );
 
+        const eventData = (
+            isPath
+                ? { path: pathOrPartial, value }
+                : { value: pathOrPartial }
+        ) as OptionsEventData;
+
+        this.#runPreSetValidators(eventData);
+
         if (isPath) {
 
             setDeep(this.#config, pathOrPartial, value as any);
-
-            const eventData = { path: pathOrPartial, value } as OptionsEventData;
-            this.#engine.emit('config-change', eventData as any);
         }
         else {
 
             this.#mergeDeep(this.#config, pathOrPartial as Partial<EngineConfig<H, P, S>>);
+        }
 
-            const eventData = { value: pathOrPartial } as OptionsEventData;
-            this.#engine.emit('config-change', eventData as any);
+        this.#engine.emit('config-change', eventData as any);
+    }
+
+    /**
+     * Register a validator that runs against a pending `set()` before it
+     * mutates the store.
+     *
+     * The validator throws to reject the change — nothing mutates and no
+     * `config-change` event fires. Generic on purpose: the store has no
+     * opinion on what makes a change valid, only that rejection must
+     * happen before mutation. Callers (e.g. the engine's policy-ownership
+     * check) own the actual rule.
+     *
+     * @param validator - Called with the pending change before mutation
+     * @returns Cleanup function to unregister the validator
+     */
+    onBeforeSet(validator: (data: OptionsEventData) => void): () => void {
+
+        this.#preSetValidators.push(validator);
+
+        return () => {
+
+            const index = this.#preSetValidators.indexOf(validator);
+            if (index !== -1) this.#preSetValidators.splice(index, 1);
+        };
+    }
+
+    /**
+     * Run all registered pre-set validators against a pending change.
+     *
+     * Any validator may throw to reject the `set()` call before it mutates.
+     */
+    #runPreSetValidators(data: OptionsEventData): void {
+
+        for (const validator of this.#preSetValidators) {
+
+            validator(data);
         }
     }
 

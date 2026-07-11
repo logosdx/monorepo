@@ -6,7 +6,7 @@
 
 import { ObserverEngine } from '@logosdx/observer';
 import { HookEngine } from '@logosdx/hooks';
-import { assert } from '@logosdx/utils';
+import { assert, isObject } from '@logosdx/utils';
 
 import type {
     EventMap,
@@ -63,6 +63,46 @@ export type { CallConfig } from '../options/types.ts';
  * Response headers type for type inference.
  */
 export interface InstanceResponseHeaders extends Record<string, string> { }
+
+
+/**
+ * Config keys that own a policy plugin, mapped to the plugin's `name`.
+ *
+ * Used to route a `config-change` event to the plugin that owns the changed
+ * key, and to tell a `plugins:`-installed policy (runtime `set()` throws —
+ * the user owns that instance) from a config-key-installed one (routes to
+ * `reconfigure`).
+ */
+const POLICY_CONFIG_KEYS = {
+    retry: 'retry',
+    dedupePolicy: 'dedupe',
+    cachePolicy: 'cache',
+    rateLimitPolicy: 'rate-limit',
+    cookies: 'cookies',
+} as const;
+
+type PolicyConfigKey = keyof typeof POLICY_CONFIG_KEYS;
+
+function isPolicyConfigKey(key: string): key is PolicyConfigKey {
+
+    return key in POLICY_CONFIG_KEYS;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+
+    return isObject(value);
+}
+
+/**
+ * Message thrown when a policy key's plugin conflicts with its config key.
+ *
+ * Shared between the construction-time check and the runtime `set()` check
+ * so both surfaces report the same conflict the same way.
+ */
+function ownershipConflictMessage(policyName: string): string {
+
+    return `FetchEngine: the '${policyName}' plugin conflicts with its config key — configure one or the other, not both`;
+}
 
 
 /**
@@ -153,6 +193,18 @@ export class FetchEngine<
     #instanceAbortController = new AbortController();
     #pluginCleanups: (() => void)[] = [];
 
+    /** Canonical policy name → install path ('config' key vs `plugins:` array). */
+    #policyOwnership = new Map<string, 'config' | 'user'>();
+
+    /** Canonical policy name → installed plugin instance, for reconfigure routing. */
+    #policyPlugins = new Map<string, FetchPlugin<H, P, S>>();
+
+    /** Unsubscribe for the engine's own `config-change` listener. */
+    #configChangeCleanup: () => void;
+
+    /** Unsubscribe for the engine's pre-mutation ownership validator. */
+    #configValidatorCleanup: () => void;
+
     /**
      * Create a new FetchEngine instance.
      *
@@ -190,6 +242,11 @@ export class FetchEngine<
 
             this.#pluginCleanups.push(this.use(plugin));
         }
+
+        // Validate ownership BEFORE the store mutates — a rejected set() must
+        // never leave the store or the plugins in a changed state.
+        this.#configValidatorCleanup = this.config.onBeforeSet((data) => this.#validateConfigChange(data));
+        this.#configChangeCleanup = this.on('config-change', (data) => this.#handleConfigChange(data));
     }
 
     /**
@@ -225,7 +282,7 @@ export class FetchEngine<
 
             assert(
                 explicitKeyByName[plugin.name] !== true,
-                `FetchEngine: the '${plugin.name}' plugin conflicts with its config key — configure one or the other, not both`
+                ownershipConflictMessage(plugin.name)
             );
 
             assert(
@@ -240,7 +297,40 @@ export class FetchEngine<
             (plugin) => !seenPolicyPlugins.has(plugin.name)
         );
 
+        this.#capturePolicyOwnership(keptConfigPlugins, customPlugins, explicitKeyByName);
+
         return [...keptConfigPlugins, ...customPlugins];
+    }
+
+    /**
+     * Record which install path owns each policy plugin.
+     *
+     * A `plugins:`-installed policy is user-owned — the engine has no
+     * authority to reconfigure it, so a runtime `config.set()` on that key
+     * throws. A config-key-installed policy routes to the plugin's
+     * `reconfigure`.
+     */
+    #capturePolicyOwnership(
+        keptConfigPlugins: FetchPlugin<H, P, S>[],
+        customPlugins: FetchPlugin<H, P, S>[],
+        policyNames: Record<string, boolean>
+    ): void {
+
+        for (const plugin of keptConfigPlugins) {
+
+            if (!(plugin.name in policyNames)) continue;
+
+            this.#policyOwnership.set(plugin.name, 'config');
+            this.#policyPlugins.set(plugin.name, plugin);
+        }
+
+        for (const plugin of customPlugins) {
+
+            if (!(plugin.name in policyNames)) continue;
+
+            this.#policyOwnership.set(plugin.name, 'user');
+            this.#policyPlugins.set(plugin.name, plugin);
+        }
     }
 
     /**
@@ -303,6 +393,80 @@ export class FetchEngine<
     use(plugin: FetchPlugin<H, P, S>): () => void {
 
         return plugin.install(this);
+    }
+
+    /**
+     * Validate a pending `config.set()` against policy ownership before the
+     * store mutates.
+     *
+     * Registered on `ConfigStore`'s pre-set hook so a rejected set() never
+     * partially applies: every changed policy key is checked here — before
+     * any of them commit — mirroring the construction-time
+     * all-asserts-then-install order. Throws when a changed key's plugin was
+     * installed via `plugins:`; the engine has no authority to reconfigure a
+     * user-owned instance.
+     */
+    #validateConfigChange(data: EventsOptionsEventData): void {
+
+        const changedKeys = this.#changedPolicyKeys(data);
+
+        for (const configKey of changedKeys) {
+
+            const policyName = POLICY_CONFIG_KEYS[configKey];
+
+            assert(
+                this.#policyOwnership.get(policyName) !== 'user',
+                ownershipConflictMessage(policyName)
+            );
+        }
+    }
+
+    /**
+     * Route a `config-change` event to the plugin owning the changed policy key.
+     *
+     * By the time this fires, `#validateConfigChange` has already confirmed
+     * every changed key is safe to apply, so this only routes to
+     * `reconfigure`. Calls the owning plugin's optional `reconfigure` with
+     * the key's current value; a plugin without `reconfigure` is left
+     * untouched.
+     */
+    #handleConfigChange(data: EventsOptionsEventData): void {
+
+        const changedKeys = this.#changedPolicyKeys(data);
+
+        if (changedKeys.length === 0) return;
+
+        const currentConfig = this.config.get();
+
+        for (const configKey of changedKeys) {
+
+            const policyName = POLICY_CONFIG_KEYS[configKey];
+
+            this.#policyPlugins.get(policyName)?.reconfigure?.(currentConfig[configKey]);
+        }
+    }
+
+    /**
+     * Resolve which policy config keys a `config-change` event touched.
+     *
+     * A path-based `set('retry.maxAttempts', …)` carries only the root
+     * segment as the policy key. A merge `set({ retry: {...} })` carries the
+     * whole partial under `value` — every top-level policy key it touches.
+     */
+    #changedPolicyKeys(data: EventsOptionsEventData): PolicyConfigKey[] {
+
+        if (data.path !== undefined) {
+
+            const [rootKey] = data.path.split('.');
+            return rootKey !== undefined && isPolicyConfigKey(rootKey) ? [rootKey] : [];
+        }
+
+        if (isPlainObject(data.value)) {
+
+            return Object.keys(data.value).filter(isPolicyConfigKey);
+        }
+
+        return [];
     }
 
     /**
@@ -538,6 +702,10 @@ export class FetchEngine<
 
         // Abort all pending requests
         this.#instanceAbortController.abort('FetchEngine destroyed');
+
+        // Stop validating and routing config-change events to plugins
+        this.#configValidatorCleanup();
+        this.#configChangeCleanup();
 
         // Clean up plugins
         for (const cleanup of this.#pluginCleanups) {

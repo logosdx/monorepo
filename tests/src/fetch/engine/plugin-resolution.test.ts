@@ -157,6 +157,106 @@ describe('FetchEngine: plugin resolution', async () => {
         expect(err!.message).to.include('rate-limit');
     });
 
+    it('should throw when a runtime config.set() targets a plugins:-owned policy key', () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            plugins: [dedupePlugin(true)]
+        });
+
+        const [, err] = attemptSync(() => api.config.set('dedupePolicy', { enabled: false }));
+
+        expect(err).to.not.equal(null);
+        expect(err!.message).to.include('dedupe');
+
+        api.destroy();
+    });
+
+    it('should leave the store unchanged after a runtime config.set() ownership conflict throws', () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            plugins: [dedupePlugin(true)]
+        });
+
+        const before = api.config.get('dedupePolicy');
+
+        const [, err] = attemptSync(() => api.config.set('dedupePolicy', { enabled: false }));
+
+        expect(err).to.not.equal(null);
+        expect(api.config.get('dedupePolicy')).to.deep.equal(before);
+
+        api.destroy();
+    });
+
+    it('should apply nothing when a multi-key merge set() has one conflicted key', () => {
+
+        // retry is config-owned (no reconfigure yet — CP2), dedupe is
+        // plugins:-owned and conflicts. retry sorts first, matching the
+        // reviewer's exact repro order: an earlier, non-conflicting key must
+        // not commit just because it was iterated before the conflict.
+        const reconfigureCalls: unknown[] = [];
+
+        const dedupe = dedupePlugin(true);
+        dedupe.reconfigure = (value) => reconfigureCalls.push(value);
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retry: { maxAttempts: 3 },
+            plugins: [dedupe]
+        });
+
+        const retryBefore = api.config.get('retry.maxAttempts');
+        const dedupeBefore = api.config.get('dedupePolicy');
+
+        const [, err] = attemptSync(() => api.config.set({
+            retry: { maxAttempts: 7 },
+            dedupePolicy: { enabled: false }
+        }));
+
+        expect(err).to.not.equal(null);
+        expect(err!.message).to.include('dedupe');
+
+        expect(api.config.get('retry.maxAttempts')).to.equal(retryBefore);
+        expect(api.config.get('dedupePolicy')).to.deep.equal(dedupeBefore);
+        expect(reconfigureCalls.length).to.equal(0);
+
+        api.destroy();
+    });
+
+    it('should leave a plugin without reconfigure unaffected by a runtime config.set()', () => {
+
+        // The default retry plugin doesn't implement `reconfigure` yet — the
+        // engine's routing must still be a no-op: no throw, config still updates.
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            retry: { maxAttempts: 3 }
+        });
+
+        const [, err] = attemptSync(() => api.config.set('retry.maxAttempts', 5));
+
+        expect(err).to.equal(null);
+        expect(api.config.get('retry.maxAttempts')).to.equal(5);
+
+        api.destroy();
+    });
+
+    it('should stop routing config-change events to plugins after destroy()', () => {
+
+        const api = new FetchEngine({
+            baseUrl: testUrl,
+            plugins: [dedupePlugin(true)]
+        });
+
+        api.destroy();
+
+        // If the config-change listener leaked past destroy(), this would
+        // still throw the ownership-conflict error.
+        const [, err] = attemptSync(() => api.config.set('dedupePolicy', { enabled: false }));
+
+        expect(err).to.equal(null);
+    });
+
     it('should let a user retry plugin replace the default when no retry key is set', async () => {
 
         // maxAttempts: 1 = no retries. /fail-once returns 503 first, 200 after.
