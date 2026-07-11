@@ -29,18 +29,25 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
 
     const resolveRetryConfig = (opts: InternalReqOptions<H, P, S>): Required<RetryConfig> => {
 
+        // Per-call retry wins in both directions: it can remove retries from
+        // a retrying engine and re-enable them on a `retry: false` engine.
+        // `false`/`true` per-call values were already normalized upstream to
+        // { maxAttempts: 0 } / {} (executor.makeRequestOptions).
+        const base = defaultConfig
+            ? { ...DEFAULT_RETRY_CONFIG, ...defaultConfig }
+            : DEFAULT_RETRY_CONFIG;
+
+        if (opts.retry) {
+
+            return { ...base, ...opts.retry } as Required<RetryConfig>;
+        }
+
         if (defaultConfig === false) {
 
             return { ...DEFAULT_RETRY_CONFIG, maxAttempts: 0 };
         }
 
-        const base = defaultConfig
-            ? { ...DEFAULT_RETRY_CONFIG, ...defaultConfig }
-            : DEFAULT_RETRY_CONFIG;
-
-        if (!opts.retry) return base as Required<RetryConfig>;
-
-        return { ...base, ...opts.retry } as Required<RetryConfig>;
+        return base as Required<RetryConfig>;
     };
 
     return {

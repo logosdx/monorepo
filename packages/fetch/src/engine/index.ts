@@ -38,7 +38,7 @@ import type {
     EngineLifecycle,
     ValidateConfig,
     CallConfig,
-DetermineTypeFn as OptionsDetermineTypeFn,
+    DetermineTypeFn as OptionsDetermineTypeFn,
     InstanceHeaders as OptionsInstanceHeaders,
     InstanceParams as OptionsInstanceParams,
     InstanceState as OptionsInstanceState
@@ -62,7 +62,7 @@ export type { CallConfig } from '../options/types.ts';
 /**
  * Response headers type for type inference.
  */
-export interface InstanceResponseHeaders extends Record<string, string> {}
+export interface InstanceResponseHeaders extends Record<string, string> { }
 
 
 /**
@@ -206,7 +206,7 @@ export class FetchEngine<
      */
     #resolvePlugins(opts: EngineConfig<H, P, S>): FetchPlugin<H, P, S>[] {
 
-        const configPlugins = this.#buildLegacyPlugins(opts);
+        const configPlugins = this.#buildPluginsFromOptions(opts);
         const customPlugins = opts.plugins ?? [];
 
         const explicitKeyByName: Record<string, boolean> = {
@@ -247,7 +247,7 @@ export class FetchEngine<
      * Build plugins from the policy config keys
      * (retry, dedupePolicy, cachePolicy, rateLimitPolicy, cookies).
      */
-    #buildLegacyPlugins(opts: EngineConfig<H, P, S>): FetchPlugin<H, P, S>[] {
+    #buildPluginsFromOptions(opts: EngineConfig<H, P, S>): FetchPlugin<H, P, S>[] {
 
         const plugins: FetchPlugin<H, P, S>[] = [];
 
@@ -257,7 +257,7 @@ export class FetchEngine<
         // Dedupe plugin
         if (opts.dedupePolicy) {
 
-            const dedupe = dedupePlugin<H, P, S>(opts.dedupePolicy as any);
+            const dedupe = dedupePlugin<H, P, S>(opts.dedupePolicy);
             this.#dedupePlugin = dedupe;
             plugins.push(dedupe);
         }
@@ -265,7 +265,7 @@ export class FetchEngine<
         // Cache plugin
         if (opts.cachePolicy) {
 
-            const cache = cachePlugin<H, P, S>(opts.cachePolicy as any);
+            const cache = cachePlugin<H, P, S>(opts.cachePolicy);
             this.#cachePlugin = cache;
             plugins.push(cache);
         }
@@ -273,7 +273,7 @@ export class FetchEngine<
         // Rate limit plugin
         if (opts.rateLimitPolicy) {
 
-            plugins.push(rateLimitPlugin<H, P, S>(opts.rateLimitPolicy as any));
+            plugins.push(rateLimitPlugin<H, P, S>(opts.rateLimitPolicy));
         }
 
         // Cookie plugin
@@ -573,10 +573,10 @@ export namespace FetchEngine {
 
     // ===== Augmentable Interfaces =====
 
-    export interface InstanceHeaders extends OptionsInstanceHeaders {}
-    export interface InstanceParams extends OptionsInstanceParams {}
-    export interface InstanceState extends OptionsInstanceState {}
-    export interface InstanceResponseHeaders extends Record<string, string> {}
+    export interface InstanceHeaders extends OptionsInstanceHeaders { }
+    export interface InstanceParams extends OptionsInstanceParams { }
+    export interface InstanceState extends OptionsInstanceState { }
+    export interface InstanceResponseHeaders extends Record<string, string> { }
 
 
     // ===== Type Aliases =====

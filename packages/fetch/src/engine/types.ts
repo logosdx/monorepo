@@ -216,8 +216,11 @@ export interface InternalReqOptions<H = unknown, P = unknown, S = unknown>
     /** Function to check if total timeout has fired */
     getTotalTimeoutFired?: (() => boolean) | undefined;
 
-    /** Retry configuration (true normalized to {}) */
+    /** Retry configuration (true normalized to {}, false to { maxAttempts: 0 }) */
     retry?: RetryConfig | undefined;
+
+    /** Bypass the response cache for this request — no lookup, no store */
+    skipCache?: boolean | undefined;
 
     /** Response type determination function */
     determineType?: ((response: Response) => { type: 'json' | 'text' | 'blob' | 'arrayBuffer'; isJson: boolean }) | undefined;

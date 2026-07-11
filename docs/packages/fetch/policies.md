@@ -85,7 +85,18 @@ One engine covers many budgets. Needing a different limit for `/embed` than `/qu
 
 `rules` is not specific to rate limiting: all three policies share the same route-matching layer (`is`, `startsWith`, `endsWith`, `includes`, `match`), each overriding its own options per route — cache TTLs, dedupe toggles, rate budgets. See [Route Matching](#route-matching).
 
-Policies run in a fixed order (cache check → rate limit → dedupe → retry → network; see [Rate Limiting Order](#rate-limiting-order)), so a cache hit never spends a rate-limit token and deduplicated callers share one retry sequence. Per-call escape hatches exist on every request (`totalTimeout`, `attemptTimeout`, `abortController`), and each policy accepts `rules` for per-route overrides — details in the sections below.
+Policies run in a fixed order (cache check → rate limit → dedupe → retry → network; see [Rate Limiting Order](#rate-limiting-order)), so a cache hit never spends a rate-limit token and deduplicated callers share one retry sequence. Per-call escape hatches exist on every request, and each policy accepts `rules` for per-route overrides — details in the sections below:
+
+```typescript
+await api.get('/loans', {
+    totalTimeout: 5000,               // bound the whole operation
+    attemptTimeout: 2000,             // bound each attempt (retries get a fresh budget)
+    abortController: controller,      // manual cancellation
+    retry: false,                     // no retries for this request (a config object works too,
+                                      // and overrides even an engine-level `retry: false`)
+    skipCache: true,                  // bypass the cache: no lookup, no store
+});
+```
 
 
 ## Request Deduplication

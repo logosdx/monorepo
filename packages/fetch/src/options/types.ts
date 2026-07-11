@@ -147,6 +147,14 @@ export interface CallConfig<H = InstanceHeaders, P = InstanceParams, S = Instanc
      */
     requestId?: string | undefined;
 
+    /**
+     * Bypass the response cache for this request — no lookup, no store.
+     *
+     * The request always hits the network, and its response does not
+     * overwrite any existing cache entry.
+     */
+    skipCache?: boolean | undefined;
+
     /** @deprecated Use totalTimeout instead */
     timeout?: number | undefined;
 }

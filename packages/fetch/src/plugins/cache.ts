@@ -398,7 +398,7 @@ export function cachePlugin<H = unknown, P = unknown, S = unknown>(
 
                 const directive = normalizedOpts.getDirective?.();
                 if (directive === 'stream' || directive === 'raw') return;
-                if ((normalizedOpts as any).skipCache === true) return;
+                if (normalizedOpts.skipCache === true) return;
 
                 const ruleConfig = policy.resolveForRequest(
                     method,

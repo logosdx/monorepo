@@ -2,9 +2,10 @@
 
 ## Tree
 
-├── .changeset/ (4)
+├── .changeset/ (5)
 │   ├── README.md (bf33c79, 8L, 510ch, 510B)
 │   ├── config.json (7b81ccb, 13L, 297ch, 297B)
+│   ├── per-call-retry-skipcache.md (37c8fe4, 8L, 515ch, 517B)
 │   ├── plugin-config-composition.md (5655cae, 15L, 1143ch, 1149B)
 │   └── rate-limit-abort-aware-waits.md (64ad54e, 19L, 1391ch, 1397B)
 ├── .claude/ (1)
@@ -56,7 +57,7 @@
 │   │   │   ├── hooks.md (df892db, 349L, 8325ch, 8347B)
 │   │   │   ├── index.md (bfb8346, 252L, 6864ch, 6870B)
 │   │   │   ├── plugins.md (be4a0c3, 515L, 14966ch, 15024B)
-│   │   │   ├── policies.md (6c716cf, 1094L, 32611ch, 33555B)
+│   │   │   ├── policies.md (6120cb4, 1105L, 33091ch, 34035B)
 │   │   │   ├── requests.md (c85fce1, 436L, 10704ch, 10722B)
 │   │   │   └── resilience.md (ae58ea0, 639L, 20184ch, 21376B)
 │   │   ├── localize/ (9)
@@ -317,7 +318,7 @@
 │       ├── references/ (10)
 │       │   ├── REFERENCE.md (1074c5a, 37L, 2721ch, 2721B)
 │       │   ├── dom.md (12c0af7, 355L, 11362ch, 11514B)
-│       │   ├── fetch.md (945a8d5, 1236L, 48839ch, 49124B)
+│       │   ├── fetch.md (4a2344d, 1238L, 49327ch, 49614B)
 │       │   ├── hooks.md (2ffc5c0, 326L, 9018ch, 9042B)
 │       │   ├── localize.md (8fab800, 454L, 14766ch, 14826B)
 │       │   ├── observer.md (c7e3811, 503L, 15085ch, 15095B)
@@ -358,7 +359,7 @@
 │   │   │   ├── adapters/ (1 file, 0 dirs)
 │   │   │   ├── cookies/ (10 files, 0 dirs)
 │   │   │   ├── engine/ (10 files, 0 dirs)
-│   │   │   ├── executor/ (2 files, 0 dirs)
+│   │   │   ├── executor/ (3 files, 0 dirs)
 │   │   │   ├── options/ (2 files, 0 dirs)
 │   │   │   ├── policies/ (3 files, 0 dirs)
 │   │   │   ├── properties/ (3 files, 0 dirs)
@@ -447,8 +448,8 @@
 
 ## Languages
 
-- TypeScript: 86498 LOC (65%), 311 files (66%)
-- Markdown: 32953 LOC (24%), 92 files (19%)
+- TypeScript: 86619 LOC (65%), 312 files (66%)
+- Markdown: 32974 LOC (24%), 93 files (19%)
 - YAML: 8281 LOC (6%), 8 files (1%)
 - JavaScript: 1543 LOC (1%), 7 files (1%)
 - HTML: 1167 LOC (0%), 3 files (0%)
