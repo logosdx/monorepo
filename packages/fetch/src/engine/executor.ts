@@ -16,12 +16,13 @@ import type {
 
 import type { EngineRequestConfig, CallConfig } from '../options/types.ts';
 
-import { FetchError, DEFAULT_RETRY_CONFIG } from '../helpers/index.ts';
+import { FetchError } from '../helpers/index.ts';
 
 import type { FetchEngineCore, InternalReqOptions } from './types.ts';
 
 import { FetchPromise } from './fetch-promise.ts';
 import type { ResponseDirective } from './fetch-promise.ts';
+import { resolveRetryConfig } from '../plugins/retry.ts';
 
 import { HookScope } from '@logosdx/hooks';
 
@@ -53,23 +54,21 @@ export class RequestExecutor<
     }
 
     /**
-     * Get retry configuration from engine options.
+     * Resolve the retry config actually used for a request — the engine's
+     * base config merged with the request's per-call override, through the
+     * same resolution the retry plugin applies. Used for `res.config.retry`
+     * so the reported value can never drift from the retry behavior the
+     * request actually ran with (a per-call override otherwise wouldn't
+     * show up here, since it never touches the engine-level config).
      */
-    get retryConfig(): Required<RetryConfig> {
+    #resolveRetryConfig(perCallRetry: RetryConfig | undefined): Required<RetryConfig> {
 
-        const config = this.engine.config.get('retry');
+        const baseConfig = this.engine.config.get('retry');
 
-        if (config === false) {
-
-            return { ...DEFAULT_RETRY_CONFIG, maxAttempts: 0 };
-        }
-
-        if (!config || config === true) {
-
-            return DEFAULT_RETRY_CONFIG;
-        }
-
-        return { ...DEFAULT_RETRY_CONFIG, ...(config as RetryConfig) } as Required<RetryConfig>;
+        return resolveRetryConfig(
+            baseConfig === true ? undefined : baseConfig,
+            perCallRetry
+        );
     }
 
     /**
@@ -699,7 +698,7 @@ export class RequestExecutor<
                 method,
                 headers: reqHeaders,
                 params,
-                retry: this.retryConfig,
+                retry: this.#resolveRetryConfig(retry),
                 determineType,
             };
 
@@ -728,7 +727,7 @@ export class RequestExecutor<
             method,
             headers: reqHeaders,
             params,
-            retry: this.retryConfig,
+            retry: this.#resolveRetryConfig(retry),
             determineType,
         };
 

@@ -356,7 +356,13 @@ export interface FetchConfig<H = FetchEngine.InstanceHeaders, P = FetchEngine.In
 
     headers?: H;
     params?: P;
-    retry?: RetryConfig | false | undefined;
+
+    /**
+     * The retry configuration actually resolved for this request — the
+     * engine's base config merged with any per-call override. Always a
+     * fully-resolved object, even when retrying is disabled (`maxAttempts: 0`).
+     */
+    retry: Required<RetryConfig>;
     method?: string;
     determineType?: any;
 }

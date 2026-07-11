@@ -88,9 +88,33 @@ function isPolicyConfigKey(key: string): key is PolicyConfigKey {
     return key in POLICY_CONFIG_KEYS;
 }
 
+/** Plugin `name` → its owning config key, for the construction-time warn message. */
+const CONFIG_KEY_FOR_POLICY_NAME: Record<string, string> = {
+    retry: 'retry',
+    dedupe: 'dedupePolicy',
+    cache: 'cachePolicy',
+    'rate-limit': 'rateLimitPolicy',
+    cookies: 'cookies',
+};
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 
     return isObject(value);
+}
+
+/**
+ * Whether a policy config key was omitted, explicitly set falsy (e.g.
+ * `dedupePolicy: false`), or set to a truthy value — distinguishes "not
+ * configured" from "explicitly disabled" for the construction-time
+ * falsy-key-plus-plugin check.
+ */
+type ExplicitKeyState = 'omitted' | 'falsy' | 'truthy';
+
+function explicitKeyState(value: unknown): ExplicitKeyState {
+
+    if (value === undefined) return 'omitted';
+
+    return value ? 'truthy' : 'falsy';
 }
 
 /**
@@ -266,24 +290,44 @@ export class FetchEngine<
         const configPlugins = this.#buildPluginsFromOptions(opts);
         const customPlugins = opts.plugins ?? [];
 
+        const keyStateByName: Record<string, ExplicitKeyState> = {
+            'retry': explicitKeyState(opts.retry),
+            'dedupe': explicitKeyState(opts.dedupePolicy),
+            'cache': explicitKeyState(opts.cachePolicy),
+            'rate-limit': explicitKeyState(opts.rateLimitPolicy),
+            'cookies': explicitKeyState(opts.cookies),
+        };
+
         const explicitKeyByName: Record<string, boolean> = {
-            'retry': opts.retry !== undefined,
-            'dedupe': opts.dedupePolicy !== undefined,
-            'cache': opts.cachePolicy !== undefined,
-            'rate-limit': opts.rateLimitPolicy !== undefined,
-            'cookies': opts.cookies !== undefined,
+            'retry': keyStateByName['retry'] !== 'omitted',
+            'dedupe': keyStateByName['dedupe'] !== 'omitted',
+            'cache': keyStateByName['cache'] !== 'omitted',
+            'rate-limit': keyStateByName['rate-limit'] !== 'omitted',
+            'cookies': keyStateByName['cookies'] !== 'omitted',
         };
 
         const seenPolicyPlugins = new Set<string>();
 
         for (const plugin of customPlugins) {
 
-            if (!(plugin.name in explicitKeyByName)) continue;
+            if (!(plugin.name in keyStateByName)) continue;
+
+            const keyState = keyStateByName[plugin.name];
 
             assert(
-                explicitKeyByName[plugin.name] !== true,
+                keyState !== 'truthy',
                 ownershipConflictMessage(plugin.name)
             );
+
+            // Falsy key + same-name plugin: the key claimed nothing, so the
+            // plugin becomes the sole owner instead of conflicting — warn so
+            // the caller notices the key is dead weight, but don't throw.
+            if (keyState === 'falsy') {
+
+                console.warn(
+                    `FetchEngine: '${CONFIG_KEY_FOR_POLICY_NAME[plugin.name]}: false' has no effect because the '${plugin.name}' plugin is installed via 'plugins:' — remove the config key or the plugin`
+                );
+            }
 
             assert(
                 !seenPolicyPlugins.has(plugin.name),
@@ -322,6 +366,7 @@ export class FetchEngine<
 
             this.#policyOwnership.set(plugin.name, 'config');
             this.#policyPlugins.set(plugin.name, plugin);
+            this.#captureConvenienceRef(plugin);
         }
 
         for (const plugin of customPlugins) {
@@ -330,7 +375,22 @@ export class FetchEngine<
 
             this.#policyOwnership.set(plugin.name, 'user');
             this.#policyPlugins.set(plugin.name, plugin);
+            this.#captureConvenienceRef(plugin);
         }
+    }
+
+    /**
+     * Capture a reference to the installed cache/dedupe plugin for the
+     * backward-compat convenience methods (`clearCache`, `cacheStats`, etc.),
+     * regardless of which install path supplied the plugin — a config key,
+     * the `plugins:` array, or a post-construction `use()` call. Without
+     * this, the convenience methods silently no-op when the plugin arrives
+     * via any path but the config key.
+     */
+    #captureConvenienceRef(plugin: FetchPlugin<H, P, S>): void {
+
+        if (plugin.name === 'cache') this.#cachePlugin = plugin;
+        if (plugin.name === 'dedupe') this.#dedupePlugin = plugin;
     }
 
     /**
@@ -347,17 +407,13 @@ export class FetchEngine<
         // Dedupe plugin
         if (opts.dedupePolicy) {
 
-            const dedupe = dedupePlugin<H, P, S>(opts.dedupePolicy);
-            this.#dedupePlugin = dedupe;
-            plugins.push(dedupe);
+            plugins.push(dedupePlugin<H, P, S>(opts.dedupePolicy));
         }
 
         // Cache plugin
         if (opts.cachePolicy) {
 
-            const cache = cachePlugin<H, P, S>(opts.cachePolicy);
-            this.#cachePlugin = cache;
-            plugins.push(cache);
+            plugins.push(cachePlugin<H, P, S>(opts.cachePolicy));
         }
 
         // Rate limit plugin
@@ -375,10 +431,10 @@ export class FetchEngine<
         return plugins;
     }
 
-    /** Reference to the cache plugin for backward compat methods */
+    /** Reference to the cache plugin for backward compat methods, captured from any install path */
     #cachePlugin: any = null;
 
-    /** Reference to the dedupe plugin for inflight tracking */
+    /** Reference to the dedupe plugin for inflight tracking, captured from any install path */
     #dedupePlugin: any = null;
 
     /**
@@ -391,6 +447,8 @@ export class FetchEngine<
      * @returns Cleanup function to uninstall the plugin
      */
     use(plugin: FetchPlugin<H, P, S>): () => void {
+
+        this.#captureConvenienceRef(plugin);
 
         return plugin.install(this);
     }

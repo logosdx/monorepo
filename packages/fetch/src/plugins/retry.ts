@@ -7,6 +7,42 @@ import { DEFAULT_RETRY_CONFIG } from '../helpers/validations.ts';
 
 
 /**
+ * Merges a per-call retry override over a base retry config, the same way
+ * for every caller — the retry plugin's execute hook and the executor's
+ * response metadata both resolve through this so the reported `res.config.retry`
+ * can never drift from the config the request actually ran with.
+ *
+ * Per-call retry wins in both directions: it can remove retries from a
+ * retrying engine and re-enable them on a `retry: false` engine. `false`/
+ * `true` per-call values are expected already normalized upstream to
+ * `{ maxAttempts: 0 }` / `{}` (executor.makeRequestOptions).
+ *
+ * @param baseConfig - The engine/plugin's current base retry config
+ * @param perCallRetry - The current request's normalized per-call retry override, if any
+ */
+export function resolveRetryConfig(
+    baseConfig: RetryConfig | false | undefined,
+    perCallRetry: RetryConfig | undefined
+): Required<RetryConfig> {
+
+    const base = baseConfig
+        ? { ...DEFAULT_RETRY_CONFIG, ...baseConfig }
+        : DEFAULT_RETRY_CONFIG;
+
+    if (perCallRetry) {
+
+        return { ...base, ...perCallRetry } as Required<RetryConfig>;
+    }
+
+    if (baseConfig === false) {
+
+        return { ...DEFAULT_RETRY_CONFIG, maxAttempts: 0 };
+    }
+
+    return base as Required<RetryConfig>;
+}
+
+/**
  * Factory function that creates a retry plugin for FetchEngine.
  *
  * The plugin installs an `execute` (pipe) hook at priority `-20` that
@@ -31,28 +67,8 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
     // resolver below always reads the current value, not the constructor arg.
     let baseConfig = defaultConfig;
 
-    const resolveRetryConfig = (opts: InternalReqOptions<H, P, S>): Required<RetryConfig> => {
-
-        // Per-call retry wins in both directions: it can remove retries from
-        // a retrying engine and re-enable them on a `retry: false` engine.
-        // `false`/`true` per-call values were already normalized upstream to
-        // { maxAttempts: 0 } / {} (executor.makeRequestOptions).
-        const base = baseConfig
-            ? { ...DEFAULT_RETRY_CONFIG, ...baseConfig }
-            : DEFAULT_RETRY_CONFIG;
-
-        if (opts.retry) {
-
-            return { ...base, ...opts.retry } as Required<RetryConfig>;
-        }
-
-        if (baseConfig === false) {
-
-            return { ...DEFAULT_RETRY_CONFIG, maxAttempts: 0 };
-        }
-
-        return base as Required<RetryConfig>;
-    };
+    const resolveConfigForRequest = (opts: InternalReqOptions<H, P, S>): Required<RetryConfig> =>
+        resolveRetryConfig(baseConfig, opts.retry);
 
     return {
         name: 'retry',
@@ -70,7 +86,7 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
             const cleanup = engine.hooks.add('execute', (async (next: () => Promise<any>, opts: any, _ctx: any) => {
 
                 const normalizedOpts = opts as InternalReqOptions<H, P, S>;
-                const mergedRetry = resolveRetryConfig(normalizedOpts);
+                const mergedRetry = resolveConfigForRequest(normalizedOpts);
 
                 // Shared by the zero-attempts pass-through and the retry loop below,
                 // so `attemptTimeout` aborts an attempt identically whether or not

@@ -15,9 +15,10 @@ import {
     isFetchError,
 } from '@logosdx/fetch';
 
-import { attempt, attemptSync, isRateLimitError } from '@logosdx/utils';
+import { attempt, attemptSync, isRateLimitError, wait } from '@logosdx/utils';
 
 import { makeTestStubs } from '../_helpers.ts';
+import { stubWarn } from '../../_helpers.ts';
 
 
 describe('FetchEngine: plugin resolution', async () => {
@@ -283,5 +284,147 @@ describe('FetchEngine: plugin resolution', async () => {
         expect(res!.status).to.equal(503); // user's no-retry plugin won
 
         api.destroy();
+    });
+
+    describe('convenience methods across install paths', () => {
+
+        it('should operate cache convenience methods when the cache plugin comes from the plugins: array', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                plugins: [cachePlugin(true)]
+            });
+
+            await api.get('/json');
+
+            expect(api.cacheStats().cacheSize).to.equal(1);
+
+            api.clearCache();
+
+            expect(api.cacheStats().cacheSize).to.equal(0);
+
+            api.destroy();
+        });
+
+        it('should operate cache convenience methods when the cache plugin is installed via a post-construction use() call', async () => {
+
+            const api = new FetchEngine({ baseUrl: testUrl });
+
+            api.use(cachePlugin(true));
+
+            await api.get('/json');
+
+            expect(api.cacheStats().cacheSize).to.equal(1);
+
+            api.clearCache();
+
+            expect(api.cacheStats().cacheSize).to.equal(0);
+
+            api.destroy();
+        });
+
+        it('should reflect dedupe inflight count when the dedupe plugin comes from the plugins: array', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                plugins: [dedupePlugin(true)]
+            });
+
+            const inflight = api.get('/wait', { timeout: 5000 });
+
+            await wait(10); // let the request register before it resolves at 1000ms
+
+            expect(api.cacheStats().inflightCount).to.be.greaterThan(0);
+
+            await inflight;
+
+            expect(api.cacheStats().inflightCount).to.equal(0);
+
+            api.destroy();
+        });
+
+        it('should reflect dedupe inflight count when the dedupe plugin is installed via a post-construction use() call', async () => {
+
+            const api = new FetchEngine({ baseUrl: testUrl });
+
+            api.use(dedupePlugin(true));
+
+            const inflight = api.get('/wait', { timeout: 5000 });
+
+            await wait(10);
+
+            expect(api.cacheStats().inflightCount).to.be.greaterThan(0);
+
+            await inflight;
+
+            expect(api.cacheStats().inflightCount).to.equal(0);
+
+            api.destroy();
+        });
+    });
+
+    describe('falsy config key + same-name plugin', () => {
+
+        it('should warn once and install the plugin as sole owner instead of throwing', async () => {
+
+            stubWarn.resetHistory();
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: false,
+                plugins: [dedupePlugin(true)]
+            });
+
+            expect(stubWarn.callCount).to.equal(1);
+            expect(stubWarn.firstCall.args[0]).to.include('dedupePolicy');
+            expect(stubWarn.firstCall.args[0]).to.include('dedupe');
+
+            // The plugin installed and is the sole owner — dedupe-join fires
+            // on a concurrent duplicate, proving it's actually running.
+            const joinEvents: string[] = [];
+            api.on('dedupe-join', (data) => joinEvents.push(data.path!));
+
+            await Promise.all([api.get('/json'), api.get('/json')]);
+
+            expect(joinEvents.length).to.equal(1);
+
+            // Runtime set() on the key throws — array-owned, consistent with
+            // a plugins:-only install.
+            const [, err] = attemptSync(() => api.config.set('dedupePolicy', { enabled: false }));
+
+            expect(err).to.not.equal(null);
+            expect(err!.message).to.include('dedupe');
+
+            api.destroy();
+        });
+
+        it('should still throw for a truthy config key plus a same-name plugin', () => {
+
+            stubWarn.resetHistory();
+
+            const [, err] = attemptSync(() => new FetchEngine({
+                baseUrl: testUrl,
+                dedupePolicy: true,
+                plugins: [dedupePlugin(true)]
+            }));
+
+            expect(err).to.not.equal(null);
+            expect(err!.message).to.include('dedupe');
+            expect(stubWarn.callCount).to.equal(0);
+        });
+
+        it('should not warn when the config key is merely omitted', async () => {
+
+            stubWarn.resetHistory();
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                plugins: [dedupePlugin(true)]
+            });
+
+            expect(stubWarn.callCount).to.equal(0);
+
+            api.destroy();
+        });
     });
 });

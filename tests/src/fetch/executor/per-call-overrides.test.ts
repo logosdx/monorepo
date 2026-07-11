@@ -41,6 +41,10 @@ describe('FetchEngine: per-call policy overrides', async () => {
         expect(res!.status).to.equal(503);
         expect(retryEvents.length).to.equal(0);
 
+        // Reported config matches the override actually applied, not the
+        // engine's maxAttempts: 3
+        expect(res!.config.retry.maxAttempts).to.equal(0);
+
         api.destroy();
     });
 
@@ -68,7 +72,36 @@ describe('FetchEngine: per-call policy overrides', async () => {
         expect(res!.ok).to.equal(true);
         expect(retryEvents.length).to.equal(1);
 
+        // Reported config matches the override actually applied, not the
+        // engine's retry: false
+        expect(res!.config.retry.maxAttempts).to.equal(2);
+
         api.destroy();
+    });
+
+    it('should reflect the engine retry config when no per-call override is given', async () => {
+
+        const withRetry = new FetchEngine({
+            baseUrl: urlA,
+            retry: { maxAttempts: 3, baseDelay: 1 }
+        });
+
+        const [resWithRetry] = await attempt(() => withRetry.get('/json'));
+
+        expect(resWithRetry!.config.retry.maxAttempts).to.equal(3);
+
+        withRetry.destroy();
+
+        const withoutRetry = new FetchEngine({
+            baseUrl: urlB,
+            retry: false
+        });
+
+        const [resWithoutRetry] = await attempt(() => withoutRetry.get('/json'));
+
+        expect(resWithoutRetry!.config.retry.maxAttempts).to.equal(0);
+
+        withoutRetry.destroy();
     });
 
     it('should bypass cache lookup and store with per-call skipCache', async () => {
