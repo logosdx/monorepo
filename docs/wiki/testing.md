@@ -20,7 +20,7 @@ The [`tests/`](../../tests) workspace runs the full validation suite for all pac
 - [`tests/src/_playground.ts`](../../tests/src/_playground.ts) — scratch file, excluded from test runs
 - [`tests/src/utils/`](../../tests/src/utils) — unit tests for `@logosdx/utils` (flow-control, data-structures, misc, units, validation); `misc.ts` includes behavior-locking coverage for `makeNestedConfig`'s state cache and update functions (cache invalidation, override accumulation/layering order, non-object override guards)
 - [`tests/src/dom/`](../../tests/src/dom) — 14 unit test files for `@logosdx/dom`
-- [`tests/src/fetch/`](../../tests/src/fetch) — unit tests for `@logosdx/fetch` (engine, cookies, policies, options, properties, serializers, state, adapters)
+- [`tests/src/fetch/`](../../tests/src/fetch) — unit tests for `@logosdx/fetch` (engine, cookies, policies, options, properties, serializers, state, adapters); [`tests/src/fetch/engine/configuration.test.ts`](../../tests/src/fetch/engine/configuration.test.ts) and [`tests/src/fetch/engine/plugin-resolution.test.ts`](../../tests/src/fetch/engine/plugin-resolution.test.ts) cover the plugin `reconfigure` mechanism (`config.set()` rebuilding policy state) and policy-ownership rules (config-key vs `plugins:` array conflicts); [`tests/src/fetch/executor/retry.test.ts`](../../tests/src/fetch/executor/retry.test.ts) covers `attemptTimeout` firing when retrying is disabled (`retry: false` / `maxAttempts: 0`)
 - [`tests/src/observable/`](../../tests/src/observable) — unit tests for `@logosdx/observer` (engine, queue, relay)
 - [`tests/src/react/`](../../tests/src/react) — unit tests for `@logosdx/react` (10 files)
 - [`tests/src/storage/`](../../tests/src/storage) — unit tests for `@logosdx/storage`

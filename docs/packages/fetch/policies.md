@@ -85,6 +85,25 @@ One engine covers many budgets. Needing a different limit for `/embed` than `/qu
 
 `rules` is not specific to rate limiting: all three policies share the same route-matching layer (`is`, `startsWith`, `endsWith`, `includes`, `match`), each overriding its own options per route — cache TTLs, dedupe toggles, rate budgets. See [Route Matching](#route-matching).
 
+
+### Reconfiguring at Runtime
+
+
+Policy config keys can be changed after construction — the running policy picks the new values up on the next request:
+
+```typescript
+api.config.set('retry.maxAttempts', 5);                       // deep path
+api.config.set('rateLimitPolicy', { maxCalls: 10, windowMs: 60000 });  // whole key
+api.config.set({ cachePolicy: { ttl: 5000 } });               // merge form
+```
+
+Rules that keep the store truthful:
+
+- Validation runs **before** the store mutates. A rejected `set()` — single key or multi-key merge — changes nothing: `config.get()` keeps reporting the prior value.
+- A policy key owned by a `plugins:`-array plugin cannot be set at runtime (throws the same ownership error construction does) — the plugin instance holds its own config.
+- The cache **adapter** is construction-only: a `set()` that changes `cachePolicy.adapter` throws. Swapping the store would silently drop every cached entry; construct a new engine instead. TTLs, rules, and methods reconfigure in place and existing entries survive.
+- Rate-limit reconfiguration rebuilds token buckets (a new budget starts fresh); cookie reconfiguration never clears the jar.
+
 Policies run in a fixed order (cache check → rate limit → dedupe → retry → network; see [Rate Limiting Order](#rate-limiting-order)), so a cache hit never spends a rate-limit token and deduplicated callers share one retry sequence. Per-call escape hatches exist on every request, and each policy accepts `rules` for per-route overrides — details in the sections below:
 
 ```typescript

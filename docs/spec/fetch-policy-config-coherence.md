@@ -194,3 +194,29 @@ Optional `reconfigure` hook on `FetchPlugin`, invoked by the engine on its own `
 **Why:** Iteration 3 review reproduced a throw-after-mutate coherence violation via the adapter guard placement the original Flow literally prescribed, and surfaced that `config.set('retry.maxAttempts', …)` — the API this spec exists to make real — fails to typecheck because `PathValue` collapses `RetryConfig | false` to `never`.
 
 **Superseded:** Flow 1's post-mutation validation ordering (store commits, then the listener throws) and the unconditional utils non-goal.
+
+
+## Implementation log
+
+### shipped — 2026-07-11
+
+Built across 7 iterations of /subagent-implementation. Commits (chronological):
+
+- `436ae68` — CP-1 reconfigure plumbing: FetchPlugin.reconfigure, engine routing, pre-mutation ownership validation (ConfigStore.onBeforeSet)
+- `5c35d91` — CP-2 per-policy reconfigure on all five plugins; cache adapter guard pre-mutation; utils PathValue union-distribution fix
+- `5087874` — CP-3 attemptTimeout fires when retrying is disabled (shared runAttempt wiring)
+- `b3a45a1` — CP-4/5/6 convenience refs across install paths; per-request retry metadata; falsy-key + plugin warns and installs
+- `0794385` — polish: follow-ups F-2..F-9 closed
+
+**Out-of-scope work performed during this build:**
+
+- `FetchConfig.retry` tightened to `Required<RetryConfig>` (CP-5) — the field was always fully resolved at runtime; the shared-resolution change made the type mismatch visible.
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- The spec's original Flow 1 prescribed post-mutation validation; iteration-3 review reproduced a throw-after-mutate store corruption through it. Spec amended (see Change log) to pre-mutation validation everywhere.
+- `config.set('retry.maxAttempts', …)` — the API this spec exists to make real — failed to typecheck (`PathValue` collapsed `RetryConfig | false` to `never`); the utils non-goal was narrowed to permit the fix.
+
+**Deferred items still open:**
+
+- none — all nine loop follow-ups (F-1..F-9) fixed in-loop per user triage (fix-all-now).

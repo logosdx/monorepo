@@ -103,7 +103,10 @@ const api = new FetchEngine({
 });
 ```
 
-The one exception: a `retryPlugin(...)` in the array with no explicit `retry` config key replaces the auto-installed default retry plugin — that is customization, not a conflict.
+Two softenings of the rule:
+
+- A `retryPlugin(...)` in the array with no explicit `retry` config key replaces the auto-installed default retry plugin — customization, not a conflict.
+- A **falsy** config key (`dedupePolicy: false`, `cookies: false`) plus the same-name plugin warns once at construction and installs the plugin — the falsy key configured nothing, so the plugin is the unambiguous owner. Only truthy keys claim a policy and throw.
 
 
 ## Writing a Custom Plugin

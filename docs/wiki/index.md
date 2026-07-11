@@ -4,7 +4,7 @@ description: LogosDX — pnpm monorepo of 9 @logosdx TypeScript packages (utils 
 ---
 
 <wiki-type>repo</wiki-type>
-<scan-sha>3799214795e382289547d91ae6356475f48750f6</scan-sha>
+<scan-sha>fcb1f6d90f06d498ad83107b5ce49e30622a6f45</scan-sha>
 <wiki-schema>1</wiki-schema>
 
 # Project signals
@@ -39,8 +39,8 @@ CI gate: `main.yml` runs build → lint → `pnpm test:ci` on all PRs and master
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 86,619 | 312 | 65% |
-| Markdown | 32,974 | 93 | 24% |
+| TypeScript | 87,723 | 312 | 65% |
+| Markdown | 33,320 | 96 | 24% |
 | YAML | 8,281 | 8 | 6% |
 | JavaScript | 1,543 | 7 | 1% |
 | HTML | 1,167 | 3 | 0% |
