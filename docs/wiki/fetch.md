@@ -11,7 +11,7 @@ description: HTTP client (`FetchEngine`) with resilience policies, plugins, cook
 
 ## Artifacts
 
-- [`skills/logosdx/references/fetch.md`](../../skills/logosdx/references/fetch.md) — skill reference (1210 LOC) covering plugins, policies, hooks, events
+- [`skills/logosdx/references/fetch.md`](../../skills/logosdx/references/fetch.md) — skill reference (1236 LOC) covering plugins, policies, hooks, events
 
 ## CLI code
 
@@ -33,7 +33,7 @@ description: HTTP client (`FetchEngine`) with resilience policies, plugins, cook
 - [`docs/packages/fetch/events.md`](../packages/fetch/events.md) — lifecycle event reference, including `response-4xx`/`response-5xx`
 - [`docs/packages/fetch/hooks.md`](../packages/fetch/hooks.md) — request/response hook usage
 - [`docs/packages/fetch/plugins.md`](../packages/fetch/plugins.md) — plugin reference (dedupe, cache, rate-limit)
-- [`docs/packages/fetch/policies.md`](../packages/fetch/policies.md) — resilience policy docs (1089 LOC)
+- [`docs/packages/fetch/policies.md`](../packages/fetch/policies.md) — resilience policy docs (1094 LOC)
 - [`docs/packages/fetch/requests.md`](../packages/fetch/requests.md) — request patterns
 - [`docs/packages/fetch/resilience.md`](../packages/fetch/resilience.md) — retry and circuit breaker docs, including outcome-based retry (`FetchResponse | FetchError`)
 - [`packages/fetch/plan.md`](../../packages/fetch/plan.md) — internal design plan (542 LOC)
@@ -43,7 +43,7 @@ description: HTTP client (`FetchEngine`) with resilience policies, plugins, cook
 - Depends on `@logosdx/utils` for `attempt`, flow control, and validation helpers.
 - Depends on `@logosdx/observer` for event emission; `FetchEngine` emits typed lifecycle events.
 - `@logosdx/react` wraps `FetchEngine` via `createFetchContext` in [`packages/react/src/fetch.ts`](../../packages/react/src/fetch.ts); also exports `useQuery`, `useMutation`, `useAsync`, `createApiHooks`. A change to `FetchResponse`/`FetchError` here forces a matching change to `FetchFailure` in [`packages/react/src/types.ts`](../../packages/react/src/types.ts).
-- Tests in [`tests/src/fetch/`](../../tests/src/fetch) cover engine, cookies, policies, serializers, state, adapters.
+- Tests in [`tests/src/fetch/`](../../tests/src/fetch) cover engine, cookies, policies, serializers, state, adapters; [`tests/src/fetch/engine/plugin-resolution.test.ts`](../../tests/src/fetch/engine/plugin-resolution.test.ts) (5 tests) specifically covers config-key/`plugins` array composition and the construction-time conflict throws.
 
 ## Conventions worth knowing
 
@@ -58,3 +58,6 @@ description: HTTP client (`FetchEngine`) with resilience policies, plugins, cook
 - `retryableStatusCodes` is a second retry trigger evaluated against a resolved `ok: false` response, alongside the transport-error trigger; `shouldRetry(outcome, attempt)` receives either shape and narrows with `isFetchError()` — see [`packages/fetch/src/plugins/retry.ts`](../../packages/fetch/src/plugins/retry.ts) and the default `DEFAULT_RETRY_CONFIG.shouldRetry` in [`packages/fetch/src/helpers/validations.ts`](../../packages/fetch/src/helpers/validations.ts). Exhausted HTTP-status retries resolve `ok: false`; they never convert to a throw.
 - `cachePlugin` never writes a non-2xx response to cache ([`packages/fetch/src/plugins/cache.ts`](../../packages/fetch/src/plugins/cache.ts)): the initial store write and SWR background revalidation both skip on `!response.ok`, leaving any existing stale entry untouched. Background revalidation emits `cache-revalidate-error` from three sites: a transport failure (`error` + `outcome`, both the `FetchError`), a non-2xx response (`outcome` only, no `error` key), and a post-revalidation cache-write failure (`error` only, no `outcome` key).
 - The `ResiliencePolicy` base class is exported for building custom policies.
+- `FetchEngine`'s constructor resolves the plugin set via `#resolvePlugins` in [`packages/fetch/src/engine/index.ts`](../../packages/fetch/src/engine/index.ts): config-key policies (`retry`, `dedupePolicy`, `cachePolicy`, `rateLimitPolicy`, `cookies`, built by the sibling private method `#buildLegacyPlugins`) always install, and `opts.plugins` is additive — it no longer silently drops config-key-derived policies the way the prior `opts.plugins ?? buildLegacyPlugins(opts)` logic did.
+- A policy may exist only once: supplying both a config key and its same-name plugin (e.g. `rateLimitPolicy` plus `rateLimitPlugin(...)`), or passing the same policy plugin twice in `plugins`, throws at construction inside `#resolvePlugins`; the check only applies to the five reserved policy names (`retry`, `dedupe`, `cache`, `rate-limit`, `cookies`) — a duplicate non-policy plugin name is not checked.
+- `retryPlugin` is the only config-key policy `#buildLegacyPlugins` installs unconditionally (the other four install only when their config key is truthy); a user-supplied `retryPlugin(...)` in `plugins` with no explicit `retry` key replaces that auto-installed default instead of throwing — the sole non-throwing exception to the single-policy rule. `plugins: []` is therefore a no-op for config-key policies, including the default retry plugin.

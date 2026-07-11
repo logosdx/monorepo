@@ -147,7 +147,7 @@ const api = new FetchEngine({
 
 `rules` is not a rate-limit feature — it is the shared route-matching layer of all three policies. Every rule uses the same matchers (`is` exact-match, `startsWith`, `endsWith`, `includes`, `match` RegExp; AND-combined, except `is` which stands alone) and overrides that policy's own knobs per route: cache TTLs per path, dedupe on/off per path, budgets per path. Serializers are shared the same way ([Request Serializers](#request-serializers)).
 
-Every policy accepts `boolean | config`, supports per-route `rules`, and exists as a standalone plugin factory (`retryPlugin`, `dedupePlugin`, `cachePlugin`, `rateLimitPlugin`). Gotcha: an explicit `plugins: [...]` array replaces ALL config-key policies — including the default retry plugin — so use one style or the other, not both.
+Every policy accepts `boolean | config`, supports per-route `rules`, and exists as a standalone plugin factory (`retryPlugin`, `dedupePlugin`, `cachePlugin`, `rateLimitPlugin`, `cookiePlugin`). Config keys and `plugins: [...]` compose: config keys always apply, and the plugins array adds custom plugins alongside them. A policy can only exist once — passing both a policy's config key and its plugin (or the same policy plugin twice) throws at construction. Exception: a `retryPlugin(...)` in the array with no explicit `retry` key replaces the auto-installed default retry.
 
 ## HTTP Methods
 

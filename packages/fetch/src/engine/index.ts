@@ -6,6 +6,7 @@
 
 import { ObserverEngine } from '@logosdx/observer';
 import { HookEngine } from '@logosdx/hooks';
+import { assert } from '@logosdx/utils';
 
 import type {
     EventMap,
@@ -181,8 +182,9 @@ export class FetchEngine<
         // Request executor - no longer owns policies
         this.#executor = new RequestExecutor(engine);
 
-        // Install plugins: explicit plugins take precedence, otherwise build from legacy config
-        const plugins = opts.plugins ?? this.#buildLegacyPlugins(opts);
+        // Install plugins: config keys always apply, opts.plugins adds custom
+        // plugins, and reserved policy names collide loudly (see #resolvePlugins)
+        const plugins = this.#resolvePlugins(opts);
 
         for (const plugin of plugins) {
 
@@ -191,10 +193,59 @@ export class FetchEngine<
     }
 
     /**
-     * Build plugins from legacy configuration options.
+     * Resolve the final plugin set from config keys and the custom plugins array.
      *
-     * When `opts.plugins` is not provided, this creates plugins from
-     * the traditional config fields (retry, dedupePolicy, cachePolicy, rateLimitPolicy).
+     * Config-key policies (`retry`, `dedupePolicy`, `cachePolicy`,
+     * `rateLimitPolicy`, `cookies`) always install; `opts.plugins` is additive
+     * and never replaces them. A policy may only exist once — two instances
+     * silently double-consume (two rate-limit tokens per request, two caches,
+     * nested retries) — so passing both a policy's config key and its plugin,
+     * or the same policy plugin twice, throws at construction. One exception:
+     * a user-supplied `retry` plugin with no explicit `retry` key replaces the
+     * auto-installed default rather than conflicting.
+     */
+    #resolvePlugins(opts: EngineConfig<H, P, S>): FetchPlugin<H, P, S>[] {
+
+        const configPlugins = this.#buildLegacyPlugins(opts);
+        const customPlugins = opts.plugins ?? [];
+
+        const explicitKeyByName: Record<string, boolean> = {
+            'retry': opts.retry !== undefined,
+            'dedupe': opts.dedupePolicy !== undefined,
+            'cache': opts.cachePolicy !== undefined,
+            'rate-limit': opts.rateLimitPolicy !== undefined,
+            'cookies': opts.cookies !== undefined,
+        };
+
+        const seenPolicyPlugins = new Set<string>();
+
+        for (const plugin of customPlugins) {
+
+            if (!(plugin.name in explicitKeyByName)) continue;
+
+            assert(
+                explicitKeyByName[plugin.name] !== true,
+                `FetchEngine: the '${plugin.name}' plugin conflicts with its config key — configure one or the other, not both`
+            );
+
+            assert(
+                !seenPolicyPlugins.has(plugin.name),
+                `FetchEngine: duplicate '${plugin.name}' plugin — a policy may only be installed once`
+            );
+
+            seenPolicyPlugins.add(plugin.name);
+        }
+
+        const keptConfigPlugins = configPlugins.filter(
+            (plugin) => !seenPolicyPlugins.has(plugin.name)
+        );
+
+        return [...keptConfigPlugins, ...customPlugins];
+    }
+
+    /**
+     * Build plugins from the policy config keys
+     * (retry, dedupePolicy, cachePolicy, rateLimitPolicy, cookies).
      */
     #buildLegacyPlugins(opts: EngineConfig<H, P, S>): FetchPlugin<H, P, S>[] {
 

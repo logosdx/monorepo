@@ -85,6 +85,26 @@ const api2 = new FetchEngine({
 
 For full cookie control (adapter `init()`/`flush()`, direct jar access), use the explicit `plugins` form and hold a reference to the plugin instance.
 
+Config keys and the `plugins` array compose — config keys always apply, and `plugins` adds custom plugins alongside them. One rule: a policy can only exist once. Passing both a policy's config key and its plugin (`rateLimitPolicy` + `rateLimitPlugin(...)`, `cookies` + `cookiePlugin()`, and so on), or the same policy plugin twice, throws at construction — two instances of the same policy would silently double-consume (two rate-limit tokens per request, two caches, nested retries):
+
+```typescript
+// ❌ Throws: 'rate-limit' is configured twice
+const api = new FetchEngine({
+    baseUrl: '...',
+    rateLimitPolicy: { maxCalls: 60 },
+    plugins: [rateLimitPlugin({ maxCalls: 10 })]
+});
+
+// ✅ Custom plugins compose with config keys
+const api = new FetchEngine({
+    baseUrl: '...',
+    rateLimitPolicy: { maxCalls: 60 },
+    plugins: [authPlugin(() => getToken())]
+});
+```
+
+The one exception: a `retryPlugin(...)` in the array with no explicit `retry` config key replaces the auto-installed default retry plugin — that is customization, not a conflict.
+
 
 ## Writing a Custom Plugin
 
