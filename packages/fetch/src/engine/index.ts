@@ -6,7 +6,7 @@
 
 import { ObserverEngine } from '@logosdx/observer';
 import { HookEngine } from '@logosdx/hooks';
-import { assert, isObject, clone, merge } from '@logosdx/utils';
+import { assert, isObject, merge } from '@logosdx/utils';
 
 import type {
     EventMap,
@@ -88,14 +88,14 @@ function isPolicyConfigKey(key: string): key is PolicyConfigKey {
     return key in POLICY_CONFIG_KEYS;
 }
 
-/** Plugin `name` → its owning config key, for the construction-time warn message. */
-const CONFIG_KEY_FOR_POLICY_NAME: Record<string, string> = {
-    retry: 'retry',
-    dedupe: 'dedupePolicy',
-    cache: 'cachePolicy',
-    'rate-limit': 'rateLimitPolicy',
-    cookies: 'cookies',
-};
+/**
+ * Plugin `name` → its owning config key, for the construction-time warn
+ * message. Derived from `POLICY_CONFIG_KEYS` (inverted) so the two maps
+ * can't drift out of lockstep when a policy is added or renamed.
+ */
+const CONFIG_KEY_FOR_POLICY_NAME: Record<string, string> = Object.fromEntries(
+    Object.entries(POLICY_CONFIG_KEYS).map(([configKey, policyName]) => [policyName, configKey])
+);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 
@@ -353,6 +353,9 @@ export class FetchEngine<
      * authority to reconfigure it, so a runtime `config.set()` on that key
      * throws. A config-key-installed policy routes to the plugin's
      * `reconfigure`.
+     *
+     * Doesn't call `#captureConvenienceRef` itself — the constructor's
+     * `use()` loop over these same plugin instances already does that.
      */
     #capturePolicyOwnership(
         keptConfigPlugins: FetchPlugin<H, P, S>[],
@@ -366,7 +369,6 @@ export class FetchEngine<
 
             this.#policyOwnership.set(plugin.name, 'config');
             this.#policyPlugins.set(plugin.name, plugin);
-            this.#captureConvenienceRef(plugin);
         }
 
         for (const plugin of customPlugins) {
@@ -375,7 +377,6 @@ export class FetchEngine<
 
             this.#policyOwnership.set(plugin.name, 'user');
             this.#policyPlugins.set(plugin.name, plugin);
-            this.#captureConvenienceRef(plugin);
         }
     }
 
@@ -498,8 +499,10 @@ export class FetchEngine<
      * already IS the pending value (a path nested into one of the key's own
      * fields isn't a shape any currently-guarded key needs, so it falls
      * through to the same raw value). A merge object deep-merges its
-     * partial into the current value, mirroring `ConfigStore`'s own merge,
-     * so the guard sees the same shape `reconfigure` would see post-commit.
+     * partial into the current value via `utils.merge()` — NOT `ConfigStore`'s
+     * own `#mergeDeep`: `merge()` concatenates arrays while `#mergeDeep`
+     * overwrites them index-wise, so a guard must not rely on an array-typed
+     * field of a merge-form `set()` matching what actually lands in the store.
      */
     #pendingValueFor(configKey: PolicyConfigKey, data: EventsOptionsEventData): unknown {
 
@@ -515,7 +518,9 @@ export class FetchEngine<
 
         if (isPlainObject(current) && isPlainObject(partial)) {
 
-            return merge(clone(current), partial);
+            // `current` is already a fresh clone from `config.get()` — safe
+            // to merge into directly without cloning again.
+            return merge(current, partial);
         }
 
         return partial;

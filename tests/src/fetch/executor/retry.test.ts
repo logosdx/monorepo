@@ -811,6 +811,32 @@ describe('@logosdx/fetch: retry', async () => {
 
             api.destroy();
         });
+
+        it('rejects at ~totalTimeout ms when retry: false and attemptTimeout is unset (totalTimeout only)', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: false,
+                totalTimeout: 60,
+            });
+
+            const start = Date.now();
+
+            // /wait hangs 1000ms - proves the abort fires from totalTimeout,
+            // not from the endpoint eventually resolving. No attemptTimeout is
+            // set, so this exercises the zero-attempts path's other timedOut
+            // trigger: normalizedOpts.getTotalTimeoutFired().
+            const [, err] = await attempt(() => api.get('/wait'));
+
+            const end = Date.now();
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+            expect(end - start).to.be.lessThan(500);
+
+            api.destroy();
+        });
     });
 
     describe('totalTimeout feature', () => {

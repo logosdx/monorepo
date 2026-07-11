@@ -65,6 +65,13 @@ type Test7 = PathValue<TestData, 'settings.lang'> // string
 type Test8 = PathValue<TestData, 'items.0'> // string
 type Test9 = PathValue<TestData, 'matrix.0.1'> // number
 
+// A key typed as a union with a primitive member (e.g. `Config | false`)
+// must distribute over the union instead of collapsing to `never`.
+interface RetryConfigLike {
+    maxAttempts: number
+}
+type Test10 = PathValue<{ retry: RetryConfigLike | false }, 'retry.maxAttempts'> // number
+
 // Verify the types resolve correctly (compile-time type tests)
 // @ts-expect-error - unused vars are intentional for type testing
 const _test1: Test1 = 'string'
@@ -84,6 +91,8 @@ const _test7: Test7 = 'en'
 const _test8: Test8 = 'item'
 // @ts-expect-error - unused vars are intentional for type testing
 const _test9: Test9 = 42
+// @ts-expect-error - unused vars are intentional for type testing
+const _test10: Test10 = 3
 
 // PathNames should generate all these paths
 // @ts-expect-error - unused type is intentional for documentation

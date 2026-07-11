@@ -332,8 +332,7 @@ export type MethodHeaders<T> = HttpMethodOpts<DictAndT<T>>;
  * // Configuration contains merged settings from instance and request
  * const config: FetchConfig = {
  *     baseUrl: 'https://api.example.com',
- *     timeout: 5000,
- *     retry: { maxAttempts: 3 },
+ *     totalTimeout: 5000,
  *     headers: { 'Authorization': 'Bearer token' }
  * };
  */
