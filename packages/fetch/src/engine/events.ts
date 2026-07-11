@@ -257,6 +257,9 @@ export interface EventMap<S = unknown, H = unknown, P = unknown> {
     'ratelimit-wait': RateLimitEventData<S, H, P>;
     'ratelimit-reject': RateLimitEventData<S, H, P>;
     'ratelimit-acquire': RateLimitEventData<S, H, P>;
+
+    /** Terminal event for a wait that ended because the request aborted. Pairs with `ratelimit-wait`. */
+    'ratelimit-abort': RateLimitEventData<S, H, P>;
 }
 
 

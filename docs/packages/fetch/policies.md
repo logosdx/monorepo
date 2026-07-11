@@ -11,6 +11,83 @@ FetchEngine provides three resilience policies that share a common architecture:
 [[toc]]
 
 
+## Using Policies Together
+
+
+Policies are config keys, not wrappers you write. Before reaching for a retry loop, an in-flight promise map, a response cache, or a throttle around FetchEngine, wire the policy instead — each one is a line of config, and they compose on a single engine:
+
+```typescript
+import { FetchEngine } from '@logosdx/fetch';
+import { attempt } from '@logosdx/utils';
+
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+
+    // Transport resilience: 3 attempts with exponential backoff
+    retry: {
+        maxAttempts: 3,
+        baseDelay: 150
+    },
+
+    // Concurrent identical GETs share one in-flight request
+    dedupePolicy: true,
+
+    // Cache reads; serve stale while revalidating in the background
+    cachePolicy: {
+        ttl: 30000,
+        staleIn: 10000,
+        rules: [
+            { startsWith: '/reports', ttl: 300000 },   // expensive queries: cache 5 min
+            { is: '/session', enabled: false }          // never cache auth state
+        ]
+    },
+
+    // Stay under the provider's 60 req/min; excess requests wait for a token
+    rateLimitPolicy: {
+        maxCalls: 60,
+        windowMs: 60000,
+        waitForToken: true,
+        rules: [
+            { startsWith: '/exports', waitForToken: false }   // bulk work fails fast instead
+        ]
+    }
+});
+
+// Every call now gets retry + dedupe + cache + rate limiting. No wrappers needed.
+const [res, err] = await attempt(() => api.get<Loan[]>('/loans', { totalTimeout: 5000 }));
+
+if (err) {
+    // Transport failure — includes a rate-limit wait cut short by totalTimeout
+    console.error('Request failed:', err.message);
+    return;
+}
+
+if (!res.ok) {
+    console.error('Server said no:', res.status);
+    return;
+}
+
+console.log('Loans:', res.data);
+```
+
+What each key replaces:
+
+| Hand-rolled version | Policy |
+|---|---|
+| Retry loop, `p-retry` | `retry` |
+| In-flight promise map keyed by URL | `dedupePolicy` |
+| Response cache, `lru-cache`, SWR wrapper | `cachePolicy` |
+| Token bucket, `setTimeout` throttle, `p-queue` | `rateLimitPolicy` |
+| A second FetchEngine so one endpoint gets its own limit | `rules` — each matched rule gets an isolated bucket |
+| Per-endpoint variants of any of the above | `rules` on each policy |
+
+One engine covers many budgets. Needing a different limit for `/embed` than `/query` is a `rules` entry (`{ is: '/embed', maxCalls: 10 }`), not a reason to instantiate a second client — each matched rule gets its own token bucket, and a per-rule `serializer` can split buckets even further (per user, per payload field).
+
+`rules` is not specific to rate limiting: all three policies share the same route-matching layer (`is`, `startsWith`, `endsWith`, `includes`, `match`), each overriding its own options per route — cache TTLs, dedupe toggles, rate budgets. See [Route Matching](#route-matching).
+
+Policies run in a fixed order (cache check → rate limit → dedupe → retry → network; see [Rate Limiting Order](#rate-limiting-order)), so a cache hit never spends a rate-limit token and deduplicated callers share one retry sequence. Per-call escape hatches exist on every request (`totalTimeout`, `attemptTimeout`, `abortController`), and each policy accepts `rules` for per-route overrides — details in the sections below.
+
+
 ## Request Deduplication
 
 
@@ -460,6 +537,7 @@ Rate limiting uses a token bucket that refills continuously:
 - If no tokens available:
   - `waitForToken: true` → waits until token available
   - `waitForToken: false` → throws `RateLimitError` immediately
+- The wait observes the request's abort signal (`totalTimeout`, `timeout`, or a manual `abortController.abort()`): an aborted request stops waiting promptly, never consumes a token, and rejects with a `FetchError` (`status: 499`, `aborted: true`, and `timedOut: true` when the abort came from `totalTimeout`)
 
 ```typescript
 // Example: 10 requests per minute = 1 token every 6 seconds
@@ -499,6 +577,16 @@ api.on('ratelimit-acquire', (event) => {
         key: event.key,
         currentTokens: event.currentTokens,  // Remaining tokens
         capacity: event.capacity
+    });
+});
+
+// Emitted when a wait ends because the request aborted
+// (totalTimeout fired or the caller aborted). Terminal pair
+// of `ratelimit-wait` — every wait ends in acquire or abort.
+api.on('ratelimit-abort', (event) => {
+    console.log('Wait abandoned:', {
+        key: event.key,
+        waitTimeMs: event.waitTimeMs  // How long the request actually waited
     });
 });
 ```

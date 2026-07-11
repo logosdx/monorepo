@@ -18,6 +18,7 @@ Use this skill for LogosDX setup and integration. Read only the reference file(s
 
 - Define type shapes first (`headers`, `params`, `state`, `events`, storage schema, locale shape).
 - Use `attempt()`/`attemptSync()` for **all** I/O and error-prone operations — storage, fetch, invoke sources, queue processors, DOM mutations. Never use try-catch. The error tuple is the only sanctioned error handling pattern (see `references/utils.md`).
+- **Never hand-roll HTTP resilience around `FetchEngine`.** Retry, request deduplication, response caching (TTL + stale-while-revalidate), token-bucket rate limiting, and per-route rules are built-in config keys (`retry`, `dedupePolicy`, `cachePolicy`, `rateLimitPolicy`). Do not write retry loops, in-flight promise maps, response caches, or throttles — and do not add p-retry/p-queue/lru-cache — before checking `references/fetch.md` § Built-in Resilience Policies. Different limits per endpoint means `rules` on one engine (each rule gets its own bucket), never a second FetchEngine instance.
 - Always clean up resources (`cleanup()`, `off()`, `destroy()`).
 - Keep React hook methods at component top level only.
 

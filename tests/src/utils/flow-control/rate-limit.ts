@@ -192,6 +192,111 @@ describe('@logosdx/utils - RateLimit', () => {
             expect(bucket.tokens).to.equal(0); // should not consume if aborted
         });
 
+        it('should abandon waitAndConsume promptly when aborted mid-wait', async () => {
+            // Use real timers for this async test
+            vi.useRealTimers();
+
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 400 });
+            bucket.consume(); // exhaust tokens
+
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 40);
+
+            const waitStart = Date.now();
+            const success = await bucket.waitAndConsume(1, {
+                abortController: controller
+            });
+            const elapsed = Date.now() - waitStart;
+
+            expect(success).to.equal(false);
+            expect(elapsed).to.be.lessThan(300); // must not park for the full refill
+
+            // The refilled token belongs to the next caller, not the aborted one
+            await wait(450);
+            expect(bucket.consume(1)).to.equal(true);
+        });
+
+        it('should not consume on the fast path when already aborted', async () => {
+
+            const bucket = new RateLimitTokenBucket({ capacity: 2, refillIntervalMs: 100 });
+
+            const controller = new AbortController();
+            controller.abort();
+
+            const success = await bucket.waitAndConsume(1, {
+                abortController: controller
+            });
+
+            expect(success).to.equal(false);
+            expect(bucket.tokens).to.equal(2); // tokens were available but the caller was dead
+        });
+
+        it('should abandon waitAndConsume when abort fires inside onRateLimit', async () => {
+            // Use real timers for this async test
+            vi.useRealTimers();
+
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 300 });
+            bucket.consume();
+
+            const controller = new AbortController();
+
+            const waitStart = Date.now();
+            const success = await bucket.waitAndConsume(1, {
+                abortController: controller,
+                onRateLimit: async () => {
+                    controller.abort();
+                }
+            });
+            const elapsed = Date.now() - waitStart;
+
+            expect(success).to.equal(false);
+            expect(elapsed).to.be.lessThan(150); // must not sleep out the refill
+        });
+
+        it('should resolve waitForToken true when a token is available', async () => {
+
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 100 });
+
+            const available = await bucket.waitForToken();
+
+            expect(available).to.equal(true);
+            expect(bucket.tokens).to.equal(1); // waitForToken never consumes
+        });
+
+        it('should resolve waitForToken false when already aborted', async () => {
+
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 100 });
+
+            const controller = new AbortController();
+            controller.abort();
+
+            const available = await bucket.waitForToken(1, {
+                abortController: controller
+            });
+
+            expect(available).to.equal(false); // token available, but caller is dead
+        });
+
+        it('should resolve waitForToken false promptly when aborted mid-wait', async () => {
+            // Use real timers for this async test
+            vi.useRealTimers();
+
+            const bucket = new RateLimitTokenBucket({ capacity: 1, refillIntervalMs: 400 });
+            bucket.consume();
+
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 40);
+
+            const waitStart = Date.now();
+            const available = await bucket.waitForToken(1, {
+                abortController: controller
+            });
+            const elapsed = Date.now() - waitStart;
+
+            expect(available).to.equal(false);
+            expect(elapsed).to.be.lessThan(300);
+        });
+
         it('should respect count parameter in waitAndConsume', async () => {
             // Use real timers for this async test
             vi.useRealTimers();

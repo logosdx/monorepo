@@ -8,6 +8,7 @@ import {
     attempt,
     attemptSync,
     wait,
+    waitWithAbort,
     runInSeries,
     makeInSeries,
     nextLoop,
@@ -277,5 +278,87 @@ describe('@logosdx/utils - Misc', () => {
             expect(executed).to.be.true;
         });
 
+    });
+
+    describe('waitWithAbort', () => {
+
+        it('should resolve with value after the delay when no abort fires', async () => {
+
+            const start = Date.now();
+            const result = await waitWithAbort({ ms: 20, value: 'done' });
+
+            expect(result).to.equal('done');
+            expect(Date.now() - start).to.be.greaterThanOrEqual(15);
+        });
+
+        it('should work without a signal', async () => {
+
+            const result = await waitWithAbort({ ms: 10, value: 'no-signal' });
+
+            expect(result).to.equal('no-signal');
+        });
+
+        it('should settle early when the signal aborts mid-wait', async () => {
+
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 20);
+
+            const start = Date.now();
+            const result = await waitWithAbort({
+                ms: 5000,
+                signal: controller.signal,
+                value: 'elapsed',
+                valueOnAbort: 'aborted'
+            });
+
+            expect(result).to.equal('aborted');
+            expect(Date.now() - start).to.be.lessThan(500); // must not sleep out the 5s
+        });
+
+        it('should settle immediately when the signal is already aborted', async () => {
+
+            const controller = new AbortController();
+            controller.abort();
+
+            const start = Date.now();
+            const result = await waitWithAbort({
+                ms: 5000,
+                signal: controller.signal,
+                valueOnAbort: 'aborted'
+            });
+
+            expect(result).to.equal('aborted');
+            expect(Date.now() - start).to.be.lessThan(50);
+        });
+
+        it('should reject with an Error when throwOnAbort is a string', async () => {
+
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 10);
+
+            const [, error] = await attempt(() => waitWithAbort({
+                ms: 5000,
+                signal: controller.signal,
+                throwOnAbort: 'wait aborted'
+            }));
+
+            expect(error).to.be.an.instanceof(Error);
+            expect(error!.message).to.equal('wait aborted');
+        });
+
+        it('should reject with the given Error when throwOnAbort is an Error', async () => {
+
+            const controller = new AbortController();
+            const boom = new Error('boom');
+            setTimeout(() => controller.abort(), 10);
+
+            const [, error] = await attempt(() => waitWithAbort({
+                ms: 5000,
+                signal: controller.signal,
+                throwOnAbort: boom
+            }));
+
+            expect(error).to.equal(boom);
+        });
     });
 });

@@ -14,6 +14,7 @@ import type { FetchPlugin, FetchEnginePublic, InternalReqOptions } from '../engi
 import { ResiliencePolicy } from './base.ts';
 import { endpointSerializer } from '../serializers/index.ts';
 import { validateMatchRules } from './helpers.ts';
+import { FetchError } from '../helpers/fetch-error.ts';
 
 
 /**
@@ -303,6 +304,24 @@ export function rateLimitPlugin<H = unknown, P = unknown, S = unknown>(
                     nextAvailable: bucket.getNextAvailable(1),
                 };
 
+                const throwAborted = (waitedMs: number): never => {
+
+                    engine.emit('ratelimit-abort', {
+                        ...eventData,
+                        waitTimeMs: waitedMs,
+                    });
+
+                    const err = new FetchError('Request aborted while waiting for rate limit token');
+                    err.aborted = true;
+                    err.method = method;
+                    err.path = path;
+                    err.status = 499;
+                    err.step = 'fetch';
+                    err.timedOut = normalizedOpts.getTotalTimeoutFired?.() ?? false;
+
+                    throw err;
+                };
+
                 if (waitTimeMs > 0) {
 
                     if (!ruleConfig.waitForToken) {
@@ -325,15 +344,15 @@ export function rateLimitPlugin<H = unknown, P = unknown, S = unknown>(
                         );
                     }
 
+                    const waitStart = Date.now();
+
                     const acquired = await bucket.waitAndConsume(1, {
                         abortController: controller,
                     });
 
                     if (!acquired) {
 
-                        const err = new Error('Request aborted while waiting for rate limit');
-                        (err as any).aborted = true;
-                        throw err;
+                        throwAborted(Date.now() - waitStart);
                     }
 
                     const postWaitSnapshot = bucket.snapshot;
@@ -348,6 +367,12 @@ export function rateLimitPlugin<H = unknown, P = unknown, S = unknown>(
                     } as any);
                 }
                 else {
+
+                    // A dead request must not spend a live token
+                    if (controller.signal.aborted) {
+
+                        throwAborted(0);
+                    }
 
                     bucket.consume(1);
 

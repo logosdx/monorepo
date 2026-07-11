@@ -143,8 +143,10 @@ const rateLimit: <T extends Func>(fn: T, options: RateLimitOptions<T> | RateLimi
 class RateLimitTokenBucket {
   constructor(config: RateLimitTokenBucket.Config)
   consume(count?: number): boolean
-  waitForToken(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<void>
+  waitForToken(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<boolean>
   waitAndConsume(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<boolean>
+  // Both waits observe abortController and resolve false on abort — promptly,
+  // without consuming a token. A false from waitForToken means: do NOT consume.
   hasTokens(count?: number): boolean
   get tokens(): number
   get snapshot(): { currentTokens: number; capacity: number; rejectionRate: number; /* ... */ }

@@ -160,6 +160,74 @@ export const wait = <T>(ms: number, value: T = true as T) => {
 
     return promise;
 };
+
+export type WaitWithAbortOptions<T = undefined, U = T> = {
+    ms: number,
+    signal?: AbortSignal | undefined,
+    value?: T | undefined,
+    throwOnAbort?: string | Error | undefined,
+    valueOnAbort?: U | undefined,
+};
+
+export const waitWithAbort = <T, U = T>(opts: WaitWithAbortOptions<T, U>) => {
+
+    let timeout: NodeJS.Timeout | number;
+    const deferred = new Deferred<T | U | undefined>();
+
+    const settleAborted = () => {
+
+        if (
+            opts.signal?.aborted &&
+            opts.throwOnAbort
+        ) {
+            deferred.reject(
+                opts.throwOnAbort instanceof Error ?
+                    opts.throwOnAbort :
+                    new Error(opts.throwOnAbort)
+            );
+
+            return;
+        }
+
+        deferred.resolve(
+            opts.signal?.aborted &&
+                opts.valueOnAbort !== undefined ?
+                opts.valueOnAbort as T :
+                opts.value
+        );
+    }
+
+    if (opts.signal?.aborted) {
+
+        settleAborted();
+
+        const settled = deferred.promise as TimeoutPromise<T | U | undefined>;
+        settled.clear = () => {};
+
+        return settled;
+    }
+
+    const onAbort = () => {
+
+        clearTimeout(timeout);
+        settleAborted();
+    }
+
+    timeout = setTimeout(() => {
+
+        opts.signal?.removeEventListener('abort', onAbort);
+        deferred.resolve(opts.value);
+
+    }, opts.ms);
+
+    opts.signal?.addEventListener('abort', onAbort);
+
+    const promise = deferred.promise as TimeoutPromise<T | U | undefined>;
+    promise.clear = onAbort;
+
+    return promise;
+}
+
 type ExtractParameters<T> = T extends (...args: infer P) => any ? P : never;
 type ExtractReturn<T> = T extends (...args: any[]) => infer R ? R : never;
 type ParamsOfParams<T> = { [K in keyof T]: ExtractParameters<T[K]> };

@@ -11,7 +11,7 @@ description: HTTP client (`FetchEngine`) with resilience policies, plugins, cook
 
 ## Artifacts
 
-- [`skills/logosdx/references/fetch.md`](../../skills/logosdx/references/fetch.md) — skill reference (1161 LOC) covering plugins, policies, hooks, events
+- [`skills/logosdx/references/fetch.md`](../../skills/logosdx/references/fetch.md) — skill reference (1210 LOC) covering plugins, policies, hooks, events
 
 ## CLI code
 
@@ -33,7 +33,7 @@ description: HTTP client (`FetchEngine`) with resilience policies, plugins, cook
 - [`docs/packages/fetch/events.md`](../packages/fetch/events.md) — lifecycle event reference, including `response-4xx`/`response-5xx`
 - [`docs/packages/fetch/hooks.md`](../packages/fetch/hooks.md) — request/response hook usage
 - [`docs/packages/fetch/plugins.md`](../packages/fetch/plugins.md) — plugin reference (dedupe, cache, rate-limit)
-- [`docs/packages/fetch/policies.md`](../packages/fetch/policies.md) — resilience policy docs (1006 LOC)
+- [`docs/packages/fetch/policies.md`](../packages/fetch/policies.md) — resilience policy docs (1089 LOC)
 - [`docs/packages/fetch/requests.md`](../packages/fetch/requests.md) — request patterns
 - [`docs/packages/fetch/resilience.md`](../packages/fetch/resilience.md) — retry and circuit breaker docs, including outcome-based retry (`FetchResponse | FetchError`)
 - [`packages/fetch/plan.md`](../../packages/fetch/plan.md) — internal design plan (542 LOC)
@@ -54,6 +54,7 @@ description: HTTP client (`FetchEngine`) with resilience policies, plugins, cook
 - Errors-as-values extends to HTTP outcomes: a non-2xx response is a resolved value, not an exception — callers narrow with `res.ok`, same as they narrow `err` from `attempt()`.
 - `FetchError` carries no `data` field or `T` generic (it's transport-only); `step` narrows to `'fetch' | 'parse'` (the `'response'` step was removed) — see [`packages/fetch/src/helpers/fetch-error.ts`](../../packages/fetch/src/helpers/fetch-error.ts).
 - Events: `response` fires for every completed exchange regardless of status; `response-4xx`/`response-5xx` fire additionally alongside it for their status ranges; `error` fires only for transport failures and parse-on-`ok:true` (the single `emit('error', ...)` call site is `#handleError` in [`packages/fetch/src/engine/executor.ts`](../../packages/fetch/src/engine/executor.ts)) — a rate-limit reject fires `ratelimit-reject` instead and never reaches `'error'`; `retry` carries an `outcome: FetchResponse | FetchError` field (`RetryEventData` in [`packages/fetch/src/engine/events.ts`](../../packages/fetch/src/engine/events.ts)).
+- Rate-limit token waits are abort-aware: `ratelimit-abort` (`RateLimitEventData` in [`packages/fetch/src/engine/events.ts`](../../packages/fetch/src/engine/events.ts)) is a terminal event pairing with `ratelimit-wait`, fired when a request parked waiting for a token has its `AbortController` fire — whether before, during, or after the wait. When that happens, [`packages/fetch/src/plugins/rate-limit.ts`](../../packages/fetch/src/plugins/rate-limit.ts) emits `ratelimit-abort` (carrying `waitTimeMs` as the elapsed wait) and throws a `FetchError` (`status: 499`, `aborted: true`, `method`, `path`, `step: 'fetch'`, `timedOut` reflecting whether `totalTimeout` caused the abort) instead of a bare `Error`. On the synchronous no-wait path, an already-aborted request also skips `bucket.consume(1)` and throws the same aborted `FetchError` rather than spending a live token.
 - `retryableStatusCodes` is a second retry trigger evaluated against a resolved `ok: false` response, alongside the transport-error trigger; `shouldRetry(outcome, attempt)` receives either shape and narrows with `isFetchError()` — see [`packages/fetch/src/plugins/retry.ts`](../../packages/fetch/src/plugins/retry.ts) and the default `DEFAULT_RETRY_CONFIG.shouldRetry` in [`packages/fetch/src/helpers/validations.ts`](../../packages/fetch/src/helpers/validations.ts). Exhausted HTTP-status retries resolve `ok: false`; they never convert to a throw.
 - `cachePlugin` never writes a non-2xx response to cache ([`packages/fetch/src/plugins/cache.ts`](../../packages/fetch/src/plugins/cache.ts)): the initial store write and SWR background revalidation both skip on `!response.ok`, leaving any existing stale entry untouched. Background revalidation emits `cache-revalidate-error` from three sites: a transport failure (`error` + `outcome`, both the `FetchError`), a non-2xx response (`outcome` only, no `error` key), and a post-revalidation cache-write failure (`error` only, no `outcome` key).
 - The `ResiliencePolicy` base class is exported for building custom policies.

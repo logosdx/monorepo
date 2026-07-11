@@ -414,8 +414,10 @@ class RateLimitTokenBucket {
     waitForToken(count?: number, options?: {
         onRateLimit?: Function
         abortController?: AbortController
-    }): Promise<void>
+    }): Promise<boolean>  // true = token available; false = aborted, do NOT consume
     waitAndConsume(count?: number, options?: { ... }): Promise<boolean>
+    // Both waits observe abortController: an abort settles the wait
+    // promptly and an aborted caller never consumes a token
 
     get tokens(): number
     get snapshot(): BucketSnapshot
@@ -448,7 +450,7 @@ const bucket = new RateLimitTokenBucket({
     refillIntervalMs: 1000  // Refill 1 token per second
 })
 
-const makeAPICall = async (data: any) => {
+const makeAPICall = async (data: any, abortController?: AbortController) => {
 
     // Check if we can proceed
     if (!bucket.hasTokens()) {
@@ -456,11 +458,18 @@ const makeAPICall = async (data: any) => {
         console.log('Rate limit reached, waiting...')
     }
 
-    // Wait for token to be available
-    await bucket.waitForToken(1, {
+    // Wait for a token; false means the wait was aborted
+    const available = await bucket.waitForToken(1, {
         onRateLimit: () => console.log('Waiting for rate limit...'),
-        abortController: new AbortController()
+        abortController
     })
+
+    if (!available) {
+
+        return [null, new Error('Request aborted while waiting for rate limit')]
+    }
+
+    bucket.consume(1)
 
     // Make the call
     const [result, err] = await attempt(() => fetch('/api/data', {
@@ -808,6 +817,50 @@ for (const item of items) {
     await processItem(item)
     await wait(100) // Throttle processing
 }
+```
+
+---
+
+## `waitWithAbort()`
+
+Like `wait()`, but the sleep races an `AbortSignal`: an abort settles the promise immediately instead of sleeping out the full delay. Timers and signal listeners are cleaned up on both outcomes, so it is safe with long-lived shared controllers.
+
+```ts
+function waitWithAbort<T, U = T>(opts: {
+    ms: number
+    signal?: AbortSignal        // Settles early when this fires
+    value?: T                   // Resolved when the delay elapses
+    valueOnAbort?: U            // Resolved when the signal aborts (defaults to value)
+    throwOnAbort?: string | Error  // Reject on abort instead of resolving
+}): TimeoutPromise<T | U | undefined>
+```
+
+**Example:**
+
+```ts
+import { waitWithAbort } from '@logosdx/utils'
+
+const controller = new AbortController()
+
+// Sleeps 30s — unless the controller aborts first
+const outcome = await waitWithAbort({
+    ms: 30_000,
+    signal: controller.signal,
+    value: 'elapsed',
+    valueOnAbort: 'aborted'
+})
+
+if (outcome === 'aborted') {
+
+    console.log('Caller gave up — stop waiting')
+}
+
+// Or reject on abort instead
+const [, err] = await attempt(() => waitWithAbort({
+    ms: 30_000,
+    signal: controller.signal,
+    throwOnAbort: 'wait aborted'
+}))
 ```
 
 ---

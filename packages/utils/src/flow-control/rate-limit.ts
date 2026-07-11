@@ -1,7 +1,7 @@
-import { wait } from './misc.ts';
+import { waitWithAbort } from './misc.ts';
 import { assert, assertOptional, isFunction, isPlainObject } from '../validation/index.ts';
 import { assertNotWrapped, markWrapped } from '../_helpers.ts';
-import { Func } from '../types.ts';
+import { Func, MaybePromise } from '../types.ts';
 
 /**
  * Token bucket implementation of rate limiting with optional persistence support.
@@ -284,6 +284,10 @@ export class RateLimitTokenBucket {
      * Waits for the next token to be available before
      * allowing the caller to proceed.
      *
+     * Resolves `true` when a token is available and `false` when the wait
+     * was abandoned because `abortController` fired. A `false` result means
+     * no token was secured — the caller must not `consume()`.
+     *
      * @param onRateLimit - Callback to invoke when the rate limit is exceeded
      *
      * @example
@@ -292,22 +296,20 @@ export class RateLimitTokenBucket {
      *     refillIntervalMs: 1000
      * });
      *
-     * await bucket.waitForToken(() => {
-     *     console.log('Rate limit exceeded');
-     * });
-     * console.log('Token available');
+     * const available = await bucket.waitForToken(1, { abortController });
      *
-     * bucket.consume();
-     * console.log('Token consumed');
+     * if (available) {
+     *     bucket.consume();
+     * }
      */
     async waitForToken(
         count: number = 1,
         opts: {
-            onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => void) | undefined,
+            onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => MaybePromise<void>) | undefined,
             abortController?: AbortController | undefined,
             jitterFactor?: number | undefined
         } = {}
-    ) {
+    ): Promise<boolean> {
 
         const {
             onRateLimit,
@@ -315,32 +317,56 @@ export class RateLimitTokenBucket {
             jitterFactor = 0
         } = opts;
 
-        // Check if tokens are already available without consuming them
         this.#refill();
-        if (this.#tokens >= count) return;
+
+        // An aborted caller gets no token even when one is available
+        if (abortController?.signal?.aborted) return false;
+
+        // Check if tokens are already available without consuming them
+        if (this.#tokens >= count) return true;
 
         const waitStart = Date.now();
         this.#stats.waitCount++;
 
         while (this.#tokens < count) {
 
-            if (abortController?.signal?.aborted) return;
+            if (abortController?.signal?.aborted) {
+
+                this.#stats.totalWaitTime += Date.now() - waitStart;
+                return false;
+            }
 
             await onRateLimit?.(
                 new RateLimitError('Rate limit exceeded', this.capacity),
                 this.getNextAvailable(count)
             );
 
-            await wait(this.getWaitTimeMs(count) + Math.random() * jitterFactor);
+            await waitWithAbort({
+                ms: this.getWaitTimeMs(count) + Math.random() * jitterFactor,
+                signal: abortController?.signal
+            });
+
+            if (abortController?.signal?.aborted) {
+
+                this.#stats.totalWaitTime += Date.now() - waitStart;
+                return false;
+            }
+
             this.#refill();
         }
 
         const waitEnd = Date.now();
         this.#stats.totalWaitTime += waitEnd - waitStart;
+
+        return true;
     }
 
     /**
      * Waits for tokens to be available and consumes them atomically.
+     *
+     * Resolves `true` when tokens were consumed and `false` when the wait
+     * was abandoned because `abortController` fired — before, during, or
+     * after the wait. An aborted caller never consumes a token.
      *
      * @param onRateLimit - Callback to invoke when the rate limit is exceeded
      *
@@ -350,15 +376,16 @@ export class RateLimitTokenBucket {
      *     refillIntervalMs: 1000
      * });
      *
-     * await bucket.waitAndConsume(() => {
-     *     console.log('Rate limit exceeded');
-     * });
-     * console.log('Token acquired and consumed');
+     * const acquired = await bucket.waitAndConsume(1, { abortController });
+     *
+     * if (acquired) {
+     *     console.log('Token acquired and consumed');
+     * }
      */
     async waitAndConsume(
         count: number = 1,
         opts: {
-            onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => void) | undefined,
+            onRateLimit?: ((error: RateLimitError, nextAvailable: Date) => MaybePromise<void>) | undefined,
             abortController?: AbortController | undefined,
             jitterFactor?: number | undefined
         } = {}
@@ -374,6 +401,13 @@ export class RateLimitTokenBucket {
         this.#refill();
         this.#stats.totalRequests++;
 
+        // An aborted caller never consumes — even when tokens are available
+        if (abortController?.signal?.aborted) {
+
+            this.#stats.rejectedRequests++;
+            return false;
+        }
+
         if (this.#tokens >= count) {
 
             this.#tokens -= count;
@@ -388,6 +422,7 @@ export class RateLimitTokenBucket {
             if (abortController?.signal?.aborted) {
 
                 this.#stats.rejectedRequests++;
+                this.#stats.totalWaitTime += Date.now() - waitStart;
                 return false;
             }
 
@@ -396,7 +431,18 @@ export class RateLimitTokenBucket {
                 this.getNextAvailable(count)
             );
 
-            await wait(this.getWaitTimeMs(count) + Math.random() * jitterFactor);
+            await waitWithAbort({
+                ms: this.getWaitTimeMs(count) + Math.random() * jitterFactor,
+                signal: abortController?.signal
+            });
+
+            if (abortController?.signal?.aborted) {
+
+                this.#stats.rejectedRequests++;
+                this.#stats.totalWaitTime += Date.now() - waitStart;
+                return false;
+            }
+
             this.#refill();
         }
 
@@ -636,7 +682,7 @@ export function rateLimit<T extends Func>(
         });
     }
 
-    const rateLimitedFunction = async function(...args: Parameters<T>): Promise<ReturnType<T>> {
+    const rateLimitedFunction = async function (...args: Parameters<T>): Promise<ReturnType<T>> {
 
         // Load state before checking if the bucket is saveable
         if (tokenBucket.isSaveable) {

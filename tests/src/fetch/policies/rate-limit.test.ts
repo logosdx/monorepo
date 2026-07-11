@@ -6,6 +6,8 @@ import {
 
 import {
     FetchEngine,
+    FetchError,
+    isFetchError,
 } from '@logosdx/fetch';
 
 import {
@@ -1056,6 +1058,98 @@ describe('@logosdx/fetch: rate limiting', async () => {
             expect(eventData!.nextAvailable).to.be.instanceOf(Date);
             expect(eventData!.path).to.equal('/json');
             expect(eventData!.method).to.equal('GET');
+
+            api.destroy();
+        });
+    });
+
+
+    describe('abort during token wait', () => {
+
+        it('should reject promptly with a FetchError when totalTimeout fires mid-wait', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                rateLimitPolicy: {
+                    maxCalls: 1,
+                    windowMs: 800,
+                    waitForToken: true
+                }
+            });
+
+            const acquireEvents: string[] = [];
+            const abortEvents: FetchEngine.RateLimitEventData[] = [];
+
+            api.on('ratelimit-acquire', (data) => {
+
+                acquireEvents.push(data.path!);
+            });
+
+            api.on('ratelimit-abort', (data) => {
+
+                abortEvents.push(data);
+            });
+
+            await api.get('/json'); // drains the single token
+
+            const waitStart = Date.now();
+            const [, error] = await attempt(() => api.get('/json', { totalTimeout: 50 }));
+            const elapsed = Date.now() - waitStart;
+
+            expect(error).to.be.an.instanceof(FetchError);
+            if (!isFetchError(error)) throw new Error('expected a FetchError');
+
+            expect(error.status).to.equal(499);
+            expect(error.aborted).to.equal(true);
+            expect(error.timedOut).to.equal(true);
+
+            expect(elapsed).to.be.lessThan(600); // must not park for the full window
+
+            expect(acquireEvents.length).to.equal(1); // only the first request acquired
+            expect(abortEvents.length).to.equal(1);   // the wait got its terminal event
+            expect(abortEvents[0]!.key).to.equal('GET|/json');
+
+            api.destroy();
+        });
+
+        it('should not consume a token for a request that is already aborted', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                rateLimitPolicy: {
+                    maxCalls: 5,
+                    windowMs: 60000,
+                    waitForToken: true
+                }
+            });
+
+            const acquireEvents: string[] = [];
+            const abortEvents: FetchEngine.RateLimitEventData[] = [];
+
+            api.on('ratelimit-acquire', (data) => {
+
+                acquireEvents.push(data.path!);
+            });
+
+            api.on('ratelimit-abort', (data) => {
+
+                abortEvents.push(data);
+            });
+
+            const controller = new AbortController();
+            controller.abort();
+
+            const [, error] = await attempt(() => api.get('/json', { abortController: controller }));
+
+            expect(error).to.be.an.instanceof(FetchError);
+            if (!isFetchError(error)) throw new Error('expected a FetchError');
+
+            expect(error.status).to.equal(499);
+            expect(error.aborted).to.equal(true);
+            expect(error.timedOut).to.equal(false); // manual abort, not a timeout
+
+            expect(acquireEvents.length).to.equal(0); // token never spent
+            expect(abortEvents.length).to.equal(1);
 
             api.destroy();
         });

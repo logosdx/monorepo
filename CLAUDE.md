@@ -84,7 +84,7 @@ monorepo/
 │   ├── public/images/          # Brand assets and static files
 │   └── *.md                    # Getting started, philosophy, cheat sheets
 │
-├── skill/                      # Claude Code skill with package reference guides
+├── skills/logosdx/             # Claude Code skill with package reference guides
 │   ├── SKILL.md               # Skill definition and routing
 │   └── references/            # Per-package API reference files
 ├── scripts/                    # Build, documentation, and workflow scripts

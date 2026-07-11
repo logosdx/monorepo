@@ -5,7 +5,7 @@
 ├── .changeset/ (3)
 │   ├── README.md (bf33c79, 8L, 510ch, 510B)
 │   ├── config.json (7b81ccb, 13L, 297ch, 297B)
-│   └── fetch-resolve-on-response.md (be1635c, 80L, 3184ch, 3196B)
+│   └── rate-limit-abort-aware-waits.md (64ad54e, 19L, 1391ch, 1397B)
 ├── .claude/ (1)
 │   └── skills/ (1)
 │       └── release-workflow/ (2)
@@ -49,15 +49,15 @@
 │   │   │   ├── styling.md (39988f3, 85L, 2103ch, 2121B)
 │   │   │   └── templates.md (1bfaad2, 233L, 6343ch, 6353B)
 │   │   ├── fetch/ (9)
-│   │   │   ├── advanced.md (16865b1, 722L, 19085ch, 19095B)
+│   │   │   ├── advanced.md (1d8333a, 721L, 19081ch, 19091B)
 │   │   │   ├── configuration.md (3b4530f, 422L, 10873ch, 10877B)
 │   │   │   ├── events.md (4a0711a, 528L, 13837ch, 13877B)
 │   │   │   ├── hooks.md (df892db, 349L, 8325ch, 8347B)
-│   │   │   ├── index.md (0338add, 250L, 6837ch, 6841B)
-│   │   │   ├── plugins.md (96825dd, 478L, 13304ch, 13346B)
-│   │   │   ├── policies.md (42e0092, 1006L, 28655ch, 29577B)
-│   │   │   ├── requests.md (5b4ba27, 421L, 10101ch, 10117B)
-│   │   │   └── resilience.md (666f45d, 608L, 19102ch, 20288B)
+│   │   │   ├── index.md (bfb8346, 252L, 6864ch, 6870B)
+│   │   │   ├── plugins.md (9eed613, 495L, 13910ch, 13958B)
+│   │   │   ├── policies.md (e341ec6, 1089L, 31897ch, 32835B)
+│   │   │   ├── requests.md (c85fce1, 436L, 10704ch, 10722B)
+│   │   │   └── resilience.md (ae58ea0, 639L, 20184ch, 21376B)
 │   │   ├── localize/ (9)
 │   │   │   ├── api.md (11c4513, 222L, 5406ch, 5406B)
 │   │   │   ├── async-loading.md (3e60b62, 151L, 3902ch, 3920B)
@@ -87,7 +87,7 @@
 │   │   ├── utils/ (6)
 │   │   │   ├── data.md (2f80636, 1139L, 29366ch, 29376B)
 │   │   │   ├── error-handling.md (3c47406, 120L, 2516ch, 2516B)
-│   │   │   ├── flow-control.md (f957bc1, 862L, 22718ch, 22718B)
+│   │   │   ├── flow-control.md (f4f4961, 915L, 24320ch, 24324B)
 │   │   │   ├── index.md (cd8193c, 57L, 1627ch, 1627B)
 │   │   │   ├── performance.md (d68d2c2, 735L, 21707ch, 21707B)
 │   │   │   └── validation.md (e84a6d5, 355L, 9019ch, 9019B)
@@ -108,14 +108,14 @@
 │   │   │   ├── logo.png (b1e18c8, 14L, 4175ch, 4316B)
 │   │   │   └── screenshot-site.png (3b19d71, 1451L, 417009ch, 433958B)
 │   │   ├── .nojekyll (e3b0c44, 0L, 0ch, 0B)
-│   │   └── llms-full.txt (18610f5, 4734L, 159177ch, 159866B)
+│   │   └── llms-full.txt (2edef97, 4742L, 159627ch, 160320B)
 │   ├── spec/ (3)
 │   │   ├── .gitkeep (e3b0c44, 0L, 0ch, 0B)
 │   │   ├── config-update-fns.md (ea651ae, 68L, 3364ch, 3396B)
-│   │   └── fetch-resolve-on-response.md (91ae827, 300L, 17230ch, 17360B)
-│   ├── CLAUDE.md (1975a9e, 315L, 9499ch, 9637B)
+│   │   └── fetch-resolve-on-response.md (ca3bdc4, 387L, 22174ch, 22344B)
+│   ├── CLAUDE.md (22ea19d, 326L, 9946ch, 10088B)
 │   ├── documentation-guideline.md (edf7616, 747L, 20590ch, 20682B)
-│   ├── getting-started.md (1a40b0b, 249L, 5959ch, 5989B)
+│   ├── getting-started.md (85126e2, 282L, 7011ch, 7049B)
 │   ├── index.md (1162a4b, 69L, 3217ch, 3221B)
 │   └── what-is-logosdx.md (79078ce, 197L, 7810ch, 7829B)
 ├── example/ (15)
@@ -198,8 +198,8 @@
 │   │   │   ├── index.ts (6d45bb7, 158L, 3739ch, 3739B)
 │   │   │   └── types.ts (2dbf27d, 546L, 17120ch, 17126B)
 │   │   ├── .swcrc (c358238, 19L, 388ch, 388B)
-│   │   ├── CHANGELOG.md (10c79ee, 1073L, 34695ch, 34742B)
-│   │   ├── package.json (2ab41e8, 47L, 1130ch, 1130B)
+│   │   ├── CHANGELOG.md (40b5d1e, 1157L, 38220ch, 38283B)
+│   │   ├── package.json (6d980c2, 47L, 1130ch, 1130B)
 │   │   ├── plan.md (49c494a, 542L, 17571ch, 17749B)
 │   │   ├── tsconfig.json (c832ab1, 5L, 142ch, 142B)
 │   │   └── typedoc.json (d6c413f, 5L, 118ch, 118B)
@@ -253,9 +253,9 @@
 │   │   │   ├── storage.ts (e4d0ced, 123L, 3983ch, 3991B)
 │   │   │   └── types.ts (aacd2f8, 111L, 3904ch, 3912B)
 │   │   ├── .swcrc (3448867, 19L, 389ch, 389B)
-│   │   ├── CHANGELOG.md (c5d5178, 202L, 7691ch, 7735B)
+│   │   ├── CHANGELOG.md (1fadf14, 291L, 11294ch, 11354B)
 │   │   ├── LICENSE (d8d919b, 12L, 1466ch, 1470B)
-│   │   ├── package.json (baa003e, 114L, 2982ch, 2984B)
+│   │   ├── package.json (3106900, 114L, 2982ch, 2984B)
 │   │   └── tsconfig.json (c832ab1, 5L, 142ch, 142B)
 │   ├── state-machine/ (6)
 │   │   ├── src/ (4)
@@ -316,15 +316,15 @@
 │       ├── references/ (10)
 │       │   ├── REFERENCE.md (1074c5a, 37L, 2721ch, 2721B)
 │       │   ├── dom.md (12c0af7, 355L, 11362ch, 11514B)
-│       │   ├── fetch.md (502f17f, 1161L, 43899ch, 44160B)
+│       │   ├── fetch.md (8b216aa, 1210L, 46984ch, 47261B)
 │       │   ├── hooks.md (2ffc5c0, 326L, 9018ch, 9042B)
 │       │   ├── localize.md (8fab800, 454L, 14766ch, 14826B)
 │       │   ├── observer.md (c7e3811, 503L, 15085ch, 15095B)
 │       │   ├── react.md (8bfd20c, 371L, 13574ch, 13623B)
 │       │   ├── state-machine.md (aa9983d, 323L, 8667ch, 8689B)
 │       │   ├── storage.md (9f7de42, 288L, 9379ch, 9415B)
-│       │   └── utils.md (1d0e4d7, 963L, 33494ch, 33569B)
-│       └── SKILL.md (5dd15b9, 37L, 2594ch, 2598B)
+│       │   └── utils.md (59202b6, 965L, 33657ch, 33734B)
+│       └── SKILL.md (d8fcee2, 38L, 3062ch, 3071B)
 ├── tests/ (6)
 │   ├── benchmark/ (2)
 │   │   ├── priority-queue.ts (d892fe1, 165L, 6179ch, 6179B)
@@ -434,11 +434,11 @@
 - internals/empty-pkg/package.json: name=@logosdx/PKGNAME, version=0.0.1, scripts=[build, lint]
 - package.json: name=@logosdx/monorepo, scripts=[build, build:docs, clear, docs:build, docs:dev, docs:preview, dts, new, release, test, test:coverage, watch]
 - packages/dom/package.json: name=@logosdx/dom, version=3.0.2, scripts=[build, lint]
-- packages/fetch/package.json: name=@logosdx/fetch, version=8.1.2, scripts=[build, lint]
+- packages/fetch/package.json: name=@logosdx/fetch, version=9.0.0, scripts=[build, lint]
 - packages/hooks/package.json: name=@logosdx/hooks, version=1.0.2, scripts=[build, lint]
 - packages/localize/package.json: name=@logosdx/localize, version=2.0.3, scripts=[build, lint]
 - packages/observer/package.json: name=@logosdx/observer, version=2.5.2, scripts=[build, lint]
-- packages/react/package.json: name=@logosdx/react, version=4.0.2, scripts=[build, lint]
+- packages/react/package.json: name=@logosdx/react, version=5.0.0, scripts=[build, lint]
 - packages/state-machine/package.json: name=@logosdx/state-machine, version=2.0.3, scripts=[build, lint]
 - packages/storage/package.json: name=@logosdx/storage, version=2.0.3, scripts=[build, lint]
 - packages/utils/package.json: name=@logosdx/utils, version=7.0.1, scripts=[build, lint]
@@ -446,8 +446,8 @@
 
 ## Languages
 
-- TypeScript: 85845 LOC (65%), 310 files (66%)
-- Markdown: 32392 LOC (24%), 91 files (19%)
+- TypeScript: 86269 LOC (65%), 310 files (66%)
+- Markdown: 32887 LOC (24%), 91 files (19%)
 - YAML: 8281 LOC (6%), 8 files (1%)
 - JavaScript: 1543 LOC (1%), 7 files (1%)
 - HTML: 1167 LOC (0%), 3 files (0%)
