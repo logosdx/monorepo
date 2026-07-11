@@ -72,39 +72,10 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
                 const normalizedOpts = opts as InternalReqOptions<H, P, S>;
                 const mergedRetry = resolveRetryConfig(normalizedOpts);
 
-                if (mergedRetry.maxAttempts === 0) {
-
-                    const [result, err] = await attempt(async () => next());
-
-                    if (err) {
-
-                        if ((err as FetchError).aborted && normalizedOpts.getTotalTimeoutFired?.()) {
-
-                            (err as FetchError).timedOut = true;
-                        }
-
-                        throw err;
-                    }
-
-                    return result;
-                }
-
-                let attemptNum = 1;
-                let lastError: FetchError | undefined;
-
-                while (attemptNum <= mergedRetry.maxAttempts!) {
-
-                    if (normalizedOpts.controller.signal.aborted) {
-
-                        const err = lastError ?? new FetchError('Request aborted');
-                        err.aborted = true;
-                        err.method = err.method || normalizedOpts.method;
-                        err.path = err.path || normalizedOpts.path;
-                        err.status = err.status || 499;
-                        err.step = err.step || 'fetch';
-                        err.timedOut = normalizedOpts.getTotalTimeoutFired?.() ?? false;
-                        throw err;
-                    }
+                // Shared by the zero-attempts pass-through and the retry loop below,
+                // so `attemptTimeout` aborts an attempt identically whether or not
+                // retrying is enabled (maxAttempts: 0 is a single, non-retried attempt).
+                const runAttempt = async () => {
 
                     let attemptController: AbortController;
                     let attemptTimeoutPromise: ReturnType<typeof wait> | undefined;
@@ -142,8 +113,6 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
                         (normalizedOpts as any).signal = attemptController.signal;
                     }
 
-                    normalizedOpts.attempt = attemptNum;
-
                     const [result, err] = await attempt(async () => next());
 
                     // Restore original controller/signal
@@ -154,6 +123,47 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
                     }
 
                     attemptTimeoutPromise?.clear();
+
+                    return { result, err, attemptTimeoutFired };
+                };
+
+                if (mergedRetry.maxAttempts === 0) {
+
+                    const { result, err, attemptTimeoutFired } = await runAttempt();
+
+                    if (err) {
+
+                        if ((err as FetchError).aborted && (attemptTimeoutFired || normalizedOpts.getTotalTimeoutFired?.())) {
+
+                            (err as FetchError).timedOut = true;
+                        }
+
+                        throw err;
+                    }
+
+                    return result;
+                }
+
+                let attemptNum = 1;
+                let lastError: FetchError | undefined;
+
+                while (attemptNum <= mergedRetry.maxAttempts!) {
+
+                    if (normalizedOpts.controller.signal.aborted) {
+
+                        const err = lastError ?? new FetchError('Request aborted');
+                        err.aborted = true;
+                        err.method = err.method || normalizedOpts.method;
+                        err.path = err.path || normalizedOpts.path;
+                        err.status = err.status || 499;
+                        err.step = err.step || 'fetch';
+                        err.timedOut = normalizedOpts.getTotalTimeoutFired?.() ?? false;
+                        throw err;
+                    }
+
+                    normalizedOpts.attempt = attemptNum;
+
+                    const { result, err, attemptTimeoutFired } = await runAttempt();
 
                     if (err === null) {
 

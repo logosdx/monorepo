@@ -18,7 +18,7 @@ import { makeTestStubs } from '../_helpers.ts';
 
 describe('@logosdx/fetch: retry', async () => {
 
-    const { testUrl, resetFlaky } = await makeTestStubs(4124);
+    const { testUrl, resetFlaky, resetFailOnce } = await makeTestStubs(4124);
 
     it('retries a configured number of requests', async () => {
 
@@ -736,6 +736,78 @@ describe('@logosdx/fetch: retry', async () => {
 
             expect(err).to.be.null;
             expect(result).to.exist;
+
+            api.destroy();
+        });
+    });
+
+    describe('attemptTimeout fires when retrying is disabled', () => {
+
+        it('rejects at ~attemptTimeout ms when retry: false (engine-level) against a slow endpoint', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: false,
+                attemptTimeout: 60,
+            });
+
+            const start = Date.now();
+
+            // /wait hangs 1000ms - proves the abort fires from attemptTimeout,
+            // not from the endpoint eventually resolving.
+            const [, err] = await attempt(() => api.get('/wait'));
+
+            const end = Date.now();
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+            expect(end - start).to.be.lessThan(500);
+
+            api.destroy();
+        });
+
+        it('rejects at ~attemptTimeout ms when retry: false is set per-call', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: { maxAttempts: 3, baseDelay: 10 },
+                attemptTimeout: 60,
+            });
+
+            const start = Date.now();
+
+            const [, err] = await attempt(() => api.get('/wait', { retry: false }));
+
+            const end = Date.now();
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).timedOut).to.be.true;
+            expect(end - start).to.be.lessThan(500);
+
+            api.destroy();
+        });
+
+        it('performs exactly one attempt - a 503-then-200 endpoint returns the 503', async () => {
+
+            resetFailOnce();
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: false,
+            });
+
+            api.on('before-request', () => attemptCount++);
+
+            const [result, err] = await attempt(() => api.get('/fail-once'));
+
+            expect(err).to.be.null;
+            expect(result?.ok).to.be.false;
+            expect(result?.status).to.eq(503);
+            expect(attemptCount).to.eq(1);
 
             api.destroy();
         });
