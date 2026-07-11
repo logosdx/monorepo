@@ -6,7 +6,7 @@
 
 import { ObserverEngine } from '@logosdx/observer';
 import { HookEngine } from '@logosdx/hooks';
-import { assert, isObject } from '@logosdx/utils';
+import { assert, isObject, clone, merge } from '@logosdx/utils';
 
 import type {
     EventMap,
@@ -396,15 +396,18 @@ export class FetchEngine<
     }
 
     /**
-     * Validate a pending `config.set()` against policy ownership before the
-     * store mutates.
+     * Validate a pending `config.set()` against policy ownership — and each
+     * owning plugin's own guard — before the store mutates.
      *
      * Registered on `ConfigStore`'s pre-set hook so a rejected set() never
      * partially applies: every changed policy key is checked here — before
      * any of them commit — mirroring the construction-time
      * all-asserts-then-install order. Throws when a changed key's plugin was
      * installed via `plugins:`; the engine has no authority to reconfigure a
-     * user-owned instance.
+     * user-owned instance. After the ownership check passes, also consults
+     * the owning plugin's `reconfigureGuard` (if any) with the value the key
+     * would take on — e.g. the cache plugin rejects an adapter swap here,
+     * before the store commits, rather than inside `reconfigure` after.
      */
     #validateConfigChange(data: EventsOptionsEventData): void {
 
@@ -418,7 +421,46 @@ export class FetchEngine<
                 this.#policyOwnership.get(policyName) !== 'user',
                 ownershipConflictMessage(policyName)
             );
+
+            const guard = this.#policyPlugins.get(policyName)?.reconfigureGuard;
+
+            if (guard) {
+
+                guard(this.#pendingValueFor(configKey, data));
+            }
         }
+    }
+
+    /**
+     * Compute the value a changed policy key would take on if the pending
+     * `set()` were applied, without mutating the store — lets a plugin's
+     * `reconfigureGuard` inspect the would-be value before anything commits.
+     *
+     * A path equal to the key itself replaces it outright, so `data.value`
+     * already IS the pending value (a path nested into one of the key's own
+     * fields isn't a shape any currently-guarded key needs, so it falls
+     * through to the same raw value). A merge object deep-merges its
+     * partial into the current value, mirroring `ConfigStore`'s own merge,
+     * so the guard sees the same shape `reconfigure` would see post-commit.
+     */
+    #pendingValueFor(configKey: PolicyConfigKey, data: EventsOptionsEventData): unknown {
+
+        if (data.path !== undefined) {
+
+            return data.value;
+        }
+
+        if (!isPlainObject(data.value)) return undefined;
+
+        const partial = data.value[configKey];
+        const current = this.config.get(configKey);
+
+        if (isPlainObject(current) && isPlainObject(partial)) {
+
+            return merge(clone(current), partial);
+        }
+
+        return partial;
     }
 
     /**

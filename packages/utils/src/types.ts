@@ -172,47 +172,55 @@ export type PathLeaves<T> = T extends object ? {
  * type UserName = PathValue<User, 'profile.name'>; // string
  * type Tag = PathValue<User, 'tags.0'>; // string
  * type MetaValue = PathValue<User, 'metadata.someKey.value'>; // string
+ *
+ * // A key typed as a union with primitive members (e.g. `Config | false`)
+ * // resolves against the object member instead of collapsing to `never` —
+ * // the `T extends any` wrapper below is a bare type-param conditional,
+ * // which forces the union to distribute (mirrors `PathNames`) before the
+ * // `keyof T` checks run, so those checks see each member individually.
  */
 export type PathValue<T, P extends string> =
-    P extends `${infer Key}.${infer Rest}`
-        ? Key extends keyof T
-            ? PathValue<T[Key], Rest>
-            : T extends Map<infer K, infer V>
-                ? K extends string | number
-                    ? Key extends `${K}`
-                        ? PathValue<V, Rest>
-                        : never
-                    : PathValue<V, Rest>
-                : T extends Set<infer V>
-                    ? Key extends `${number}`
-                        ? PathValue<V, Rest>
-                        : never
-                    : T extends any[]
+    T extends any
+        ? P extends `${infer Key}.${infer Rest}`
+            ? Key extends keyof T
+                ? PathValue<T[Key], Rest>
+                : T extends Map<infer K, infer V>
+                    ? K extends string | number
+                        ? Key extends `${K}`
+                            ? PathValue<V, Rest>
+                            : never
+                        : PathValue<V, Rest>
+                    : T extends Set<infer V>
                         ? Key extends `${number}`
-                            ? T extends (infer U)[]
-                                ? PathValue<U, Rest>
+                            ? PathValue<V, Rest>
+                            : never
+                        : T extends any[]
+                            ? Key extends `${number}`
+                                ? T extends (infer U)[]
+                                    ? PathValue<U, Rest>
+                                    : never
                                 : never
                             : never
-                        : never
-        : P extends keyof T
-            ? T[P]
-            : T extends Map<infer K, infer V>
-                ? K extends string | number
-                    ? P extends `${K}`
-                        ? V
-                        : never
-                    : V
-                : T extends Set<infer V>
-                    ? P extends `${number}`
-                        ? V
-                        : never
-                    : T extends any[]
+            : P extends keyof T
+                ? T[P]
+                : T extends Map<infer K, infer V>
+                    ? K extends string | number
+                        ? P extends `${K}`
+                            ? V
+                            : never
+                        : V
+                    : T extends Set<infer V>
                         ? P extends `${number}`
-                            ? T extends (infer U)[]
-                                ? U
+                            ? V
+                            : never
+                        : T extends any[]
+                            ? P extends `${number}`
+                                ? T extends (infer U)[]
+                                    ? U
+                                    : never
                                 : never
                             : never
-                        : never;
+        : never;
 
 /**
  * Union of string and number types.

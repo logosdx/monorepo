@@ -13,7 +13,7 @@ Every FetchEngine config surface — runtime `config.set()`, per-call overrides,
 - No per-call `skipDedupe` / `skipRateLimit` options.
 - No extraction of the attempt-timeout machinery out of the retry plugin.
 - No runtime mutation surface for custom (non-policy) plugins.
-- No changes to `@logosdx/utils`.
+- `@logosdx/utils` changes limited to the `PathValue` union-distribution fix (dotted paths into keys typed as `Config | false` currently resolve to `never`); no other utils surface changes.
 
 
 ## Success criteria
@@ -23,7 +23,8 @@ Every FetchEngine config surface — runtime `config.set()`, per-call overrides,
 - [ ] A runtime `config.set()` of a policy key whose plugin was installed via the `plugins:` array throws, matching the construction-time ownership rule.
 - [ ] `config.set('retry.maxAttempts', …)` after construction changes the attempt count used on the next request.
 - [ ] `config.set()` against rate-limit, cache, or dedupe config rebuilds that policy's rule cache/state per its existing `init()` semantics (e.g. a new rate-limit budget produces fresh buckets).
-- [ ] `config.set()` against the cache plugin's TTLs, rules, or methods reconfigures in place without evicting entries already in the request-flight store; a `config.set()` that changes the cache plugin's adapter throws instead of rebuilding the store.
+- [ ] `config.set()` against the cache plugin's TTLs, rules, or methods reconfigures in place without evicting entries already in the request-flight store; a `config.set()` that changes the cache plugin's adapter throws before the store mutates, leaving `config.get('cachePolicy')` reporting the prior value.
+- [ ] `config.set('retry.maxAttempts', …)` and every other documented dotted policy path typechecks — the tests workspace `tsc --noEmit` is green.
 - [ ] `attemptTimeout` aborts an individual attempt under `retry: false` (or `maxAttempts: 0`) the same way it does when retrying is enabled.
 - [ ] `clearCache`, `clearCacheKey`, `deleteCache`, `invalidateCache`, `invalidatePath`, and `cacheStats` operate correctly when the cache/dedupe plugin is installed via the `plugins:` array or a post-construction `engine.use()` call, instead of only the config key.
 - [ ] `res.config.retry` on a response reflects the retry configuration actually used for that request, including a per-call override.
@@ -40,9 +41,12 @@ Optional `reconfigure` hook on `FetchPlugin`, invoked by the engine on its own `
 ## Change tree
 
 
+    packages/utils/src/
+    └── types.ts .................... M  (PathValue distributes over object unions with primitive members)
+
     packages/fetch/src/
     ├── engine/
-    │   ├── types.ts ................ M  (FetchPlugin: optional reconfigure member)
+    │   ├── types.ts ................ M  (FetchPlugin: optional reconfigure member + optional pre-mutation reconfigure guard)
     │   ├── index.ts ................ M  (config-change subscription + routing; runtime ownership-conflict throw; #cachePlugin/#dedupePlugin refs captured from any install path; falsy-key + plugin warns instead of throwing)
     │   └── executor.ts ............. M  (response config attachment uses the per-request resolved retry config)
     └── plugins/
@@ -62,13 +66,18 @@ Optional `reconfigure` hook on `FetchPlugin`, invoked by the engine on its own `
 ## Outline
 
 
+    packages/utils/src/types.ts
+      PathValue — dotted-path resolution distributes over unions so a key typed as Config | false resolves to its object member's paths instead of never
+
     packages/fetch/src/engine/types.ts
       FetchPlugin
         reconfigure — optional; invoked when the plugin's owned config key changes
+        reconfigure guard — optional; consulted by the engine's pre-mutation validation to reject an unacceptable new value before the store commits
 
     packages/fetch/src/engine/index.ts
       config-change subscription — routes a changed policy key to its installed plugin's reconfigure
-      ownership-conflict check on set() — throws when the changed key's plugin came from the plugins: array, mirroring the construction-time rule
+      ownership-conflict check on set() — pre-mutation validator; throws when the changed key's plugin came from the plugins: array, mirroring the construction-time rule
+      reconfigure guard on set() — pre-mutation validator consults the owning plugin's guard where one exists (cache adapter construction-only check), so a rejected set() never commits
       #resolvePlugins / #buildPluginsFromOptions — capture cache/dedupe plugin refs regardless of install path
       use() ref capture — captures #cachePlugin/#dedupePlugin refs when the matching plugin is installed post-construction via use()
       falsy/truthy construction conflict check — distinguishes falsy from truthy explicit keys: falsy + same-name plugin warns once and installs; truthy + same-name plugin still throws
@@ -87,7 +96,8 @@ Optional `reconfigure` hook on `FetchPlugin`, invoked by the engine on its own `
 
     packages/fetch/src/plugins/cache.ts
       cachePlugin
-        reconfigure — re-runs CachePolicy.init() with updated TTLs, rules, and methods; the wrapped SingleFlight store survives untouched; throws if the update changes the adapter, since SingleFlight binds its adapter at construction and cannot swap stores without dropping entries
+        reconfigure — re-runs CachePolicy.init() with updated TTLs, rules, and methods; the wrapped SingleFlight store survives untouched
+        adapter guard — exposed to the engine's pre-mutation validation: rejects an update that changes the adapter, since SingleFlight binds its adapter at construction and cannot swap stores without dropping entries
 
     packages/fetch/src/plugins/dedupe.ts
       DedupePolicy
@@ -118,11 +128,11 @@ Optional `reconfigure` hook on `FetchPlugin`, invoked by the engine on its own `
 
     Flow: runtime policy reconfiguration
     1. caller calls engine.config.set(...) on a policy key (retry, rate-limit, cache, dedupe, or cookies)
-    2. ConfigStore updates the stored config and emits config-change with the changed path
-    3. the engine's config-change listener resolves the plugin owning that key; if it came from the plugins: array, the listener throws the same ownership-conflict message construction-time throws
-    4. if the key is cachePolicy and the new value changes the adapter, the listener throws (the adapter is construction-only; a new adapter requires a new engine)
-    5. otherwise the engine calls that plugin's reconfigure with the updated value
-    6. the plugin rebuilds via its existing init() (or, for retry, replaces its resolved base config); subsequent requests observe the new behavior
+    2. ConfigStore runs pre-set validators BEFORE mutating: the engine validates every changed policy key — a plugins:-array-owned key throws the ownership-conflict error; a cachePolicy value that changes the adapter throws (the adapter is construction-only; a new adapter requires a new engine)
+    3. validation passing, ConfigStore commits the new value and emits config-change
+    4. the engine's config-change listener routes each changed policy key to the owning plugin's reconfigure
+    5. the plugin rebuilds via its existing init() (or, for retry, replaces its resolved base config); subsequent requests observe the new behavior
+    6. any validation throw leaves the store unchanged — config.get() keeps reporting the pre-set value, for every key in the set() including multi-key merges
 
     Flow: attemptTimeout fires with retrying disabled
     1. caller sets retry: false (engine-level or per-call), which resolves to maxAttempts: 0
@@ -176,3 +186,11 @@ Optional `reconfigure` hook on `FetchPlugin`, invoked by the engine on its own `
 ## Change log
 
 <!-- Populated on first amendment after the spec is approved. Do not log drafting/refinement turns. -->
+
+### 2026-07-11 — Pre-mutation validation everywhere; narrow utils exception
+
+**What changed:** Flow 1 rewritten: all runtime-set validation (ownership conflict AND the cache adapter construction-only guard) runs in ConfigStore's pre-set validators, before the store mutates; a rejected `set()` — single-key or multi-key merge — commits nothing. The cache adapter guard moved from inside `reconfigure()` to a plugin-exposed guard consulted pre-mutation (Outline: engine/types.ts, engine/index.ts, cache.ts). Success criteria tightened accordingly. Non-goals: the blanket "no `@logosdx/utils` changes" narrowed to permit the `PathValue` union-distribution fix, and a criterion added that documented dotted policy paths typecheck.
+
+**Why:** Iteration 3 review reproduced a throw-after-mutate coherence violation via the adapter guard placement the original Flow literally prescribed, and surfaced that `config.set('retry.maxAttempts', …)` — the API this spec exists to make real — fails to typecheck because `PathValue` collapses `RetryConfig | false` to `never`.
+
+**Superseded:** Flow 1's post-mutation validation ordering (store commits, then the listener throws) and the unconditional utils non-goal.

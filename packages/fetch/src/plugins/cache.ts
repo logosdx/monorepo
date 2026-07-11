@@ -1,4 +1,4 @@
-import { attempt, SingleFlight } from '@logosdx/utils';
+import { attempt, assert, SingleFlight } from '@logosdx/utils';
 
 import type {
     _InternalHttpMethods,
@@ -383,6 +383,38 @@ export function cachePlugin<H = unknown, P = unknown, S = unknown>(
         stats(): { cacheSize: number; inflightCount: number } {
 
             return flight.stats();
+        },
+
+        // Pre-mutation guard: the adapter binds to `flight` at construction
+        // and can't be swapped without dropping its entries, so a set() that
+        // would change it is rejected HERE — before the store commits —
+        // rather than inside reconfigure() after the value already landed.
+        reconfigureGuard(pendingValue: boolean | CacheConfig<S, H, P> | undefined): void {
+
+            const newAdapter = pendingValue && pendingValue !== true ? pendingValue.adapter : undefined;
+
+            assert(
+                newAdapter === policy.adapter,
+                'FetchEngine: cachePolicy.adapter cannot change via config.set() — construct a new engine for a new adapter'
+            );
+        },
+
+        // Re-runs CachePolicy.init() with updated TTLs/rules/methods; `flight`
+        // (the SingleFlight store) is never rebuilt here, so entries already
+        // cached survive. `reconfigureGuard` above already rejected an
+        // adapter change before this ever runs; the assert stays as
+        // defense-in-depth against a direct `reconfigure()` call that
+        // bypassed the engine's pre-mutation validation.
+        reconfigure(value: boolean | CacheConfig<S, H, P> | undefined): void {
+
+            const newAdapter = value && value !== true ? value.adapter : undefined;
+
+            assert(
+                newAdapter === policy.adapter,
+                'FetchEngine: cachePolicy.adapter cannot change via config.set() — construct a new engine for a new adapter'
+            );
+
+            policy.init(value);
         },
 
         install(engine: FetchEnginePublic<H, P, S>): () => void {

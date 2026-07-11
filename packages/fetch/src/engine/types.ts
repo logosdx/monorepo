@@ -70,6 +70,25 @@ export interface FetchPlugin<H = unknown, P = unknown, S = unknown> {
      * @param value - The full, up-to-date value of the plugin's config key
      */
     reconfigure?(value: unknown): void;
+
+    /**
+     * Pre-mutation guard for a runtime `config.set()` on the plugin's owned
+     * policy key, consulted by the engine's ownership validator after the
+     * ownership check passes but BEFORE the store mutates.
+     *
+     * Throw to reject the whole `set()` call — single-key or multi-key
+     * merge — leaving the store unchanged and skipping `reconfigure`
+     * entirely. Use this for changes `reconfigure` can't safely apply in
+     * place (e.g. the cache plugin rejects an adapter swap: its store is
+     * bound to the original adapter at construction).
+     *
+     * Optional — a plugin that doesn't implement it accepts any value for
+     * its key.
+     *
+     * @param pendingValue - The value the plugin's config key would take on
+     * if this `set()` call were applied
+     */
+    reconfigureGuard?(pendingValue: unknown): void;
 }
 
 

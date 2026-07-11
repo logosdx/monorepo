@@ -27,14 +27,18 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
     defaultConfig?: RetryConfig | false
 ): FetchPlugin<H, P, S> {
 
+    // `reconfigure` replaces this on a runtime `config.set('retry', …)` — the
+    // resolver below always reads the current value, not the constructor arg.
+    let baseConfig = defaultConfig;
+
     const resolveRetryConfig = (opts: InternalReqOptions<H, P, S>): Required<RetryConfig> => {
 
         // Per-call retry wins in both directions: it can remove retries from
         // a retrying engine and re-enable them on a `retry: false` engine.
         // `false`/`true` per-call values were already normalized upstream to
         // { maxAttempts: 0 } / {} (executor.makeRequestOptions).
-        const base = defaultConfig
-            ? { ...DEFAULT_RETRY_CONFIG, ...defaultConfig }
+        const base = baseConfig
+            ? { ...DEFAULT_RETRY_CONFIG, ...baseConfig }
             : DEFAULT_RETRY_CONFIG;
 
         if (opts.retry) {
@@ -42,7 +46,7 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
             return { ...base, ...opts.retry } as Required<RetryConfig>;
         }
 
-        if (defaultConfig === false) {
+        if (baseConfig === false) {
 
             return { ...DEFAULT_RETRY_CONFIG, maxAttempts: 0 };
         }
@@ -52,6 +56,14 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
 
     return {
         name: 'retry',
+
+        // Mirrors the constructor's `opts.retry === true ? undefined : opts.retry`
+        // normalization so a reconfigured engine resolves retries identically
+        // to one constructed with the same value.
+        reconfigure(value: RetryConfig | boolean | undefined): void {
+
+            baseConfig = value === true ? undefined : value;
+        },
 
         install(engine: FetchEnginePublic<H, P, S>): () => void {
 

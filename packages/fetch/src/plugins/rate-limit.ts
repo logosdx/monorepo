@@ -274,6 +274,14 @@ export function rateLimitPlugin<H = unknown, P = unknown, S = unknown>(
     return {
         name: 'rate-limit',
 
+        // Re-runs init() with the updated config, rebuilding the rule cache
+        // and token buckets — a runtime reconfigure gets fresh budgets,
+        // matching what a freshly constructed engine would resolve.
+        reconfigure(value: boolean | RateLimitConfig<S, H, P> | undefined): void {
+
+            policy.init(value);
+        },
+
         install(engine: FetchEnginePublic<H, P, S>): () => void {
 
             const cleanup = engine.hooks.add('beforeRequest', async (_url, opts, _ctx) => {

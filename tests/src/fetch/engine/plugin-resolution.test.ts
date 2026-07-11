@@ -241,20 +241,29 @@ describe('FetchEngine: plugin resolution', async () => {
         api.destroy();
     });
 
-    it('should stop routing config-change events to plugins after destroy()', () => {
+    it('should invoke neither the ownership validator nor reconfigure after destroy()', () => {
+
+        // dedupe is plugins:-owned, so pre-destroy this key would throw
+        // (ownership conflict) rather than route to reconfigure. Spying on
+        // reconfigure directly proves destroy() unsubscribes both listeners:
+        // no throw (the ownership validator is gone) and no reconfigure call
+        // (the config-change router is gone) — not just "no throw".
+        const reconfigureCalls: unknown[] = [];
+
+        const dedupe = dedupePlugin(true);
+        dedupe.reconfigure = (value) => reconfigureCalls.push(value);
 
         const api = new FetchEngine({
             baseUrl: testUrl,
-            plugins: [dedupePlugin(true)]
+            plugins: [dedupe]
         });
 
         api.destroy();
 
-        // If the config-change listener leaked past destroy(), this would
-        // still throw the ownership-conflict error.
         const [, err] = attemptSync(() => api.config.set('dedupePolicy', { enabled: false }));
 
         expect(err).to.equal(null);
+        expect(reconfigureCalls.length).to.equal(0);
     });
 
     it('should let a user retry plugin replace the default when no retry key is set', async () => {

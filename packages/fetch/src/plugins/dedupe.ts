@@ -117,6 +117,15 @@ export function dedupePlugin<H = unknown, P = unknown, S = unknown>(
             return inflightMap.size;
         },
 
+        // Re-runs init() with the updated config, rebuilding the rule cache
+        // so a runtime reconfigure resolves rules the same way a freshly
+        // constructed engine would. In-flight requests keep their own
+        // inflightMap entry regardless — only future resolution changes.
+        reconfigure(value: boolean | DeduplicationConfig<S, H, P> | undefined): void {
+
+            policy.init(value);
+        },
+
         install(engine: FetchEnginePublic<H, P, S>): () => void {
 
             const cleanup = engine.hooks.add('execute', (async (next: () => Promise<any>, opts: any) => {

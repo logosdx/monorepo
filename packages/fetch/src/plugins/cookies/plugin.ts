@@ -68,9 +68,12 @@ export function cookiePlugin<H = unknown, P = unknown, S = unknown>(
 ): CookiePlugin<H, P, S> {
 
     // === Declaration block ===
-    const adapter: CookieAdapter | undefined = config?.adapter;
-    const syncOnRequest = config?.syncOnRequest ?? false;
-    const exclude = config?.exclude ?? [];
+    // `let` — `reconfigure` reassigns these on a runtime `config.set('cookies', …)`;
+    // every closure below reads through the binding, so a reassignment is
+    // visible on the next request without touching the jar itself.
+    let adapter: CookieAdapter | undefined = config?.adapter;
+    let syncOnRequest = config?.syncOnRequest ?? false;
+    let exclude = config?.exclude ?? [];
 
     let persistScheduled = false;
 
@@ -78,7 +81,10 @@ export function cookiePlugin<H = unknown, P = unknown, S = unknown>(
 
         if (!adapter) return;
 
-        const [, err] = await attempt(() => adapter.save(jar.all()));
+        // Captured as a local const: `adapter` is `let` (reconfigure reassigns
+        // it), so narrowing above doesn't carry into the closure below.
+        const activeAdapter = adapter;
+        const [, err] = await attempt(() => activeAdapter.save(jar.all()));
 
         if (err) {
 
@@ -135,7 +141,9 @@ export function cookiePlugin<H = unknown, P = unknown, S = unknown>(
 
             if (!adapter) return;
 
-            const [cookies, err] = await attempt(() => adapter.load());
+            // See persistJar()'s comment — `let` loses narrowing across closures.
+            const activeAdapter = adapter;
+            const [cookies, err] = await attempt(() => activeAdapter.load());
 
             if (err || !cookies) return;
 
@@ -149,6 +157,18 @@ export function cookiePlugin<H = unknown, P = unknown, S = unknown>(
             // `persistJar()` uses `attempt`, so it never throws. To surface
             // shutdown failures to the caller, invoke adapter.save directly.
             await adapter.save(jar.all());
+        },
+
+        // Applies an updated adapter/syncOnRequest/exclude on a runtime
+        // `config.set('cookies', …)`. The jar itself is left untouched —
+        // cookies already loaded survive the reconfigure.
+        reconfigure(value: CookieConfig | boolean | undefined): void {
+
+            const newConfig = value && value !== true ? value : undefined;
+
+            adapter = newConfig?.adapter;
+            syncOnRequest = newConfig?.syncOnRequest ?? false;
+            exclude = newConfig?.exclude ?? [];
         },
 
         install(engine: FetchEnginePublic<H, P, S>): () => void {
@@ -165,7 +185,9 @@ export function cookiePlugin<H = unknown, P = unknown, S = unknown>(
                 // Optionally reload from adapter for horizontal-scale sync
                 if (syncOnRequest && adapter) {
 
-                    const [cookies] = await attempt(() => adapter.load());
+                    // See persistJar()'s comment — `let` loses narrowing across closures.
+                    const activeAdapter = adapter;
+                    const [cookies] = await attempt(() => activeAdapter.load());
 
                     if (cookies) {
 
