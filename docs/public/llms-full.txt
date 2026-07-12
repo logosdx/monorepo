@@ -372,6 +372,7 @@ HTTP client with retry logic, request/response interception, and comprehensive e
 ## Table of Contents
 
 - [Core API](#core-api) — Setup, error handling, global instance
+- [Built-in Resilience Policies](#built-in-resilience-policies) — Retry, dedupe, cache, rate-limit are config keys — do not reinvent
 - [HTTP Methods](#http-methods) — GET/POST/PUT/PATCH/DELETE, FetchPromise, FetchResponse
 - [Configuration](#configuration) — Config interface, timeout, retry, validation, policies
 - [Error Handling](#error-handling) — FetchError, isFetchError, lifecycle events
@@ -448,6 +449,71 @@ const [userRes, userErr] = await attempt(() => get<User>('/api/users/123'));
 if (userErr) return;
 if (!userRes.ok) { if (userRes.status === 404) console.warn('User not found'); return; }
 ```
+
+## Built-in Resilience Policies
+
+**Do not reinvent these.** Retry, request deduplication, response caching, and rate limiting are built into FetchEngine as config keys. Writing a retry loop, an in-flight promise map, a response cache, or a token bucket around a FetchEngine — or importing p-retry, p-queue, or lru-cache to do it — duplicates a one-line config.
+
+```typescript
+const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+
+    // Retry with exponential backoff (installed by default; tune, don't rewrite)
+    retry: { maxAttempts: 3, baseDelay: 150 },
+
+    // Identical concurrent requests share one in-flight promise
+    dedupePolicy: true,
+
+    // Response cache: TTL + stale-while-revalidate
+    cachePolicy: { ttl: 30000, staleIn: 10000 },
+
+    // Token-bucket rate limiting, per endpoint by default.
+    // waitForToken: true parks requests until a token frees; the wait
+    // observes totalTimeout/abort and rejects promptly when the caller dies.
+    rateLimitPolicy: { maxCalls: 60, windowMs: 60000, waitForToken: true },
+});
+```
+
+| About to write... | Use instead |
+|---|---|
+| retry loop / p-retry | `retry` config ([Configuration](#configuration), [Advanced Features](#advanced-features)) |
+| in-flight promise map | `dedupePolicy` ([Request Deduplication](#request-deduplication)) |
+| response cache / lru-cache / SWR wrapper | `cachePolicy` ([Response Caching](#response-caching)) |
+| token bucket / setTimeout throttle / p-queue | `rateLimitPolicy` ([Rate Limiting](#rate-limiting)) |
+| a second FetchEngine so endpoints get different limits | `rules` on ONE policy — each matched rule gets its own isolated bucket ([Route Matching](#route-matching)) |
+| per-endpoint variants of the above | `rules` on each policy ([Route Matching](#route-matching)) |
+| bespoke cross-cutting behavior | a plugin via `engine.use()` ([Plugin Architecture](#plugin-architecture)) |
+
+One engine, many budgets — never instantiate a second FetchEngine just to give an endpoint its own rate limit:
+
+```typescript
+// ❌ Two clients to get two limits
+const embedApi = new FetchEngine({ baseUrl, rateLimitPolicy: { maxCalls: 10, windowMs: 60000 } });
+const queryApi = new FetchEngine({ baseUrl, rateLimitPolicy: { maxCalls: 100, windowMs: 60000 } });
+
+// ✅ One client; rules give each endpoint an isolated bucket and budget
+const api = new FetchEngine({
+    baseUrl,
+    rateLimitPolicy: {
+        maxCalls: 100, windowMs: 60000,                        // default budget
+        rules: [
+            { is: '/v1/embed', maxCalls: 10 },                 // own bucket, own budget
+            { is: '/v1/query', maxCalls: 60, waitForToken: false },
+            // serializer can split buckets even within one path,
+            // e.g. by payload field or user header:
+            { is: '/v1/embeddings', serializer: (ctx) => ctx.payload?.input_type ?? 'default' },
+        ],
+    },
+});
+```
+
+`rules` is not a rate-limit feature — it is the shared route-matching layer of all three policies. Every rule uses the same matchers (`is` exact-match, `startsWith`, `endsWith`, `includes`, `match` RegExp; AND-combined, except `is` which stands alone) and overrides that policy's own knobs per route: cache TTLs per path, dedupe on/off per path, budgets per path. Serializers are shared the same way ([Request Serializers](#request-serializers)).
+
+Per-call escape hatches (call options, no engine changes needed): `retry: false` disables retries for one request and a per-call `retry` config wins even over an engine-level `retry: false`; `skipCache: true` bypasses the cache in both directions (no lookup, no store); `totalTimeout` / `attemptTimeout` / `abortController` bound any single request. Dedupe and rate-limit have no per-call bypass by design — use their config-level `shouldDedupe(ctx)` / `shouldRateLimit(ctx)` callbacks.
+
+Every policy accepts `boolean | config`, supports per-route `rules`, and exists as a standalone plugin factory (`retryPlugin`, `dedupePlugin`, `cachePlugin`, `rateLimitPlugin`, `cookiePlugin`). Config keys and `plugins: [...]` compose: config keys always apply, and the plugins array adds custom plugins alongside them. A policy can only exist once — passing both a truthy policy config key and its plugin (or the same policy plugin twice) throws at construction. A falsy key (`dedupePolicy: false`) + the same-name plugin warns and installs the plugin. A `retryPlugin(...)` in the array with no explicit `retry` key replaces the auto-installed default retry.
+
+Policies reconfigure at runtime: `api.config.set('retry.maxAttempts', 5)` (or whole-key / merge forms) takes effect on the next request. Validation is pre-mutation — a rejected set (plugins:-owned key, or a `cachePolicy.adapter` change, which is construction-only) leaves the store unchanged. Rate-limit buckets rebuild on reconfigure; the cache store and cookie jar survive. `retry: false` disables retrying but keeps per-attempt timeout machinery: `attemptTimeout` still fires and stamps `timedOut`.
 
 ## HTTP Methods
 
@@ -779,7 +845,8 @@ enum FetchEventNames {
     // Rate limiting events
     'ratelimit-wait' = 'ratelimit-wait',       // Waiting for token
     'ratelimit-reject' = 'ratelimit-reject',   // Rejected (waitForToken: false)
-    'ratelimit-acquire' = 'ratelimit-acquire'  // Token acquired
+    'ratelimit-acquire' = 'ratelimit-acquire', // Token acquired
+    'ratelimit-abort' = 'ratelimit-abort'      // Wait ended by abort (terminal pair of ratelimit-wait)
 }
 
 // Event listeners (use regex to match all events)
@@ -1020,7 +1087,11 @@ const api = new FetchEngine({
 api.on('ratelimit-wait', (e) => console.log('Waiting for token:', e.key, e.waitTimeMs));
 api.on('ratelimit-reject', (e) => console.log('Rate limited:', e.key));
 api.on('ratelimit-acquire', (e) => console.log('Token acquired:', e.key, 'remaining:', e.currentTokens));
-```
+api.on('ratelimit-abort', (e) => console.log('Wait abandoned by abort:', e.key, 'after', e.waitTimeMs, 'ms'));
+
+// Aborts interrupt the token wait: totalTimeout or a manual abort settles the
+// wait promptly, consumes no token, and rejects with FetchError (status 499,
+// aborted: true; timedOut: true when totalTimeout caused it).
 
 ### Rate Limiting Types
 
@@ -3922,8 +3993,10 @@ const rateLimit: <T extends Func>(fn: T, options: RateLimitOptions<T> | RateLimi
 class RateLimitTokenBucket {
   constructor(config: RateLimitTokenBucket.Config)
   consume(count?: number): boolean
-  waitForToken(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<void>
+  waitForToken(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<boolean>
   waitAndConsume(count?: number, opts?: { onRateLimit?: Function; abortController?: AbortController }): Promise<boolean>
+  // Both waits observe abortController and resolve false on abort — promptly,
+  // without consuming a token. A false from waitForToken means: do NOT consume.
   hasTokens(count?: number): boolean
   get tokens(): number
   get snapshot(): { currentTokens: number; capacity: number; rejectionRate: number; /* ... */ }

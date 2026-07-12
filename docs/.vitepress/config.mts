@@ -114,6 +114,11 @@ export default withMermaid(defineConfig({
   title: 'Logos DX',
   description: 'Focused TypeScript utilities for building JS apps in any runtime',
 
+  // Agent-facing memory, not site content. wiki/ carries inferrer steering
+  // whose syntax the Vue template compiler rejects (and none of it belongs
+  // on logosdx.dev anyway).
+  srcExclude: ['wiki/**', 'CLAUDE.md'],
+
   markdown: {
     config: (md) => {
       md.use(markdownItPlantuml)

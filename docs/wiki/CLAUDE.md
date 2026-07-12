@@ -3,8 +3,11 @@ type: Steering
 description: Authoritative steering for the signals/wiki inferrer when operating under docs/wiki/.
 ---
 
-<steering note: user hints to correct framework detection / domain grouping / build-test commands;
- the inferrer reads this and treats it as authoritative>
+<!-- steering note: user hints to correct framework detection / domain grouping / build-test
+ commands; the inferrer reads this file and treats its section content as authoritative -->
+
+<!-- This note is an HTML comment deliberately: the old <steering note: ...> pseudo-tag is
+ illegal Vue template syntax and broke any VitePress build that swept this directory. -->
 
 ## Framework
 
