@@ -160,7 +160,7 @@ if (!err && !res.ok) {
 }
 ```
 
-Only a transport failure (the connection drops on every attempt, or a timeout fires) still rejects as a `FetchError` — because in that case no response ever exists to resolve.
+Only a transport failure (the connection drops on every attempt, or a timeout fires) still rejects as a `FetchError` — because in that case no response ever exists to resolve. When `totalTimeout` or `abort()` ends the backoff wait after a non-2xx response, that response already exists, so the call resolves with it.
 
 
 ### Circuit Breakers Count Throws

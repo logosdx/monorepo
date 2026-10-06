@@ -174,7 +174,7 @@ export class RequestExecutor<
                 attemptTimeoutMs,
                 () => totalTimeoutFired,
                 () => fetchPromise.directive
-            ),
+            ).finally(() => totalTimeout?.clear()),
             controller
         );
 
@@ -196,18 +196,6 @@ export class RequestExecutor<
         getDirective?: () => ResponseDirective | undefined
     ): Promise<FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>> {
 
-        const onAfterReq = (...args: any[]) => {
-
-            totalTimeout?.clear();
-            options.onAfterReq?.apply(this, args as never);
-        };
-
-        const onError = (...args: any[]) => {
-
-            totalTimeout?.clear();
-            options.onError?.apply(this, args as never);
-        };
-
         const normalizedOpts = this.makeRequestOptions(
             method,
             path,
@@ -215,8 +203,6 @@ export class RequestExecutor<
                 ...options,
                 payload,
                 controller,
-                onAfterReq,
-                onError,
                 attemptTimeout: attemptTimeoutMs,
                 getTotalTimeoutFired
             }
@@ -471,7 +457,7 @@ export class RequestExecutor<
 
             err = new FetchError(err.message) as FetchError<DictAndT<H>>;
 
-            err.status = status || 999;
+            err.status = aborted ? 499 : (status || 999);
             err.message = err.message || 'Parse error';
         }
 
@@ -858,7 +844,6 @@ export class RequestExecutor<
 
         if (pre.returned) {
 
-            totalTimeout?.clear();
             return pre.result as FetchResponse<Res, DictAndT<H>, DictAndT<P>, ResHdr>;
         }
 
@@ -873,6 +858,7 @@ export class RequestExecutor<
             { scope }
         );
 
+        // Before afterRequest, so a late abort cannot cut off a body still being streamed.
         totalTimeout?.clear();
 
         // Phase 3: afterRequest (run)
