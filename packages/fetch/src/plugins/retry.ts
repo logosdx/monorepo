@@ -1,4 +1,4 @@
-import { attempt, wait } from '@logosdx/utils';
+import { attempt, wait, waitWithAbort } from '@logosdx/utils';
 
 import type { RetryConfig } from '../types.ts';
 import type { FetchPlugin, FetchEnginePublic, InternalReqOptions } from '../engine/types.ts';
@@ -207,13 +207,15 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
                                 delay
                             } as any);
 
-                            await wait(delay);
+                            await waitWithAbort({
+                                ms: delay,
+                                signal: normalizedOpts.controller.signal
+                            });
 
                             if (normalizedOpts.controller.signal.aborted) {
 
-                                // Total timeout fired mid-delay; no transport
-                                // error exists, so resolve with the last
-                                // known response instead of throwing.
+                                // Aborted mid-delay (totalTimeout or abort()); no transport error
+                                // exists, so resolve with the last known response.
                                 return result;
                             }
 
@@ -259,17 +261,10 @@ export function retryPlugin<H = unknown, P = unknown, S = unknown>(
                             delay
                         } as any);
 
-                        await wait(delay);
-
-                        if (normalizedOpts.controller.signal.aborted) {
-
-                            if (normalizedOpts.getTotalTimeoutFired?.()) {
-
-                                lastError!.timedOut = true;
-                            }
-
-                            throw lastError!;
-                        }
+                        await waitWithAbort({
+                            ms: delay,
+                            signal: normalizedOpts.controller.signal
+                        });
 
                         attemptNum++;
                         continue;

@@ -12,7 +12,7 @@ import {
     isFetchError,
 } from '@logosdx/fetch';
 
-import { attempt } from '@logosdx/utils';
+import { attempt, wait } from '@logosdx/utils';
 import { sandbox } from '../../_helpers.ts';
 import { makeTestStubs } from '../_helpers.ts';
 
@@ -928,6 +928,168 @@ describe('@logosdx/fetch: retry', async () => {
             expect(err).to.be.instanceOf(FetchError);
             expect(attemptCount).to.eq(3);
             expect(retryEvents).to.have.length(2); // 2 retries between 3 attempts
+
+            api.destroy();
+        });
+
+        it('totalTimeout keeps bounding the call after the first attempt fails', async () => {
+
+            // Attempt 1 times out at 200ms, attempt 2 starts at ~220ms; totalTimeout at 300ms
+            // must abort attempt 2 mid-flight. A per-attempt clear lets all 5 run (~1080ms).
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 5,
+                    baseDelay: 20,
+                    useExponentialBackoff: false,
+                    shouldRetry: () => true,
+                },
+            });
+
+            api.on('before-request', () => attemptCount++);
+
+            const start = Date.now();
+            const [, err] = await attempt(() => api.get('/slow-success/1000', {
+                attemptTimeout: 200,
+                totalTimeout: 300,
+            }));
+            const elapsed = Date.now() - start;
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).timedOut).to.be.true;
+            expect(elapsed).to.be.lessThan(400);
+            expect(attemptCount).to.eq(2);
+
+            api.destroy();
+        });
+
+        it('totalTimeout fires during a backoff wait between attempts', async () => {
+
+            // Refused connection: attempt 1 fails without an abort, so only the
+            // backoff-abort path can mark the final error as aborted.
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl + 1,
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 300,
+                    useExponentialBackoff: false,
+                    shouldRetry: () => true,
+                },
+            });
+
+            api.on('before-request', () => attemptCount++);
+
+            const start = Date.now();
+            const [, err] = await attempt(() => api.get('/', { totalTimeout: 100 }));
+            const elapsed = Date.now() - start;
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).aborted).to.be.true;
+            expect((err as FetchError).isTimeout()).to.be.true;
+            expect((err as FetchError).isConnectionLost()).to.be.false;
+            expect(elapsed).to.be.lessThan(200);
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('totalTimeout during backoff after an ok:false response resolves with it', async () => {
+
+            let attemptCount = 0;
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 300,
+                    useExponentialBackoff: false,
+                    retryableStatusCodes: [400],
+                },
+            });
+
+            api.on('before-request', () => attemptCount++);
+
+            const start = Date.now();
+            const [res, err] = await attempt(() => api.get('/fail', { totalTimeout: 100 }));
+            const elapsed = Date.now() - start;
+
+            expect(err).to.be.null;
+            expect(res!.ok).to.be.false;
+            expect(res!.status).to.eq(400);
+            expect(elapsed).to.be.lessThan(200);
+            expect(attemptCount).to.eq(1);
+
+            api.destroy();
+        });
+
+        it('manual abort during a backoff wait settles immediately', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: {
+                    maxAttempts: 3,
+                    baseDelay: 300,
+                    useExponentialBackoff: false,
+                    shouldRetry: () => true,
+                },
+            });
+
+            const start = Date.now();
+            const promise = api.get('/slow-success/1000', { attemptTimeout: 30 });
+            setTimeout(() => promise.abort(), 60);
+
+            const [, err] = await attempt(() => promise);
+            const elapsed = Date.now() - start;
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).isCancelled()).to.be.true;
+            expect(elapsed).to.be.lessThan(150);
+
+            api.destroy();
+        });
+
+        it('totalTimeout during the body read rejects as a timeout', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                retry: false,
+            });
+
+            const [, err] = await attempt(() => api.get('/slow-body', { totalTimeout: 100 }));
+
+            expect(err).to.be.instanceOf(FetchError);
+            expect((err as FetchError).step).to.eq('parse');
+            expect((err as FetchError).status).to.eq(499);
+            expect((err as FetchError).isTimeout()).to.be.true;
+
+            api.destroy();
+        });
+
+        it('leaves a caller-supplied controller alone after a pre-fetch rejection', async () => {
+
+            const api = new FetchEngine({
+                baseUrl: testUrl,
+                validate: {
+                    headers: () => { throw new Error('invalid headers'); },
+                    perRequest: { headers: true },
+                },
+            });
+
+            const abortController = new AbortController();
+
+            const [, err] = await attempt(() => api.get('/json', {
+                abortController,
+                totalTimeout: 30,
+            }));
+
+            await wait(60);
+
+            expect(err).to.be.instanceOf(Error);
+            expect(abortController.signal.aborted).to.be.false;
 
             api.destroy();
         });

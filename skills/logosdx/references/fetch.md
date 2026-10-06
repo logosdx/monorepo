@@ -859,6 +859,7 @@ if (isFetchError(err)) {
 | Manual abort (`promise.abort()`) | 499 | `true` | `undefined` | `'fetch'` |
 | `attemptTimeout` fires | 499 | `true` | `true` | `'fetch'` |
 | `totalTimeout` fires | 499 | `true` | `true` | `'fetch'` |
+| Timeout fires while reading a 2xx body | 499 | `true` | `true` | `'parse'` |
 | Server closed connection | 499 | `false` | `undefined` | `'fetch'` |
 | Network error | 499 | `false` | `undefined` | `'fetch'` |
 

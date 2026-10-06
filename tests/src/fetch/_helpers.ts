@@ -5,6 +5,7 @@ import {
 } from 'vitest'
 
 import net from 'net';
+import { PassThrough } from 'stream';
 
 import Hapi, { Lifecycle } from '@hapi/hapi';
 import Boom from '@hapi/boom';
@@ -219,6 +220,17 @@ export const makeTestStubs = async (port?: number) => {
 
                 await wait(200);
                 return Boom.serverUnavailable('Slow failure');
+            }),
+
+            // Headers go out immediately; the body completes after 500ms.
+            mkHapiRoute('/slow-body', (_, h) => {
+
+                const body = new PassThrough();
+
+                body.write('{"ok":');
+                setTimeout(() => body.end('true}'), 500);
+
+                return h.response(body).type('application/json');
             }),
 
             mkHapiRoute('/slow-success/{delay?}', async (req) => {
