@@ -1,6 +1,6 @@
 {
   "name": "@logosdx/slides",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "HTML-native presentation primitives: two-axis scroll-snap slides that grow instead of clipping",
   "repository": {
     "type": "git",
