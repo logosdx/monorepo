@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@logosdx/slides demo</title>
+    <link rel="stylesheet" href="../dist/browser/slides.css">
+    <script src="../dist/browser/bundle.js"></script>
+    <style>
+        slides {
+            --slide-bg: #14161c;
+            --slide-fg: #e8e6e1;
+            --slide-padding: 4rem 6vw;
+            --deck-font: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+            --accent: #f2a33a;
+            --muted: #9a9890;
+            font-size: clamp(16px, 2.2vw, 26px);
+            line-height: 1.5;
+        }
+
+        h1, h2, h3 { font-family: system-ui, sans-serif; line-height: 1.15; }
+        h1 { font-size: 3em; margin: 0 0 0.3em; }
+        h2 { font-size: 1.8em; margin: 0 0 0.6em; color: var(--accent); }
+        h3 { font-size: 1.1em; margin: 1.5em 0 0.4em; }
+        a { color: var(--accent); }
+        code, kbd { font-family: ui-monospace, Menlo, monospace; font-size: 0.85em; }
+        kbd {
+            padding: 0.05em 0.4em;
+            border: 1px solid #555;
+            border-bottom-width: 3px;
+            border-radius: 4px;
+            background: #1f222b;
+        }
+        .muted { color: var(--muted); }
+        .lede { font-size: 1.3em; max-width: 34em; }
+
+        slide[data-implicit] { border-top: 6px solid var(--accent); }
+
+        .checklist { columns: 2; column-gap: 3em; padding-left: 1.2em; }
+        .checklist li { break-inside: avoid; margin-bottom: 0.4em; }
+        table.keys { border-collapse: collapse; }
+        table.keys th { text-align: right; padding: 0.15em 1em 0.15em 0; white-space: nowrap; }
+
+        @media screen {
+            slides[data-ready] [fragment] { transition: opacity 200ms, visibility 200ms; }
+            slides[data-ready] [fragment]:not([revealed]) { opacity: 0; }
+        }
+        .step { padding: 0.3em 0.6em; margin: 0.3em 0; border-left: 4px solid var(--accent); }
+
+        .callout {
+            padding: 0.8em 1em;
+            border: 2px dashed var(--accent);
+            border-radius: 6px;
+            max-width: 36em;
+        }
+
+        .controls { display: flex; gap: 1em; align-items: center; flex-wrap: wrap; }
+        .controls input, .controls button {
+            font: inherit;
+            padding: 0.4em 0.8em;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background: #1f222b;
+            color: inherit;
+        }
+        .controls button { background: var(--accent); color: #14161c; border: 0; cursor: pointer; }
+
+        .chapter { max-width: 38em; }
+        .heading {
+            display: block;
+            margin-bottom: 0.6em;
+            font: 700 1.8em/1.15 system-ui, sans-serif;
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+<slides>
+
+    <slide horizontal>
+        <h1>@logosdx/slides</h1>
+        <p class="lede">Slides that grow and scroll instead of clipping. Plain HTML, one stylesheet, one script.</p>
+        <p class="muted">Press <kbd>?</kbd> for keys, <kbd>→</kbd> to start, or <a href="#how-to-test">jump to the test checklist</a>.</p>
+        <notes>
+            <p>Welcome. This deck is the hand-check for the package.</p>
+            <p>The link above is an in-slide anchor: clicking it lands on the panel that holds <code>#how-to-test</code>.</p>
+        </notes>
+    </slide>
+
+    <slide horizontal>
+        <slide vertical>
+            <h2 id="how-to-test">How to test</h2>
+            <table class="keys">
+                <tr><th><kbd>→</kbd> <kbd>←</kbd></th><td>Next / previous column, first panel</td></tr>
+                <tr><th><kbd>↓</kbd> <kbd>↑</kbd></th><td>Scroll a tall panel, then next / previous panel</td></tr>
+                <tr><th><kbd>Space</kbd> <kbd>Shift+Space</kbd></th><td>Next / previous step, fragments first</td></tr>
+                <tr><th><kbd>PageDown</kbd> <kbd>PageUp</kbd></th><td>Next / previous panel across columns</td></tr>
+                <tr><th><kbd>Home</kbd> <kbd>End</kbd></th><td>First / last panel</td></tr>
+                <tr><th><kbd>S</kbd></th><td>Open or reopen speaker notes</td></tr>
+                <tr><th><kbd>F</kbd></th><td>Toggle fullscreen</td></tr>
+                <tr><th><kbd>.</kbd> <kbd>B</kbd></th><td>Toggle a blank screen</td></tr>
+                <tr><th><kbd>?</kbd> / <kbd>Esc</kbd></th><td>Toggle help / close help or unblank</td></tr>
+            </table>
+            <notes>Walk the key table first, then the hand checks on the next panel.</notes>
+        </slide>
+        <slide vertical>
+            <h2>Hand checks</h2>
+            <ul class="checklist">
+                <li>Press <kbd>S</kbd>, reload the notes window, press <kbd>S</kbd> again: notes come back.</li>
+                <li><kbd>F</kbd> enters and leaves fullscreen.</li>
+                <li>In print preview each panel starts a new page, every fragment is visible, and notes are hidden.</li>
+                <li>With OS reduced motion on, moves jump instead of scrolling smoothly.</li>
+                <li>On iOS Safari and Android Chrome, flings stop at each panel and do not overshoot a tall one.</li>
+                <li>Keys typed into the text box on the controls slide stay in the box.</li>
+                <li>The last slide, a parser repair case, logs one <code>console.warn</code>.</li>
+                <li>The URL hash follows every move; browser back returns to the previous panel.</li>
+            </ul>
+            <notes>Print preview: Cmd+P or Ctrl+P. Reduced motion: macOS Accessibility, Display, Reduce motion.</notes>
+        </slide>
+    </slide>
+
+    <slide horizontal>
+        <slide vertical>
+            <h2>Two axes</h2>
+            <p class="lede">Columns run sideways. Panels stack inside a column. <kbd>↓</kbd> walks this stack.</p>
+        </slide>
+        <notes>This note sits loose in the column, after the first panel, so it belongs to that panel.</notes>
+        <slide vertical>
+            <h2>Markup</h2>
+            <pre><code>&lt;slides&gt;
+    &lt;slide horizontal&gt;
+        &lt;slide vertical&gt;…&lt;/slide&gt;
+        &lt;slide vertical&gt;…&lt;/slide&gt;
+    &lt;/slide&gt;
+&lt;/slides&gt;</code></pre>
+            <notes>Axis attributes are optional; the deck infers them from position.</notes>
+        </slide>
+        <slide vertical>
+            <h2>Every panel is a URL</h2>
+            <p>Watch the address bar: <code>#/2/2</code>. Copy it into a new tab to land here.</p>
+        </slide>
+    </slide>
+
+    <slide horizontal>
+        <slide vertical>
+            <h2>Fragments</h2>
+            <p>Press <kbd>Space</kbd> to reveal one step at a time.</p>
+            <div class="step" fragment>Entering forwards hides every step.</div>
+            <div class="step" fragment>Each <kbd>Space</kbd> reveals the next one.</div>
+            <div class="step" fragment>The hash gains a step segment: <code>#/3/0/3</code>.</div>
+            <notes>Step through all three, then Shift+Space back to show them re-hiding one by one.</notes>
+        </slide>
+        <slide vertical>
+            <h2>Going back</h2>
+            <p>Press <kbd>Shift+Space</kbd> from the next panel and this one arrives fully revealed.</p>
+            <ul>
+                <li fragment>Backwards entry shows every step</li>
+                <li fragment><kbd>PageDown</kbd> and <kbd>→</kbd> skip steps</li>
+            </ul>
+            <notes>Use PageDown here to show it skipping the fragments.</notes>
+        </slide>
+    </slide>
+
+    <slide horizontal>
+        <slide vertical class="chapter">
+            <h2>A tall panel</h2>
+            <p>This panel is taller than the screen. <kbd>↓</kbd> scrolls it a screen at a time, and only moves on at its bottom edge. A mouse or touch scroll can rest anywhere inside it.</p>
+            <h3>1. Snapping</h3>
+            <p>Columns snap sideways and panels snap vertically, both mandatory. A panel taller than the viewport is still free to scroll, because the snap area is larger than the snapport.</p>
+            <h3>2. Growing</h3>
+            <p>Panels have a minimum height of the viewport and no maximum. Content is never scaled down or clipped to fit a fixed canvas.</p>
+            <h3>3. Reading order</h3>
+            <p>Reading order runs down a column, then on to the next column. <kbd>Space</kbd> and <kbd>PageDown</kbd> follow it; <kbd>→</kbd> skips the rest of a column.</p>
+            <h3>4. Printing</h3>
+            <p>Print turns off snapping and fixed heights, so each panel starts a page and a tall panel flows across as many pages as it needs.</p>
+            <h3>5. Without JavaScript</h3>
+            <p>The stylesheet alone lays out and scrolls the deck. Fragments stay visible until the script marks the deck ready.</p>
+            <h3>6. Keys inside controls</h3>
+            <p>Keys typed into inputs, buttons, and editable regions belong to them, not to the deck.</p>
+            <h3>7. Notes</h3>
+            <p>Speaker notes open in a separate window that the deck writes to directly, so the notes window needs no script of its own.</p>
+            <h3>8. One deck per page</h3>
+            <p>A second <code>&lt;slides&gt;</code> logs an error and is left alone.</p>
+            <p class="muted">The bottom of the tall panel. One more <kbd>↓</kbd> moves on.</p>
+            <notes>Use the down arrow repeatedly to show scroll-before-advance.</notes>
+        </slide>
+        <slide vertical>
+            <h2>After the tall panel</h2>
+            <p><kbd>↑</kbd> from here returns to the top of the tall panel.</p>
+        </slide>
+    </slide>
+
+    <slide horizontal>
+        <h2>Loose content</h2>
+        <p>This heading and paragraph sit in the column before its first panel. The deck wraps them into a panel of their own, marked with an orange rule.</p>
+        <slide vertical>
+            <h2>The first written panel</h2>
+            <p>Content between or after panels stays where it is.</p>
+        </slide>
+    </slide>
+
+    <slide horizontal>
+        <h2>Live controls</h2>
+        <p>Type arrows, spaces, or <kbd>S</kbd> in the box. The deck ignores keys aimed at a control.</p>
+        <div class="controls">
+            <input type="text" placeholder="Type here: ← → Space S">
+            <button type="button" onclick="this.textContent = 'Clicked ' + (++this.dataset.count) + '×'" data-count="0">Click me</button>
+        </div>
+        <p class="muted">Tab to the button first (Option+Tab in Safari), then press <kbd>Space</kbd>: it clicks instead of advancing. Click the slide background, then <kbd>→</kbd> to continue.</p>
+        <notes>Show the button counting a Space press while the deck stays put.</notes>
+    </slide>
+
+    <slide horizontal>
+        <h1>Thanks</h1>
+        <p class="lede">Press <kbd>Home</kbd> to start over, or <kbd>→</kbd> for the parser repair check.</p>
+    </slide>
+
+    <!-- Last on purpose: the unclosed <p> swallows everything after it until a block tag closes it. -->
+    <slide horizontal>
+        <slide vertical>
+            <h2>Parser repair</h2>
+            <p class="callout">Open the browser console: it should show one <code>console.warn</code> for the slide the deck moved. The paragraph below has no closing tag, so the HTML parser nests the next slide inside it.</p>
+            <p>This paragraph is never closed.
+        </slide>
+        <slide vertical>
+            <b class="heading">Repaired</b>
+            <span>The parser put this panel inside the paragraph on the panel above, and the deck moved it back into the column. It holds only inline tags because a heading or paragraph here would close the open paragraph early.</span>
+            <notes>Show the console warning here.</notes>
+        </slide>
+    </slide>
+
+</slides>
+</body>
+</html>

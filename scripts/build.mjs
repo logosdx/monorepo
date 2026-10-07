@@ -352,6 +352,14 @@ const runBuild = async () => {
     // Build browser bundle
     await $`BUNDLE_NAME=${LibPkg.browserNamespace} BUNDLE_PATH=${PATHS.BUILD} PACKAGE_PATH=${CWD} pnpm vite build --config ${VITE_CONFIG}`;
 
+    // After Vite, which empties its outDir; the IIFE build does not emit CSS.
+    const stylesheets = await glob('*.css', { cwd: PATHS.SRC });
+
+    for (const stylesheet of stylesheets) {
+
+        await fs.copy(path.join(PATHS.SRC, stylesheet), path.join(PATHS.BROWSER, stylesheet));
+    }
+
     log.info('Generating TypeScript declaration files...');
 
     // Write dts files to the `types` folder

@@ -47,6 +47,7 @@ const packageDescriptions = {
     localize: 'Lightweight i18n with ICU message syntax, plural rules, and a CLI extractor',
     observer: 'Typed event system with regex subscriptions, async iteration, and queues',
     react: 'React context providers and hooks for Observer, Fetch, Storage, Localize, and State Machine',
+    slides: 'HTML presentation decks with two-axis scroll-snap slides, fragments, URL sync, and speaker notes',
     'state-machine': 'Finite state machines with guards, async invoke, persistence, and type-safe transitions',
     storage: 'Type-safe persistence with pluggable drivers, scoped prefixes, and event hooks',
     utils: 'Error tuples, retry, circuit breakers, rate limiting, validation, and data operations',

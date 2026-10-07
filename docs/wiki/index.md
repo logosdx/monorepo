@@ -1,6 +1,6 @@
 ---
 type: Index
-description: LogosDX — pnpm monorepo of 9 @logosdx TypeScript packages (utils foundation + fetch/dom/observer/state-machine/storage/localize/hooks/react), Vitest tests, VitePress docs, Changesets release.
+description: LogosDX — pnpm monorepo of @logosdx TypeScript packages (utils foundation + fetch/dom/observer/state-machine/storage/localize/hooks/react/slides), Vitest tests, VitePress docs, Changesets release.
 ---
 
 <wiki-type>repo</wiki-type>
@@ -35,20 +35,6 @@ description: LogosDX — pnpm monorepo of 9 @logosdx TypeScript packages (utils 
 
 CI gate: `main.yml` runs build → lint → `pnpm test:ci` on all PRs and master pushes.
 
-## Language breakdown
-
-| Language | LOC | Files | % |
-|----------|-----|-------|---|
-| TypeScript | 87,723 | 312 | 65% |
-| Markdown | 33,320 | 96 | 24% |
-| YAML | 8,281 | 8 | 6% |
-| JavaScript | 1,543 | 7 | 1% |
-| HTML | 1,167 | 3 | 0% |
-| JSON | 972 | 41 | 8% |
-| CSS | 328 | 2 | 0% |
-| Shell | 327 | 1 | 0% |
-| Vue | 110 | 1 | 0% |
-
 ## DevOps & CI
 
 - CI provider: GitHub Actions. Two primary workflows: `main.yml` (CI on PR/push) and `publish.yml` (npm publish on a `master` package version bump).
@@ -69,6 +55,7 @@ CI gate: `main.yml` runs build → lint → `pnpm test:ci` on all PRs and master
 | localize | [`packages/localize/`](../../packages/localize) | i18n with path-typed keys, ICU pluralization, Intl, CLI extractor | [`docs/wiki/localize.md`](localize.md) |
 | hooks | [`packages/hooks/`](../../packages/hooks) | Lifecycle hook engine with priority chains and ctx.fail() | [`docs/wiki/hooks.md`](hooks.md) |
 | react | [`packages/react/`](../../packages/react) | React context factories + useQuery/useMutation API hooks | [`docs/wiki/react.md`](react.md) |
+| slides | `packages/slides/` | HTML-native presentation deck; CDN-first browser auto-init | `docs/wiki/slides.md` |
 | redis-bus | [`packages/redis-bus/`](../../packages/redis-bus) | Redis Streams message bus — README only, no implementation yet | [`docs/wiki/redis-bus.md`](redis-bus.md) |
 | testing | [`tests/`](../../tests) | Vitest dual-project suite (jsdom unit + Playwright browser) | [`docs/wiki/testing.md`](testing.md) |
 | tooling | [`scripts/`](../../scripts), [`.github/workflows/`](../../.github/workflows), [`.changeset/`](../../.changeset), [`internals/`](../../internals), [`skills/`](../../skills), [`.claude/skills/`](../../.claude/skills) | Build, CI, release, docs infrastructure | [`docs/wiki/tooling.md`](tooling.md) |

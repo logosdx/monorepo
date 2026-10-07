@@ -38,6 +38,7 @@
 - `@logosdx/storage`: One API for your many key-value stores.
 - `@logosdx/localize`: Localization utilities for everything from languages to customer-specific strings.
 - `@logosdx/dom`: For those who like to raw-dawg the DOM.
+- `@logosdx/slides`: Presentation decks in plain HTML. Slides grow and scroll instead of clipping.
 - `@logosdx/react`: The above, but for React. Use it in Next.js, React Native, or anywhere else.
 
 ## Under-construction
