@@ -1,5 +1,17 @@
 # @logosdx/hooks
 
+## 1.1.1
+
+### Patch Changes
+
+- 92db21f: CDN bundles no longer leak helper globals into page scope
+
+  - `dist/browser/bundle.js` declares nothing at page scope but the `LogosDx` namespace. Transpile helpers used to sit outside the IIFE as short `var` names, so a page script declaring the same name broke or altered the bundle.
+  - The browser bundle now targets es2022, with native class and private fields. This raises the CDN browser floor to about Chrome 84, Firefox 90, and Safari 15, matching the npm builds. `@logosdx/hooks` has no `.swcrc`, so its npm build is unchanged; only its CDN bundle moves to es2022.
+
+- Updated dependencies [92db21f]
+  - @logosdx/utils@7.1.1
+
 ## 1.1.0
 
 ### Minor Changes
