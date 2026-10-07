@@ -276,6 +276,7 @@ Get start with the packages:
 - [@logosdx/observer](/packages/observer/)
 - [@logosdx/utils](/packages/utils/)
 - [@logosdx/fetch](/packages/fetch/)
+- [@logosdx/hooks](/packages/hooks)
 - [@logosdx/dom](/packages/dom/)
 - [@logosdx/storage](/packages/storage/)
 - [@logosdx/localize](/packages/localize/)

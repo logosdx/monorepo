@@ -77,6 +77,14 @@ describe('smoke: browser bundle scope', () => {
             expect(() => new Function(`return (${assigned}\n)`)).not.toThrow();
         });
 
+        it(`${pkg} does not read process.env`, async () => {
+
+            const source: string = await (window as any).__fetchPackageAsset(pkg, 'bundle.js');
+
+            // A CDN page has no `process`.
+            expect(source).not.toContain('process.env');
+        });
+
         it(`${pkg} loads beside a page's own short globals`, async () => {
 
             const { win, errors, runScript } = await blankFrame();

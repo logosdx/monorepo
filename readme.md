@@ -35,6 +35,7 @@
 - `@logosdx/utils`: Production utilities that compose. Resilience built in.
 - `@logosdx/observer`: Events that understand patterns. Queues that manage themselves.
 - `@logosdx/fetch`: HTTP that handles failure. Automatically.
+- `@logosdx/hooks`: Lifecycle hooks that extend function behavior, with priorities and early exits.
 - `@logosdx/storage`: One API for your many key-value stores.
 - `@logosdx/localize`: Localization utilities for everything from languages to customer-specific strings.
 - `@logosdx/dom`: For those who like to raw-dawg the DOM.

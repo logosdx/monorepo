@@ -87,7 +87,7 @@ i18n.t('nonexistent.key');
 ```
 
 ::: warning
-The warning is only logged when `process.env.NODE_ENV !== 'production'`. In production builds, the `[key]` string is still returned but no warning is emitted.
+The warning is only logged when `process.env.NODE_ENV !== 'production'`. In production builds, the `[key]` string is still returned but no warning is emitted. The CDN bundle is a production build, so it never emits the warning.
 :::
 
 ## Fallback Merging

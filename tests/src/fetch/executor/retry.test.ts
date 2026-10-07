@@ -51,91 +51,63 @@ describe('@logosdx/fetch: retry', async () => {
         expect(c1.isTimeout()).to.be.false;
     });
 
-    const calculateDelay = (
-        baseDelay: number,
-        attempts: number,
-    ) => {
-
-        return Array.from(
-            { length: attempts },
-            (_, i) => baseDelay * Math.pow(2, i)
-        )
-        .reduce((a, b) => a + b, 0);
-    }
-
     it('retries requests with exponential backoff', async () => {
-
-        const baseDelay = 10;
 
         const api = new FetchEngine({
             baseUrl: testUrl + 1,
             retry: {
                 maxAttempts: 3,
-                baseDelay,
+                baseDelay: 10,
                 useExponentialBackoff: true,
             },
         });
 
-        const start = Date.now();
+        const retryEvents: FetchEngine.RetryEventData[] = [];
+        api.on('retry', (data) => retryEvents.push(data));
 
         await attempt(() => api.get('/'))
 
-        const end = Date.now();
-
-        // With maxAttempts: 3, we have 3 attempts and 2 delays (between attempts)
-        // Delays: baseDelay * 2^0 + baseDelay * 2^1 = 10 + 20 = 30ms
-        const calc = calculateDelay(baseDelay, 2);
-
-        expect(end - start).to.be.greaterThan(calc);
+        // 3 attempts, 2 delays: baseDelay * 2^0, baseDelay * 2^1
+        expect(retryEvents.map((e) => e.delay)).to.deep.equal([10, 20]);
     });
 
     it('retries requests with exponential backoff and max delay', async () => {
-
-        const baseDelay = 10;
 
         const api = new FetchEngine({
             baseUrl: testUrl + 1,
             retry: {
                 maxAttempts: 5,
-                baseDelay,
+                baseDelay: 10,
                 useExponentialBackoff: true,
                 maxDelay: 30,
             },
         });
 
-        const start = Date.now();
+        const retryEvents: FetchEngine.RetryEventData[] = [];
+        api.on('retry', (data) => retryEvents.push(data));
 
         await attempt(() => api.get('/'))
 
-        const end = Date.now();
-
-        const calc = calculateDelay(baseDelay, 5);
-
-        expect(end - start).to.be.lessThan(calc);
+        expect(retryEvents.map((e) => e.delay)).to.deep.equal([10, 20, 30, 30]);
     });
 
     it('retries without exponential backoff', async () => {
-
-        const baseDelay = 10;
 
         const api = new FetchEngine({
             baseUrl: testUrl + 1,
             retry: {
                 maxAttempts: 3,
-                baseDelay,
+                baseDelay: 10,
                 useExponentialBackoff: false,
             },
         });
 
-        const start = Date.now();
+        const retryEvents: FetchEngine.RetryEventData[] = [];
+        api.on('retry', (data) => retryEvents.push(data));
 
         await attempt(() => api.get('/'))
 
-        const end = Date.now();
-
-        const calc = (baseDelay * 3) + 15; // Give some buffer
-
-        expect(end - start).to.be.lessThan(calc);
+        expect(retryEvents.map((e) => e.delay)).to.deep.equal([10, 10]);
     });
 
     it('retries on specific status codes then resolves ok:false after exhausting attempts', async () => {
@@ -299,17 +271,11 @@ describe('@logosdx/fetch: retry', async () => {
             },
         }
 
-        const start = Date.now();
-
         const [result] = await attempt(() => api.get('/validate?name=&age=17', reqConfig));
 
-        const end = Date.now();
-
-        const calc = (10 * 2) + 20; // Give some buffer
-
-        expect(end - start).to.be.lessThan(calc);
         expect(result?.ok).to.be.false;
         expect(retryEvents).to.have.length(1); // 1 retry between 2 attempts (per-request override)
+        expect(retryEvents[0]!.delay).to.equal(10); // per-request baseDelay, no backoff
 
         retryEvents.length = 0;
 

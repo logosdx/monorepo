@@ -133,7 +133,7 @@ i18n.t('greeting', ['Maria'])
 i18n.t('nav.logout')
 // "Logout"
 
-// Missing key returns bracketed key string + warns in non-production
+// Missing key returns bracketed key string + warns in non-production (never from the CDN bundle)
 i18n.t('does.not.exist' as any)
 // "[does.not.exist]" + console.warn
 ```
