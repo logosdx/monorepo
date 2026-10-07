@@ -1,0 +1,44 @@
+{
+  "name": "@logosdx/slides",
+  "version": "0.0.1",
+  "description": "HTML-native presentation primitives: two-axis scroll-snap slides that grow instead of clipping",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/logosdx/monorepo",
+    "directory": "packages/slides"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "sideEffects": false,
+  "watch": true,
+  "browserNamespace": "LogosDx.Slides",
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "lint": "pnpm tsc --noEmit --project tsconfig.json"
+  },
+  "files": [],
+  "keywords": [
+    "slides",
+    "presentation",
+    "deck",
+    "scroll snap",
+    "speaker notes"
+  ],
+  "homepage": "https://logosdx.dev/",
+  "bugs": {
+    "url": "https://github.com/logosdx/monorepo/issues",
+    "email": "danilo@alonso.network"
+  },
+  "author": "Danilo Alonso <danilo@alonso.network>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "@logosdx/dom": "workspace:^",
+    "@logosdx/observer": "workspace:^",
+    "@logosdx/utils": "workspace:^"
+  }
+}

@@ -5,6 +5,7 @@ import markdownItPlantuml from 'markdown-it-plantuml'
 const simplePackages: DefaultTheme.SidebarItem[] = [
   ['Hooks', 'hooks'],
   ['React', 'react'],
+  ['Slides', 'slides'],
   // ['State Machine', 'state-machine'],
 ].map(([text, link]) => ({
   text,
@@ -101,6 +102,7 @@ const packages: DefaultTheme.SidebarItem[] = [
   },
   simplePackages[0], // Hooks
   simplePackages[1], // React
+  simplePackages[2], // Slides
 ];
 
 const metadata = {

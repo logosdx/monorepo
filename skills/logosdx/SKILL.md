@@ -1,6 +1,6 @@
 ---
 name: logosdx
-description: "Implements LogosDX patterns for DOM manipulation, HTTP clients, lifecycle hooks, events, state machines, storage adapters, i18n/localization, and React context hooks. Use when tasks involve LogosDX libraries or code that imports from any logosdx scoped package. Trigger on any mention of HookEngine, FetchEngine, ObserverEngine, ObserverRelay, StateMachine, StateHub, StorageAdapter, LocaleManager, DomCollection, or the $() DOM selector. Also use when the user works with attempt/attemptSync error tuples, event queues, request deduplication/caching/rate-limiting, ICU pluralization, or any LogosDX pattern — even if they don't name the package explicitly."
+description: "Implements LogosDX patterns for DOM manipulation, HTTP clients, lifecycle hooks, events, state machines, storage adapters, i18n/localization, HTML slide decks, and React context hooks. Use when tasks involve LogosDX libraries or code that imports from any logosdx scoped package. Trigger on any mention of HookEngine, FetchEngine, ObserverEngine, ObserverRelay, StateMachine, StateHub, StorageAdapter, LocaleManager, DomCollection, Deck, the $() DOM selector, or <slides>/<slide>/<notes> markup. Also use when the user works with attempt/attemptSync error tuples, event queues, request deduplication/caching/rate-limiting, ICU pluralization, presentation decks with fragments and speaker notes, or any LogosDX pattern — even if they don't name the package explicitly."
 ---
 
 # LogosDX Skill
@@ -9,7 +9,7 @@ Use this skill for LogosDX setup and integration. Read only the reference file(s
 
 ## Quick Start
 
-1. Identify package scope (`dom`, `fetch`, `hooks`, `localize`, `observer`, `state-machine`, `storage`, `react`, `utils`).
+1. Identify package scope (`dom`, `fetch`, `hooks`, `localize`, `observer`, `slides`, `state-machine`, `storage`, `react`, `utils`).
 2. Open the matching file from `references/`.
 3. Implement with strict typing and lifecycle cleanup.
 4. Run project checks (typecheck/tests) before finishing.
@@ -31,6 +31,7 @@ Use this skill for LogosDX setup and integration. Read only the reference file(s
 | HTTP client, retry, cache, dedupe, rate-limit, lifecycle events | `references/fetch.md` |
 | i18n, translations, ICU pluralization, Intl formatting, locale switching | `references/localize.md` |
 | Typed events, async generators, queues, observation, relay | `references/observer.md` |
+| Presentation decks, `<slides>` markup, fragments, speaker notes, `Deck` events | `references/slides.md` |
 | Finite state machines, guards, async invoke, StateHub coordination | `references/state-machine.md` |
 | Storage CRUD, key scoping, events, custom drivers | `references/storage.md` |
 | React factories, hooks, provider composition, API hooks | `references/react.md` |

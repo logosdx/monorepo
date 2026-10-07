@@ -279,4 +279,5 @@ Get start with the packages:
 - [@logosdx/dom](/packages/dom/)
 - [@logosdx/storage](/packages/storage/)
 - [@logosdx/localize](/packages/localize/)
+- [@logosdx/slides](/packages/slides)
 - [@logosdx/react](/packages/react)

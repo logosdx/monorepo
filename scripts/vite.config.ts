@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { defineConfig } from 'vite';
 
@@ -12,7 +13,8 @@ if (!BUNDLE_NAME || !BUNDLE_PATH) {
 }
 
 const sourcePath = path.join(PACKAGE_PATH!, 'src');
-const entryPath = path.join(sourcePath, 'index.ts');
+const browserEntry = path.join(sourcePath, 'browser.ts');
+const entryPath = fs.existsSync(browserEntry) ? browserEntry : path.join(sourcePath, 'index.ts');
 
 export default defineConfig({
     build: {
@@ -23,7 +25,8 @@ export default defineConfig({
             fileName: () => 'bundle.js',
         },
         outDir: path.join(BUNDLE_PATH!, 'browser'),
-        target: 'es2020',
+        // Lower targets add esbuild helpers that Vite leaves outside an IIFE with a dotted name.
+        target: 'es2022',
         sourcemap: true,
         minify: true,
         rollupOptions: {

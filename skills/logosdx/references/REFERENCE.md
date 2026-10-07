@@ -11,6 +11,7 @@ Use this index to pick the smallest LogosDX reference file that matches the task
 | `@logosdx/fetch` | `references/fetch.md` | HTTP client setup, retries, timeout behavior, dedupe/cache/rate-limit policies, request lifecycle events |
 | `@logosdx/localize` | `references/localize.md` | i18n, translations, ICU pluralization, Intl formatting, lazy locale loading, namespace scoping |
 | `@logosdx/observer` | `references/observer.md` | Typed events, regex matching, async generators, event queues, component observation |
+| `@logosdx/slides` | `references/slides.md` | HTML presentation decks, scroll-snap columns and panels, fragments, URL hash sync, speaker notes popup, `Deck` events |
 | `@logosdx/state-machine` | `references/state-machine.md` | Finite state machines, guards, async invoke, persistence, StateHub machine-to-machine coordination |
 | `@logosdx/storage` | `references/storage.md` | Typed storage CRUD, key wrappers, storage events, custom storage implementations |
 | `@logosdx/react` | `references/react.md` | Context factories, hook API behavior, provider composition, engine integration in React |
@@ -23,6 +24,7 @@ Use this index to pick the smallest LogosDX reference file that matches the task
 - Build a resilient API client: read `references/fetch.md`
 - Internationalize text, plurals, or format numbers/dates: read `references/localize.md`
 - Add a domain event bus or queue processor: read `references/observer.md`
+- Build a presentation deck in HTML: read `references/slides.md`
 - Manage stateful flows with guards, invoke, and machine coordination: read `references/state-machine.md`
 - Persist and react to local/session state changes: read `references/storage.md`
 - Wire engines into UI components: read `references/react.md`

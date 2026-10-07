@@ -1,0 +1,107 @@
+body:has(> slides) {
+    margin: 0;
+}
+
+slides {
+    display: flex;
+    /* vh on mobile Safari ignores the URL bar and crops every slide */
+    height: 100dvh;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+    background: var(--slide-bg, #fff);
+    color: var(--slide-fg, #1a1a1a);
+    font-family: var(--deck-font, system-ui, sans-serif);
+}
+
+slides > slide,
+slides > slide > slide {
+    display: block;
+    box-sizing: border-box;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+}
+
+slides > slide {
+    flex: 0 0 100%;
+    height: 100%;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+}
+
+slides > slide > slide {
+    min-height: 100%;
+}
+
+slides > slide > slide,
+slides > slide:not(:has(> slide)) {
+    padding: var(--slide-padding, 2rem 3rem);
+}
+
+notes {
+    display: none;
+}
+
+[data-slides-overlay] {
+    position: fixed;
+    inset: 0;
+    /* Above any positioned content an author puts in a slide */
+    z-index: 2147483647;
+    background: #000;
+}
+
+[data-slides-overlay="help"] {
+    display: grid;
+    place-items: center;
+    overflow: auto;
+    background: rgb(0 0 0 / 0.85);
+    color: #fff;
+    font-family: system-ui, sans-serif;
+}
+
+[data-slides-overlay="help"] th {
+    padding: 0.25rem 1rem;
+    text-align: right;
+}
+
+/* Gated on JS so a deck whose script never loads still shows every fragment.
+   visibility, not display, so a reveal does not reflow what is already shown. */
+@media screen {
+
+    slides[data-ready] [fragment]:not([revealed]) {
+        visibility: hidden;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    slides,
+    slides > slide {
+        scroll-behavior: auto;
+    }
+}
+
+@media print {
+
+    slides,
+    slides > slide {
+        display: block;
+        height: auto;
+        overflow: visible;
+        scroll-snap-type: none;
+    }
+
+    slides > slide > slide,
+    slides > slide:not(:has(> slide)) {
+        min-height: 0;
+        break-after: page;
+    }
+
+    [data-slides-overlay] {
+        display: none;
+    }
+}

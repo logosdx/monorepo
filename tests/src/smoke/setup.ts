@@ -2,33 +2,40 @@
  * Browser smoke test setup.
  *
  * Provides a helper to load individual IIFE bundles on demand.
- * Each test file loads only the bundle it needs to avoid global
- * variable conflicts between minified IIFE bundles.
  */
 
 declare const __PACKAGES_ROOT__: string;
 
-(window as any).__loadBundle = async function loadBundle(pkg: string): Promise<void> {
+async function fetchPackageAsset(pkg: string, file: string, init?: RequestInit): Promise<string> {
 
-    const root = __PACKAGES_ROOT__;
-    const src = `/@fs/${root}/${pkg}/dist/browser/bundle.js`;
-    const res = await fetch(src);
+    const src = `/@fs/${__PACKAGES_ROOT__}/${pkg}/dist/browser/${file}`;
+    const res = await fetch(src, init);
 
     if (!res.ok) {
 
         const body = await res.text();
         throw new Error(
-            `Failed to fetch ${pkg} bundle (${res.status}): ${body.slice(0, 200)}`
+            `Failed to fetch ${pkg} ${file} (${res.status}): ${body.slice(0, 200)}`
         );
     }
 
-    const code = await res.text();
+    return res.text();
+}
+
+(window as any).__fetchPackageAsset = fetchPackageAsset;
+
+(window as any).__loadBundle = async function loadBundle(
+    pkg: string,
+    doc: Document = document
+): Promise<void> {
+
+    const code = await fetchPackageAsset(pkg, 'bundle.js');
     const blob = new Blob([code], { type: 'application/javascript' });
     const blobUrl = URL.createObjectURL(blob);
 
     return new Promise((resolve, reject) => {
 
-        const script = document.createElement('script');
+        const script = doc.createElement('script');
         script.src = blobUrl;
         script.onload = () => {
 
@@ -40,6 +47,21 @@ declare const __PACKAGES_ROOT__: string;
             URL.revokeObjectURL(blobUrl);
             reject(new Error(`Failed to execute bundle: ${pkg}`));
         };
-        document.head.appendChild(script);
+        doc.head.appendChild(script);
     });
+};
+
+(window as any).__loadStylesheet = async function loadStylesheet(
+    pkg: string,
+    file: string
+): Promise<HTMLStyleElement> {
+
+    // Without text/css, Vite answers a .css URL with its JS HMR module.
+    const css = await fetchPackageAsset(pkg, file, { headers: { accept: 'text/css' } });
+
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+
+    return style;
 };

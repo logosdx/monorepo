@@ -204,6 +204,18 @@ importers:
         specifier: ^19.0.0
         version: 19.2.4
 
+  packages/slides:
+    dependencies:
+      '@logosdx/dom':
+        specifier: workspace:^
+        version: link:../dom
+      '@logosdx/observer':
+        specifier: workspace:^
+        version: link:../observer
+      '@logosdx/utils':
+        specifier: workspace:^
+        version: link:../utils
+
   packages/state-machine:
     dependencies:
       '@logosdx/observer':
