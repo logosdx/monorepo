@@ -2,7 +2,9 @@ import {
     describe,
     it,
     vi,
-    expect
+    expect,
+    beforeEach,
+    afterEach
 } from 'vitest'
 
 
@@ -15,9 +17,23 @@ import {
     attemptSync
 } from '@logosdx/utils';
 
+/** Cache expiry reads `Date.now()` and stale races use `setTimeout`; faking both pins the clock. */
+const useFakeClock = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+const settleAfter = async <T>(call: Promise<T>, ms: number) => {
+
+    await vi.advanceTimersByTimeAsync(ms);
+    return call;
+};
+
 describe('@logosdx/utils', () => {
 
     const { calledExactly } = mockHelpers(expect);
+
+    afterEach(() => {
+
+        vi.useRealTimers();
+    });
 
     describe('flow-control: memo', () => {
 
@@ -451,7 +467,9 @@ describe('@logosdx/utils', () => {
             expect(memoized.cache.size).to.equal(1);
         });
 
-        it('should return cached data until TTL expires for sync', async () => {
+        it('should return cached data until TTL expires for sync', () => {
+
+            useFakeClock();
 
             let callCount = 0;
             const fn = vi.fn((n: number) => {
@@ -472,7 +490,7 @@ describe('@logosdx/utils', () => {
             calledExactly(fn, 1, 'first call executes function');
 
             // Wait but stay within TTL
-            await wait(15);
+            vi.advanceTimersByTime(15);
 
             // Second call should return cached value (still within TTL)
             const result2 = memoized(3);
@@ -482,7 +500,9 @@ describe('@logosdx/utils', () => {
             expect(memoized.cache.size).to.equal(1);
         });
 
-        it('should accurately respect TTL timing for sync functions', async () => {
+        it('should accurately respect TTL timing for sync functions', () => {
+
+            useFakeClock();
 
             let callCount = 0;
             const fn = vi.fn((n: number) => {
@@ -504,25 +524,25 @@ describe('@logosdx/utils', () => {
             calledExactly(fn, 1, 'first call executes function');
 
             // Second call at t=10ms - within TTL, should return cached
-            await wait(10);
+            vi.advanceTimersByTime(10);
             const result2 = memoized(1);
             expect(result2).to.equal('result-1-call-1');
             calledExactly(fn, 1, 'call at 10ms uses cache (within TTL)');
 
             // Third call at t=20ms - still within TTL (50ms)
-            await wait(10); // 10 + 10 = 20ms total
+            vi.advanceTimersByTime(10); // 10 + 10 = 20ms total
             const result3 = memoized(1);
             expect(result3).to.equal('result-1-call-1'); // Cached data returned
             calledExactly(fn, 1, 'call at 20ms still uses cache (within TTL)');
 
             // Fourth call at t=40ms - still within TTL
-            await wait(20); // 20 + 20 = 40ms total
+            vi.advanceTimersByTime(20); // 20 + 20 = 40ms total
             const result4 = memoized(1);
             expect(result4).to.equal('result-1-call-1'); // Still cached
             calledExactly(fn, 1, 'call at 40ms still uses cache (within TTL)');
 
             // Fifth call at t=60ms - past TTL (50ms), should execute function again
-            await wait(20); // 40 + 20 = 60ms total (past 50ms TTL)
+            vi.advanceTimersByTime(20); // 40 + 20 = 60ms total (past 50ms TTL)
             const result5 = memoized(1);
             expect(result5).to.equal('result-1-call-2');
             calledExactly(fn, 2, 'call past TTL executes function again');
@@ -530,6 +550,11 @@ describe('@logosdx/utils', () => {
     });
 
     describe('stale-while-revalidate Promise.race() behavior', () => {
+
+        beforeEach(() => {
+
+            useFakeClock();
+        });
 
         it('should return fresh data when fetch completes within staleTimeout', async () => {
 
@@ -550,16 +575,16 @@ describe('@logosdx/utils', () => {
             });
 
             // First call - should execute function
-            const result1 = await memoized(5);
+            const result1 = await settleAfter(memoized(5), 5);
             expect(result1).to.equal('result-5-call-1');
             calledExactly(fn, 1, 'first call executes function');
 
             // Wait for data to become stale (past staleIn period)
-            await wait(10); // Now at ~10ms, data is stale
+            await vi.advanceTimersByTimeAsync(10);
 
             // Second call - data is stale, should race fresh fetch (5ms) vs timeout (15ms)
             // Fresh data should win the race and be returned
-            const result2 = await memoized(5);
+            const result2 = await settleAfter(memoized(5), 5);
             expect(result2).to.equal('result-5-call-2'); // Fresh data from winning race
             calledExactly(fn, 2, 'stale call triggers fresh fetch that wins race');
 
@@ -585,18 +610,22 @@ describe('@logosdx/utils', () => {
             });
 
             // First call - should execute function
-            const result1 = await memoized(3);
+            const result1 = await settleAfter(memoized(3), 25);
             expect(result1).to.equal('result-3-call-1');
             calledExactly(fn, 1, 'first call executes function');
 
             // Wait for data to become stale
-            await wait(8); // Now at ~8ms, data is stale
+            await vi.advanceTimersByTimeAsync(8);
 
             // Second call - data is stale, should race fresh fetch (25ms) vs timeout (10ms)
             // Timeout should win the race, return stale data
-            const result2 = await memoized(3);
+            const result2 = await settleAfter(memoized(3), 10);
             expect(result2).to.equal('result-3-call-1'); // Stale data returned due to timeout
             calledExactly(fn, 2, 'stale call triggers fresh fetch but timeout wins race');
+
+            // The losing fetch still lands and revalidates the cache
+            await vi.advanceTimersByTimeAsync(15);
+            expect(await memoized(3)).to.equal('result-3-call-2');
 
             expect(memoized.cache.size).to.equal(1);
         });
@@ -620,23 +649,17 @@ describe('@logosdx/utils', () => {
             });
 
             // First call - should execute function
-            const result1 = await memoized(7);
+            const result1 = await settleAfter(memoized(7), 10);
             expect(result1).to.equal('result-7-call-1');
             calledExactly(fn, 1, 'first call executes function');
 
             // Wait for data to become stale
-            await wait(8); // Now at ~8ms, data is stale
+            await vi.advanceTimersByTimeAsync(8);
 
-            // Second call - should handle exact timing boundary consistently
-            // When fetch completes exactly at staleTimeout, behavior should be deterministic
-            const result2 = await memoized(7);
+            // Second call - the fetch timer is created before the timeout timer, so on a tie it wins
+            const result2 = await settleAfter(memoized(7), 10);
 
-            // Either fresh data (if race timing favors fetch) or stale data (if timeout wins)
-            // The key is consistent behavior regardless of microsecond timing differences
-            const isStaleReturned = result2 === 'result-7-call-1';
-            const isFreshReturned = result2 === 'result-7-call-2';
-
-            expect(isStaleReturned || isFreshReturned).to.be.true;
+            expect(result2).to.equal('result-7-call-2');
             expect(callCount).to.equal(2); // Function should have been called for fresh attempt
 
             expect(memoized.cache.size).to.equal(1);
@@ -662,7 +685,7 @@ describe('@logosdx/utils', () => {
             });
 
             // Initial fresh call
-            const result1 = await memoized(5, 100);
+            const result1 = await settleAfter(memoized(5, 100), 5);
             expect(result1).to.equal('result-100-call-1');
             calledExactly(fn, 1, 'initial call executes function');
 
@@ -672,9 +695,9 @@ describe('@logosdx/utils', () => {
             calledExactly(fn, 1, 'immediate call uses cache');
 
             // Make data stale and test fast fresh fetch
-            await wait(8); // Data is now stale
+            await vi.advanceTimersByTimeAsync(8);
 
-            const fastResult = await memoized(5, 100); // Fast fetch should reuse same cache key
+            const fastResult = await settleAfter(memoized(5, 100), 5);
             expect(fastResult).to.equal('result-100-call-2'); // Fresh data should win race
             calledExactly(fn, 2, 'fast fresh data wins Promise.race');
 
@@ -701,24 +724,28 @@ describe('@logosdx/utils', () => {
             });
 
             // Initial fresh call
-            const result1 = await memoized(20, 200);
+            const result1 = await settleAfter(memoized(20, 200), 20);
             expect(result1).to.equal('result-200-call-1');
             calledExactly(fn, 1, 'initial call executes function');
 
             // Make data stale and test slow fetch timeout
-            await wait(8); // Data is now stale
+            await vi.advanceTimersByTimeAsync(8);
 
             const start = Date.now();
-            const slowResult = await memoized(20, 200); // Slow fetch (20ms > 8ms timeout)
-            const elapsed = Date.now() - start;
+            let settledAt = 0;
+            const slowCall = memoized(20, 200).then((value) => {
 
-            // Timeout wins the race, so we should get stale data
+                settledAt = Date.now();
+                return value;
+            });
+
+            const slowResult = await settleAfter(slowCall, 20); // Slow fetch (20ms > 8ms timeout)
+
+            // Timeout wins the race: stale data arrives at staleTimeout, not when the fetch ends
             expect(slowResult).to.equal('result-200-call-1');
             expect(callCount).to.equal(2); // Function should have been called for fresh attempt
-            expect(elapsed).to.be.greaterThanOrEqual(8); // We waited at least ~staleTimeout
-            expect(elapsed).to.be.lessThan(19); // Ensure we didn't wait for full 20ms fetch
+            expect(settledAt - start).to.equal(8);
 
-            // Cache size may vary depending on race results
             expect(memoized.cache.size).to.be.greaterThan(0);
         });
 
@@ -742,12 +769,12 @@ describe('@logosdx/utils', () => {
             });
 
             // Initial fresh call
-            const result1 = await memoized(5, 300);
+            const result1 = await settleAfter(memoized(5, 300), 5);
             expect(result1).to.equal('result-300-call-1');
             calledExactly(fn, 1, 'initial call executes function');
 
             // Make data stale and test zero timeout
-            await wait(8); // Data is now stale
+            await vi.advanceTimersByTimeAsync(8);
 
             const zeroTimeoutResult = await memoized(5, 300);
             expect(zeroTimeoutResult).to.equal('result-300-call-1'); // Should return stale immediately
@@ -833,6 +860,8 @@ describe('@logosdx/utils', () => {
 
         it('should cache and return null values correctly with stale-while-revalidate', async () => {
 
+            useFakeClock();
+
             let callCount = 0;
             const fn = vi.fn(async () => {
                 callCount++;
@@ -847,7 +876,7 @@ describe('@logosdx/utils', () => {
             });
 
             // First call returns null
-            const result1 = await memoized();
+            const result1 = await settleAfter(memoized(), 5);
             expect(result1).to.be.null;
             expect(callCount).to.equal(1);
 
@@ -857,10 +886,10 @@ describe('@logosdx/utils', () => {
             expect(callCount).to.equal(1);
 
             // Wait for stale period
-            await wait(15);
+            await vi.advanceTimersByTimeAsync(15);
 
             // Call during stale period - should get fresh value
-            const result3 = await memoized();
+            const result3 = await settleAfter(memoized(), 5);
             expect(result3).to.equal('not-null');
             expect(callCount).to.equal(2);
         });
@@ -890,6 +919,8 @@ describe('@logosdx/utils', () => {
 
         it('should cache and return false values correctly with stale-while-revalidate', async () => {
 
+            useFakeClock();
+
             let callCount = 0;
             const fn = vi.fn(async () => {
                 callCount++;
@@ -904,7 +935,7 @@ describe('@logosdx/utils', () => {
             });
 
             // First call returns false
-            const result1 = await memoized();
+            const result1 = await settleAfter(memoized(), 5);
             expect(result1).to.equal(false);
             expect(callCount).to.equal(1);
 
@@ -914,10 +945,10 @@ describe('@logosdx/utils', () => {
             expect(callCount).to.equal(1);
 
             // Wait for stale period
-            await wait(15);
+            await vi.advanceTimersByTimeAsync(15);
 
             // Call during stale period - should get fresh value (true)
-            const result3 = await memoized();
+            const result3 = await settleAfter(memoized(), 5);
             expect(result3).to.equal(true);
             expect(callCount).to.equal(2);
         });

@@ -24,7 +24,7 @@ Covers the build system, CI pipelines, release workflow, documentation infrastru
 - [`scripts/docs.zsh`](../../scripts/docs.zsh) — docs deploy script: generates `_config.yml` with `.well-known` include for Jekyll, deploys to GitHub Pages
 - [`scripts/new-pkg.zsh`](../../scripts/new-pkg.zsh) — new package scaffolding script
 - [`scripts/ralph-wiggum.sh`](../../scripts/ralph-wiggum.sh) — misc dev helper script
-- [`scripts/vite.config.ts`](../../scripts/vite.config.ts) — Vite config for the browser bundle: IIFE `dist/browser/bundle.js`, entry `src/browser.ts` when that file exists, else `src/index.ts`; target `es2022`, because lower targets make esbuild emit helpers outside an IIFE with a dotted global name
+- [`scripts/vite.config.ts`](../../scripts/vite.config.ts) — Vite config for the browser bundle: IIFE `dist/browser/bundle.js`, entry `src/browser.ts` when that file exists, else `src/index.ts`; target `es2022`, because lower targets make esbuild emit helpers outside an IIFE with a dotted global name; `process.env.NODE_ENV` defined as `"production"`, because library mode leaves `process.env` for the consumer's bundler and a CDN page has no `process`
 - [`scripts/Dockerfile`](../../scripts/Dockerfile) — Docker image for CI/build
 - [`internals/empty-pkg/`](../../internals/empty-pkg) — template for new packages (src/index.ts, .swcrc, package.json, tsconfig.json)
 - [`.changeset/config.json`](../../.changeset/config.json) — Changesets configuration

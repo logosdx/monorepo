@@ -6,20 +6,13 @@
 
 declare const __PACKAGES_ROOT__: string;
 
-async function fetchPackageAsset(pkg: string, file: string, init?: RequestInit): Promise<string> {
+/** `?raw` returns the shipped bytes; a plain fetch gets Vite's `process.env.NODE_ENV` substitution. */
+async function fetchPackageAsset(pkg: string, file: string): Promise<string> {
 
-    const src = `/@fs/${__PACKAGES_ROOT__}/${pkg}/dist/browser/${file}`;
-    const res = await fetch(src, init);
+    const src = `/@fs/${__PACKAGES_ROOT__}/${pkg}/dist/browser/${file}?raw`;
+    const asset = await import(/* @vite-ignore */ src);
 
-    if (!res.ok) {
-
-        const body = await res.text();
-        throw new Error(
-            `Failed to fetch ${pkg} ${file} (${res.status}): ${body.slice(0, 200)}`
-        );
-    }
-
-    return res.text();
+    return asset.default;
 }
 
 (window as any).__fetchPackageAsset = fetchPackageAsset;
@@ -56,8 +49,7 @@ async function fetchPackageAsset(pkg: string, file: string, init?: RequestInit):
     file: string
 ): Promise<HTMLStyleElement> {
 
-    // Without text/css, Vite answers a .css URL with its JS HMR module.
-    const css = await fetchPackageAsset(pkg, file, { headers: { accept: 'text/css' } });
+    const css = await fetchPackageAsset(pkg, file);
 
     const style = document.createElement('style');
     style.textContent = css;

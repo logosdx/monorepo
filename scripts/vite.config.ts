@@ -17,6 +17,10 @@ const browserEntry = path.join(sourcePath, 'browser.ts');
 const entryPath = fs.existsSync(browserEntry) ? browserEntry : path.join(sourcePath, 'index.ts');
 
 export default defineConfig({
+    // Library mode keeps `process.env.NODE_ENV` for the consumer's bundler; a CDN page has none.
+    define: {
+        'process.env.NODE_ENV': JSON.stringify('production'),
+    },
     build: {
         lib: {
             entry: entryPath,

@@ -223,21 +223,21 @@ describe('@logosdx/utils - flow-control: retry', () => {
             throw new Error('always fail');
         });
 
-        const start = Date.now();
+        const randoms = [0, 0.5, 1];
+
+        vi.spyOn(Math, 'random').mockImplementation(() => randoms.shift()!);
+        const scheduled = vi.spyOn(globalThis, 'setTimeout');
 
         const [, error] = await attempt(() =>
             retry(fn, { retries: 3, delay: 10, jitterFactor: 0.5 })
         );
 
-        const elapsed = Date.now() - start;
-
         expect(error).to.be.an.instanceof(Error);
         expect(error!.message).to.equal('Max retries reached');
         calledExactly(fn, 3, 'retry with jitter');
 
-        // With jitterFactor of 0.5 (+1) and delay of 10: 10ms * ~1.5 + 10ms * ~1.5 + 10ms * ~1.5 = 37.5ms average
-        expect(elapsed).to.be.greaterThan(31.5);
-        expect(elapsed).to.be.lessThan(45);
+        // Jitter stretches each delay by up to jitterFactor: 10ms * (1 + 0.5 * random).
+        expect(scheduled.mock.calls.map(([, ms]) => ms)).to.deep.equal([10, 12.5, 15]);
     });
 
     it('should retry with abort signal', async () => {
