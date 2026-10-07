@@ -1,5 +1,12 @@
 # @logosdx/fetch
 
+## 9.2.2
+
+### Patch Changes
+
+- Updated dependencies [1da0e6b]
+  - @logosdx/hooks@1.1.2
+
 ## 9.2.1
 
 ### Patch Changes

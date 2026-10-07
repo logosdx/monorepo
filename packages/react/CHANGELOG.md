@@ -1,5 +1,17 @@
 # @logosdx/react
 
+## 7.0.2
+
+### Patch Changes
+
+- 1da0e6b: CDN bundles no longer reference `process.env.NODE_ENV`
+
+  - `dist/browser/bundle.js` threw `ReferenceError: process is not defined` on a plain page: `@logosdx/react` at load, `@logosdx/localize` on a missing-key lookup. The build now inlines `process.env.NODE_ENV` as `"production"`, so the CDN bundles are production builds and the localize missing-key warning does not fire from them.
+
+- Updated dependencies [1da0e6b]
+  - @logosdx/localize@2.0.6
+  - @logosdx/fetch@9.2.2
+
 ## 7.0.1
 
 ### Patch Changes
