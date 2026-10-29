@@ -47,7 +47,21 @@ const GUARDED = [
  */
 export function isGuardedTarget(target: EventTarget | null): boolean {
 
-    return target instanceof Element && !!target.closest(GUARDED);
+    return target instanceof Element && isGuardedElement(target);
+}
+
+/**
+ * The guard for an element already known to be an element, which the speaker
+ * notes need: their elements come from another window, where `instanceof Element`
+ * against this one's fails.
+ *
+ * @example
+ *
+ *     if (target instanceof popup.Element && isGuardedElement(target)) return;
+ */
+export function isGuardedElement(element: Element): boolean {
+
+    return !!element.closest(GUARDED);
 }
 
 /**

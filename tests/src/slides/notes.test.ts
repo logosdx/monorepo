@@ -4,7 +4,9 @@ import {
     notesDocument,
     notesOf,
     renderNotes,
+    titleOf,
     writeClock,
+    type NotesCommand,
     type NotesState
 } from '../../../packages/slides/src/notes.ts';
 import { upgradeDeck } from '../../../packages/slides/src/upgrade.ts';
@@ -27,6 +29,7 @@ const byId = (id: string) => document.getElementById(id)!;
 const stateFor = (slide: Element, overrides: Partial<NotesState> = {}): NotesState => ({
     slide,
     next: null,
+    outline: [['First', 'Second'], ['Solo']],
     column: 0,
     columns: 2,
     panel: 0,
@@ -276,6 +279,117 @@ describe('slides: notes', () => {
             expect(preview.textContent).toMatch(/\[video\][\s\S]*\[audio\][\s\S]*\[iframe\]/);
             expect(byId('media').querySelector('video')!.hasAttribute('autoplay')).toBe(true);
         });
+
+        it('lists every panel in a jump menu grouped by column, selecting the current one', () => {
+
+            document.body.innerHTML = DECK_HTML;
+            const doc = blankDocument();
+
+            renderNotes(doc, stateFor(byId('p1'), { panel: 1 }), { elapsed: 0, now: Date.now() });
+
+            const menu = doc.querySelector<HTMLSelectElement>('aside > select')!;
+            const groups = Array.from(menu.querySelectorAll('optgroup'));
+            const options = Array.from(menu.querySelectorAll('option'));
+
+            expect(groups.map((group) => group.label)).toEqual(['1. First', '2. Solo']);
+            expect(options.map((option) => option.value)).toEqual(['0:0', '0:1', '1:0']);
+            expect(options.map((option) => option.textContent))
+                .toEqual(['1. First', '2. Second', '1. Solo']);
+            expect(menu.value).toBe('0:1');
+        });
+
+        it('refreshes the jump menu on a same-slide redraw, so it never lags the deck', () => {
+
+            document.body.innerHTML = DECK_HTML;
+            const doc = blankDocument();
+            const clock = { elapsed: 0, now: Date.now() };
+
+            renderNotes(doc, stateFor(byId('p0')), clock);
+            renderNotes(
+                doc,
+                stateFor(byId('p0'), { outline: [['First', 'Second'], ['Solo'], ['New']] }),
+                clock
+            );
+
+            expect(doc.querySelectorAll('aside > select option')).toHaveLength(4);
+        });
+
+        it('draws a button for each control, named by the deck action it triggers', () => {
+
+            document.body.innerHTML = DECK_HTML;
+            const doc = blankDocument();
+
+            renderNotes(doc, stateFor(byId('p0')), { elapsed: 0, now: Date.now() });
+
+            const actions = Array.from(doc.querySelectorAll<HTMLElement>('aside button'))
+                .map((button) => button.dataset.action);
+
+            expect(actions).toEqual(['prevColumn', 'prev', 'next', 'nextColumn', 'blank']);
+        });
+
+        it('keeps media in the next-slide preview and the notes inside their panes', () => {
+
+            document.body.innerHTML = DECK_HTML;
+            const doc = blankDocument();
+
+            renderNotes(doc, stateFor(byId('p0')), { elapsed: 0, now: Date.now() });
+
+            const css = doc.head.querySelector('style')!.textContent!;
+
+            expect(css).toMatch(/minmax\(0, 3fr\) minmax\(0, 2fr\)/);
+            expect(css).toMatch(/#next :is\(img[^)]*\)[\s\S]*max-width: 100% !important/);
+            expect(css).toMatch(/#notes :is\(img[^)]*\)/);
+            expect(css).toMatch(/:is\(table, pre\) \{\s*display: block; overflow-x: auto/);
+        });
+    });
+
+    describe('titleOf', () => {
+
+        const titled = (html: string) => {
+
+            document.body.innerHTML = `<slides><slide horizontal id="x">${html}</slide></slides>`;
+
+            return titleOf(byId('x'), 4);
+        };
+
+        it('uses the first heading', () => {
+
+            expect(titled('<p>intro</p><h2>Revenue</h2><h3>Detail</h3>')).toBe('Revenue');
+        });
+
+        it('ignores headings inside notes', () => {
+
+            expect(titled('<notes><h2>Private</h2></notes><p>Public text</p>')).toBe('Public text');
+        });
+
+        it('falls back to the start of the visible text, collapsed and trimmed', () => {
+
+            expect(titled('<p>  Many   words\n here </p><notes>hidden</notes>'))
+                .toBe('Many words here');
+        });
+
+        it('marks a clipped title with an ellipsis, headings included', () => {
+
+            const clipped = titled(`<p>${'a'.repeat(100)}</p>`);
+
+            expect(clipped).toHaveLength(48);
+            expect(clipped.endsWith('…')).toBe(true);
+            expect(titled(`<h2> ${'b '.repeat(60)}</h2>`)).toHaveLength(48);
+        });
+
+        it('reads text without cloning, which would start the panel\'s media loading', () => {
+
+            const clone = vi.spyOn(Node.prototype, 'cloneNode');
+
+            titled('<video src="talk.mp4"></video><p>Talk</p>');
+
+            expect(clone).not.toHaveBeenCalled();
+        });
+
+        it('falls back to the slide number when there is no text', () => {
+
+            expect(titled('<img src="x.png"><notes>only notes</notes>')).toBe('Slide 4');
+        });
     });
 
     describe('writeClock', () => {
@@ -377,12 +491,14 @@ describe('slides: notes', () => {
 
         let current: NotesState;
         let notes: NotesWindow;
+        let commands: ReturnType<typeof vi.fn<(command: NotesCommand) => void>>;
 
         const setup = () => {
 
             document.body.innerHTML = DECK_HTML;
             current = stateFor(byId('p0'), { next: byId('p1') });
-            notes = new NotesWindow(() => current);
+            commands = vi.fn<(command: NotesCommand) => void>();
+            notes = new NotesWindow(() => current, commands);
         };
 
         afterEach(() => {
@@ -485,6 +601,152 @@ describe('slides: notes', () => {
 
             expect(vi.getTimerCount()).toBe(0);
             expect(popup.close).toHaveBeenCalled();
+        });
+
+        describe('control wiring', () => {
+
+            const opened = () => {
+
+                setup();
+                const popup = fakePopup();
+
+                vi.spyOn(window, 'open').mockReturnValue(popup.popup);
+                notes.open();
+
+                return popup;
+            };
+
+            const press = (doc: Document, key: string, target: Element = doc.body) => {
+
+                const event = new doc.defaultView!.KeyboardEvent('keydown', {
+                    key,
+                    bubbles: true,
+                    cancelable: true
+                });
+
+                target.dispatchEvent(event);
+
+                return event;
+            };
+
+            it('turns a button click into its deck action and drops focus from it', () => {
+
+                const { doc } = opened();
+                const next = doc.querySelector<HTMLButtonElement>('button[data-action="next"]')!;
+
+                next.focus();
+                next.click();
+
+                expect(commands).toHaveBeenCalledExactlyOnceWith('next');
+                expect(doc.activeElement).not.toBe(next);
+            });
+
+            it('turns a jump-menu choice into a position', () => {
+
+                const { doc } = opened();
+                const menu = doc.querySelector('select')!;
+
+                menu.value = '1:0';
+                menu.dispatchEvent(new doc.defaultView!.Event('change', { bubbles: true }));
+
+                expect(commands).toHaveBeenCalledExactlyOnceWith({ column: 1, panel: 0 });
+            });
+
+            it('maps navigation keys pressed in the window to deck actions', () => {
+
+                const { doc } = opened();
+
+                for (const key of ['ArrowRight', 'ArrowLeft', ' ', 'PageDown', 'Home', 'b']) {
+
+                    expect(press(doc, key).defaultPrevented).toBe(true);
+                }
+
+                expect(commands.mock.calls.map(([command]) => command))
+                    .toEqual(['nextColumn', 'prevColumn', 'next', 'nextPanel', 'first', 'blank']);
+            });
+
+            it('leaves Up, Down, and the window-only keys alone, so long notes still scroll', () => {
+
+                const { doc } = opened();
+
+                for (const key of ['ArrowDown', 'ArrowUp', 's', 'f', '?', 'x']) {
+
+                    expect(press(doc, key).defaultPrevented).toBe(false);
+                }
+
+                expect(commands).not.toHaveBeenCalled();
+            });
+
+            it('leaves keys aimed at its own controls to the control', () => {
+
+                const { doc } = opened();
+                const button = doc.querySelector('button')!;
+
+                expect(press(doc, ' ', button).defaultPrevented).toBe(false);
+                expect(commands).not.toHaveBeenCalled();
+            });
+
+            it('leaves keys aimed at embedded controls in the notes to those controls', () => {
+
+                const { doc } = opened();
+                const video = doc.createElement('video');
+
+                video.setAttribute('controls', '');
+                doc.body.append(video);
+
+                expect(press(doc, ' ', video).defaultPrevented).toBe(false);
+                expect(commands).not.toHaveBeenCalled();
+            });
+
+            it('keeps a clicked link from navigating the popup away from its controls', () => {
+
+                const { doc } = opened();
+                const link = doc.createElement('a');
+
+                link.setAttribute('href', 'https://example.com');
+                doc.body.append(link);
+
+                const click = new doc.defaultView!.MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true
+                });
+
+                link.dispatchEvent(click);
+
+                expect(click.defaultPrevented).toBe(true);
+            });
+
+            it('does not read the deck while no popup is open', () => {
+
+                setup();
+                const read = vi.fn(() => current);
+
+                new NotesWindow(read, commands).draw();
+
+                expect(read).not.toHaveBeenCalled();
+            });
+
+            it('stops listening once closed', () => {
+
+                const { doc } = opened();
+
+                notes.close();
+                doc.querySelector<HTMLButtonElement>('button[data-action="next"]')?.click();
+                press(doc, ' ');
+
+                expect(commands).not.toHaveBeenCalled();
+            });
+
+            it('keeps listening across redraws that rebuild the view', () => {
+
+                const { doc } = opened();
+
+                current = stateFor(byId('p1'), { panel: 1 });
+                notes.draw();
+                doc.querySelector<HTMLButtonElement>('button[data-action="prev"]')!.click();
+
+                expect(commands).toHaveBeenCalledExactlyOnceWith('prev');
+            });
         });
     });
 });

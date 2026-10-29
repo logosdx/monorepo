@@ -11,7 +11,12 @@ import {
     type FragmentNotify
 } from './fragments.ts';
 import { isGuardedTarget, keyAction, type KeyAction } from './keys.ts';
-import { NotesWindow, type NotesState } from './notes.ts';
+import {
+    NotesWindow,
+    titleOf,
+    type NotesCommand,
+    type NotesState
+} from './notes.ts';
 import { createOverlay, type OverlayName } from './overlays.ts';
 import { DECK, SLIDE, slideChildren, upgradeDeck } from './upgrade.ts';
 import { formatHash, parseHash } from './url.ts';
@@ -87,7 +92,10 @@ export class Deck {
     #lastOffsets: [left: number, top: number] | null = null;
     #centered = new Set<Element>();
     #overlays = new Map<OverlayName, HTMLElement>();
-    #notes = new NotesWindow(() => this.#notesState());
+    #notes = new NotesWindow(
+        () => this.#notesState(),
+        (command) => this.#onNotesCommand(command)
+    );
     #notify: FragmentNotify = (event, change) => this.#events.emit(event, change);
 
     #actions: Record<KeyAction, () => void> = {
@@ -715,6 +723,7 @@ export class Deck {
         return {
             slide,
             next: panels[panels.indexOf(slide) + 1] ?? null,
+            outline: this.#outline(),
             column,
             columns: this.#columns().length,
             panel,
@@ -722,6 +731,33 @@ export class Deck {
             fragment: revealedCount(slide),
             fragments: fragmentsOf(slide).length
         };
+    }
+
+    #outline(): string[][] {
+
+        return this.#columns().map((column) => (
+            panelsOf(column).map((panel, index) => titleOf(panel, index + 1))
+        ));
+    }
+
+    /** A jump arrives as if reached by stepping: fragments hidden, ready to reveal. */
+    #onNotesCommand(command: NotesCommand): void {
+
+        if (typeof command === 'string') {
+
+            this.#actions[command]();
+
+            return;
+        }
+
+        if (!this.#panelAt(command)) {
+
+            console.warn(`@logosdx/slides: no slide at ${formatHash(command)}`);
+
+            return;
+        }
+
+        this.goTo({ ...command, fragment: 0 });
     }
 
     #onKey(event: Event): void {

@@ -8,7 +8,7 @@ const HELP_ROWS: [keys: string, action: string][] = [
     ['Space / Shift+Space', 'Next / previous step'],
     ['PageDown / PageUp', 'Next / previous slide, across columns'],
     ['Home / End', 'First / last slide'],
-    ['S', 'Open speaker notes; press again to reopen them after closing or reloading'],
+    ['S', 'Open speaker notes, which also control the deck; press again to reopen them'],
     ['F', 'Toggle fullscreen'],
     ['. / B', 'Toggle a blank screen'],
     ['?', 'Toggle this help'],

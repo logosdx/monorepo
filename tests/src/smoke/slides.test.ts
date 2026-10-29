@@ -735,7 +735,7 @@ describe('smoke: @logosdx/slides speaker notes', () => {
     let slides: Deck;
     let open: MockInstance<typeof window.open>;
 
-    const popup = (call: number) => {
+    const popup = (call: number): Window & typeof globalThis => {
 
         const pop = open.mock.results[call]?.value;
 
@@ -850,6 +850,63 @@ describe('smoke: @logosdx/slides speaker notes', () => {
         expect(shownIn(fresh, 'position')).toBe('Column 2 of 2 · Slide 1 of 2 · Step 1 of 2');
     });
 
+    it('moves the deck from the popup\'s buttons, then steps fragments like Space', async () => {
+
+        const pop = await openNotes();
+        const press = (action: string) => {
+
+            pop.document.querySelector<HTMLButtonElement>(`button[data-action="${action}"]`)!
+                .click();
+        };
+
+        press('nextColumn');
+        await arriveAt('f');
+        await expect.poll(() => shownIn(pop, 'position')).toContain('Step 0 of 2');
+
+        press('next');
+
+        expect(shownIn(pop, 'position')).toContain('Step 1 of 2');
+
+        press('prevColumn');
+        await arriveAt('t0');
+    });
+
+    it('jumps to the slide chosen in the popup\'s menu, fragments hidden', async () => {
+
+        const pop = await openNotes();
+        const menu = pop.document.querySelector('select')!;
+        const titles = Array.from(menu.options).map((option) => option.textContent);
+
+        expect(titles).toEqual(['1. Title', '1. One Two', '2. End']);
+
+        menu.value = '1:0';
+        menu.dispatchEvent(new pop.Event('change', { bubbles: true }));
+
+        await arriveAt('f');
+        await expect.poll(() => shownIn(pop, 'position')).toContain('Step 0 of 2');
+        expect(menu.ownerDocument.querySelector('select')!.value).toBe('1:0');
+    });
+
+    it('navigates from keys pressed in the popup, leaving Up and Down to its scroll', async () => {
+
+        const pop = await openNotes();
+        const press = (key: string) => {
+
+            const event = new pop.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+
+            pop.document.body.dispatchEvent(event);
+
+            return event.defaultPrevented;
+        };
+
+        expect(press('ArrowRight')).toBe(true);
+        await arriveAt('f');
+        expect(press('ArrowDown')).toBe(false);
+        expect(activeIds()).toEqual(['f']);
+        expect(press('b')).toBe(true);
+        expect(document.querySelector('[data-slides-overlay]')).not.toBeNull();
+    });
+
     it('destroy() unbinds keys, clears active and overlays, and closes the popup', async () => {
 
         const pop = await openNotes();
@@ -865,5 +922,72 @@ describe('smoke: @logosdx/slides speaker notes', () => {
         expect(deck().scrollLeft).toBe(0);
         expect(document.querySelector('[data-slides-overlay]')).toBeNull();
         await expect.poll(() => pop.closed).toBe(true);
+    });
+});
+
+const WIDE = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="2000">' +
+    '<rect width="3000" height="2000" fill="#c33"/></svg>'
+)}`;
+
+const WIDE_HTML = `
+    <slides manual>
+        <slide horizontal id="w0">
+            <slide vertical id="here">
+                Here<notes>
+                    Look: <img id="note-img" src="${WIDE}" width="3000">
+                    <pre id="note-code">${'long_code_line_'.repeat(60)}</pre>
+                </notes>
+            </slide>
+            <slide vertical id="there">
+                <img id="slide-img" src="${WIDE}" width="3000" style="width: 3000px">
+                <table id="slide-table"><tr>${'<td>quarterly figure</td>'.repeat(25)}</tr></table>
+                <pre id="slide-code">${'long_code_line_'.repeat(60)}</pre>
+            </slide>
+        </slide>
+    </slides>
+`;
+
+describe('smoke: @logosdx/slides speaker notes with oversized media', () => {
+
+    let slides: Deck;
+    let open: MockInstance<typeof window.open>;
+
+    beforeEach(async () => {
+
+        document.body.insertAdjacentHTML('beforeend', WIDE_HTML);
+        open = vi.spyOn(window, 'open');
+        slides = new window.LogosDx.Slides.Deck();
+        await new Promise((resolve) => slides.on('deck:ready', resolve));
+    });
+
+    afterEach(() => {
+
+        slides.destroy();
+        deck().remove();
+    });
+
+    it('keeps images and tables inside the notes and next-slide panes', async () => {
+
+        await userEvent.keyboard('s');
+
+        const pop: Window = open.mock.results[0]?.value;
+        const within = (selector: string, paneId: string) => {
+
+            const pane = pop.document.getElementById(paneId)!.getBoundingClientRect();
+            const media = pop.document.querySelector(selector)!.getBoundingClientRect();
+
+            return media.right <= pane.right + 0.5;
+        };
+
+        await expect.poll(() => pop.document.querySelector('#next img')).not.toBeNull();
+
+        expect(within('#next img', 'next')).toBe(true);
+        expect(within('#next table', 'next')).toBe(true);
+        expect(within('#next pre', 'next')).toBe(true);
+        expect(within('#notes img', 'notes')).toBe(true);
+        expect(within('#notes pre', 'notes')).toBe(true);
+        expect(pop.document.documentElement.scrollWidth)
+            .toBeLessThanOrEqual(pop.document.documentElement.clientWidth);
     });
 });

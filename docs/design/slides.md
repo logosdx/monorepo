@@ -380,6 +380,16 @@ Two transports were rejected:
 | `postMessage` between deck and popup | Adds a protocol for a window the deck can already write to. The popup holds no code of its own, so nothing in it could answer after a reload |
 | `BroadcastChannel` | WebKit drops messages between `file://` tabs (result 7). It also reaches only same-origin tabs in the same browser, never a second device, and a manually opened tab would have no notes view to open |
 
+### Control pane
+
+The same direct access runs the other way. The presenter's hands are on the notes window, so it carries navigation: buttons, a jump menu, and keys. The deck attaches `click`, `change`, and `keydown` listeners to the popup's document and calls its own methods from them. The popup still holds no code, so a reload drops the listeners together with the view and `S` restores both.
+
+- **Realm.** The popup's elements are built by the popup's window, so `instanceof Element` against the deck's globals is false for them. The listeners check against `popup.document.defaultView` instead, and the deck's key guard has a realm-free form (`isGuardedElement`) for the same reason.
+- **Keys.** The popup passes navigation keys through the deck's key map. `↑` and `↓` stay with the popup so long notes scroll. `S`, `F`, and `?` stay on the deck window: fullscreen needs the deck window's user activation, and `S` and `?` have nothing to open from the popup.
+- **Jump.** A jump from the menu arrives with fragments hidden, as stepping into the slide would, so the presenter reveals them in order. Panels are named from their first heading, else their first words, so the menu reads as an outline without authors adding titles.
+- **Naming without cloning.** The title comes from walking text nodes. A clone of a panel with a `<video>` or `<audio autoplay>` starts loading and playing the copy, and the outline is rebuilt on every redraw.
+- **Links.** A link clicked in the popup is cancelled, because following it would replace the controls.
+
 ### Recovery
 
 Reloading the popup leaves an empty `about:blank` (result 6). In Chromium that page is cross-origin to the deck, so the old reference cannot write to it. Closing the popup has a similar effect.

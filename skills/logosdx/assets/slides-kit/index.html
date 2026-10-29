@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Talk title</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@logosdx/slides@latest/dist/browser/slides.css">
+    <link rel="stylesheet" href="theme.css">
+    <script src="https://cdn.jsdelivr.net/npm/@logosdx/slides@latest/dist/browser/bundle.js"></script>
+</head>
+<body>
+<!-- Each <slide horizontal> is a column; <slide vertical> panels stack inside it. Close every <p> and <li> before </slide>. -->
+<slides>
+
+    <!-- Title: a column that is a single panel -->
+    <slide horizontal id="title">
+        <h1>Talk title</h1>
+        <p class="lede">One sentence that says what the audience gets.</p>
+        <p class="muted">Your name · Event · Date</p>
+        <notes>Welcome. State the one thing they should remember.</notes>
+    </slide>
+
+    <!-- Agenda: one panel, items revealed one Space at a time -->
+    <slide horizontal id="agenda">
+        <h2>Agenda</h2>
+        <ol>
+            <li fragment>First topic</li>
+            <li fragment>Second topic</li>
+            <li fragment>Third topic</li>
+        </ol>
+        <notes>Pause after each item; the room should know where this is going.</notes>
+    </slide>
+
+    <!-- Section: heading above the first panel becomes its own panel; panels stack below -->
+    <slide horizontal id="first-topic">
+        <h2>First topic</h2>
+
+        <slide vertical>
+            <h3>Two columns</h3>
+            <div class="cols">
+                <div>
+                    <p>Text on the left.</p>
+                    <p class="card">A call-out the audience should not miss.</p>
+                </div>
+                <div>
+                    <p>Text on the right.</p>
+                    <p class="muted">Supporting detail.</p>
+                </div>
+            </div>
+            <notes>Say the call-out out loud before moving on.</notes>
+        </slide>
+
+        <slide vertical id="code">
+            <h3>Code</h3>
+            <pre><code>const [user, err] = await attempt(() => api.get('/me'));
+if (err) return showError(err);</code></pre>
+            <notes>Walk the error tuple line by line.</notes>
+        </slide>
+
+        <slide vertical>
+            <h3>Image</h3>
+            <!-- Replace the src. Images shrink to the slide's width. -->
+            <img alt="Placeholder diagram" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='500'%3E%3Crect width='1200' height='500' fill='%231f222b'/%3E%3Ctext x='600' y='265' font-size='48' fill='%239a9890' text-anchor='middle' font-family='sans-serif'%3EYour image here%3C/text%3E%3C/svg%3E">
+            <notes>Describe what the picture shows; the audience reads it faster than they hear it.</notes>
+        </slide>
+    </slide>
+
+    <!-- Quote or statement -->
+    <slide horizontal id="takeaway">
+        <p class="quote">The one sentence they repeat to a colleague tomorrow.</p>
+        <notes>Stop talking for a beat after this one.</notes>
+    </slide>
+
+    <!-- Close -->
+    <slide horizontal id="end">
+        <h2>Thank you</h2>
+        <p class="lede">Questions?</p>
+        <p class="muted"><a href="https://example.com">example.com</a></p>
+        <notes>Repeat the takeaway, then take questions.</notes>
+    </slide>
+
+</slides>
+</body>
+</html>

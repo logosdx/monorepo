@@ -114,6 +114,11 @@ const deck = new Deck();
 
 Open the file in a browser. Press `?` for the key list. The axis attributes are optional: the deck infers them from position and writes them back.
 
+## Starter Kit
+
+
+The repository includes a ready-made deck in [`skills/logosdx/assets/slides-kit/`](https://github.com/logosdx/monorepo/tree/master/skills/logosdx/assets/slides-kit). The LogosDX Claude skill copies it as the starting point for a new talk. Copy the folder, open `index.html`, and edit `index.html` (the slides) and `theme.css` (colors, fonts, spacing). The kit's README lists what each file holds.
+
 ## Elements and Attributes
 
 
@@ -255,6 +260,20 @@ Press `S` to open a popup window named `lx-notes`. The deck writes into it direc
 - a preview of the next panel, with video, audio, and iframes replaced by placeholders so nothing plays or loads
 
 The view updates on every panel change and every fragment step. Drag the popup to the presenter screen and present the deck on the projector.
+
+The window is also a control pane. It moves the deck from the presenter screen:
+
+| Control | Action |
+|---|---|
+| `« Column` / `Column »` | Previous / next column |
+| `‹ Prev` / `Next ›` | Previous / next step, as `Shift+Space` / `Space` |
+| `Blank` | Toggle the blank screen |
+| Jump menu | Go to any slide, grouped by column and named by the slide's first heading, else its first words. The slide arrives with its fragments hidden. |
+| `→` `←` `Space` `Shift+Space` `PageDown` `PageUp` `Home` `End` `B` `.` `Esc` | The same keys as on the deck |
+
+`↑` and `↓` stay with the notes pane so long notes scroll. `S`, `F`, and `?` work only on the deck window.
+
+Images and other media in the notes and in the next-slide preview shrink to the pane's width. A table or code block wider than the pane scrolls inside it. Links in the notes window do nothing when clicked.
 
 The popup runs no code of its own, so reloading it leaves it blank. The deck notices and stops writing to it. Press `S` again: the deck closes the stale window and opens a fresh one. The elapsed time keeps counting across reopens.
 

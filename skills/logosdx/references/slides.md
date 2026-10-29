@@ -137,6 +137,28 @@ Keys are ignored with Ctrl, Meta, or Alt held, and when aimed at `input`, `texta
 The deck writes the positional form. A panel change pushes a history entry; a fragment step replaces it. A bad positional hash warns and does nothing; an unmatched id or bare `#` does nothing.
 
 
+## Speaker Notes Window
+
+`S` opens a popup that shows the panel's notes, a next-slide preview, position, and clocks. It is also a control pane:
+
+| Control | Does |
+|---|---|
+| `« Column` `‹ Prev` `Next ›` `Column »` `Blank` | `prevColumn()`, `prev()`, `next()`, `nextColumn()`, blank overlay |
+| Jump menu | `goTo({ column, panel, fragment: 0 })`; options grouped by column, named by the first heading, else first words |
+| `→ ← Space Shift+Space PageDown PageUp Home End B . Esc` | Same as on the deck |
+
+`↑` `↓` scroll the notes. `S`, `F`, `?` work on the deck only. Media in the notes and the preview is capped at the pane width; wide tables and code scroll inside their pane. Links in the window do nothing when clicked.
+
+
+## Starter Kit
+
+`assets/slides-kit/` in this skill is a working deck. For a new talk, copy the folder into the project, then edit `index.html` (slides; one block per layout) and `theme.css` (custom properties first). Do not write a deck from scratch.
+
+```bash
+cp -r <skill-dir>/assets/slides-kit ./my-talk
+```
+
+
 ## Pitfalls
 
 - **Close `<p>` and `<li>` inside slides.** The parser does not close a paragraph at `</slide>`, so the next slide nests inside it. The deck repairs misplaced slides and logs one `console.warn` per triggering slide, but block tags after an open `<p>` still close it early and land content in the wrong panel.

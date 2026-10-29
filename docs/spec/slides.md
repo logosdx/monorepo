@@ -197,6 +197,13 @@ The deck always writes the positional form, adding the fragment segment when the
 - [ ] `S` opens a popup named `lx-notes` and writes the active panel's notes, a preview of the next panel, the column, panel, and fragment position, and elapsed and wall-clock time into it.
 - [ ] The popup updates on every change to the active panel or its revealed count while connected, including `goTo` and hash navigation that change the count without fragment events.
 - [ ] Closing or reloading the popup marks it disconnected and stops writes without throwing; pressing `S` again closes the stale window and opens a working one.
+- [ ] The popup is also a control pane. Buttons for previous/next column, previous/next step, and blank call the deck's matching key actions. A jump menu lists every panel grouped by column, each named by its first heading, else its first words, else its number, and selecting one moves the deck there with its fragments hidden.
+- [ ] Keys pressed in the popup run the deck actions for `→ ← Space Shift+Space PageDown PageUp Home End B . Esc`. `↑`, `↓`, `S`, `F`, and `?` are left to the popup. Keys aimed at an element the deck's own key guard protects (buttons, the jump menu, inputs, `summary`, media with controls, `contenteditable`) stay with that element.
+- [ ] A click on a link in the popup does not navigate it.
+- [ ] The deck listens on the popup's document, which runs no code of its own; closing the popup or calling `destroy()` removes the listeners. While no popup is connected, a redraw does not read the deck state or build the outline.
+- [ ] Naming panels for the jump menu never clones panel content, so no media starts loading.
+- [ ] Images, video, and other media in the popup's notes and next-slide preview never exceed their pane's width. A table or code block wider than its pane scrolls inside it, and the popup itself never scrolls sideways.
+- [ ] `skills/logosdx/assets/slides-kit/` holds a deck (`index.html`, `theme.css`, `README.md`) that loads the CDN `slides.css` and `bundle.js`, opens without console warnings, and exercises a title column, fragments, a section with stacked panels, two columns, code, an image, notes, and a closing slide. `SKILL.md` and `references/slides.md` tell an agent to copy it for a new deck.
 
 ### Demo, hand checks, and docs
 
@@ -234,10 +241,10 @@ packages/slides/
 │   ├── types.ts ............. A  (Deck namespace types)
 │   ├── deck.ts .............. A  (Deck class)
 │   ├── upgrade.ts ........... A  (repair, axis, implicit wrap)
-│   ├── keys.ts .............. A  (key map, input guard)
+│   ├── keys.ts .............. A  (key map, input guard, realm-free element guard)
 │   ├── fragments.ts ......... A  (fragment state machine)
 │   ├── url.ts ............... A  (hash parse/format)
-│   ├── notes.ts ............. A  (notes popup)
+│   ├── notes.ts ............. A  (notes popup and control pane)
 │   ├── overlays.ts .......... A  (help, blank)
 │   └── slides.css ........... A  (layout, print, reduced motion)
 └── demo/
@@ -271,8 +278,10 @@ readme.md .................... M  (package list)
 skills/logosdx/
 ├── SKILL.md ................. M  (routing row, scope list, triggers)
 ├── references/REFERENCE.md .. M  (package row)
-└── references/slides.md ..... A
+├── references/slides.md ..... A
+└── assets/slides-kit/ ....... A  (index.html, theme.css, README.md: starter deck)
 .changeset/slides-package.md . A  (minor @logosdx/slides)
+.changeset/slides-notes-control.md . A  (minor @logosdx/slides: notes control pane)
 .changeset/bundle-scope.md ... A  (patch: CDN bundles stop leaking globals, es2022 floor)
 ```
 
@@ -301,6 +310,8 @@ packages/slides/src/deck.ts
     on — event subscription with cleanup
     destroy — teardown and singleton release
     active tracking — watchVisibility over panels, active attribute, direction, enter/leave events
+    notes command path — popup button, jump, or key to a deck action or goTo with fragments hidden
+    outline — panel titles per column for the notes' jump menu
 
 packages/slides/src/upgrade.ts
   repairMisplaced — upgrade cases 1-4
@@ -310,6 +321,7 @@ packages/slides/src/upgrade.ts
 
 packages/slides/src/keys.ts
   isGuardedTarget — editable and interactive element guard
+  isGuardedElement — the same guard for an element from another window's realm
   keyAction — key event to deck action, modifiers excluded
 
 packages/slides/src/fragments.ts
@@ -324,8 +336,10 @@ packages/slides/src/url.ts
 packages/slides/src/notes.ts
   NotesWindow — popup lifecycle and direct DOM writes
     open — close stale window, open lx-notes, write view
-    render — notes, next-panel preview, position, clocks
+    render — notes, next-panel preview, position, clocks, controls, jump menu
+    listen — click, change, and keydown on the popup's document, removed on close
     connection check — closed or unreadable document marks disconnected
+  titleOf — jump-menu name: first heading, else first words, else number; reads text, never clones
 
 packages/slides/src/overlays.ts
   help overlay — key table, S reopen hint
@@ -477,6 +491,13 @@ scripts/build-docs.mjs
 3. Presenter reloads the popup; the next write finds it unreadable or empty and marks it disconnected.
 4. Presenter presses `S`; the deck closes the stale window, opens a fresh one, and writes the current state.
 
+**Flow: controlling the deck from the notes**
+
+1. Presenter clicks `Next ›`, picks a slide in the jump menu, or presses `→` in the notes window.
+2. The deck's listener on the popup's document turns it into a key action or a position.
+3. A key action runs as if pressed on the deck; a position calls `goTo()` with `fragment: 0`. A position that no longer exists logs `console.warn` and does nothing.
+4. The deck scrolls, activates the panel on arrival, and redraws the notes view, so the popup shows the new slide.
+
 
 ## Checkpoints
 
@@ -578,6 +599,12 @@ scripts/build-docs.mjs
 **What changed:** New criterion for a pending move whose target is removed: hand off to the former column's first panel, release when the column is gone, and end silently when that panel is already active. A `patch` changeset covers every package whose CDN bundle changed with the es2022 target.
 
 **Why:** Follow-up review: the removed-target behavior lived only in code, a hand-off to the active panel re-fired `slide:enter`, and the bundle fix would not publish for the other packages without a changeset.
+
+### 2026-10-29 — Notes popup becomes a control pane
+
+**What changed:** The speaker-notes popup gained navigation buttons, a jump menu, and key handling that call back into the deck, and its media, tables, and code are constrained to the pane width. The `NotesWindow` constructor takes a command callback; `NotesState` carries an outline of panel titles per column; `keys.ts` exports `isGuardedElement`. The skill gained a starter deck kit at `skills/logosdx/assets/slides-kit/`.
+
+**Why:** Presenters navigate from the presenter screen and could not jump to a slide from the notes. A wide image in a slide or in its notes stretched the popup's grid past the window, because the popup has none of the deck's stylesheet. Agents wrote a deck from scratch each time.
 
 ## Implementation log
 
