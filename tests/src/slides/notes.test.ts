@@ -340,6 +340,7 @@ describe('slides: notes', () => {
             expect(css).toMatch(/#next :is\(img[^)]*\)[\s\S]*max-width: 100% !important/);
             expect(css).toMatch(/#notes :is\(img[^)]*\)/);
             expect(css).toMatch(/:is\(table, pre\) \{\s*display: block; overflow-x: auto/);
+            expect(css).toMatch(/#next table \{ color: inherit; font-size: inherit; \}/);
         });
     });
 

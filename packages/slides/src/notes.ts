@@ -85,6 +85,8 @@ const VIEW_CSS = `
     #${VIEW_ID} > #notes :is(table, pre), ${SIDE} > #next :is(table, pre) {
         display: block; overflow-x: auto;
     }
+    /* The popup is quirks mode, where a table inherits neither color nor font size. */
+    #${VIEW_ID} > #notes table, ${SIDE} > #next table { color: inherit; font-size: inherit; }
 `;
 
 /** The slide each popup document last showed, so a same-slide redraw keeps the notes' scroll. */
