@@ -58,3 +58,4 @@ Covers the build system, CI pipelines, release workflow, documentation infrastru
 - Build outputs: `.mjs` (ESM), `.js` (CJS), `.d.ts` (types), IIFE browser bundle at `dist/browser/bundle.js` exposing the global `LogosDx.[PackageName]`, plus any `src/*.css` copied alongside it.
 - [`docs/public/.well-known/context7.json`](../public/.well-known/context7.json) exposes the Context7 integration manifest.
 - [`docs/public/llms-full.txt`](../public/llms-full.txt) is the full LLM-readable docs bundle generated at build time.
+- [`docs/public/slides/why-logosdx/`](../public/slides/why-logosdx) is a standalone `@logosdx/slides` deck (`index.html`, `theme.css`) that loads the CDN bundle. VitePress copies it as-is, and [`docs/examples/why-logosdx.md`](../examples/why-logosdx.md) embeds it in an `<iframe>` under the sidebar's Examples group. Link to it with a full `/slides/why-logosdx/index.html` path from outside VitePress's router.
