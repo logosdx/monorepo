@@ -10,7 +10,7 @@ layout: page
 # Why use LogosDX on both ends of the stack
 
 
-A deck on why `utils`, `fetch`, `hooks`, and `observer` belong in your frontend and your backend. Click the slides, then press <kbd>Space</kbd> or the arrow keys to move. Press <kbd>S</kbd> for speaker notes and <kbd>?</kbd> for every key.
+A deck on why `utils`, `fetch`, `hooks`, and `observer` belong in your frontend and your backend. Click the slides, then press <kbd>Space</kbd> or the arrow keys to move. Press <kbd>S</kbd> for speaker notes and <kbd>?</kbd> for the key list.
 
 <iframe
     class="deck-frame"
@@ -21,7 +21,7 @@ A deck on why `utils`, `fetch`, `hooks`, and `observer` belong in your frontend 
 ></iframe>
 
 <p class="deck-links">
-    <a href="/slides/why-logosdx/index.html" target="_blank" rel="noopener">Open full screen</a>
+    <a href="/slides/why-logosdx/index.html" target="_blank" rel="noopener">Open in a new tab</a>
     ·
     <a href="https://github.com/logosdx/monorepo/tree/master/docs/public/slides/why-logosdx" target="_blank" rel="noopener">View the source</a>
 </p>

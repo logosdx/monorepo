@@ -15,7 +15,7 @@
     <slide horizontal id="title">
         <h1>One toolkit,<br>both ends of the wire</h1>
         <p class="lede">Why <code>utils</code>, <code>fetch</code>, <code>hooks</code>, and <code>observer</code> belong in your frontend and your backend.</p>
-        <p class="muted">LogosDX · Press <kbd>Space</kbd> to start, <kbd>S</kbd> for speaker notes, <kbd>?</kbd> for every key</p>
+        <p class="muted">LogosDX · Press <kbd>Space</kbd> to start, <kbd>S</kbd> for speaker notes, <kbd>?</kbd> for the key list</p>
         <notes>
             Four packages, one set of rules. The claim for the next twenty minutes: the patterns you need
             in a React handler are the same patterns you need in an Express route, so the code that
@@ -67,9 +67,8 @@ const [order, err] = await attempt(
     () =&gt; loadOrder(orderId)
 );
 
-if (err) {
-    return respond(404, 'Order not found');
-}</code></pre>
+if (err) return respond(503, 'Order store unavailable');
+if (!order) return respond(404, 'Order not found');</code></pre>
                 <ul>
                     <li fragment>No <code>try/catch</code>, no invisible error path</li>
                     <li fragment>The same line in a React handler and an Express route</li>
@@ -85,10 +84,9 @@ if (err) {
         <slide vertical id="utils-resilience">
             <h3>Resilience is a function call</h3>
             <div class="cols">
-                <pre><code>const charge = makeRetryable(gateway.charge, {
+                <pre><code>const charge = makeRetryable(gateway.charge.bind(gateway), {
     retries: 3,
     delay: 200,
-    backoff: 2,
     jitterFactor: 0.25
 });
 
@@ -102,7 +100,7 @@ const charged = withTimeout(guarded, {
 });</code></pre>
                 <ul>
                     <li fragment>Wrap once, call like the original</li>
-                    <li fragment>Exponential backoff with jitter, so retries do not stampede</li>
+                    <li fragment>A delay with jitter, so retries do not stampede</li>
                     <li fragment>The breaker fails fast while a dependency is down</li>
                 </ul>
             </div>
@@ -139,7 +137,7 @@ const charged = withTimeout(guarded, {
             <h3>Three channels, no guessing</h3>
             <div class="cols">
                 <pre><code>const [res, err] = await attempt(
-    () =&gt; api.get('/orders/42')
+    () =&gt; api.get&lt;Order&gt;('/orders/42')
 );
 
 if (err) return showOffline();
@@ -153,9 +151,11 @@ render(res.data);</code></pre>
                 </ul>
             </div>
             <notes>
-                With plain fetch a 404 resolves and a dropped connection throws, so every caller writes both
-                checks and half of them forget one. Here a completed exchange always resolves, whatever the
-                status, and the error slot is reserved for transport failure.
+                Clients that reject on a non-2xx status put a 404 and a lost connection in the same catch, so
+                every caller has to sort them apart. Here a completed exchange always resolves, whatever the
+                status, and the error slot is reserved for transport failure. Over plain fetch you also get the
+                body already parsed, <code>ok</code> narrowing <code>data</code>, and an error that says whether
+                it was a timeout, an abort, or a lost connection.
             </notes>
         </slide>
 
@@ -174,18 +174,21 @@ render(res.data);</code></pre>
     rateLimitPolicy: {
         maxCalls: 60,
         windowMs: 60_000,
-        waitForToken: true
+        waitForToken: true,
+        serializer: () =&gt; 'partner'
     }
 });</code></pre>
                 <ul>
-                    <li fragment><strong>Browser:</strong> a double click sends one request, and the list renders from cache while it revalidates</li>
-                    <li fragment><strong>Server:</strong> calls to a partner stay under their rate limit, and 5xx responses retry with backoff</li>
+                    <li fragment><strong>Browser:</strong> a double refresh sends one GET, and the list renders from cache while it revalidates</li>
+                    <li fragment><strong>Server:</strong> every call to a partner shares one rate-limit budget, and 5xx responses retry</li>
                 </ul>
             </div>
             <notes>
                 Retry, dedupe, cache, and rate limit are config keys, so there is no p-retry, no in-flight map,
-                no lru-cache to wire up. <code>rules</code> on each policy give one route its own budget
-                without a second client. Per-call escape hatches exist, such as <code>retry: false</code>.
+                no lru-cache to wire up. Two defaults to know: dedupe covers GET only, and rate-limit buckets
+                are per endpoint unless a <code>serializer</code> says otherwise, which is why the partner
+                budget here uses one. <code>rules</code> on each policy give one route its own budget without
+                a second client. Per-call escape hatches exist, such as <code>retry: false</code>.
             </notes>
         </slide>
     </slide>
@@ -275,7 +278,7 @@ bus.emit('order:created', { id: 'o_42', total: 1999 });</code></pre>
                 <ul>
                     <li fragment>The payload type follows the event name</li>
                     <li fragment>A regex listens to a whole family of events</li>
-                    <li fragment>Every <code>on()</code> returns a cleanup, or takes an <code>AbortSignal</code></li>
+                    <li fragment><code>on()</code> with a callback returns a cleanup, and every form takes an <code>AbortSignal</code></li>
                 </ul>
             </div>
             <notes>
@@ -289,6 +292,7 @@ bus.emit('order:created', { id: 'o_42', total: 1999 });</code></pre>
             <h3>Queues with concurrency</h3>
             <div class="cols">
                 <pre><code>bus.queue('order:created', processOrder, {
+    name: 'fulfillment',
     concurrency: 4,
     taskTimeoutMs: 30_000
 });
@@ -328,8 +332,8 @@ bus.emit('order:created', order);</code></pre>
             <h3>The path of a single order</h3>
             <pre><code>BROWSER                             SERVER
 hooks.run('beforeSubmit')
-fetch.post('/orders')      ───────▶ route handler
-  dedupe + retry                      attempt(loadCart)
+api.post('/orders')        ───────▶ route handler
+  retry                               attempt(loadCart)
                                       bus.emit('order:created')
 render(res.data)           ◀─────── res.ok / !res.ok
                                     queue, concurrency 4
@@ -337,21 +341,23 @@ render(res.data)           ◀─────── res.ok / !res.ok
                                       rateLimit + circuitBreaker</code></pre>
             <ul class="steps">
                 <li fragment>Hooks validate before anything leaves the browser</li>
-                <li fragment>Fetch sends it once, and retries a dropped connection</li>
+                <li fragment>Fetch retries a dropped connection</li>
                 <li fragment>The handler turns failure into a value and emits an event</li>
                 <li fragment>A queue fans the work out at a safe rate</li>
             </ul>
             <notes>
                 Walk the diagram left to right. Every box is one of the four packages and none of them is a
                 special case for its side of the wire. When something fails at 2am, there is one way errors
-                look, one way events are named, and one place to read about retries.
+                look, one way events are named, and one place to read about retries. One caution on the POST:
+                a retried order can be placed twice, so the server needs an idempotency key before you let
+                a write retry.
             </notes>
         </slide>
 
         <slide vertical id="together-shared">
             <h3>Share the rules, not just the types</h3>
             <pre><code>// shared/order-rules.ts, imported by the app and the API
-export function useOrderRules(hooks: HookEngine&lt;OrderLifecycle&gt;) {
+export function addOrderRules(hooks: HookEngine&lt;OrderLifecycle&gt;) {
 
     return hooks.add('beforeSubmit', (order, ctx) =&gt; {
         if (!order.items.length) ctx.fail('Cart is empty');
