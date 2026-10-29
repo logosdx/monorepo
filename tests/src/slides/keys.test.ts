@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { isGuardedTarget, keyAction } from '../../../packages/slides/src/keys.ts';
+import { isGuardedElement, isGuardedTarget, keyAction } from '../../../packages/slides/src/keys.ts';
 
 const press = (key: string, init: KeyboardEventInit = {}) => (
     new KeyboardEvent('keydown', { key, ...init })
@@ -51,6 +51,17 @@ describe('slides: keys', () => {
 
             expect(isGuardedTarget(document)).toBe(false);
             expect(isGuardedTarget(null)).toBe(false);
+        });
+    });
+
+    describe('isGuardedElement', () => {
+
+        it('guards an element inside a control and frees one outside', () => {
+
+            document.body.innerHTML = '<button><span id="inside">Go</span></button><p id="outside">x</p>';
+
+            expect(isGuardedElement(document.getElementById('inside')!)).toBe(true);
+            expect(isGuardedElement(document.getElementById('outside')!)).toBe(false);
         });
     });
 

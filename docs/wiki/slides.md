@@ -141,7 +141,25 @@ stateDiagram-v2
 
 ### Speaker notes connection
 
-`S` opens a popup with `window.open('', 'lx-notes', ...)` and the deck writes the whole notes view into its `document`. Nothing runs inside the popup, so a reload or close disconnects it and the next `S` press opens a fresh one.
+`S` opens a popup with `window.open('', 'lx-notes', ...)` and the deck writes the whole notes view into its `document`. Nothing runs inside the popup, so a reload or close disconnects it and the next `S` press opens a fresh one. The popup is also a control pane, covered next.
+
+```mermaid
+sequenceDiagram
+    %% source: packages/slides/src/notes.ts, deck.ts, keys.ts
+    participant P as Presenter
+    participant W as Notes window
+    participant N as NotesWindow
+    participant D as Deck
+    P->>W: click button, pick jump option, or press key
+    W->>N: click, change, keydown on popup document
+    N->>N: isGuardedElement, POPUP_KEYS filter
+    N->>D: NotesCommand
+    D->>D: key action, or panelAt then goTo fragment 0
+    D->>N: draw() on activation
+    N->>W: renderNotes
+```
+
+`NotesWindow.#listen` attaches `click`, `change`, and `keydown` listeners to the popup's document and removes them with `removeEventListener` on `close()`. `#command` hands a `NotesCommand` (a `KeyAction` or `{ column, panel }`) to `Deck.#onNotesCommand`. Buttons map to `prevColumn`, `prev`, `next`, `nextColumn`, and `blank`; the jump menu goes through `goTo({ column, panel, fragment: 0 })`, after a `#panelAt` check that warns on a stale position; keys pass through `keyAction`, minus `down`, `up`, `notes`, `fullscreen`, and `help`, and skip targets `isGuardedElement` protects. Popup elements belong to the popup's realm, so type checks use `doc.defaultView.Element`, not the deck's globals. A click on a link in the popup is cancelled. While no popup is connected, `draw()` returns before reading the deck, so the outline is not built.
 
 ```mermaid
 stateDiagram-v2
@@ -156,7 +174,7 @@ stateDiagram-v2
     Connected --> Closed: close() or destroy()
 ```
 
-`notesDocument` returns null when `pop.closed` is true, when reading `pop.document` throws (Chromium's reloaded `about:blank` is cross-origin), or when the view element `lx-notes-view` is missing (WebKit). `renderNotes` replaces the whole view on a new slide and updates only position and preview on the same slide, so the presenter's scroll in the notes survives. `notesOf` collects `<notes>` inside the panel plus `<notes>` placed directly in the column after it; notes ahead of a column's first panel belong to that first panel. The next-slide preview is an `importNode` clone with `video`, `audio`, and `iframe` replaced by placeholders. Elapsed time starts at the first open and survives a close.
+`notesDocument` returns null when `pop.closed` is true, when reading `pop.document` throws (Chromium's reloaded `about:blank` is cross-origin), or when the view element `lx-notes-view` is missing (WebKit). `renderNotes` replaces the whole view on a new slide and updates only position and preview on the same slide, so the presenter's scroll in the notes survives. `notesOf` collects `<notes>` inside the panel plus `<notes>` placed directly in the column after it; notes ahead of a column's first panel belong to that first panel. The next-slide preview is an `importNode` clone with `video`, `audio`, and `iframe` replaced by placeholders; the popup's stylesheet caps `img`, `svg`, `video`, `canvas`, `picture`, `table`, and `pre` at the pane width, and its grid uses `minmax(0, …)` tracks so wide content cannot widen the window. `titleOf` names jump-menu entries: first heading outside `<notes>`, else the first 48 characters of the panel's text, else `Slide N`. Elapsed time starts at the first open and survives a close.
 
 ## Where it lives
 
@@ -168,7 +186,7 @@ stateDiagram-v2
 | `packages/slides/src/fragments.ts` | `fragmentsOf`, `revealedCount`, `revealFragments`, `stepFragment` |
 | `packages/slides/src/keys.ts` | `KeyAction`, `keyAction`, `isGuardedTarget` |
 | `packages/slides/src/url.ts` | `parseHash`, `formatHash` |
-| `packages/slides/src/notes.ts` | `NotesWindow`, `notesOf`, `renderNotes`, `notesDocument`, `writeClock` |
+| `packages/slides/src/notes.ts` | `NotesWindow`, `notesOf`, `titleOf`, `renderNotes`, `notesDocument`, `writeClock`, `NotesCommand` |
 | `packages/slides/src/overlays.ts` | `createOverlay` for `help` and `blank` overlays (`data-slides-overlay`) |
 | `packages/slides/src/slides.css` | Layout contract: snap axes, panel growth, `--slide-bg`/`--slide-fg`/`--slide-padding`/`--deck-font`, `data-ready`-gated fragment hiding, reduced motion, print |
 | `packages/slides/src/index.ts` | npm entry (`exports["."]`); exports `Deck`, no side effects (`sideEffects: false`) |
@@ -195,5 +213,5 @@ stateDiagram-v2
 - **utils**: `assert` (constructor guards), `attempt` (fullscreen toggle), `attemptSync` (hash decoding, popup document access).
 - **dom**: `observe` (upgrade and slide watching), `on` (key and hash listeners with an `AbortSignal`), `watchVisibility` (center tracking), `create` (overlays).
 - **observer**: `ObserverEngine<Deck.EventMap>` carries `deck:ready`, `slide:leave`, `slide:enter`, `fragment:show`, `fragment:hide`; `Deck.on()` returns its cleanup.
-- **tooling**: `scripts/vite.config.ts` uses `src/browser.ts` as the IIFE entry when a package has one, with `target: 'es2022'`; `scripts/build.mjs` copies `src/*.css` into `dist/browser/`. `package.json` `browserNamespace` sets `LogosDx.Slides`. Release notes live in `.changeset/slides-package.md`. `skills/logosdx/references/slides.md` is the skill reference for the public API, and `skills/logosdx/SKILL.md` routes `<slides>` and `Deck` tasks to it.
+- **tooling**: `scripts/vite.config.ts` uses `src/browser.ts` as the IIFE entry when a package has one, with `target: 'es2022'`; `scripts/build.mjs` copies `src/*.css` into `dist/browser/`. `package.json` `browserNamespace` sets `LogosDx.Slides`. Release notes live in `.changeset/slides-package.md`. `skills/logosdx/references/slides.md` is the skill reference for the public API, and `skills/logosdx/SKILL.md` routes `<slides>` and `Deck` tasks to it. `skills/logosdx/assets/slides-kit/` (`index.html`, `theme.css`, `README.md`) is the starter deck the skill tells agents to copy; it loads the CDN `slides.css` and `bundle.js`.
 - **testing**: `tests/src/slides/` with `_helpers.ts`; `tests/src/smoke/slides.test.ts` and `tests/src/smoke/slides-init.test.ts` in the browser project.

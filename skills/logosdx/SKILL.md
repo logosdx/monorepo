@@ -31,7 +31,7 @@ Use this skill for LogosDX setup and integration. Read only the reference file(s
 | HTTP client, retry, cache, dedupe, rate-limit, lifecycle events | `references/fetch.md` |
 | i18n, translations, ICU pluralization, Intl formatting, locale switching | `references/localize.md` |
 | Typed events, async generators, queues, observation, relay | `references/observer.md` |
-| Presentation decks, `<slides>` markup, fragments, speaker notes, `Deck` events | `references/slides.md` |
+| Presentation decks, `<slides>` markup, fragments, speaker notes, `Deck` events. New deck: copy `assets/slides-kit/` first | `references/slides.md` |
 | Finite state machines, guards, async invoke, StateHub coordination | `references/state-machine.md` |
 | Storage CRUD, key scoping, events, custom drivers | `references/storage.md` |
 | React factories, hooks, provider composition, API hooks | `references/react.md` |

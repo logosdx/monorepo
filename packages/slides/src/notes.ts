@@ -1,11 +1,17 @@
 import { attemptSync } from '@logosdx/utils';
 
+import { isGuardedElement, keyAction, type KeyAction } from './keys.ts';
 import { isSlide, NOTES, SLIDE } from './upgrade.ts';
+
+/** What the notes window asks the deck to do: a key's action, or a jump to a 0-based position. */
+export type NotesCommand = KeyAction | { column: number; panel: number };
 
 /** Indices are 0-based. */
 export interface NotesState {
     slide: Element;
     next: Element | null;
+    /** Panel titles per column, in reading order. */
+    outline: string[][];
     column: number;
     columns: number;
     panel: number;
@@ -27,27 +33,58 @@ const VIEW_ID = 'lx-notes-view';
 
 const SIDE = `#${VIEW_ID} > aside`;
 
+const CONTROLS: [action: KeyAction, label: string][] = [
+    ['prevColumn', '« Column'],
+    ['prev', '‹ Prev'],
+    ['next', 'Next ›'],
+    ['nextColumn', 'Column »'],
+    ['blank', 'Blank']
+];
+
+// Up and Down stay with the notes pane, which scrolls when the notes run long.
+const POPUP_KEYS = new Set<KeyAction>([
+    'nextColumn', 'prevColumn', 'next', 'prev', 'nextPanel', 'prevPanel',
+    'first', 'last', 'blank', 'dismiss'
+]);
+
+const TITLE_LENGTH = 48;
+
 // Child combinators keep these rules off the cloned preview, which may reuse the same ids.
 const VIEW_CSS = `
     body { margin: 0; background: #111; color: #eee; font: 22px/1.5 system-ui, sans-serif; }
     #${VIEW_ID} {
-        display: grid; grid-template-columns: 3fr 2fr; gap: 24px;
+        display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px;
         box-sizing: border-box; height: 100vh; padding: 24px;
     }
     #${VIEW_ID} > #notes { overflow: auto; font-size: 28px; }
-    ${SIDE} { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    ${SIDE} { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
     ${SIDE} > #position { margin: 0; color: #aaa; }
     ${SIDE} > #clocks {
-        display: flex; justify-content: space-between;
+        display: flex; justify-content: space-between; margin: 0;
         font-size: 40px; font-variant-numeric: tabular-nums;
     }
     ${SIDE} > #clocks > #time { color: #aaa; }
+    ${SIDE} > #controls { display: flex; flex-wrap: wrap; gap: 8px; }
+    ${SIDE} > #controls > button, ${SIDE} > #jump {
+        font: inherit; font-size: 16px; color: #eee; background: #262626;
+        border: 1px solid #444; border-radius: 4px; padding: 6px 12px;
+    }
+    ${SIDE} > #controls > button { cursor: pointer; }
+    ${SIDE} > #controls > button:hover { background: #333; }
+    ${SIDE} > #jump { width: 100%; }
     ${SIDE} > h2 { margin: 0; font-size: 16px; text-transform: uppercase; color: #aaa; }
     ${SIDE} > #next {
-        flex: 1; overflow: hidden; padding: 16px; border-radius: 4px;
+        flex: 1; min-height: 0; overflow: auto; padding: 16px; border-radius: 4px;
         background: #fff; color: #111; font-size: 14px;
     }
     ${SIDE} > #next > * { display: block; }
+    #${VIEW_ID} > #notes :is(img, svg, video, canvas, picture, table, pre),
+    ${SIDE} > #next :is(img, svg, video, canvas, picture, table, pre) {
+        max-width: 100% !important; height: auto; box-sizing: border-box;
+    }
+    #${VIEW_ID} > #notes :is(table, pre), ${SIDE} > #next :is(table, pre) {
+        display: block; overflow-x: auto;
+    }
 `;
 
 /** The slide each popup document last showed, so a same-slide redraw keeps the notes' scroll. */
@@ -91,6 +128,44 @@ export function notesOf(panel: Element): Element[] {
 
     return own;
 }
+
+/**
+ * Names a panel for the notes' jump menu: its first heading, else the start
+ * of its text, else its number.
+ *
+ * @example
+ *
+ *     titleOf(panel, 3); // 'Revenue'
+ */
+export function titleOf(panel: Element, position: number): string {
+
+    const heading = Array.from(panel.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+        .find((el) => !el.closest(NOTES));
+    const headingText = collapse(heading?.textContent ?? '');
+
+    if (headingText) return clip(headingText);
+
+    // Walking text nodes instead of cloning: a clone would start loading its media.
+    const walker = panel.ownerDocument.createTreeWalker(panel, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => node.parentElement?.closest(NOTES)
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_ACCEPT
+    });
+    let text = '';
+
+    while (text.length <= TITLE_LENGTH && walker.nextNode()) {
+
+        text = collapse(`${text} ${walker.currentNode.textContent}`);
+    }
+
+    return text ? clip(text) : `Slide ${position}`;
+}
+
+const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+const clip = (text: string) => (
+    text.length > TITLE_LENGTH ? `${text.slice(0, TITLE_LENGTH - 1)}…` : text
+);
 
 function createIn(doc: Document, tag: string, id?: string, text?: string): HTMLElement {
 
@@ -152,6 +227,33 @@ export function writeClock(doc: Document, { elapsed, now }: NotesClock): void {
     }
 }
 
+function jumpMenu(doc: Document, { outline, column, panel }: NotesState): HTMLElement {
+
+    const menu = createIn(doc, 'select', 'jump');
+
+    menu.setAttribute('aria-label', 'Go to slide');
+
+    outline.forEach((titles, columnIndex) => {
+
+        const group = createIn(doc, 'optgroup');
+
+        group.setAttribute('label', `${columnIndex + 1}. ${titles[0]}`);
+
+        titles.forEach((title, panelIndex) => {
+
+            const option = createIn(doc, 'option', undefined, `${panelIndex + 1}. ${title}`);
+
+            option.setAttribute('value', `${columnIndex}:${panelIndex}`);
+            option.toggleAttribute('selected', columnIndex === column && panelIndex === panel);
+            group.append(option);
+        });
+
+        menu.append(group);
+    });
+
+    return menu;
+}
+
 function buildView(doc: Document, state: NotesState): HTMLElement {
 
     const notes = notesOf(state.slide);
@@ -159,6 +261,7 @@ function buildView(doc: Document, state: NotesState): HTMLElement {
     const notesEl = createIn(doc, 'section', 'notes');
     const clocks = createIn(doc, 'p', 'clocks');
     const next = createIn(doc, 'div', 'next');
+    const controls = createIn(doc, 'div', 'controls');
 
     if (notes.length) notesEl.innerHTML = notes.map((note) => note.innerHTML).join('');
     else notesEl.textContent = 'No notes for this slide.';
@@ -166,11 +269,22 @@ function buildView(doc: Document, state: NotesState): HTMLElement {
     clocks.append(createIn(doc, 'span', 'elapsed'), createIn(doc, 'span', 'time'));
     next.append(previewOf(doc, state.next));
 
+    for (const [action, label] of CONTROLS) {
+
+        const button = createIn(doc, 'button', undefined, label);
+
+        button.setAttribute('type', 'button');
+        button.dataset.action = action;
+        controls.append(button);
+    }
+
     const aside = createIn(doc, 'aside');
 
     aside.append(
         createIn(doc, 'p', 'position', positionText(state)),
         clocks,
+        controls,
+        jumpMenu(doc, state),
         createIn(doc, 'h2', undefined, 'Next'),
         next
     );
@@ -197,6 +311,7 @@ export function renderNotes(doc: Document, state: NotesState, clock: NotesClock)
 
         position.textContent = positionText(state);
         next.replaceChildren(previewOf(doc, state.next));
+        doc.querySelector(`${SIDE} > #jump`)?.replaceWith(jumpMenu(doc, state));
     }
     else {
 
@@ -229,15 +344,21 @@ export function notesDocument(pop: Pick<Window, 'closed' | 'document'>): Documen
 export class NotesWindow {
 
     #read: () => NotesState | null;
+    #command: (command: NotesCommand) => void;
     #pop: Window | null = null;
+    #unlisten: (() => void) | null = null;
     #connected = false;
     #started: number | null = null;
     #ticker: ReturnType<typeof setInterval> | undefined;
 
-    /** @param read the deck's current state, or null before any panel is active */
-    constructor(read: () => NotesState | null) {
+    /**
+     * @param read the deck's current state, or null before any panel is active
+     * @param command called when the presenter uses the window's buttons, jump menu, or keys
+     */
+    constructor(read: () => NotesState | null, command: (command: NotesCommand) => void) {
 
         this.#read = read;
+        this.#command = command;
     }
 
     /** Opens the popup, or replaces one that disconnected, and writes the current view. */
@@ -276,15 +397,20 @@ export class NotesWindow {
     draw(): void {
 
         const doc = this.#writable();
+
+        if (!doc) return;
+
         const state = this.#read();
 
-        if (doc && state) renderNotes(doc, state, this.#clock());
+        if (state) renderNotes(doc, state, this.#clock());
     }
 
     /** Closes the popup and stops its clock; the elapsed time keeps counting for a reopen. */
     close(): void {
 
         clearInterval(this.#ticker);
+        this.#unlisten?.();
+        this.#unlisten = null;
         this.#pop?.close();
         this.#pop = null;
         this.#connected = false;
@@ -300,13 +426,80 @@ export class NotesWindow {
 
         if (!pop) return null;
 
-        const [, err] = attemptSync(() => renderNotes(pop.document, state, this.#clock()));
+        const [, err] = attemptSync(() => {
+
+            renderNotes(pop.document, state, this.#clock());
+            this.#listen(pop);
+        });
 
         if (!err) return pop;
 
         pop.close();
 
         return null;
+    }
+
+    /** The popup runs no code, so the deck listens on its document; `instanceof` uses its realm. */
+    #listen(pop: Window): void {
+
+        const { document: doc } = pop;
+        const view = doc.defaultView;
+
+        if (!view) return;
+
+        const onClick = (event: MouseEvent) => {
+
+            const { target } = event;
+
+            if (!(target instanceof view.Element)) return;
+
+            // A followed link would navigate the popup away and take its controls with it.
+            if (target.closest('a[href]')) event.preventDefault();
+
+            const button = target.closest('button');
+            const control = CONTROLS.find(([action]) => action === button?.dataset.action);
+
+            if (!button || !control) return;
+
+            button.blur();
+            this.#command(control[0]);
+        };
+
+        const onChange = (event: Event) => {
+
+            const { target } = event;
+
+            if (!(target instanceof view.HTMLSelectElement)) return;
+
+            const [column, panel] = target.value.split(':').map(Number);
+
+            target.blur();
+
+            if (column !== undefined && panel !== undefined) this.#command({ column, panel });
+        };
+
+        const onKeydown = (event: KeyboardEvent) => {
+
+            const { target } = event;
+            const guarded = target instanceof view.Element && isGuardedElement(target);
+            const action = guarded || event.defaultPrevented ? null : keyAction(event);
+
+            if (!action || !POPUP_KEYS.has(action)) return;
+
+            event.preventDefault();
+            this.#command(action);
+        };
+
+        doc.addEventListener('click', onClick);
+        doc.addEventListener('change', onChange);
+        doc.addEventListener('keydown', onKeydown);
+
+        this.#unlisten = () => {
+
+            doc.removeEventListener('click', onClick);
+            doc.removeEventListener('change', onChange);
+            doc.removeEventListener('keydown', onKeydown);
+        };
     }
 
     #writable(): Document | null {

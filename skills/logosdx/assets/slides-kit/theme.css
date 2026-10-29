@@ -1,0 +1,61 @@
+/* Edit the variables first; they restyle the whole deck. */
+slides {
+    --slide-bg: #14161c;
+    --slide-fg: #e8e6e1;
+    --slide-padding: 4rem 6vw;
+    --deck-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono-font: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --accent: #f2a33a;
+    --muted: #9a9890;
+    --surface: #1f222b;
+    --rule: #3a3d47;
+
+    font-size: clamp(16px, 2.2vw, 26px);
+    line-height: 1.5;
+}
+
+h1, h2, h3 { line-height: 1.15; margin: 0 0 0.6em; }
+h1 { font-size: 3em; }
+h2 { font-size: 1.8em; color: var(--accent); }
+h3 { font-size: 1.1em; margin-top: 1.5em; }
+a { color: var(--accent); }
+img, svg, video { max-width: 100%; height: auto; }
+
+code, kbd, pre { font-family: var(--mono-font); font-size: 0.85em; }
+pre {
+    padding: 1em 1.2em;
+    overflow-x: auto;
+    border-radius: 6px;
+    background: var(--surface);
+}
+kbd {
+    padding: 0.05em 0.4em;
+    border: 1px solid var(--rule);
+    border-bottom-width: 3px;
+    border-radius: 4px;
+    background: var(--surface);
+}
+
+/* Building blocks used in index.html */
+.lede { font-size: 1.3em; max-width: 34em; }
+.muted { color: var(--muted); }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+.card {
+    padding: 0.8em 1em;
+    border-left: 4px solid var(--accent);
+    background: var(--surface);
+}
+.quote { font-size: 1.8em; max-width: 22em; }
+
+/* Section dividers: a heading placed above a column's first panel becomes its own panel. */
+slide[data-implicit] { border-top: 6px solid var(--accent); }
+
+/* Fragment reveal. Gated on screen and data-ready so print and no-JS show everything. */
+@media screen {
+    slides[data-ready] [fragment] { transition: opacity 200ms, visibility 200ms; }
+    slides[data-ready] [fragment]:not([revealed]) { opacity: 0; }
+}
+
+@media (max-width: 700px) {
+    .cols { grid-template-columns: 1fr; gap: 1rem; }
+}
