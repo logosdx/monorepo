@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>One toolkit, both ends of the wire · LogosDX</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@logosdx/slides@latest/dist/browser/slides.css">
+    <link rel="stylesheet" href="theme.css">
+    <script src="https://cdn.jsdelivr.net/npm/@logosdx/slides@latest/dist/browser/bundle.js"></script>
+</head>
+<body>
+<!-- Each <slide horizontal> is a column; <slide vertical> panels stack inside it. Close every <p> and <li> before </slide>. -->
+<slides>
+
+    <slide horizontal id="title">
+        <h1>One toolkit,<br>both ends of the wire</h1>
+        <p class="lede">Why <code>utils</code>, <code>fetch</code>, <code>hooks</code>, and <code>observer</code> belong in your frontend and your backend.</p>
+        <p class="muted">LogosDX · Press <kbd>Space</kbd> to start, <kbd>S</kbd> for speaker notes, <kbd>?</kbd> for every key</p>
+        <notes>
+            Four packages, one set of rules. The claim for the next twenty minutes: the patterns you need
+            in a React handler are the same patterns you need in an Express route, so the code that
+            implements them should be the same code.
+        </notes>
+    </slide>
+
+    <slide horizontal id="problem">
+        <h2>The same code, written twice</h2>
+        <ul>
+            <li fragment>A retry loop in the browser, a different retry loop on the server</li>
+            <li fragment>A <code>try/catch</code> around every <code>await</code>, with the error swallowed in half of them</li>
+            <li fragment>An event emitter per codebase, none of them typed</li>
+            <li fragment>A fetch wrapper only one teammate understands</li>
+        </ul>
+        <p class="card" fragment>Frontend and backend drift apart because nothing makes them share.</p>
+        <notes>
+            Ask the room which of these they have written this year. Everyone has written the retry loop.
+            The point is not that any one of them is hard. It is that each copy is slightly different,
+            and the differences are where the production bugs live.
+        </notes>
+    </slide>
+
+    <slide horizontal id="packages">
+        <h2>Four packages, one set of rules</h2>
+        <table>
+            <tr><th><code>utils</code></th><td>Error tuples, retry, timeout, circuit breaker, rate limit, memoize, batch</td></tr>
+            <tr><th><code>fetch</code></th><td>HTTP client where timeouts, retries, dedupe, cache, and rate limits are config</td></tr>
+            <tr><th><code>hooks</code></th><td>Named extension points that can change arguments, short-circuit, or abort</td></tr>
+            <tr><th><code>observer</code></th><td>Typed events, regex subscriptions, async iteration, queues</td></tr>
+        </table>
+        <p class="muted">Zero external dependencies. TypeScript first. Tree-shakable. No Node-only or browser-only globals.</p>
+        <notes>
+            Keep this short. The last line is the reason the rest works: nothing here assumes a runtime,
+            so the same import runs in a browser bundle, a Node service, a worker, or a CLI.
+            Packages depend only on each other, so upgrades are predictable.
+        </notes>
+    </slide>
+
+    <slide horizontal id="utils">
+        <h2><code>utils</code>: failure is a value</h2>
+
+        <slide vertical id="utils-errors">
+            <h3>Errors are values</h3>
+            <div class="cols">
+                <pre><code>import { attempt } from '@logosdx/utils';
+
+const [order, err] = await attempt(
+    () =&gt; loadOrder(orderId)
+);
+
+if (err) {
+    return respond(404, 'Order not found');
+}</code></pre>
+                <ul>
+                    <li fragment>No <code>try/catch</code>, no invisible error path</li>
+                    <li fragment>The same line in a React handler and an Express route</li>
+                    <li fragment>Only I/O gets a tuple. Business logic returns directly.</li>
+                </ul>
+            </div>
+            <notes>
+                attempt returns a pair: the value, or the error. You cannot forget to look at the error
+                because it is sitting in a variable you named. Tests get simpler too: assert on the tuple.
+            </notes>
+        </slide>
+
+        <slide vertical id="utils-resilience">
+            <h3>Resilience is a function call</h3>
+            <div class="cols">
+                <pre><code>const charge = makeRetryable(gateway.charge, {
+    retries: 3,
+    delay: 200,
+    backoff: 2,
+    jitterFactor: 0.25
+});
+
+const guarded = circuitBreaker(charge, {
+    maxFailures: 5,
+    resetAfter: 10_000
+});
+
+const charged = withTimeout(guarded, {
+    timeout: 5_000
+});</code></pre>
+                <ul>
+                    <li fragment>Wrap once, call like the original</li>
+                    <li fragment>Exponential backoff with jitter, so retries do not stampede</li>
+                    <li fragment>The breaker fails fast while a dependency is down</li>
+                </ul>
+            </div>
+            <notes>
+                Each wrapper returns a function with the same signature, so they stack. Order matters:
+                here the breaker sees the retried call as one call, and the timeout bounds the whole thing.
+                <code>gateway.charge</code> stands in for any flaky dependency.
+            </notes>
+        </slide>
+
+        <slide vertical id="utils-both">
+            <h3>The same primitives, both sides</h3>
+            <table>
+                <tr><th></th><th>In the browser</th><th>On the server</th></tr>
+                <tr><th><code>attempt</code></th><td>Form submit, route loader</td><td>Request handler, background job</td></tr>
+                <tr><th><code>retry</code></th><td>A flaky save on mobile</td><td>Calls to a partner API</td></tr>
+                <tr><th><code>withTimeout</code></th><td>Search as you type</td><td>Database or gateway call</td></tr>
+                <tr><th><code>memoize</code></th><td>Expensive derived data</td><td>Per-process lookup cache</td></tr>
+                <tr><th><code>batch</code></th><td>Uploading many files</td><td>1,000 records, 50 at a time</td></tr>
+                <tr><th><code>rateLimit</code></th><td>Button mashing</td><td>An outbound API budget</td></tr>
+            </table>
+            <notes>
+                This is the whole argument in one table. Pick a row: the helper is identical, only the
+                call site changes. A team that learns <code>batch</code> for a data import already knows
+                how to throttle a bulk upload.
+            </notes>
+        </slide>
+    </slide>
+
+    <slide horizontal id="fetch">
+        <h2><code>fetch</code>: a client that expects trouble</h2>
+
+        <slide vertical id="fetch-channels">
+            <h3>Three channels, no guessing</h3>
+            <div class="cols">
+                <pre><code>const [res, err] = await attempt(
+    () =&gt; api.get('/orders/42')
+);
+
+if (err) return showOffline();
+if (!res.ok) return showError(res.status);
+
+render(res.data);</code></pre>
+                <ul>
+                    <li fragment><code>err</code>: no response exists (timeout, abort, connection lost)</li>
+                    <li fragment><code>!res.ok</code>: the server said no, and status, headers, and data are all still there</li>
+                    <li fragment><code>res.data</code>: success, typed</li>
+                </ul>
+            </div>
+            <notes>
+                With plain fetch a 404 resolves and a dropped connection throws, so every caller writes both
+                checks and half of them forget one. Here a completed exchange always resolves, whatever the
+                status, and the error slot is reserved for transport failure.
+            </notes>
+        </slide>
+
+        <slide vertical id="fetch-policies">
+            <h3>Policies are config, not code</h3>
+            <div class="cols">
+                <pre><code>const api = new FetchEngine({
+    baseUrl: 'https://api.example.com',
+    totalTimeout: 5_000,
+    retry: { maxAttempts: 3, baseDelay: 150 },
+    dedupePolicy: true,
+    cachePolicy: {
+        ttl: 30_000,
+        staleIn: 10_000
+    },
+    rateLimitPolicy: {
+        maxCalls: 60,
+        windowMs: 60_000,
+        waitForToken: true
+    }
+});</code></pre>
+                <ul>
+                    <li fragment><strong>Browser:</strong> a double click sends one request, and the list renders from cache while it revalidates</li>
+                    <li fragment><strong>Server:</strong> calls to a partner stay under their rate limit, and 5xx responses retry with backoff</li>
+                </ul>
+            </div>
+            <notes>
+                Retry, dedupe, cache, and rate limit are config keys, so there is no p-retry, no in-flight map,
+                no lru-cache to wire up. <code>rules</code> on each policy give one route its own budget
+                without a second client. Per-call escape hatches exist, such as <code>retry: false</code>.
+            </notes>
+        </slide>
+    </slide>
+
+    <slide horizontal id="hooks">
+        <h2><code>hooks</code>: extension points you name</h2>
+
+        <slide vertical id="hooks-basic">
+            <h3>Add behavior without editing the caller</h3>
+            <div class="cols">
+                <pre><code>interface OrderLifecycle {
+    beforeSubmit(order: Order): Promise&lt;Order&gt;;
+}
+
+const hooks = new HookEngine&lt;OrderLifecycle&gt;()
+    .register('beforeSubmit');
+
+hooks.add('beforeSubmit', (order, ctx) =&gt; {
+    if (!order.items.length) ctx.fail('Cart is empty');
+});
+
+await hooks.run('beforeSubmit', order);</code></pre>
+                <ul>
+                    <li fragment>Callbacks get the arguments plus a <code>ctx</code></li>
+                    <li fragment><code>add()</code> returns a cleanup function</li>
+                    <li fragment>A typo in a hook name fails at runtime, because names are registered</li>
+                </ul>
+            </div>
+            <notes>
+                Hooks are not events. An event is fire and forget. A hook can change what happens next, so the
+                caller stays small and the policy lives in the callbacks. The verbs differ on purpose:
+                add and run here, on and emit in observer.
+            </notes>
+        </slide>
+
+        <slide vertical id="hooks-ctx">
+            <h3>Callbacks can change the outcome</h3>
+            <table>
+                <tr><th><code>ctx.args(...)</code></th><td>Replace the arguments for the callbacks after this one</td></tr>
+                <tr><th><code>return ctx.returns(value)</code></th><td>Stop the chain and answer with a value (a cache hit)</td></tr>
+                <tr><th><code>ctx.fail(...)</code></th><td>Abort with an error (a validation failure)</td></tr>
+                <tr><th><code>priority</code>, <code>once</code>, <code>times</code></th><td>Order and lifetime of each callback</td></tr>
+            </table>
+            <ul>
+                <li fragment><strong>Browser:</strong> validate, enrich, and track before a submit</li>
+                <li fragment><strong>Server:</strong> authenticate, audit, and scope to a tenant before a handler runs</li>
+            </ul>
+            <notes>
+                The cache example is the classic: a beforeGet hook returns the cached value and the chain stops,
+                so the request never happens. Priority is a number, lower runs first, default zero.
+            </notes>
+        </slide>
+
+        <slide vertical id="hooks-fetch">
+            <h3>Fetch is built from them</h3>
+            <p>Retry, dedupe, cache, and rate limit are plugins installed on the engine's own <code>HookEngine</code>.</p>
+            <pre><code>const cleanup = api.use(auditPlugin);
+
+// later
+cleanup();</code></pre>
+            <p class="card" fragment>You extend <code>fetch</code> the same way the library does.</p>
+            <notes>
+                <code>retryPlugin</code>, <code>dedupePlugin</code>, <code>cachePlugin</code>,
+                <code>rateLimitPlugin</code>, and <code>cookiePlugin</code> exist as standalone factories.
+                <code>auditPlugin</code> here is yours: something cross-cutting that should not live in every caller.
+            </notes>
+        </slide>
+    </slide>
+
+    <slide horizontal id="observer">
+        <h2><code>observer</code>: events with types and limits</h2>
+
+        <slide vertical id="observer-events">
+            <h3>Typed topics, pattern subscriptions</h3>
+            <div class="cols">
+                <pre><code>interface Events {
+    'order:created': { id: string; total: number };
+    'order:failed': { id: string; reason: string };
+}
+
+const bus = new ObserverEngine&lt;Events&gt;();
+
+bus.on('order:created', ({ id }) =&gt; announce(id));
+bus.on(/^order:/, ({ event }) =&gt; audit(event));
+
+bus.emit('order:created', { id: 'o_42', total: 1999 });</code></pre>
+                <ul>
+                    <li fragment>The payload type follows the event name</li>
+                    <li fragment>A regex listens to a whole family of events</li>
+                    <li fragment>Every <code>on()</code> returns a cleanup, or takes an <code>AbortSignal</code></li>
+                </ul>
+            </div>
+            <notes>
+                In the browser this is how a component hears about a cart change without a prop chain.
+                On the server it is how a request handler announces an order without knowing who cares.
+                Same API, same types.
+            </notes>
+        </slide>
+
+        <slide vertical id="observer-queues">
+            <h3>Queues with concurrency</h3>
+            <div class="cols">
+                <pre><code>bus.queue('order:created', processOrder, {
+    concurrency: 4,
+    taskTimeoutMs: 30_000
+});
+
+// the producer does not change
+bus.emit('order:created', order);</code></pre>
+                <ul>
+                    <li fragment><strong>Server:</strong> fulfil orders four at a time, with a timeout per task</li>
+                    <li fragment><strong>Browser:</strong> send analytics pings on a rate limit, or save edits in order</li>
+                    <li fragment>Queues also support priority, pause and resume, and a draining shutdown</li>
+                </ul>
+            </div>
+            <notes>
+                Emitting an event is how work gets added, so turning a synchronous listener into a bounded
+                worker pool is a one-line change on the consumer side.
+                Use attempt inside the processor, because a throw in a queue processor is still your problem.
+            </notes>
+        </slide>
+
+        <slide vertical id="observer-iterate">
+            <h3>Consume events with <code>for await</code></h3>
+            <pre><code>for await (const { id } of bus.on('order:created')) {
+    await saveToDatabase(id);
+}</code></pre>
+            <p class="card" fragment>Events that arrive while you await are buffered in order, so none are dropped.</p>
+            <notes>
+                Calling on() without a callback gives an async iterator. It is handy for a long-lived consumer
+                in a worker, and for tests that want to await the next event.
+            </notes>
+        </slide>
+    </slide>
+
+    <slide horizontal id="together">
+        <h2>Together: one order, both ends</h2>
+
+        <slide vertical id="together-flow">
+            <h3>The path of a single order</h3>
+            <pre><code>BROWSER                             SERVER
+hooks.run('beforeSubmit')
+fetch.post('/orders')      ───────▶ route handler
+  dedupe + retry                      attempt(loadCart)
+                                      bus.emit('order:created')
+render(res.data)           ◀─────── res.ok / !res.ok
+                                    queue, concurrency 4
+                                      fetch → payment API
+                                      rateLimit + circuitBreaker</code></pre>
+            <ul class="steps">
+                <li fragment>Hooks validate before anything leaves the browser</li>
+                <li fragment>Fetch sends it once, and retries a dropped connection</li>
+                <li fragment>The handler turns failure into a value and emits an event</li>
+                <li fragment>A queue fans the work out at a safe rate</li>
+            </ul>
+            <notes>
+                Walk the diagram left to right. Every box is one of the four packages and none of them is a
+                special case for its side of the wire. When something fails at 2am, there is one way errors
+                look, one way events are named, and one place to read about retries.
+            </notes>
+        </slide>
+
+        <slide vertical id="together-shared">
+            <h3>Share the rules, not just the types</h3>
+            <pre><code>// shared/order-rules.ts, imported by the app and the API
+export function useOrderRules(hooks: HookEngine&lt;OrderLifecycle&gt;) {
+
+    return hooks.add('beforeSubmit', (order, ctx) =&gt; {
+        if (!order.items.length) ctx.fail('Cart is empty');
+    });
+}</code></pre>
+            <ul>
+                <li fragment>The browser runs it for a fast, friendly message</li>
+                <li fragment>The server runs it because the browser cannot be trusted</li>
+                <li fragment>One definition, so the two cannot drift</li>
+            </ul>
+            <notes>
+                This is what a monorepo is for. Types can be shared anywhere. Behavior can only be shared when
+                the building blocks run in both places, which is the point of runtime-agnostic packages.
+            </notes>
+        </slide>
+    </slide>
+
+    <slide horizontal id="limits">
+        <h2>What this is not</h2>
+        <ul>
+            <li fragment>Not a framework: no router, no ORM, no component model</li>
+            <li fragment>Not a reason to wrap a single call that never fails: write the plain code</li>
+            <li fragment>Not a replacement for limits on your own server: the client-side rate limit protects the other side's API, and yours still needs its own</li>
+        </ul>
+        <notes>
+            Be plain about this. The value shows up when the same patterns repeat across a codebase or across
+            the stack. One retry in one file does not need a library. Fifty of them in two runtimes do.
+        </notes>
+    </slide>
+
+    <slide horizontal id="start">
+        <h2>Start with one call</h2>
+        <pre><code>pnpm add @logosdx/utils @logosdx/fetch @logosdx/hooks @logosdx/observer</code></pre>
+        <p class="lede">Wrap one fetch call in <code>attempt</code>, in the frontend and in the backend. Add a policy when the first failure teaches you to.</p>
+        <ul>
+            <li><a href="https://logosdx.dev/getting-started" target="_blank" rel="noopener">logosdx.dev/getting-started</a></li>
+            <li><a href="https://logosdx.dev/packages/utils/" target="_blank" rel="noopener">utils</a> · <a href="https://logosdx.dev/packages/fetch/" target="_blank" rel="noopener">fetch</a> · <a href="https://logosdx.dev/packages/hooks" target="_blank" rel="noopener">hooks</a> · <a href="https://logosdx.dev/packages/observer/" target="_blank" rel="noopener">observer</a></li>
+            <li><a href="https://github.com/logosdx/monorepo" target="_blank" rel="noopener">github.com/logosdx/monorepo</a></li>
+        </ul>
+        <notes>
+            Finish on the smallest possible first step. Questions after this slide.
+            This deck is itself a page built with the slides package, so view source to see the markup.
+        </notes>
+    </slide>
+
+</slides>
+</body>
+</html>

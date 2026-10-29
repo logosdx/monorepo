@@ -481,6 +481,7 @@ With the OS reduced-motion setting on, the stylesheet turns off smooth scrolling
 ## Related
 
 
+- [Why LogosDX, as a presentation](/examples/why-logosdx): a working deck built with this package.
 - [DOM](/packages/dom/): the deck is built on `observe()` and `watchVisibility()`.
 - [Observer](/packages/observer/): `deck.on()` is an `ObserverEngine` subscription.
 - [Utils](/packages/utils/): `attemptSync` for guarding `goTo`.

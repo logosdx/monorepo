@@ -159,6 +159,12 @@ export default withMermaid(defineConfig({
       {
         text: 'Packages',
         items: packages
+      },
+      {
+        text: 'Examples',
+        items: [
+          { text: 'Why LogosDX (slides)', link: '/examples/why-logosdx' }
+        ]
       }
     ],
 
